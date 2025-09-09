@@ -4,6 +4,7 @@ import RegistrationForm from "./components/RegistrationForm";
 import LoginForm from "./components/LoginForm";
 import Layout from "./components/Layout";
 import Home from "./components/Home";
+import Reports from "./components/Reports";
 
 function App() {
   return (
@@ -16,7 +17,7 @@ function App() {
         {/* With sidebar layout */}
         <Route element={<Layout />}>
           <Route path="/home" element={<Home />} />
-          <Route path="/reports" element={<div>Reports</div>} />
+          <Route path="/reports" element={<Reports />} />
           <Route path="/notifications" element={<div>Notifications</div>} />
           <Route path="/profile" element={<div>Profile</div>} />
         </Route>
