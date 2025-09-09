@@ -16,7 +16,7 @@ import {
   ResponsiveContainer,
   Legend,
 } from "recharts";
-import MapView from "../components/MapView";
+import MapView from "../components/Mapview";
 import "./Home.css";
 
 function Home() {
