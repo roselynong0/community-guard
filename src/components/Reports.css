@@ -28,6 +28,8 @@
   padding: 6px 10px;
   border: 1px solid #ccc;
   border-radius: 20px;
+  background-color: #fff !important;
+  color: #000 !important;
 }
 
 .top-controls .search-input {
@@ -81,6 +83,8 @@
   margin-bottom: 10px;
   padding: 8px;
   border: 1px solid #ccc;
+  background-color: #fff !important;
+  color: #000 !important;
 }
 
 .modal select {
@@ -90,6 +94,8 @@
   margin-bottom: 10px;
   padding: 8px;
   border: 1px solid #ccc;
+  background-color: #fff !important;
+  color: #000 !important;
 }
 
 .modal-actions {
