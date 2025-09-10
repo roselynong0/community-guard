@@ -175,7 +175,7 @@ function Reports() {
           className="history-btn"
           onClick={() => setShowHistory(!showHistory)}
         >
-          {showHistory ? "All Reports" : "My Report History"}
+          {showHistory ? "All Reports" : "My Reports"}
         </button>
       </div>
 
