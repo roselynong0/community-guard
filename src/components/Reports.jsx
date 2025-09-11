@@ -9,6 +9,7 @@ function Reports() {
   const [barangay, setBarangay] = useState("All");
   const [sort, setSort] = useState("latest");
   const [showHistory, setShowHistory] = useState(false);
+  const [previewImage, setPreviewImage] = useState(null);
 
   // Modal states
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -20,9 +21,9 @@ function Reports() {
     description: "",
     category: "Concern",
     barangay: "Barretto",
-    image: null,
+    images: [],
     date: new Date().toISOString(),
-    user: "user1", // mock author
+    user: "user1", 
   });
 
   const [editReportId, setEditReportId] = useState(null); // track if editing
@@ -30,6 +31,9 @@ function Reports() {
   // Mock user
   const currentUser = "user1";
   const [deleteTarget, setDeleteTarget] = useState(null);
+
+  // Track expanded posts
+  const [expandedPosts, setExpandedPosts] = useState([]);
 
   useEffect(() => {
     const dummyReports = [
@@ -228,54 +232,107 @@ function Reports() {
       <div className="reports-list">
         {filteredReports.length > 0 ? (
           filteredReports.map((report) => {
-            const shortDesc =
-              report.description.length > 100
-                ? report.description.slice(0, 100) + "..."
-                : report.description;
+            const isExpanded = expandedPosts.includes(report.id);
 
             return (
               <div key={report.id} className="report-card">
-                <img
-                  src={report.image}
-                  alt={report.title}
-                  className="report-image"
-                />
-                <div className="report-info">
-                  <h3>{report.title}</h3>
-                  <p>
-                    <strong>Category:</strong> {report.category}
-                  </p>
-                  <p>
-                    <strong>Barangay:</strong> {report.barangay}
-                  </p>
-                  <p>
-                    <strong>Date:</strong>{" "}
-                    {new Date(report.date).toLocaleString()}
-                  </p>
-                  <p>{shortDesc}</p>
-
-                  <div className="report-actions">
-                    <button className="readmore-btn">Read More</button>
-                    {report.user === currentUser && (
-                      <>
-                        <button
-                          className="icon-btn edit-btn"
-                          onClick={() => handleEdit(report)}
-                        >
-                          <FaEdit />
-                        </button>
-                        <button
-                          className="icon-btn delete-btn"
-                          onClick={() => {
-                            setDeleteTarget(report);
-                            setIsDeleteConfirmOpen(true);
-                          }}
-                        >
-                          <FaTrashAlt />
-                        </button>
-                      </>
-                    )}
+                {/* Header */}
+                <div className="report-header">
+                  <div className="report-header-left">
+                    <img
+                      src="/src/assets/profile.png"
+                      alt="profile"
+                      className="profile-pic"
+                    />
+                    <div className="report-header-text">
+                      <p className="report-user">{report.user}</p>
+                      <p className="report-subinfo">
+                        {new Date(report.date).toLocaleString()} · {report.category}
+                      </p>
+                    </div>
                   </div>
+
+                  {/* Edit/Delete buttons top right */}
+                  {report.user === currentUser && (
+                    <div className="report-header-actions">
+                      <button
+                        className="icon-btn edit-btn"
+                        onClick={() => handleEdit(report)}
+                      >
+                        <FaEdit />
+                      </button>
+                      <button
+                        className="icon-btn delete-btn"
+                        onClick={() => {
+                          setDeleteTarget(report);
+                          setIsDeleteConfirmOpen(true);
+                        }}
+                      >
+                        <FaTrashAlt />
+                      </button>
+                    </div>
+                  )}
+                </div>
+
+                {/* Caption */}
+                <div className="report-caption">
+                  <strong>{report.title}</strong>{" "} <br />
+                  {isExpanded
+                    ? report.description
+                    : report.description.slice(0, 130)}
+
+                  {report.description.length > 130 && (
+                    <span
+                      className="more-link"
+                      onClick={() =>
+                        setExpandedPosts((prev) =>
+                          isExpanded
+                            ? prev.filter((id) => id !== report.id)
+                            : [...prev, report.id]
+                        )
+                      }
+                    >
+                      {isExpanded ? " Show less" : " ...more"}
+                    </span>
+                  )}
+                </div>
+
+                {/* Post Image */}
+                {report.image && (
+                  <img
+                    src={report.image}
+                    alt={report.title}
+                    className="report-thumbnail"
+                    onClick={() => setPreviewImage(report.image)}
+                  />
+                )}
+
+                {/* Post Images */}
+                {report.images && report.images.length > 0 && (
+                  <div className={`report-images images-${report.images.length}`}>
+                    {report.images.map((img, idx) => (
+                      <img
+                        key={idx}
+                        src={img}
+                        alt={`report-${idx}`}
+                        className="report-thumbnail"
+                        onClick={() => setPreviewImage(img)}
+                      />
+                    ))}
+                  </div>
+                )}
+
+                {previewImage && (
+                  <div className="modal-overlay" onClick={() => setPreviewImage(null)}>
+                    <div className="image-preview-modal">
+                      <img src={previewImage} alt="Preview" />
+                    </div>
+                  </div>
+                )}
+
+                {/* Actions */}
+                <div className="report-actions">
+                  <button className="like-btn">Like</button>
                 </div>
               </div>
             );
@@ -335,22 +392,23 @@ function Reports() {
                 setNewReport({ ...newReport, barangay: e.target.value })
               }
             >
-              {barangays.filter((b) => b !== "All").map((b) => (
-                <option key={b} value={b}>
-                  {b}
-                </option>
-              ))}
+              {barangays
+                .filter((b) => b !== "All")
+                .map((b) => (
+                  <option key={b} value={b}>
+                    {b}
+                  </option>
+                ))}
             </select>
 
             <input
               type="file"
               accept="image/*"
+              multiple
               onChange={(e) => {
-                const file = e.target.files[0];
-                if (file) {
-                  const imageUrl = URL.createObjectURL(file);
-                  setNewReport({ ...newReport, image: imageUrl });
-                }
+                const files = Array.from(e.target.files).slice(0, 5); // limit to 5
+                const urls = files.map((file) => URL.createObjectURL(file));
+                setNewReport({ ...newReport, images: urls });
               }}
             />
 
