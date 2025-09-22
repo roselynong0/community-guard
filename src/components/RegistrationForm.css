@@ -62,7 +62,6 @@ html, body {
 
 .form-card p {
   font-size: 0.9rem;
-  margin: 0px;
   color: rgb(236, 0, 0);
 }
 
@@ -85,7 +84,7 @@ input[type="email"],
 input[type="password"] {
   width: 92%;
   padding: 0.75rem;
-  margin-bottom: 0.5rem;
+  margin-bottom: 1rem;
   border: 1px solid #ccc;
   border-radius: 30px;
   font-size: 0.95rem;
@@ -125,7 +124,7 @@ input[type="password"]::placeholder {
   display: flex;
   align-items: center;
   font-size: 0.9rem;
-  margin-bottom: 0.5rem;
+  margin-bottom: 1rem;
   gap: 0.3rem; 
 }
 
@@ -198,39 +197,6 @@ button:hover {
   margin-top: -0.8rem;
   margin-bottom: 0.5rem;
 }
-
-/* Override Bootstrap default warning */
-.alert-warning {
-  background-color: #ffe5e5;  /* light red background */
-  color: #b00020;             /* dark red text */
-  border: 1px solid #b00020;  /* custom border */
-  font-size: 0.9rem;
-  border-radius: 6px;
-  padding: 10px 15px;
-}
-
-/* Override Bootstrap input error */
-.is-invalid {
-  border-color: #b00020 !important;
-  background-color: #ffe5e5 !important;
-  box-shadow: none !important;
-}
-
-.invalid-feedback {
-  color: #b00020;
-  font-size: 0.85rem;
-}
-
-.error-message {
-  color: #d9534f;
-  border-radius: 5px;
-  padding: 2px 10px;
-  margin-top: 0.8px !important;
-  width: 93%; /* Added to match input width */
-  font-size: 0.9rem;
-  text-align: left;
-}
-
 
 @keyframes bgSlide {
   from {

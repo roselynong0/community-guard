@@ -4,7 +4,6 @@
   gap: 1rem;
 }
 
-/* Stat cards grid */
 .stats-grid {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
@@ -37,7 +36,6 @@
   font-size: 1.8rem;
 }
 
-/* Middle grid (recent reports + chart) */
 .middle-grid {
   display: grid;
   grid-template-columns: 2fr 1.5fr; 
@@ -111,7 +109,6 @@ h3 {
   color: #333;
 }
 
-/* Map placeholder */
 .map-section {
   background: #fff;
   padding: 1rem;

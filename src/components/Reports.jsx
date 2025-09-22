@@ -172,7 +172,6 @@ function Reports() {
 
   return (
     <div className="reports-container">
-      {/* Header with My Report History */}
       <div className="header-row">
         <h2>Community Reports</h2>
         <button
@@ -183,7 +182,6 @@ function Reports() {
         </button>
       </div>
 
-      {/* Filters + Search + Add Report in one row */}
       <div className="top-controls">
         <input
           type="text"
@@ -215,7 +213,6 @@ function Reports() {
           <option value="oldest">Oldest → Latest</option>
         </select>
 
-        {/* Add Report Button */}
         <button
           className="add-btn"
           onClick={() => {
@@ -228,7 +225,6 @@ function Reports() {
         </button>
       </div>
 
-      {/* Reports List */}
       <div className="reports-list">
         {filteredReports.length > 0 ? (
           filteredReports.map((report) => {
@@ -236,7 +232,6 @@ function Reports() {
 
             return (
               <div key={report.id} className="report-card">
-                {/* Header */}
                 <div className="report-header">
                   <div className="report-header-left">
                     <img
@@ -252,7 +247,6 @@ function Reports() {
                     </div>
                   </div>
 
-                  {/* Edit/Delete buttons top right */}
                   {report.user === currentUser && (
                     <div className="report-header-actions">
                       <button
@@ -274,7 +268,6 @@ function Reports() {
                   )}
                 </div>
 
-                {/* Caption */}
                 <div className="report-caption">
                   <strong>{report.title}</strong>{" "} <br />
                   {isExpanded
@@ -307,7 +300,7 @@ function Reports() {
                   />
                 )}
 
-                {/* Post Images */}
+                {/* Post Collage Images */}
                 {report.images && report.images.length > 0 && (
                   <div className={`report-images images-${report.images.length}`}>
                     {report.images.map((img, idx) => (
@@ -330,7 +323,6 @@ function Reports() {
                   </div>
                 )}
 
-                {/* Actions */}
                 <div className="report-actions">
                   <button className="like-btn">Like</button>
                 </div>
@@ -342,7 +334,6 @@ function Reports() {
         )}
       </div>
 
-      {/* Add/Edit Modal */}
       {isModalOpen && (
         <div className="modal-overlay">
           <div className="modal">
@@ -429,7 +420,6 @@ function Reports() {
         </div>
       )}
 
-      {/* Delete Confirmation Modal */}
       {isDeleteConfirmOpen && (
         <div className="modal-overlay">
           <div className="modal">

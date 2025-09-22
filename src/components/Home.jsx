@@ -50,7 +50,6 @@ function Home() {
 
   return (
     <div className="dashboard">
-      {/* Top Section: Stat Cards */}
       <div className="stats-grid">
         {stats.map((stat, i) => (
           <div
@@ -70,9 +69,7 @@ function Home() {
         ))}
       </div>
 
-      {/* Middle Section: Reports + Chart */}
       <div className="middle-grid animate-up" style={{ animationDelay: "0.2s" }}>
-        {/* Recent Reports */}
         <div className="recent-reports animate-up" style={{ animationDelay: "0.3s" }}>
           <h3>Recent Reports</h3>
           <ul>
@@ -88,7 +85,6 @@ function Home() {
           </ul>
         </div>
 
-        {/* Pie Chart */}
         <div className="reports-chart animate-up" style={{ animationDelay: "0.4s" }}>
           <h3>Reports by Category</h3>
           <div className="chart-container">
@@ -115,7 +111,6 @@ function Home() {
         </div>
       </div>
 
-      {/* Bottom Section: Map Placeholder */}
       <div className="map-section animate-up" style={{ animationDelay: "0.5s" }}>
         <h3>Community Map</h3>
         <div className="map-placeholder">

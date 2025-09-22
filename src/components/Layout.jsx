@@ -16,7 +16,6 @@ function Layout() {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [dateTime, setDateTime] = useState(new Date());
 
-  // Update time every second
   useEffect(() => {
     const interval = setInterval(() => {
       setDateTime(new Date());
@@ -24,7 +23,6 @@ function Layout() {
     return () => clearInterval(interval);
   }, []);
 
-  // Format date & time
   const formattedDateTime = dateTime.toLocaleString("en-US", {
     weekday: "long",
     month: "short",
@@ -38,7 +36,6 @@ function Layout() {
 
   return (
     <div className="home-container">
-      {/* Sidebar */}
       {sidebarOpen && (
         <aside className="sidebar">
           <div className="logo">
@@ -55,9 +52,7 @@ function Layout() {
         </aside>
       )}
 
-      {/* Main Area */}
       <main className="main-area">
-        {/* Top Bar */}
         <div className="top-bar">
           <button
             className="menu-btn"
@@ -66,7 +61,6 @@ function Layout() {
             <FaBars />
           </button>
 
-          {/* Mobile logo */}
           <div className="mobile-logo">
             <img src={logo} alt="Community Guard Logo" className="logo-img" />
           </div>
@@ -75,12 +69,9 @@ function Layout() {
             <FaCalendarAlt /> {formattedDateTime}
           </div>
         </div>
-
-        {/* Page content will load here */}
         <Outlet />
       </main>
 
-      {/* Bottom Nav (Mobile Only) */}
       <nav className="bottom-nav">
         <NavLink to="/home"><FaHome /> Home</NavLink>
         <NavLink to="/reports"><FaPlusCircle /> Reports</NavLink>

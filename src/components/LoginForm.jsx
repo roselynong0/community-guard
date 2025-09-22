@@ -1,7 +1,6 @@
-// LoginForm.jsx
 import React, { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
-import './RegistrationForm.css'; // ✅ Reuse the same CSS for errors
+import { Link, useNavigate } from 'react-router-dom'; // ✅ import useNavigate
+import './RegistrationForm.css'; // or AuthForm.css
 
 function LoginForm() {
   const [formData, setFormData] = useState({
@@ -10,6 +9,7 @@ function LoginForm() {
   });
 
   const [errors, setErrors] = useState({});
+
   const navigate = useNavigate();
 
   const handleChange = (e) => {
@@ -19,14 +19,7 @@ function LoginForm() {
 
   const validate = () => {
     const newErrors = {};
-    if (!formData.email) {
-      newErrors.email = 'Email is required';
-    } else if (!formData.email.includes('@')) {
-      newErrors.email = 'Email must contain @';
-    } else if (!/\S+@\S+\.\S+/.test(formData.email)) {
-      newErrors.email = 'Invalid email format';
-    }
-
+    if (!formData.email) newErrors.email = 'Email is required';
     if (!formData.password) newErrors.password = 'Password is required';
     return newErrors;
   };
@@ -34,10 +27,10 @@ function LoginForm() {
   const handleSubmit = (e) => {
     e.preventDefault();
     const validationErrors = validate();
-
     if (Object.keys(validationErrors).length === 0) {
       alert('Login successful!');
-      navigate('/home'); // ✅ Redirect after successful login
+      // ✅ Navigate to Home after successful login
+      navigate('/home'); // Replace '/home' with your actual Home route
     } else {
       setErrors(validationErrors);
     }
@@ -53,18 +46,15 @@ function LoginForm() {
 
         <div className="form-card">
           <h2>Login</h2>
-          <form onSubmit={handleSubmit} noValidate>
+          <form onSubmit={handleSubmit}>
             <input
               type="email"
               name="email"
               placeholder="Email Address"
               value={formData.email}
               onChange={handleChange}
-              className={errors.email ? 'is-invalid' : ''}
             />
-            {errors.email && (
-              <p className="error-message">{errors.email}</p>
-            )}
+            {errors.email && <p className="error">{errors.email}</p>}
 
             <input
               type="password"
@@ -72,11 +62,8 @@ function LoginForm() {
               placeholder="Password"
               value={formData.password}
               onChange={handleChange}
-              className={errors.password ? 'is-invalid' : ''}
             />
-            {errors.password && (
-              <p className="error-message">{errors.password}</p>
-            )}
+            {errors.password && <p className="error">{errors.password}</p>}
 
             <button type="submit">Login</button>
 
