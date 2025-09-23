@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom'; // ✅ import useNavigate
-import './RegistrationForm.css'; // or AuthForm.css
+import { Link, useNavigate } from 'react-router-dom';
+import './RegistrationForm.css';
 
 function LoginForm() {
   const [formData, setFormData] = useState({
@@ -29,8 +29,7 @@ function LoginForm() {
     const validationErrors = validate();
     if (Object.keys(validationErrors).length === 0) {
       alert('Login successful!');
-      // ✅ Navigate to Home after successful login
-      navigate('/home'); // Replace '/home' with your actual Home route
+      navigate('/home');
     } else {
       setErrors(validationErrors);
     }
@@ -66,6 +65,10 @@ function LoginForm() {
             {errors.password && <p className="error">{errors.password}</p>}
 
             <button type="submit">Login</button>
+
+            <Link to="/forgot-password" className="forgot-password-link">
+              Forgot Password?
+            </Link>
 
             <Link to="/" className="back-link">
               Don't have an account? Register
