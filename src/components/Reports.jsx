@@ -11,75 +11,92 @@ function Reports() {
   const [showHistory, setShowHistory] = useState(false);
   const [previewImage, setPreviewImage] = useState(null);
 
-  // Modal states
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false);
 
-  // Report being added/edited
   const [newReport, setNewReport] = useState({
     title: "",
     description: "",
     category: "Concern",
     barangay: "Barretto",
+    addressStreet: "",
     images: [],
     date: new Date().toISOString(),
-    user: "user1", 
+    user: "user1",
   });
 
-  const [editReportId, setEditReportId] = useState(null); // track if editing
+  const [editReportId, setEditReportId] = useState(null);
 
   // Mock user
   const currentUser = "user1";
   const [deleteTarget, setDeleteTarget] = useState(null);
-
-  // Track expanded posts
   const [expandedPosts, setExpandedPosts] = useState([]);
 
   useEffect(() => {
     const dummyReports = [
       {
         id: 1,
-        title: "Pickpocket Incident",
+        title: "Pickpocket Incident Near Market",
         category: "Crime",
         barangay: "East Tapinac",
+        addressStreet: "Public Market St",
         date: "2025-09-09T14:20:00",
         description:
-          "A pickpocketing incident happened near the market. Multiple residents reported losing wallets and phones around 2PM.",
+          "A pickpocketing incident happened near the market. Multiple residents reported losing wallets and phones around 2PM. Please be vigilant in crowded areas.",
         user: "user2",
-        image: "/src/assets/logo.png",
+        status: "Resolved", 
+        images: [
+          "https://picsum.photos/id/401/400/300",
+          "https://picsum.photos/id/402/400/300",
+        ],
       },
       {
         id: 2,
         title: "Fallen Electric Post",
         category: "Hazard",
         barangay: "Santa Rita",
+        addressStreet: "45 Rizal Avenue",
         date: "2025-09-08T22:00:00",
         description:
-          "An electric post fell after the heavy rains last night, blocking the main road and posing danger to vehicles and pedestrians.",
+          "An electric post fell after the heavy rains last night, blocking the main road and posing danger to vehicles and pedestrians. Avoid the area until cleared.",
         user: "user1",
-        image: "/src/assets/logo.png",
+        status: "Ongoing", 
+        images: ["https://picsum.photos/id/403/400/300"],
       },
       {
         id: 3,
-        title: "Garbage Overflowing",
+        title: "Garbage Overflowing Bins",
         category: "Concern",
         barangay: "New Cabalan",
+        addressStreet: "Corner of Magsaysay St",
         date: "2025-09-08T18:40:00",
         description:
-          "The garbage bins along the main street have been overflowing for days, causing a foul smell and attracting stray animals.",
+          "The garbage bins along the main street have been overflowing for days, causing a foul smell and attracting stray animals. Requesting immediate clean-up.",
         user: "user1",
-        image: "/src/assets/logo.png",
+        status: "Pending",
+        images: [
+          "https://picsum.photos/id/404/400/300",
+          "https://picsum.photos/id/405/400/300",
+          "https://picsum.photos/id/406/400/300",
+          "https://picsum.photos/id/407/400/300",
+        ],
       },
       {
         id: 4,
         title: "Lost Wallet",
         category: "Lost&Found",
         barangay: "Barretto",
+        addressStreet: "Near St. Joseph Church",
         date: "2025-09-07T10:15:00",
         description:
           "A black leather wallet was lost near the church. Contains IDs and some cash. Please return if found.",
         user: "user2",
-        image: "/src/assets/logo.png",
+        status: "Pending", 
+        images: [
+          "https://picsum.photos/id/404/400/300",
+          "https://picsum.photos/id/405/400/300",
+          "https://picsum.photos/id/406/400/300",
+        ],
       },
     ];
     setReports(dummyReports);
@@ -123,20 +140,19 @@ function Reports() {
 
   const handleAddOrUpdateReport = () => {
     if (editReportId) {
-      // Update existing report
       setReports(
         reports.map((r) =>
           r.id === editReportId ? { ...r, ...newReport } : r
         )
       );
     } else {
-      // Add new report
       const newId = reports.length + 1;
       const report = {
         id: newId,
         ...newReport,
         date: new Date().toISOString(),
         user: currentUser,
+        status: "Pending", 
       };
       setReports([report, ...reports]);
     }
@@ -152,7 +168,8 @@ function Reports() {
       description: "",
       category: "Concern",
       barangay: "Barretto",
-      image: null,
+      addressStreet: "",
+      images: [],
       date: new Date().toISOString(),
       user: currentUser,
     });
@@ -168,6 +185,12 @@ function Reports() {
     setReports(reports.filter((r) => r.id !== deleteTarget.id));
     setDeleteTarget(null);
     setIsDeleteConfirmOpen(false);
+  };
+
+  const toggleExpand = (id) => {
+    setExpandedPosts((prev) =>
+      prev.includes(id) ? prev.filter((reportId) => reportId !== id) : [...prev, id]
+    );
   };
 
   return (
@@ -229,6 +252,11 @@ function Reports() {
         {filteredReports.length > 0 ? (
           filteredReports.map((report) => {
             const isExpanded = expandedPosts.includes(report.id);
+            const displayDescription = isExpanded
+                  ? report.description
+                  : `${report.description.slice(0, 130)}${
+                      report.description.length > 130 ? "..." : ""
+                    }`;
 
             return (
               <div key={report.id} className="report-card">
@@ -241,66 +269,61 @@ function Reports() {
                     />
                     <div className="report-header-text">
                       <p className="report-user">{report.user}</p>
+
                       <p className="report-subinfo">
                         {new Date(report.date).toLocaleString()} · {report.category}
+                      </p>
+
+                      <p className="report-address-info">
+                        {report.addressStreet}, {report.barangay}, Olongapo City
                       </p>
                     </div>
                   </div>
 
-                  {report.user === currentUser && (
-                    <div className="report-header-actions">
-                      <button
-                        className="icon-btn edit-btn"
-                        onClick={() => handleEdit(report)}
-                      >
-                        <FaEdit />
-                      </button>
-                      <button
-                        className="icon-btn delete-btn"
-                        onClick={() => {
-                          setDeleteTarget(report);
-                          setIsDeleteConfirmOpen(true);
-                        }}
-                      >
-                        <FaTrashAlt />
-                      </button>
-                    </div>
-                  )}
+                  <div className="report-header-actions">
+                    <span className={`status-badge status-${report.status.toLowerCase()}`}>
+                      {report.status}
+                    </span>
+
+                    {report.user === currentUser && (
+                      <>
+                        <button
+                          className="icon-btn edit-btn"
+                          onClick={() => handleEdit(report)}
+                        >
+                          <FaEdit />
+                        </button>
+                        <button
+                          className="icon-btn delete-btn"
+                          onClick={() => {
+                            setDeleteTarget(report);
+                            setIsDeleteConfirmOpen(true);
+                          }}
+                        >
+                          <FaTrashAlt />
+                        </button>
+                      </>
+                    )}
+                  </div>
                 </div>
 
                 <div className="report-caption">
-                  <strong>{report.title}</strong>{" "} <br />
-                  {isExpanded
-                    ? report.description
-                    : report.description.slice(0, 130)}
+                  <strong>{report.title}</strong>
 
-                  {report.description.length > 130 && (
-                    <span
-                      className="more-link"
-                      onClick={() =>
-                        setExpandedPosts((prev) =>
-                          isExpanded
-                            ? prev.filter((id) => id !== report.id)
-                            : [...prev, report.id]
-                        )
-                      }
-                    >
-                      {isExpanded ? " Show less" : " ...more"}
-                    </span>
-                  )}
+                  <p className="report-description-text">
+                    {displayDescription}
+
+                    {report.description.length > 130 && (
+                      <span
+                        className="more-link"
+                        onClick={() => toggleExpand(report.id)}
+                      >
+                        {isExpanded ? " Show less" : " ...more"}
+                      </span>
+                    )}
+                  </p>
                 </div>
 
-                {/* Post Image */}
-                {report.image && (
-                  <img
-                    src={report.image}
-                    alt={report.title}
-                    className="report-thumbnail"
-                    onClick={() => setPreviewImage(report.image)}
-                  />
-                )}
-
-                {/* Post Collage Images */}
                 {report.images && report.images.length > 0 && (
                   <div className={`report-images images-${report.images.length}`}>
                     {report.images.map((img, idx) => (
@@ -308,18 +331,10 @@ function Reports() {
                         key={idx}
                         src={img}
                         alt={`report-${idx}`}
-                        className="report-thumbnail"
+                        className="report-collage-img"
                         onClick={() => setPreviewImage(img)}
                       />
                     ))}
-                  </div>
-                )}
-
-                {previewImage && (
-                  <div className="modal-overlay" onClick={() => setPreviewImage(null)}>
-                    <div className="image-preview-modal">
-                      <img src={previewImage} alt="Preview" />
-                    </div>
                   </div>
                 )}
 
@@ -335,8 +350,8 @@ function Reports() {
       </div>
 
       {isModalOpen && (
-        <div className="modal-overlay">
-          <div className="modal">
+        <div className="modal-overlay" onClick={() => setIsModalOpen(false)}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
             <h3>{editReportId ? "Edit Report" : "Add New Report"}</h3>
 
             <p>
@@ -347,6 +362,7 @@ function Reports() {
               {new Date(newReport.date).toLocaleDateString()}
             </p>
 
+            <label>Title:</label>
             <input
               type="text"
               placeholder="Title"
@@ -356,6 +372,7 @@ function Reports() {
               }
             />
 
+            <label>Description:</label>
             <textarea
               placeholder="Description"
               value={newReport.description}
@@ -364,6 +381,34 @@ function Reports() {
               }
             />
 
+            <div className="address-fields">
+              <label>Street Address:</label>
+              <input
+                type="text"
+                placeholder="e.g. 45 Rizal Avenue"
+                value={newReport.addressStreet}
+                onChange={(e) =>
+                  setNewReport({ ...newReport, addressStreet: e.target.value })
+                }
+              />
+              <label>Barangay:</label>
+              <select
+                value={newReport.barangay}
+                onChange={(e) =>
+                  setNewReport({ ...newReport, barangay: e.target.value })
+                }
+              >
+                {barangays
+                  .filter((b) => b !== "All")
+                  .map((b) => (
+                    <option key={b} value={b}>
+                      {b}
+                    </option>
+                  ))}
+              </select>
+            </div>
+
+            <label>Category:</label>
             <select
               value={newReport.category}
               onChange={(e) =>
@@ -377,36 +422,22 @@ function Reports() {
               <option value="Others">Others</option>
             </select>
 
-            <select
-              value={newReport.barangay}
-              onChange={(e) =>
-                setNewReport({ ...newReport, barangay: e.target.value })
-              }
-            >
-              {barangays
-                .filter((b) => b !== "All")
-                .map((b) => (
-                  <option key={b} value={b}>
-                    {b}
-                  </option>
-                ))}
-            </select>
+            <label className="upload-btn">
+                Upload Image(s)
+                <input
+                    type="file"
+                    accept="image/*"
+                    multiple
+                    onChange={(e) => {
+                        const files = Array.from(e.target.files).slice(0, 5); // limit to 5
+                        const urls = files.map((file) => URL.createObjectURL(file));
+                        setNewReport({ ...newReport, images: urls });
+                    }}
+                    hidden
+                />
+            </label>
 
-            <input
-              type="file"
-              accept="image/*"
-              multiple
-              onChange={(e) => {
-                const files = Array.from(e.target.files).slice(0, 5); // limit to 5
-                const urls = files.map((file) => URL.createObjectURL(file));
-                setNewReport({ ...newReport, images: urls });
-              }}
-            />
-
-            <div className="edit-actions">
-              <button onClick={handleAddOrUpdateReport}>
-                {editReportId ? "Update" : "Submit"}
-              </button>
+            <div className="modal-buttons">
               <button
                 onClick={() => {
                   setIsModalOpen(false);
@@ -414,6 +445,9 @@ function Reports() {
                 }}
               >
                 Cancel
+              </button>
+              <button onClick={handleAddOrUpdateReport}>
+                {editReportId ? "Update" : "Submit"}
               </button>
             </div>
           </div>
@@ -432,6 +466,12 @@ function Reports() {
               </button>
             </div>
           </div>
+        </div>
+      )}
+
+      {previewImage && (
+        <div className="fullscreen-modal" onClick={() => setPreviewImage(null)}>
+          <img src={previewImage} alt="Full screen" className="fullscreen-image" />
         </div>
       )}
     </div>

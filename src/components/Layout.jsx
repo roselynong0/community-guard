@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { Outlet, NavLink } from "react-router-dom";
+import { Outlet, NavLink, useNavigate } from "react-router-dom";
 import {
   FaHome,
   FaPlusCircle,
@@ -15,6 +15,8 @@ import logo from "../assets/logo.png";
 function Layout() {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [dateTime, setDateTime] = useState(new Date());
+  const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
+  const navigate = useNavigate();
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -34,6 +36,12 @@ function Layout() {
     hour12: true,
   });
 
+  const handleLogout = () => {
+    console.log("User logged out");
+    setShowLogoutConfirm(false);
+    navigate("/login"); 
+  };
+
   return (
     <div className="home-container">
       {sidebarOpen && (
@@ -48,7 +56,12 @@ function Layout() {
             <NavLink to="/notifications"><FaBell /> Notifications</NavLink>
             <NavLink to="/profile"><FaUser /> Profile</NavLink>
           </nav>
-          <button className="logout-btn"><FaSignOutAlt /> Logout</button>
+          <button 
+            className="logout-btn" 
+            onClick={() => setShowLogoutConfirm(true)}
+          >
+            <FaSignOutAlt /> Logout
+          </button>
         </aside>
       )}
 
@@ -78,6 +91,19 @@ function Layout() {
         <NavLink to="/notifications"><FaBell /> Notifications</NavLink>
         <NavLink to="/profile"><FaUser /> Profile</NavLink>
       </nav>
+
+      {showLogoutConfirm && (
+        <div className="modal-overlay">
+          <div className="modal">
+            <h3>Confirm Logout</h3>
+            <p>Are you sure you want to log out?</p>
+            <div className="modal-actions">
+              <button onClick={() => setShowLogoutConfirm(false)} className="cancel-btn">Cancel</button>
+              <button onClick={handleLogout} className="confirm-btn">Logout</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

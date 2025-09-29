@@ -1,11 +1,13 @@
 import React, { useState } from "react";
-import { FaEdit, FaTrashAlt } from "react-icons/fa";
+import { useNavigate } from "react-router-dom";
+import { FaEdit, FaSignOutAlt, FaTrashAlt } from "react-icons/fa";
 import "./Profile.css";
 
 function Profile() {
   const [fullScreenImage, setFullScreenImage] = useState(null);
   const [profilePic, setProfilePic] = useState(null);
   const [showModal, setShowModal] = useState(null);
+  const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const [user, setUser] = useState({
     firstname: "Juan",
     lastname: "Dela Cruz",
@@ -17,6 +19,7 @@ function Profile() {
     reportsSubmitted: 12,
     reportsResolved: 8
   });
+  const navigate = useNavigate();
 
   const [reports, setReports] = useState([
     {
@@ -28,7 +31,8 @@ function Profile() {
       date: "2025-09-09T14:20:00",
       description:
         "A pickpocketing incident happened near the market. Multiple residents reported losing wallets and phones around 2PM.",
-      user: "user2",
+      user: "user1", 
+      status: "Resolved", 
       image: "/src/assets/sample.jpg",
     },
     {
@@ -40,8 +44,12 @@ function Profile() {
       date: "2025-09-08T22:00:00",
       description:
         "An electric post fell after the heavy rains last night, blocking the main road and posing danger to vehicles and pedestrians.",
-      user: "user1",
-      image: "/src/assets/sample.jpg",
+      user: "user1", 
+      status: "Ongoing",
+      images:[
+          "https://picsum.photos/id/405/400/300",
+          "https://picsum.photos/id/406/400/300",
+        ],
     },
     {
       id: 3,
@@ -52,21 +60,15 @@ function Profile() {
       date: "2025-09-08T18:40:00",
       description:
         "The garbage bins along the main street have been overflowing for days, causing a foul smell and attracting stray animals.",
-      user: "user1",
-      image: "/src/assets/sample.jpg",
+      user: "user1", 
+      status: "Pending",
+      images: [
+          "https://picsum.photos/id/404/400/300",
+          "https://picsum.photos/id/405/400/300",
+          "https://picsum.photos/id/406/400/300",
+        ],
     },
-    {
-      id: 4,
-      title: "Lost Wallet",
-      category: "Lost&Found",
-      addressStreet: "88 Church Rd.",
-      barangay: "Barretto",
-      date: "2025-09-07T10:15:00",
-      description:
-        "A black leather wallet was lost near the church. Contains IDs and some cash. Please return if found.",
-      user: "user2",
-      image: "/src/assets/sample.jpg",
-    },
+
   ]);
 
   const [isReportModalOpen, setIsReportModalOpen] = useState(false);
@@ -80,6 +82,7 @@ function Profile() {
     images: [],
     date: new Date().toISOString(),
     user: "user1",
+    status: "Pending", 
   });
   const [editReportId, setEditReportId] = useState(null);
   const [deleteTarget, setDeleteTarget] = useState(null);
@@ -134,6 +137,7 @@ function Profile() {
         ...newReport,
         date: new Date().toISOString(),
         user: currentUser,
+        status: "Pending", 
       };
       setReports([report, ...reports]);
     }
@@ -152,6 +156,7 @@ function Profile() {
       images: [],
       date: new Date().toISOString(),
       user: currentUser,
+      status: "Pending",
     });
   };
 
@@ -177,6 +182,12 @@ function Profile() {
     .filter((r) => r.user === currentUser)
     .sort((a, b) => new Date(b.date) - new Date(a.date));
 
+  const handleLogout = () => {
+    console.log("User logged out");
+    setShowLogoutConfirm(false);
+    navigate("/login"); 
+  };
+
   return (
     <div className="profile-page">
       <div className="profile-header-card">
@@ -195,7 +206,7 @@ function Profile() {
         </div>
         <div className="profile-header-actions">
           <label className="upload-btn">
-            Change Picture
+            Change Photo
             <input type="file" accept="image/*" onChange={handlePicUpload} hidden />
           </label>
           <button
@@ -208,6 +219,12 @@ function Profile() {
           >
             + Add Report
           </button>
+          <button
+            className="account-btn logout-btn-mobile" 
+            onClick={() => setShowLogoutConfirm(true)}
+          >
+            <FaSignOutAlt /> Logout 
+          </button>
         </div>
       </div>
 
@@ -257,7 +274,7 @@ function Profile() {
                           className="profile-pic"
                         />
                         <div className="report-header-text">
-                          <p className="report-user">{report.user}</p>
+                          <p className="report-user">{user.firstname} {user.lastname}</p> {/* Use actual user name */}
                           <p className="report-subinfo">
                             {new Date(report.date).toLocaleString()} · {report.category}
                           </p>
@@ -267,6 +284,10 @@ function Profile() {
                         </div>
                       </div>
                       <div className="report-header-actions">
+                        <span className={`status-badge status-${report.status.toLowerCase()}`}>
+                            {report.status}
+                        </span>
+                        
                         <button
                           className="icon-btn edit-btn"
                           onClick={() => handleEdit(report)}
@@ -285,17 +306,20 @@ function Profile() {
                       </div>
                     </div>
                     <div className="report-caption">
-                      <strong>{report.title}</strong> <br />
-                      {displayDescription}
-                      {report.description.length > 130 && (
-                        <span
-                          className="more-link"
-                          onClick={() => toggleExpand(report.id)}
-                        >
-                          {isExpanded ? " Show less" : " more"}
-                        </span>
-                      )}
+                      <strong>{report.title}</strong>
+                      <p className="report-description-text">
+                        {displayDescription}
+                        {report.description.length > 130 && (
+                          <span
+                            className="more-link"
+                            onClick={() => toggleExpand(report.id)}
+                          >
+                            {isExpanded ? " Show less" : " more"}
+                          </span>
+                        )}
+                      </p>
                     </div>
+                    
                     {report.image && (
                       <img
                         src={report.image}
@@ -304,6 +328,7 @@ function Profile() {
                         onClick={() => setFullScreenImage(report.image)}
                       />
                     )}
+                    
                     {report.images && report.images.length > 0 && (
                       <div className={`report-images images-${report.images.length}`}>
                         {report.images.map((img, idx) => (
@@ -329,7 +354,7 @@ function Profile() {
           </div>
         </div>
       </div>
-
+      
       {showModal && (
         <div className="modal-overlay" onClick={() => setShowModal(null)}>
           <div className="modal-content" onClick={e => e.stopPropagation()}>
@@ -476,10 +501,22 @@ function Profile() {
         </div>
       )}
 
-      {/* Full-screen image modal */}
       {fullScreenImage && (
         <div className="fullscreen-modal" onClick={() => setFullScreenImage(null)}>
           <img src={fullScreenImage} alt="Full screen" className="fullscreen-image" />
+        </div>
+      )}
+
+      {showLogoutConfirm && (
+        <div className="modal-overlay">
+          <div className="modal">
+            <h3>Confirm Logout</h3>
+            <p>Are you sure you want to log out?</p>
+            <div className="modal-actions">
+              <button onClick={() => setShowLogoutConfirm(false)} className="cancel-btn">Cancel</button>
+              <button onClick={handleLogout} className="confirm-btn">Logout</button>
+            </div>
+          </div>
         </div>
       )}
     </div>

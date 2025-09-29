@@ -161,6 +161,7 @@
 
 .report-header {
   display: flex;
+  flex-wrap: wrap;
   justify-content: space-between;
   align-items: center;
 }
@@ -245,7 +246,6 @@
   transform: scale(1.05);
 }
 
-/* Updated CSS for Image Collages */
 .report-images {
   display: flex;
   flex-wrap: wrap;
@@ -253,9 +253,9 @@
   align-items: center;
   gap: 3px;
   padding: 2px;
-  margin: 5px auto; /* Centers the whole container */
+  margin: 5px auto; 
   border-radius: 8px;
-  width: 100%; /* Ensures the container takes up available space for centering */
+  width: 100%; 
 }
 
 .report-images img {
@@ -277,11 +277,11 @@
 }
 
 .images-2 img {
-  width: calc(50% - 3px); /* 3px is the gap */
+  width: calc(50% - 3px); 
 }
 
 .images-3 img {
-  width: calc(33.33% - 2px); /* 2px is the gap */
+  width: calc(33.33% - 2px);
 }
 
 .images-4 img {
@@ -289,7 +289,7 @@
 }
 
 .images-5 img {
-  width: calc(20% - 3px); /* 5 images in one row */
+  width: calc(20% - 3px);
 }
 
 .report-actions {
@@ -499,6 +499,10 @@ label {
   object-fit: contain;
 }
 
+.logout-btn-mobile {
+  display: none;
+}
+
 @media (max-width: 900px) {
   .profile-content {
     grid-template-columns: 1fr;
@@ -518,21 +522,35 @@ label {
   }
   .upload-btn {
     text-align: center;
+    width: auto;
   }
 
   .add-report-btn {
     text-align: center;
+    width: auto;
   }
   .modal-content {
     width: 80%;
-    align-items: center;
     flex-direction: column;
   }
 
   .modal-content input,
-  .modal-content textarea,
+  .modal-content textarea {
+    width: 95%;
+  }
+
   .modal-content select {
-    width: 96%;
+    width: 100%;
+  }
+
+  .report-header-actions {
+    margin-top: 10px;
+  }
+
+  .report-thumbnail {
+    width: 100%;
+    height: auto;
+    max-height: 250px;
   }
 
   .report-images {
@@ -559,5 +577,28 @@ label {
 
   .address-fields {
     width: 100%;
+  }
+
+  .modal {
+    width: 80%;
+  }
+
+  .logout-btn-mobile {
+    display: inline-flex;
+    align-items: center;
+    width: auto;
+    gap: 6px;
+    background: #e74c3c;
+    color: white;
+    padding: 8px 14px;
+    border: none;
+    border-radius: 6px;
+    font-size: 14px;
+    cursor: pointer;
+    transition: background 0.2s ease;
+  }
+
+  .logout-btn-mobile:hover {
+    background: #c0392b;
   }
 }
