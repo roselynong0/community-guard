@@ -1,6 +1,6 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
-import { VitePWA } from 'vite-plugin-pwa';
+import { VitePWA } from 'vite-plugin-pwa'
 
 // https://vite.dev/config/
 export default defineConfig({
@@ -27,8 +27,18 @@ export default defineConfig({
             sizes: '512x512',
             type: 'image/png',
           },
-           ],
+        ],
       },
     }),
   ],
+  server: {
+    proxy: {
+      // Proxy any request starting with /api to Flask backend
+      '/api': {
+        target: 'http://127.0.0.1:5000',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/api/, ''), // remove /api prefix
+      },
+    },
+  },
 })

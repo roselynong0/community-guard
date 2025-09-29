@@ -278,6 +278,24 @@ h2 {
     background-color: #fcebeb;
 }
 
+.user-verified-badge {
+  font-size: 0.7rem;
+  font-weight: bold;
+  padding: 2px 6px;
+  border-radius: 4px;
+  margin-left: 6px;
+  color: #fff;
+}
+
+.user-verified-badge.verified {
+  background-color: #28a745; /* green */
+}
+
+.user-verified-badge.unverified {
+  background-color: #dc3545; /* red */
+}
+
+
 .report-caption strong {
     display: block;
     font-size: 18px;

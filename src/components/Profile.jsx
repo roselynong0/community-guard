@@ -1,76 +1,18 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { FaEdit, FaSignOutAlt, FaTrashAlt } from "react-icons/fa";
 import "./Profile.css";
 
-function Profile() {
-  const [fullScreenImage, setFullScreenImage] = useState(null);
-  const [profilePic, setProfilePic] = useState(null);
-  const [showModal, setShowModal] = useState(null);
-  const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
-  const [user, setUser] = useState({
-    firstname: "Juan",
-    lastname: "Dela Cruz",
-    role: "Resident",
-    email: "juan@email.com",
-    contact: "09123456789",
-    address: "East Tapinac, Olongapo City",
-    bio: "Active community member who loves helping others.",
-    reportsSubmitted: 12,
-    reportsResolved: 8
-  });
+function Profile({ token }) {
   const navigate = useNavigate();
 
-  const [reports, setReports] = useState([
-    {
-      id: 1,
-      title: "Pickpocket Incident",
-      category: "Crime",
-      addressStreet: "15 Mango St.",
-      barangay: "East Tapinac",
-      date: "2025-09-09T14:20:00",
-      description:
-        "A pickpocketing incident happened near the market. Multiple residents reported losing wallets and phones around 2PM.",
-      user: "user1", 
-      status: "Resolved", 
-      image: "/src/assets/sample.jpg",
-    },
-    {
-      id: 2,
-      title: "Fallen Electric Post",
-      category: "Hazard",
-      addressStreet: "22-A National Highway",
-      barangay: "Santa Rita",
-      date: "2025-09-08T22:00:00",
-      description:
-        "An electric post fell after the heavy rains last night, blocking the main road and posing danger to vehicles and pedestrians.",
-      user: "user1", 
-      status: "Ongoing",
-      images:[
-          "https://picsum.photos/id/405/400/300",
-          "https://picsum.photos/id/406/400/300",
-        ],
-    },
-    {
-      id: 3,
-      title: "Garbage Overflowing",
-      category: "Concern",
-      addressStreet: "55 Sampaguita St.",
-      barangay: "New Cabalan",
-      date: "2025-09-08T18:40:00",
-      description:
-        "The garbage bins along the main street have been overflowing for days, causing a foul smell and attracting stray animals.",
-      user: "user1", 
-      status: "Pending",
-      images: [
-          "https://picsum.photos/id/404/400/300",
-          "https://picsum.photos/id/405/400/300",
-          "https://picsum.photos/id/406/400/300",
-        ],
-    },
+  const [user, setUser] = useState(null);
+  const [profilePic, setProfilePic] = useState(null);
+  const [fullScreenImage, setFullScreenImage] = useState(null);
+  const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
+  const [showModal, setShowModal] = useState(null); // "header", "about", "personal"
 
-  ]);
-
+  const [reports, setReports] = useState([]);
   const [isReportModalOpen, setIsReportModalOpen] = useState(false);
   const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false);
   const [newReport, setNewReport] = useState({
@@ -81,69 +23,131 @@ function Profile() {
     barangay: "Barretto",
     images: [],
     date: new Date().toISOString(),
-    user: "user1",
-    status: "Pending", 
+    user: null,
+    status: "Pending",
   });
   const [editReportId, setEditReportId] = useState(null);
   const [deleteTarget, setDeleteTarget] = useState(null);
   const [expandedReports, setExpandedReports] = useState([]);
-  const currentUser = "user1";
+
+  const [editProfileData, setEditProfileData] = useState({
+    firstname: "",
+    lastname: "",
+    bio: "",
+    phone: "",
+    address: "",
+    address_barangay: "Barretto",
+  });
 
   const barangays = [
-    "All",
-    "Barretto",
-    "East Bajac-Bajac",
-    "East Tapinac",
-    "Gordon Heights",
-    "Kalaklan",
-    "Mabayuan",
-    "New Asinan",
-    "New Banicain",
-    "New Cabalan",
-    "New Ilalim",
-    "New Kababae",
-    "New Kalalake",
-    "Old Cabalan",
-    "Pag-Asa",
-    "Santa Rita",
-    "West Bajac-Bajac",
-    "West Tapinac",
+    "All", "Barretto", "East Bajac-Bajac", "East Tapinac", "Gordon Heights",
+    "Kalaklan", "Mabayuan", "New Asinan", "New Banicain", "New Cabalan",
+    "New Ilalim", "New Kababae", "New Kalalake", "Old Cabalan", "Pag-Asa",
+    "Santa Rita", "West Bajac-Bajac", "West Tapinac",
   ];
 
-  const handlePicUpload = (e) => {
+  // ------------------- FETCH PROFILE -------------------
+  useEffect(() => {
+    if (!token) return;
+
+    const fetchProfile = async () => {
+      try {
+        const res = await fetch("http://localhost:5000/api/profile", {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        const data = await res.json();
+        if (data.status === "success") {
+          const profile = data.profile;
+          setUser({
+            id: profile.id,
+            firstname: profile.firstname,
+            lastname: profile.lastname,
+            email: profile.email,
+            address: profile.address || "",
+            barangay: profile.barangay || "Barretto",
+            avatar_url: profile.avatar_url,
+            role: "Resident",
+            bio: profile.bio || "",
+            contact: profile.phone || "",
+          });
+          setProfilePic(profile.avatar_url);
+          setNewReport((prev) => ({ ...prev, user: profile.id }));
+          setEditProfileData({
+            firstname: profile.firstname || "",
+            lastname: profile.lastname || "",
+            bio: profile.bio || "",
+            phone: profile.phone || "",
+            address: profile.address || "",
+            address_barangay: profile.barangay || "Barretto",
+          });
+        }
+      } catch (err) {
+        console.error("Failed to fetch profile:", err);
+      }
+    };
+
+    fetchProfile();
+  }, [token]);
+
+  // ------------------- FETCH REPORTS -------------------
+  useEffect(() => {
+    if (!token || !user) return;
+
+    const fetchReports = async () => {
+      try {
+        const res = await fetch("http://localhost:5000/api/reports", {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        const data = await res.json();
+        if (data.status === "success") {
+          setReports(
+            data.reports.map((r) => ({
+              id: r.id,
+              title: r.title,
+              description: r.description,
+              category: r.category,
+              addressStreet: r.address_street,
+              barangay: r.address_barangay,
+              images: r.image_url ? [r.image_url] : [],
+              date: r.created_at,
+              user: r.user_id,
+              status: r.status,
+            }))
+          );
+        }
+      } catch (err) {
+        console.error("Failed to fetch reports:", err);
+      }
+    };
+
+    fetchReports();
+  }, [token, user]);
+
+  // ------------------- PROFILE PICTURE -------------------
+  const handlePicUpload = async (e) => {
     const file = e.target.files[0];
-    if (file) setProfilePic(URL.createObjectURL(file));
+    if (!file) return;
+    const url = URL.createObjectURL(file);
+    setProfilePic(url);
+
+    const formData = new FormData();
+    formData.append("avatar", file);
+    try {
+      const res = await fetch("http://localhost:5000/api/profile/upload-avatar", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+        body: formData,
+      });
+      const data = await res.json();
+      if (data.status === "success") setProfilePic(data.url || data.avatar_url);
+    } catch (err) {
+      console.error("Failed to upload avatar:", err);
+    }
   };
 
-  const handleInputChange = (field, value) => {
-    setUser((prev) => ({ ...prev, [field]: value }));
-  };
-
+  // ------------------- REPORT HANDLERS -------------------
   const handleReportInputChange = (field, value) => {
     setNewReport((prev) => ({ ...prev, [field]: value }));
-  };
-
-  const handleAddOrUpdateReport = () => {
-    if (editReportId) {
-      setReports(
-        reports.map((r) =>
-          r.id === editReportId ? { ...r, ...newReport } : r
-        )
-      );
-    } else {
-      const newId = reports.length + 1;
-      const report = {
-        id: newId,
-        ...newReport,
-        date: new Date().toISOString(),
-        user: currentUser,
-        status: "Pending", 
-      };
-      setReports([report, ...reports]);
-    }
-    setIsReportModalOpen(false);
-    setEditReportId(null);
-    resetNewReport();
   };
 
   const resetNewReport = () => {
@@ -155,9 +159,24 @@ function Profile() {
       barangay: "Barretto",
       images: [],
       date: new Date().toISOString(),
-      user: currentUser,
+      user: user?.id || null,
       status: "Pending",
     });
+  };
+
+  const handleAddOrUpdateReport = () => {
+    if (editReportId) {
+      setReports(
+        reports.map((r) => (r.id === editReportId ? { ...r, ...newReport } : r))
+      );
+    } else {
+      const newId = reports.length + 1;
+      const report = { id: newId, ...newReport };
+      setReports([report, ...reports]);
+    }
+    setIsReportModalOpen(false);
+    setEditReportId(null);
+    resetNewReport();
   };
 
   const handleEdit = (report) => {
@@ -174,22 +193,74 @@ function Profile() {
 
   const toggleExpand = (id) => {
     setExpandedReports((prev) =>
-      prev.includes(id) ? prev.filter((reportId) => reportId !== id) : [...prev, id]
+      prev.includes(id) ? prev.filter((rid) => rid !== id) : [...prev, id]
     );
   };
 
+  const handleLogout = () => {
+    setShowLogoutConfirm(false);
+    navigate("/login");
+  };
+
+  // ------------------- UPDATE PROFILE -------------------
+  const handleProfileUpdate = async () => {
+    try {
+      const res = await fetch("http://localhost:5000/api/profile", {
+        method: "PUT",
+        headers: { 
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(editProfileData),
+      });
+
+      const data = await res.json();
+
+      if (data.status === "success") {
+        const updatedProfile = data.profile || editProfileData;
+
+        setUser((prev) => ({
+          ...prev,
+          firstname: updatedProfile.firstname,
+          lastname: updatedProfile.lastname,
+          bio: updatedProfile.bio,
+          contact: updatedProfile.phone,
+          address: updatedProfile.address,
+          barangay: updatedProfile.address_barangay,
+        }));
+
+        // Only close modal after successful update
+        setShowModal(null);
+      } else {
+        console.error("Failed to update:", data);
+        alert("Failed to update profile. Please try again.");
+      }
+    } catch (err) {
+      console.error("Error updating profile:", err);
+      alert("Server error. Please try again later.");
+    }
+  };
+
+
+
+
+
+  const displayField = (field, fallback) =>
+    field !== undefined && field !== null && field !== "" ? field : fallback;
+
   const userReports = reports
-    .filter((r) => r.user === currentUser)
+    .filter((r) => String(r.user) === String(user?.id))
     .sort((a, b) => new Date(b.date) - new Date(a.date));
 
-  const handleLogout = () => {
-    console.log("User logged out");
-    setShowLogoutConfirm(false);
-    navigate("/login"); 
-  };
+  const reportsSubmitted = userReports.length || 0;
+  const reportsResolved =
+    userReports.filter((r) => r.status === "Resolved")?.length || 0;
+
+  if (!user) return <p>Loading profile...</p>;
 
   return (
     <div className="profile-page">
+      {/* HEADER */}
       <div className="profile-header-card">
         <div className="profile-header-info">
           <img
@@ -198,12 +269,15 @@ function Profile() {
             className="profile-avatar"
           />
           <div className="profile-name">
-            <h2>{user.firstname} {user.lastname}</h2>
-            <p>{user.address}</p>
+            <h2>
+              {displayField(user.firstname, "No Name")} {displayField(user.lastname, "")}
+              <FaEdit className="edit-icon" onClick={() => setShowModal("header")} />
+            </h2>
+            <p>{displayField(user.address, "No location added yet.")}</p>
             <span className="role-badge">{user.role}</span>
           </div>
-          <button className="edit-icon" onClick={() => setShowModal("header")}><FaEdit /></button>
         </div>
+
         <div className="profile-header-actions">
           <label className="upload-btn">
             Change Photo
@@ -220,212 +294,246 @@ function Profile() {
             + Add Report
           </button>
           <button
-            className="account-btn logout-btn-mobile" 
-            onClick={() => setShowLogoutConfirm(true)}
-          >
-            <FaSignOutAlt /> Logout 
-          </button>
+            className="account-btn logout-btn-mobile"
+            onClick={() => setShowLogoutConfirm(true)}
+          >
+            <FaSignOutAlt /> Logout
+          </button>
         </div>
       </div>
 
+      {/* CONTENT */}
       <div className="profile-content">
+        {/* SIDEBAR */}
         <div className="profile-sidebar">
           <div className="profile-card">
             <div className="card-header">
-              <h3>About</h3>
-              <button className="section-edit" onClick={() => setShowModal("about")}><FaEdit /></button>
+              <h3>
+                About <FaEdit className="edit-icon" onClick={() => setShowModal("about")} />
+              </h3>
             </div>
-            <p>{user.bio}</p>
+            <p>{displayField(user.bio, "No information added yet.")}</p>
           </div>
+
           <div className="profile-card">
             <div className="card-header">
-              <h3>Personal Info</h3>
-              <button className="section-edit" onClick={() => setShowModal("personal")}><FaEdit /></button>
+              <h3>
+                Personal Info{" "}
+                <FaEdit className="edit-icon" onClick={() => setShowModal("personal")} />
+              </h3>
             </div>
-            <p><strong>Email:</strong> {user.email}</p>
-            <p><strong>Contact:</strong> {user.contact}</p>
-            <p><strong>Address:</strong> {user.address}</p>
+            <p>
+              <strong>Email:</strong> {displayField(user.email, "No info")}
+            </p>
+            <p>
+              <strong>Contact:</strong> {displayField(user.contact, "No info")}
+            </p>
+            <p>
+              <strong>Address:</strong> {displayField(user.address, "No location")}
+            </p>
+            <p>
+              <strong>Barangay:</strong> {displayField(user.barangay, "No info")}
+            </p>
           </div>
+
           <div className="profile-card">
             <h3>Activity</h3>
-            <p>📌 Reports Submitted: <strong>{user.reportsSubmitted}</strong></p>
-            <p>✅ Reports Resolved: <strong>{user.reportsResolved}</strong></p>
+            <p>
+              📌 Reports Submitted: <strong>{reportsSubmitted}</strong>
+            </p>
+            <p>
+              ✅ Reports Resolved: <strong>{reportsResolved}</strong>
+            </p>
           </div>
         </div>
 
+        {/* POSTS */}
         <div className="profile-posts">
-          <div className="reports-list">
-            {userReports.length > 0 ? (
-              userReports.map((report) => {
-                const isExpanded = expandedReports.includes(report.id);
-                const displayDescription = isExpanded
-                  ? report.description
-                  : `${report.description.slice(0, 130)}${
-                      report.description.length > 130 ? "..." : ""
-                    }`;
+          {userReports.length === 0 && <p>No reports posted.</p>}
+          {userReports.map((report) => {
+            const isExpanded = expandedReports.includes(report.id);
+            const displayDescription = isExpanded
+              ? report.description
+              : `${report.description.slice(0, 130)}${
+                  report.description.length > 130 ? "..." : ""
+                }`;
 
-                return (
-                  <div key={report.id} className="profile-card post report-card">
-                    <div className="report-header">
-                      <div className="report-header-left">
-                        <img
-                          src="/src/assets/profile.png"
-                          alt="profile"
-                          className="profile-pic"
-                        />
-                        <div className="report-header-text">
-                          <p className="report-user">{user.firstname} {user.lastname}</p> {/* Use actual user name */}
-                          <p className="report-subinfo">
-                            {new Date(report.date).toLocaleString()} · {report.category}
-                          </p>
-                          <p className="report-address-info">
-                            {report.addressStreet}, {report.barangay}, Olongapo City
-                          </p>
-                        </div>
-                      </div>
-                      <div className="report-header-actions">
-                        <span className={`status-badge status-${report.status.toLowerCase()}`}>
-                            {report.status}
-                        </span>
-                        
-                        <button
-                          className="icon-btn edit-btn"
-                          onClick={() => handleEdit(report)}
-                        >
-                          <FaEdit />
-                        </button>
-                        <button
-                          className="icon-btn delete-btn"
-                          onClick={() => {
-                            setDeleteTarget(report);
-                            setIsDeleteConfirmOpen(true);
-                          }}
-                        >
-                          <FaTrashAlt />
-                        </button>
-                      </div>
-                    </div>
-                    <div className="report-caption">
-                      <strong>{report.title}</strong>
-                      <p className="report-description-text">
-                        {displayDescription}
-                        {report.description.length > 130 && (
-                          <span
-                            className="more-link"
-                            onClick={() => toggleExpand(report.id)}
-                          >
-                            {isExpanded ? " Show less" : " more"}
-                          </span>
-                        )}
+            return (
+              <div key={report.id} className="profile-card post report-card">
+                <div className="report-header">
+                  <div className="report-header-left">
+                    <img
+                      src={profilePic || "/default-avatar.png"}
+                      alt="profile"
+                      className="profile-pic"
+                    />
+                    <div className="report-header-text">
+                      <p className="report-user">
+                        {displayField(user.firstname, "No Name")} {displayField(user.lastname, "")}
+                      </p>
+                      <p className="report-subinfo">
+                        {new Date(report.date).toLocaleString()} · {report.category}
+                      </p>
+                      <p className="report-address-info">
+                        {report.addressStreet || "No location"} , {report.barangay}
                       </p>
                     </div>
-                    
-                    {report.image && (
-                      <img
-                        src={report.image}
-                        alt={report.title}
-                        className="report-thumbnail"
-                        onClick={() => setFullScreenImage(report.image)}
-                      />
-                    )}
-                    
-                    {report.images && report.images.length > 0 && (
-                      <div className={`report-images images-${report.images.length}`}>
-                        {report.images.map((img, idx) => (
-                          <img
-                            key={idx}
-                            src={img}
-                            alt={`report-${idx}`}
-                            className="report-thumbnail"
-                            onClick={() => setFullScreenImage(img)}
-                          />
-                        ))}
-                      </div>
-                    )}
-                    <div className="report-actions">
-                      <button className="like-btn">Like</button>
-                    </div>
                   </div>
-                );
-              })
-            ) : (
-              <p>No reports found.</p>
-            )}
-          </div>
+
+                  <div className="report-header-actions">
+                    <button onClick={() => handleEdit(report)}>
+                      <FaEdit />
+                    </button>
+                    <button
+                      onClick={() => {
+                        setDeleteTarget(report);
+                        setIsDeleteConfirmOpen(true);
+                      }}
+                    >
+                      <FaTrashAlt />
+                    </button>
+                  </div>
+                </div>
+
+                <div className="report-body">
+                  <p>{displayDescription}</p>
+                  {report.description.length > 130 && (
+                    <button onClick={() => toggleExpand(report.id)}>
+                      {isExpanded ? "Show Less" : "Read More"}
+                    </button>
+                  )}
+                  {report.images.map((img, idx) => (
+                    <img
+                      key={idx}
+                      src={img}
+                      alt="report"
+                      className="report-image"
+                      onClick={() => setFullScreenImage(img)}
+                    />
+                  ))}
+                </div>
+              </div>
+            );
+          })}
         </div>
       </div>
-      
+
+      {/* MODALS */}
       {showModal && (
-        <div className="modal-overlay" onClick={() => setShowModal(null)}>
-          <div className="modal-content" onClick={e => e.stopPropagation()}>
-            <h3>Edit {showModal === "header" ? "Profile" : showModal === "about" ? "About" : "Personal Info"}</h3>
+        <div className="modal-overlay">
+          <div className="modal-content">
+            <h2>Edit Profile</h2>
+
+            {/* HEADER */}
             {showModal === "header" && (
               <>
-                First Name
                 <input
-                  type="text"
-                  value={user.firstname}
-                  onChange={e => handleInputChange("firstname", e.target.value)}
                   placeholder="First Name"
+                  value={editProfileData.firstname}
+                  onChange={(e) =>
+                    setEditProfileData({ ...editProfileData, firstname: e.target.value })
+                  }
                 />
-                Last Name
                 <input
-                  type="text"
-                  value={user.lastname}
-                  onChange={e => handleInputChange("lastname", e.target.value)}
                   placeholder="Last Name"
+                  value={editProfileData.lastname}
+                  onChange={(e) =>
+                    setEditProfileData({ ...editProfileData, lastname: e.target.value })
+                  }
                 />
-                Role:
-                <p className="readonly-field"> {user.role}</p>
-              </>
-            )}
-            {showModal === "about" && (
-              <textarea value={user.bio} onChange={e => handleInputChange("bio", e.target.value)} rows="4" />
-            )}
-            {showModal === "personal" && (
-              <>
-                Email:
                 <input
-                  type="email"
-                  value={user.email}
-                  onChange={e => handleInputChange("email", e.target.value)}
-                  placeholder="Email"
+                  placeholder="Address"
+                  value={editProfileData.address}
+                  onChange={(e) =>
+                    setEditProfileData({ ...editProfileData, address: e.target.value })
+                  }
                 />
-                Contact:
-                <input
-                  type="text"
-                  value={user.contact}
-                  onChange={e => handleInputChange("contact", e.target.value)}
-                  placeholder="Contact"
-                />
-                Address:
                 <select
-                  value={user.address.replace(", Olongapo City", "")}
-                  onChange={e => handleInputChange("address", e.target.value + ", Olongapo City")}
+                  value={editProfileData.address_barangay}
+                  onChange={(e) =>
+                    setEditProfileData({ ...editProfileData, address_barangay: e.target.value })
+                  }
                 >
-                  <option value="">-- Select Barangay --</option>
-                  {barangays.filter((b) => b !== "All").map((b) => (
+                  {barangays.map((b) => (
                     <option key={b} value={b}>{b}</option>
                   ))}
                 </select>
               </>
             )}
-            <div className="modal-buttons">
+
+            {/* ABOUT */}
+            {showModal === "about" && (
+              <textarea
+                placeholder="About Me"
+                value={editProfileData.bio}
+                onChange={(e) =>
+                  setEditProfileData({ ...editProfileData, bio: e.target.value })
+                }
+              />
+            )}
+
+            {/* PERSONAL */}
+            {showModal === "personal" && (
+              <input
+                placeholder="Phone"
+                value={editProfileData.phone}
+                onChange={(e) =>
+                  setEditProfileData({ ...editProfileData, phone: e.target.value })
+                }
+              />
+            )}
+
+            <div className="modal-actions">
+              <button onClick={handleProfileUpdate}>Save</button>
               <button onClick={() => setShowModal(null)}>Cancel</button>
-              <button onClick={() => setShowModal(null)}>Save</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+
+      {fullScreenImage && (
+        <div className="modal-overlay" onClick={() => setFullScreenImage(null)}>
+          <img src={fullScreenImage} alt="fullscreen" className="fullscreen-image" />
+        </div>
+      )}
+
+      {isDeleteConfirmOpen && deleteTarget && (
+        <div className="modal-overlay">
+          <div className="modal-content">
+            <p>Are you sure you want to delete this report?</p>
+            <div className="modal-actions">
+              <button onClick={handleDelete}>Yes, Delete</button>
+              <button
+                onClick={() => {
+                  setIsDeleteConfirmOpen(false);
+                  setDeleteTarget(null);
+                }}
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showLogoutConfirm && (
+        <div className="modal-overlay">
+          <div className="modal-content">
+            <p>Are you sure you want to logout?</p>
+            <div className="modal-actions">
+              <button onClick={handleLogout}>Yes, Logout</button>
+              <button onClick={() => setShowLogoutConfirm(false)}>Cancel</button>
             </div>
           </div>
         </div>
       )}
 
       {isReportModalOpen && (
-        <div className="modal-overlay" onClick={() => setIsReportModalOpen(false)}>
-          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
-            <h3>{editReportId ? "Edit Report" : "Add New Report"}</h3>
-            <p><strong>Resident:</strong> {currentUser}</p>
-            <p><strong>Date:</strong> {new Date(newReport.date).toLocaleDateString()}</p>
+        <div className="modal-overlay">
+          <div className="modal-content">
+            <h2>{editReportId ? "Edit Report" : "Add Report"}</h2>
             <input
-              type="text"
               placeholder="Title"
               value={newReport.title}
               onChange={(e) => handleReportInputChange("title", e.target.value)}
@@ -434,87 +542,43 @@ function Profile() {
               placeholder="Description"
               value={newReport.description}
               onChange={(e) => handleReportInputChange("description", e.target.value)}
-              rows="4"
             />
-            <div className="address-fields">
-              <label>Street Address:</label>
-              <input
-                type="text"
-                value={newReport.addressStreet}
-                onChange={(e) => handleReportInputChange("addressStreet", e.target.value)}
-                placeholder="e.g. 15 Mango St."
-              />
-              <label>Barangay:</label>
-              <select
-                value={newReport.barangay}
-                onChange={(e) => handleReportInputChange("barangay", e.target.value)}
-              >
-                {barangays.filter((b) => b !== "All").map((b) => (
-                  <option key={b} value={b}>{b}</option>
-                ))}
-              </select>
-              <p className="readonly-field">Olongapo City</p>
-            </div>
-            <label>Category:</label>
             <select
               value={newReport.category}
               onChange={(e) => handleReportInputChange("category", e.target.value)}
             >
               <option value="Concern">Concern</option>
-              <option value="Crime">Crime</option>
-              <option value="Hazard">Hazard</option>
-              <option value="Lost&Found">Lost &amp; Found</option>
-              <option value="Others">Others</option>
+              <option value="Complaint">Complaint</option>
             </select>
-            <label className="upload-btn">
-              Upload Image(s)
-              <input
-                type="file"
-                accept="image/*"
-                multiple
-                onChange={(e) => {
-                  const files = Array.from(e.target.files).slice(0, 5);
-                  const urls = files.map((file) => URL.createObjectURL(file));
-                  setNewReport({ ...newReport, images: urls });
-                }}
-                hidden
-              />
-            </label>
-            <div className="modal-buttons">
-              <button onClick={() => { setIsReportModalOpen(false); setEditReportId(null); }}>Cancel</button>
-              <button onClick={handleAddOrUpdateReport}>{editReportId ? "Update" : "Submit"}</button>
-            </div>
-          </div>
-        </div>
-      )}
+            <input
+              placeholder="Address"
+              value={newReport.addressStreet}
+              onChange={(e) => handleReportInputChange("addressStreet", e.target.value)}
+            />
+            <select
+              value={newReport.barangay}
+              onChange={(e) => handleReportInputChange("barangay", e.target.value)}
+            >
+              {barangays.map((b) => (
+                <option key={b} value={b}>
+                  {b}
+                </option>
+              ))}
+            </select>
 
-      {isDeleteConfirmOpen && (
-        <div className="modal-overlay">
-          <div className="modal">
-            <h3>Delete Report</h3>
-            <p>Are you sure you want to delete "{deleteTarget?.title}"?</p>
-            <div className="delete-actions">
-              <button onClick={handleDelete}>Yes, Delete</button>
-              <button onClick={() => setIsDeleteConfirmOpen(false)}>Cancel</button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {fullScreenImage && (
-        <div className="fullscreen-modal" onClick={() => setFullScreenImage(null)}>
-          <img src={fullScreenImage} alt="Full screen" className="fullscreen-image" />
-        </div>
-      )}
-
-      {showLogoutConfirm && (
-        <div className="modal-overlay">
-          <div className="modal">
-            <h3>Confirm Logout</h3>
-            <p>Are you sure you want to log out?</p>
             <div className="modal-actions">
-              <button onClick={() => setShowLogoutConfirm(false)} className="cancel-btn">Cancel</button>
-              <button onClick={handleLogout} className="confirm-btn">Logout</button>
+              <button onClick={handleAddOrUpdateReport}>
+                {editReportId ? "Update" : "Submit"}
+              </button>
+              <button
+                onClick={() => {
+                  setIsReportModalOpen(false);
+                  setEditReportId(null);
+                  resetNewReport();
+                }}
+              >
+                Cancel
+              </button>
             </div>
           </div>
         </div>

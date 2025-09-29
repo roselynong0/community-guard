@@ -1,0 +1,41 @@
+/* Notifications (top-right) */
+.notif {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    max-width: 300px;
+    padding: 14px 20px;
+    border-radius: 8px;
+    color: #fff;
+    font-weight: bold;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.25);
+    z-index: 9999;
+    animation: slideFadeIn 0.3s ease-in-out;
+}
+
+/* Notification styles by type */
+.notif-success {
+    background: linear-gradient(135deg, #28a745, #2ecc71);
+}
+
+.notif-error {
+    background: linear-gradient(135deg, #dc3545, #e74c3c);
+}
+
+.notif-caution {
+    background: linear-gradient(135deg, #eab003, #ea940a);
+    /* background: #eb950b; */
+    color: #3c3c3c; /* Dark text for yellow background */
+}
+
+/* Slide and fade animation */
+@keyframes slideFadeIn {
+    0% {
+        opacity: 0;
+        transform: translateX(50px);
+    }
+    100% {
+        opacity: 1;
+        transform: translateX(0);
+    }
+}

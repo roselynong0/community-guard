@@ -1,12 +1,9 @@
-import React from "react";
+import React, { useState, useEffect } from "react";
 import {
   FaExclamationTriangle,
   FaCheckCircle,
-  FaBell,
-  FaClock,
-  FaTasks,
-  FaProcedures,
   FaSyncAlt,
+  FaClock,
 } from "react-icons/fa";
 import {
   PieChart,
@@ -19,46 +16,69 @@ import {
 import MapView from "../components/Mapview";
 import "./Home.css";
 
-function Home() {
-  // Example report stats
-  const stats = [
-    { title: "Total Reports", value: 125, icon: <FaExclamationTriangle />, color: "#2d2d73" },
-    { title: "Ongoing Cases", value: 8, icon: <FaSyncAlt />, color: "#f40014ff" },
-    { title: "Resolved Cases", value: 96, icon: <FaCheckCircle />, color: "#2a9d62ff" },
-    { title: "Pending Reports", value: 21, icon: <FaClock />, color: "#f4b761ff" },
-  ];
+// ✅ Fetch utility using token
+async function fetchWithToken(url, token) {
+  const res = await fetch(url, {
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    },
+  });
+  return res.json();
+}
 
-  // Example recent reports
-  const recentReports = [
-  { id: 1, title: "Broken Streetlight", category: "Hazard", date: "2025-09-04 10:30 AM" },
-  { id: 2, title: "Car Accident on Main St", category: "Accident", date: "2025-09-04 09:10 AM" },
-  { id: 3, title: "Suspicious Activity", category: "Crime", date: "2025-09-03 11:45 PM" },
-  { id: 4, title: "Noise Complaint", category: "Concern", date: "2025-09-03 08:20 PM" },
-  { id: 5, title: "Lost Dog in Park", category: "Lost & Found", date: "2025-09-03 05:05 PM" },
-];
-
-  // Example pie chart data
-  const categoryData = [
-    { name: "Hazard", value: 20 },
-    { name: "Crime", value: 30 },
-    { name: "Accident", value: 15 },
-    { name: "Concern", value: 25 },
-    { name: "Lost & Found", value: 10 },
-  ];
-
+function Home({ token }) {
+  const [stats, setStats] = useState([]);
+  const [recentReports, setRecentReports] = useState([]);
+  const [categoryData, setCategoryData] = useState([]);
   const COLORS = ["#e65252ff", "#263b53ff", "#2a869dff", "#61f464ff", "#e9c46a"];
+
+  useEffect(() => {
+    if (!token) return;
+
+    const fetchData = async () => {
+      try {
+        // Fetch dashboard stats
+        const statsRes = await fetchWithToken("http://localhost:5000/api/stats", token);
+        if (statsRes.status === "success") {
+          setStats([
+            { title: "Total Reports", value: statsRes.totalReports, icon: <FaExclamationTriangle />, color: "#2d2d73" },
+            { title: "Ongoing Cases", value: statsRes.ongoing, icon: <FaSyncAlt />, color: "#f40014ff" },
+            { title: "Resolved Cases", value: statsRes.resolved, icon: <FaCheckCircle />, color: "#2a9d62ff" },
+            { title: "Pending Reports", value: statsRes.pending, icon: <FaClock />, color: "#f4b761ff" },
+          ]);
+        } else {
+          setStats([]);
+        }
+
+        // Fetch recent reports
+        const recentRes = await fetchWithToken("http://localhost:5000/api/reports?limit=5&sort=desc", token);
+        setRecentReports(recentRes.status === "success" ? recentRes.reports : []);
+
+        // Fetch category stats
+        const categoryRes = await fetchWithToken("http://localhost:5000/api/reports/categories", token);
+        setCategoryData(categoryRes.status === "success" ? categoryRes.data : []);
+
+      } catch (err) {
+        console.error("Error fetching dashboard data:", err);
+        setStats([]);
+        setRecentReports([]);
+        setCategoryData([]);
+      }
+    };
+
+    fetchData();
+  }, [token]);
 
   return (
     <div className="dashboard">
+      {/* Stats Cards */}
       <div className="stats-grid">
         {stats.map((stat, i) => (
           <div
             key={i}
             className="stat-card animate-up"
-            style={{
-              borderLeft: `6px solid ${stat.color}`,
-              animationDelay: `${i * 0.1}s`
-            }}
+            style={{ borderLeft: `6px solid ${stat.color}`, animationDelay: `${i * 0.1}s` }}
           >
             <div className="stat-icon" style={{ color: stat.color }}>{stat.icon}</div>
             <div>
@@ -69,19 +89,24 @@ function Home() {
         ))}
       </div>
 
+      {/* Recent Reports & Pie Chart */}
       <div className="middle-grid animate-up" style={{ animationDelay: "0.2s" }}>
         <div className="recent-reports animate-up" style={{ animationDelay: "0.3s" }}>
           <h3>Recent Reports</h3>
           <ul>
-            {recentReports.map((report) => (
-              <li key={report.id}>
-                <div className="report-header">
-                  <strong>{report.title}</strong>
-                  <span className="report-date">{report.date}</span>
-                </div>
-                <div className="report-category">{report.category}</div>
-              </li>
-            ))}
+            {recentReports.length ? (
+              recentReports.map((report) => (
+                <li key={report.id}>
+                  <div className="report-header">
+                    <strong>{report.title}</strong>
+                    <span className="report-date">{report.created_at ? new Date(report.created_at).toLocaleString() : "N/A"}</span>
+                  </div>
+                  <div className="report-category">{report.category || "Uncategorized"}</div>
+                </li>
+              ))
+            ) : (
+              <li className="no-reports">No reports available.</li>
+            )}
           </ul>
         </div>
 
@@ -91,15 +116,15 @@ function Home() {
             <ResponsiveContainer width="100%" height="100%">
               <PieChart>
                 <Pie
-                  data={categoryData}
+                  data={categoryData.length ? categoryData : [{ name: "No Data", value: 1 }]}
                   cx="50%"
                   cy="50%"
                   labelLine={false}
-                  outerRadius="70%" 
+                  outerRadius="70%"
                   fill="#8884d8"
                   dataKey="value"
                 >
-                  {categoryData.map((entry, index) => (
+                  {(categoryData.length ? categoryData : [{ name: "No Data", value: 1 }]).map((entry, index) => (
                     <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                   ))}
                 </Pie>
@@ -111,6 +136,7 @@ function Home() {
         </div>
       </div>
 
+      {/* Map Section */}
       <div className="map-section animate-up" style={{ animationDelay: "0.5s" }}>
         <h3>Community Map</h3>
         <div className="map-placeholder">
