@@ -11,6 +11,7 @@ function Profile({ token }) {
   const [fullScreenImage, setFullScreenImage] = useState(null);
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const [showModal, setShowModal] = useState(null); // "header", "about", "personal"
+  const [isLoading, setIsLoading] = useState(true); // 👈 ADDED for loading state
 
   const [reports, setReports] = useState([]);
   const [isReportModalOpen, setIsReportModalOpen] = useState(false);
@@ -48,7 +49,10 @@ function Profile({ token }) {
 
   // ------------------- FETCH PROFILE -------------------
   useEffect(() => {
-    if (!token) return;
+    if (!token) {
+      setIsLoading(false); // Stop loading if no token
+      return;
+    }
 
     const fetchProfile = async () => {
       try {
@@ -83,6 +87,8 @@ function Profile({ token }) {
         }
       } catch (err) {
         console.error("Failed to fetch profile:", err);
+      } finally {
+        setIsLoading(false); // 👈 Set to false after profile fetch attempt
       }
     };
 
@@ -242,9 +248,6 @@ function Profile({ token }) {
   };
 
 
-
-
-
   const displayField = (field, fallback) =>
     field !== undefined && field !== null && field !== "" ? field : fallback;
 
@@ -256,12 +259,16 @@ function Profile({ token }) {
   const reportsResolved =
     userReports.filter((r) => r.status === "Resolved")?.length || 0;
 
-  if (!user) return <p>Loading profile...</p>;
+  // 👈 LOADING FIX: Show loading indicator if still loading
+  if (isLoading) return <p className="loading-message">Loading profile...</p>;
+
+  // 👈 LOADING FIX: Show message if loading is done but no user data (e.g., failed to fetch or no token)
+  if (!user) return <p className="error-message">Failed to load profile or unauthorized.</p>;
 
   return (
     <div className="profile-page">
-      {/* HEADER */}
-      <div className="profile-header-card">
+      {/* HEADER - Apply fade-in-up animation and stagger delay */}
+      <div className="profile-header-card fade-in-up" style={{ animationDelay: '0s' }}>
         <div className="profile-header-info">
           <img
             src={profilePic || "/default-avatar.png"}
@@ -306,7 +313,8 @@ function Profile({ token }) {
       <div className="profile-content">
         {/* SIDEBAR */}
         <div className="profile-sidebar">
-          <div className="profile-card">
+          {/* Card 1 - Apply stagger delay */}
+          <div className="profile-card fade-in-up" style={{ animationDelay: '0.1s' }}>
             <div className="card-header">
               <h3>
                 About <FaEdit className="edit-icon" onClick={() => setShowModal("about")} />
@@ -315,7 +323,8 @@ function Profile({ token }) {
             <p>{displayField(user.bio, "No information added yet.")}</p>
           </div>
 
-          <div className="profile-card">
+          {/* Card 2 - Apply stagger delay */}
+          <div className="profile-card fade-in-up" style={{ animationDelay: '0.2s' }}>
             <div className="card-header">
               <h3>
                 Personal Info{" "}
@@ -336,7 +345,8 @@ function Profile({ token }) {
             </p>
           </div>
 
-          <div className="profile-card">
+          {/* Card 3 - Apply stagger delay */}
+          <div className="profile-card fade-in-up" style={{ animationDelay: '0.3s' }}>
             <h3>Activity</h3>
             <p>
               📌 Reports Submitted: <strong>{reportsSubmitted}</strong>
@@ -350,7 +360,7 @@ function Profile({ token }) {
         {/* POSTS */}
         <div className="profile-posts">
           {userReports.length === 0 && <p>No reports posted.</p>}
-          {userReports.map((report) => {
+          {userReports.map((report, index) => {
             const isExpanded = expandedReports.includes(report.id);
             const displayDescription = isExpanded
               ? report.description
@@ -359,7 +369,12 @@ function Profile({ token }) {
                 }`;
 
             return (
-              <div key={report.id} className="profile-card post report-card">
+              // Individual report cards with further staggered delay
+              <div 
+                key={report.id} 
+                className="profile-card post report-card fade-in-up" 
+                style={{ animationDelay: `${0.4 + index * 0.05}s` }}
+              >
                 <div className="report-header">
                   <div className="report-header-left">
                     <img
@@ -418,7 +433,7 @@ function Profile({ token }) {
         </div>
       </div>
 
-      {/* MODALS */}
+      {/* MODALS (omitted for brevity, as they don't affect main content) */}
       {showModal && (
         <div className="modal-overlay">
           <div className="modal-content">

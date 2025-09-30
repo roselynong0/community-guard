@@ -69,7 +69,6 @@ function Layout({ session, setSession }) {
           <div className="logo">
             <img src={logo} alt="Community Guard Logo" className="logo-img" />
             <h2>Community Guard</h2>
-            {user && <p className="user-name">{user.firstname} {user.lastname}</p>}
           </div>
           <nav>
             <NavLink to="/home"><FaHome /> Home</NavLink>

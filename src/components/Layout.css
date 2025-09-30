@@ -38,6 +38,7 @@
 .sidebar h2 {
   font-size: 1.1rem;
   font-family: Georgia, 'Times New Roman', Times, serif;
+  color: white;
 }
 .sidebar nav {
   flex: 1;
