@@ -82,6 +82,11 @@
   cursor: pointer;
 }
 
+.upload-btn.flex-grow {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
 .add-report-btn {
   display: inline-block;
   background: #e9e9ff;
@@ -186,7 +191,6 @@
 .delete-account-btn:hover {
   background: #c0392b;
 }
-
 
 .profile-card.report-card {
   background: #fff;
@@ -537,6 +541,33 @@ label {
 
 .logout-btn-mobile {
   display: none;
+}
+
+.trash-btn {
+  width: 36px;
+  height: 36px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: none;
+  border: none;
+  padding: 0;
+  margin: 0;
+  border-radius: 50%;
+  transition: background 0.2s;
+  color: #e74c3c;
+  font-size: 1.2em;
+}
+
+.trash-btn:hover,
+.trash-btn:focus {
+  background: #ffeaea;
+  color: #fff;
+  outline: none;
+}
+
+.trash-btn svg {
+  pointer-events: none;
 }
 
 @media (max-width: 900px) {

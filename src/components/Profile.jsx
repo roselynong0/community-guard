@@ -11,6 +11,7 @@ function Profile({ token }) {
   const [fullScreenImage, setFullScreenImage] = useState(null);
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const [showModal, setShowModal] = useState(null); // "header", "about", "personal"
+  const [showDeleteAccount, setShowDeleteAccount] = useState(false);
 
   const [reports, setReports] = useState([]);
   const [isReportModalOpen, setIsReportModalOpen] = useState(false);
@@ -35,8 +36,9 @@ function Profile({ token }) {
     lastname: "",
     bio: "",
     phone: "",
-    address: "",
+    address_street: "",
     address_barangay: "Barretto",
+    email: "",
   });
 
   const barangays = [
@@ -63,22 +65,22 @@ function Profile({ token }) {
             firstname: profile.firstname,
             lastname: profile.lastname,
             email: profile.email,
-            address: profile.address || "",
-            barangay: profile.barangay || "Barretto",
+            address_street: profile.address_street || "",
             avatar_url: profile.avatar_url,
             role: "Resident",
             bio: profile.bio || "",
             contact: profile.phone || "",
+            address_barangay: profile.address_barangay || "Barretto",
+            address_city: profile.address_city || "Olongapo",
           });
-          setProfilePic(profile.avatar_url);
-          setNewReport((prev) => ({ ...prev, user: profile.id }));
           setEditProfileData({
             firstname: profile.firstname || "",
             lastname: profile.lastname || "",
             bio: profile.bio || "",
             phone: profile.phone || "",
-            address: profile.address || "",
-            address_barangay: profile.barangay || "Barretto",
+            address_street: profile.address_street || "",
+            address_barangay: profile.address_barangay || "Barretto",
+            email: profile.email || "",
           });
         }
       } catch (err) {
@@ -91,37 +93,47 @@ function Profile({ token }) {
 
   // ------------------- FETCH REPORTS -------------------
   useEffect(() => {
-    if (!token || !user) return;
+    if (!token) return;
 
-    const fetchReports = async () => {
+    const fetchProfile = async () => {
       try {
-        const res = await fetch("http://localhost:5000/api/reports", {
+        const res = await fetch("http://localhost:5000/api/profile", {
           headers: { Authorization: `Bearer ${token}` },
         });
         const data = await res.json();
         if (data.status === "success") {
-          setReports(
-            data.reports.map((r) => ({
-              id: r.id,
-              title: r.title,
-              description: r.description,
-              category: r.category,
-              addressStreet: r.address_street,
-              barangay: r.address_barangay,
-              images: r.image_url ? [r.image_url] : [],
-              date: r.created_at,
-              user: r.user_id,
-              status: r.status,
-            }))
-          );
+          const profile = data.profile;
+          setUser({
+            id: profile.id,
+            firstname: profile.firstname,
+            lastname: profile.lastname,
+            email: profile.email,
+            address_street: profile.address_street || "",
+            barangay: profile.barangay || "Barretto",
+            avatar_url: profile.avatar_url,
+            role: "Resident",
+            bio: profile.bio || "",
+            contact: profile.phone || "",
+            address_barangay: profile.address_barangay || "",
+            address_city: profile.address_city || "Olongapo",
+          });
+          setEditProfileData({
+            firstname: profile.firstname || "",
+            lastname: profile.lastname || "",
+            bio: profile.bio || "",
+            phone: profile.phone || "",
+            address_street: profile.address_street || "",
+            address_barangay: profile.barangay || "Barretto",
+          });
         }
       } catch (err) {
-        console.error("Failed to fetch reports:", err);
+        console.error("Failed to fetch profile:", err);
       }
     };
 
-    fetchReports();
-  }, [token, user]);
+    fetchProfile();
+  }, [token]);
+
 
   // ------------------- PROFILE PICTURE -------------------
   const handlePicUpload = async (e) => {
@@ -139,7 +151,13 @@ function Profile({ token }) {
         body: formData,
       });
       const data = await res.json();
-      if (data.status === "success") setProfilePic(data.url || data.avatar_url);
+      if (data.status === "success") {
+        setProfilePic(null); // clear preview
+        setUser((prev) => ({
+          ...prev,
+          avatar_url: data.url || data.avatar_url,
+        }));
+      }
     } catch (err) {
       console.error("Failed to upload avatar:", err);
     }
@@ -202,16 +220,55 @@ function Profile({ token }) {
     navigate("/login");
   };
 
+  // ------------------- DELETE ACCOUNT -------------------
+  const handleDeleteAccount = async () => {
+    try {
+      const res = await fetch("http://localhost:5000/api/profile", {
+        method: "DELETE",
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+      const data = await res.json();
+      if (data.status === "success") {
+        navigate("/login");
+      } else {
+        alert("Failed to delete account. Please try again.");
+      }
+    } catch (err) {
+      alert("Server error. Please try again later.");
+    }
+  };
+
   // ------------------- UPDATE PROFILE -------------------
   const handleProfileUpdate = async () => {
+    let updateFields = {};
+    if (showModal === "header") {
+      updateFields = {
+        firstname: editProfileData.firstname,
+        lastname: editProfileData.lastname,
+        address_barangay: editProfileData.address_barangay,
+      };
+    } else if (showModal === "about") {
+      updateFields = {
+        bio: editProfileData.bio,
+      };
+    } else if (showModal === "personal") {
+      updateFields = {
+        email: editProfileData.email,
+        phone: editProfileData.phone,
+        address_street: editProfileData.address_street,
+      };
+    }
+
     try {
       const res = await fetch("http://localhost:5000/api/profile", {
         method: "PUT",
-        headers: { 
+        headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify(editProfileData),
+        body: JSON.stringify(updateFields),
       });
 
       const data = await res.json();
@@ -225,11 +282,11 @@ function Profile({ token }) {
           lastname: updatedProfile.lastname,
           bio: updatedProfile.bio,
           contact: updatedProfile.phone,
-          address: updatedProfile.address,
+          address_street: updatedProfile.address_street,
           barangay: updatedProfile.address_barangay,
+          email: updatedProfile.email,
         }));
 
-        // Only close modal after successful update
         setShowModal(null);
       } else {
         console.error("Failed to update:", data);
@@ -240,10 +297,6 @@ function Profile({ token }) {
       alert("Server error. Please try again later.");
     }
   };
-
-
-
-
 
   const displayField = (field, fallback) =>
     field !== undefined && field !== null && field !== "" ? field : fallback;
@@ -264,7 +317,7 @@ function Profile({ token }) {
       <div className="profile-header-card">
         <div className="profile-header-info">
           <img
-            src={profilePic || "/default-avatar.png"}
+            src={profilePic ? profilePic : user?.avatar_url || "/default-avatar.png"}
             alt="Profile"
             className="profile-avatar"
           />
@@ -273,16 +326,27 @@ function Profile({ token }) {
               {displayField(user.firstname, "No Name")} {displayField(user.lastname, "")}
               <FaEdit className="edit-icon" onClick={() => setShowModal("header")} />
             </h2>
-            <p>{displayField(user.address, "No location added yet.")}</p>
+            <p>
+              {displayField(user.address_barangay, "No barangay selected")}, Olongapo City
+            </p>
             <span className="role-badge">{user.role}</span>
           </div>
         </div>
 
         <div className="profile-header-actions">
-          <label className="upload-btn">
-            Change Photo
-            <input type="file" accept="image/*" onChange={handlePicUpload} hidden />
-          </label>
+          <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+            <label className="upload-btn flex-grow">
+              Change Photo
+              <input type="file" accept="image/*" onChange={handlePicUpload} hidden />
+            </label>
+            <button
+              className="icon-btn trash-btn"
+              onClick={() => setShowDeleteAccount(true)}
+              title="Delete Account"
+            >
+              <FaTrashAlt />
+            </button>
+          </div>
           <button
             className="account-btn add-report-btn"
             onClick={() => {
@@ -329,10 +393,10 @@ function Profile({ token }) {
               <strong>Contact:</strong> {displayField(user.contact, "No info")}
             </p>
             <p>
-              <strong>Address:</strong> {displayField(user.address, "No location")}
+              <strong>Address:</strong> {displayField(user.address_street, "No location")}
             </p>
             <p>
-              <strong>Barangay:</strong> {displayField(user.barangay, "No info")}
+              <strong>City:</strong> Olongapo City
             </p>
           </div>
 
@@ -441,23 +505,23 @@ function Profile({ token }) {
                     setEditProfileData({ ...editProfileData, lastname: e.target.value })
                   }
                 />
-                <input
-                  placeholder="Address"
-                  value={editProfileData.address}
-                  onChange={(e) =>
-                    setEditProfileData({ ...editProfileData, address: e.target.value })
-                  }
-                />
                 <select
                   value={editProfileData.address_barangay}
                   onChange={(e) =>
                     setEditProfileData({ ...editProfileData, address_barangay: e.target.value })
                   }
                 >
-                  {barangays.map((b) => (
-                    <option key={b} value={b}>{b}</option>
-                  ))}
+                  {barangays
+                    .filter((b) => b !== "All")
+                    .map((b) => (
+                      <option key={b} value={b}>{b}</option>
+                    ))}
                 </select>
+                <input
+                  value="Olongapo City"
+                  disabled
+                  style={{ background: "#f5f5f5", color: "#888" }}
+                />
               </>
             )}
 
@@ -474,13 +538,34 @@ function Profile({ token }) {
 
             {/* PERSONAL */}
             {showModal === "personal" && (
-              <input
-                placeholder="Phone"
-                value={editProfileData.phone}
-                onChange={(e) =>
-                  setEditProfileData({ ...editProfileData, phone: e.target.value })
-                }
-              />
+              <>
+                <input
+                  placeholder="Email"
+                  value={editProfileData.email}
+                  onChange={(e) =>
+                    setEditProfileData({ ...editProfileData, email: e.target.value })
+                  }
+                />
+                <input
+                  placeholder="Phone"
+                  value={editProfileData.phone}
+                  onChange={(e) =>
+                    setEditProfileData({ ...editProfileData, phone: e.target.value })
+                  }
+                />
+                <input
+                  placeholder="Address"
+                  value={editProfileData.address_street}
+                  onChange={(e) =>
+                    setEditProfileData({ ...editProfileData, address_street: e.target.value })
+                  }
+                />
+                <input
+                  value="Olongapo City"
+                  disabled
+                  style={{ background: "#f5f5f5", color: "#888" }}
+                />
+              </>
             )}
 
             <div className="modal-actions">
@@ -579,6 +664,23 @@ function Profile({ token }) {
               >
                 Cancel
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showDeleteAccount && (
+        <div className="modal-overlay">
+          <div className="modal-content">
+            <p>Are you sure you want to delete your account? This cannot be undone.</p>
+            <div className="modal-actions">
+              <button
+                onClick={handleDeleteAccount}
+                style={{ background: "#e74c3c", color: "#fff" }}
+              >
+                Yes, Delete
+              </button>
+              <button onClick={() => setShowDeleteAccount(false)}>Cancel</button>
             </div>
           </div>
         </div>

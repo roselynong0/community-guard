@@ -50,7 +50,7 @@ function LoginForm({ setSession }) {
         // ✅ Save session in App state
         setSession(result.session);
 
-        setNotification({ message: "🎉 Welcome back!", type: "success" });
+        setNotification({ message: "✅ Login successful!", type: "success" });
 
         // Redirect to Home after short delay
         setTimeout(() => navigate("/home"), 1000);

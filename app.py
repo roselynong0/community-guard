@@ -1,5 +1,5 @@
 # ----------------- APP SETUP -----------------
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, send_from_directory
 from flask_cors import CORS
 from supabase import create_client
 import os
@@ -8,6 +8,8 @@ from datetime import datetime, timezone, timedelta
 import jwt
 from bcrypt import hashpw, gensalt, checkpw
 from functools import wraps
+from PIL import Image
+import io
 
 # ----------------- LOAD ENV -----------------
 load_dotenv()
@@ -53,6 +55,7 @@ def register():
     lastname = data.get("lastname")
     password = data.get("password")
     address_barangay = data.get("address_barangay") or "Unspecified"
+    address_city = data.get("address_city") or "Olongapo"  # <-- Add this line
 
     try:
         existing_resp = supabase.table("users").select("*").eq("email", email).execute()
@@ -71,7 +74,7 @@ def register():
             "isverified": False,
             "avatar_url": "/default-avatar.png",
             "address_barangay": address_barangay,
-            "address_province": "Zambales"
+            "address_city": address_city  # <-- Save city instead of province
         }).execute()
 
         return jsonify({"status": "success"}), 201
@@ -87,7 +90,13 @@ def login():
     password = data.get("password")
 
     try:
-        resp = supabase.table("users").select("*").eq("email", email).execute()
+        resp = (
+            supabase.table("users")
+            .select("*")
+            .eq("email", email)
+            .is_("deleted_at", None)  # Only allow users not soft-deleted
+            .execute()
+        )
         users = resp.data if hasattr(resp, "data") else []
 
         if not users:
@@ -147,10 +156,45 @@ def get_profile():
             "avatar_url": user.get("avatar_url", "/default-avatar.png"),
             "birthdate": info.get("birthdate"),
             "phone": info.get("phone"),
+            "address_street": info.get("address_street", ""),  # <-- FIXED
+            "barangay": info.get("address_barangay") or user.get("address_barangay"),
+            "province": info.get("address_province") or user.get("address_province", "Zambales"),
+            "bio": info.get("bio"),
+            "address_barangay": info.get("address_barangay") or user.get("address_barangay", ""),
+            "address_city": info.get("address_city") or user.get("address_city", "Olongapo"),
+        }
+
+        return jsonify({"status": "success", "profile": profile}), 200
+
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+    user_id = request.user_id
+    try:
+        user_resp = supabase.table("users").select("*").eq("id", user_id).execute()
+        info_resp = supabase.table("info").select("*").eq("user_id", user_id).execute()
+
+        if not user_resp.data:
+            return jsonify({"status": "not_found"}), 404
+
+        user = user_resp.data[0]
+        info = info_resp.data[0] if info_resp.data else {}
+
+        profile = {
+            "id": user["id"],
+            "firstname": user["firstname"],
+            "lastname": user["lastname"],
+            "email": user["email"],
+            "isverified": user.get("isverified", False),
+            "label": "Verified" if user.get("isverified", False) else "Unverified",
+            "avatar_url": user.get("avatar_url", "/default-avatar.png"),
+            "birthdate": info.get("birthdate"),
+            "phone": info.get("phone"),
             "address": info.get("address"),
             "barangay": info.get("address_barangay") or user.get("address_barangay"),
             "province": info.get("address_province") or user.get("address_province", "Zambales"),
-            "bio": info.get("bio")
+            "bio": info.get("bio"),
+            "address_barangay": info.get("address_barangay") or user.get("address_barangay", ""),
+            "address_city": info.get("address_city") or user.get("address_city", "Olongapo"),
         }
 
         return jsonify({"status": "success", "profile": profile}), 200
@@ -162,6 +206,136 @@ def get_profile():
 @app.route("/api/profile", methods=["PUT"])
 @token_required
 def update_profile():
+    user_id = request.user_id
+    data = request.json or {}
+
+    # Only update users table fields
+    user_update = {k: data[k] for k in ["firstname", "lastname"] if k in data}
+    # Update info table fields (including address_street and address_barangay)
+    info_update = {k: data[k] for k in ["bio", "phone", "address_street", "address_barangay", "address_province"] if k in data}
+
+    try:
+        # Update users
+        if user_update:
+            supabase.table("users").update(user_update).eq("id", user_id).execute()
+
+        # Upsert info (insert or update)
+        if info_update:
+            supabase.table("info").upsert({**info_update, "user_id": user_id}, on_conflict=["user_id"]).execute()
+
+        # Return updated profile
+        user_resp = supabase.table("users").select("*").eq("id", user_id).execute()
+        info_resp = supabase.table("info").select("*").eq("user_id", user_id).execute()
+        user = user_resp.data[0] if user_resp.data else {}
+        info = info_resp.data[0] if info_resp.data else {}
+
+        profile = {
+            "id": user.get("id"),
+            "firstname": user.get("firstname"),
+            "lastname": user.get("lastname"),
+            "email": user.get("email"),
+            "isverified": user.get("isverified", False),
+            "avatar_url": user.get("avatar_url", "/default-avatar.png"),
+            "bio": info.get("bio", ""),
+            "phone": info.get("phone", ""),
+            "address_street": info.get("address_street", ""),
+            "address_barangay": info.get("address_barangay") or user.get("address_barangay", "Barretto"),
+            "address_province": info.get("address_province") or user.get("address_province", "Zambales"),
+            "address_city": info.get("address_city") or user.get("address_city", "Olongapo")
+        }
+
+        return jsonify({"status": "success", "profile": profile}), 200
+
+    except Exception as e:
+        print("Update error:", str(e))
+        return jsonify({"status": "error", "message": str(e)}), 500
+    user_id = request.user_id
+    data = request.json or {}
+
+    # Only update users table fields
+    user_update = {k: data[k] for k in ["firstname", "lastname"] if k in data}
+
+    # Update info table fields (including address_street and address_barangay)
+    info_update = {k: data[k] for k in ["bio", "phone", "address_street", "address_barangay", "address_province"] if k in data}
+
+    try:
+        # Update users
+        if user_update:
+            supabase.table("users").update(user_update).eq("id", user_id).execute()
+
+        # Upsert info (insert or update)
+        if info_update:
+            supabase.table("info").upsert({**info_update, "user_id": user_id}, on_conflict=["user_id"]).execute()
+
+        # Return updated profile
+        user_resp = supabase.table("users").select("*").eq("id", user_id).execute()
+        info_resp = supabase.table("info").select("*").eq("user_id", user_id).execute()
+        user = user_resp.data[0] if user_resp.data else {}
+        info = info_resp.data[0] if info_resp.data else {}
+
+        profile = {
+            "id": user.get("id"),
+            "firstname": user.get("firstname"),
+            "lastname": user.get("lastname"),
+            "email": user.get("email"),
+            "isverified": user.get("isverified", False),
+            "avatar_url": user.get("avatar_url", "/default-avatar.png"),
+            "bio": info.get("bio", ""),
+            "phone": info.get("phone", ""),
+            "address_street": info.get("address_street", ""),
+            "address_barangay": info.get("address_barangay") or user.get("address_barangay", "Barretto"),
+            "address_province": info.get("address_province") or user.get("address_province", "Zambales"),
+            "address_city": info.get("address_city") or user.get("address_city", "Olongapo")
+        }
+
+        return jsonify({"status": "success", "profile": profile}), 200
+
+    except Exception as e:
+        print("Update error:", str(e))
+        return jsonify({"status": "error", "message": str(e)}), 500
+    user_id = request.user_id
+    data = request.json or {}
+
+    # Only update users table fields
+    user_update = {k: data[k] for k in ["firstname", "lastname"] if k in data}
+
+    # Update info table fields (including address_street and address_barangay)
+    info_update = {k: data[k] for k in ["bio", "phone", "address_street", "address_barangay", "address_province"] if k in data}
+
+    try:
+        # Update users
+        if user_update:
+            supabase.table("users").update(user_update).eq("id", user_id).execute()
+
+        # Upsert info (insert or update)
+        if info_update:
+            supabase.table("info").upsert({**info_update, "user_id": user_id}, on_conflict=["user_id"]).execute()
+
+        # Return updated profile
+        user_resp = supabase.table("users").select("*").eq("id", user_id).execute()
+        info_resp = supabase.table("info").select("*").eq("user_id", user_id).execute()
+        user = user_resp.data[0] if user_resp.data else {}
+        info = info_resp.data[0] if info_resp.data else {}
+
+        profile = {
+            "id": user.get("id"),
+            "firstname": user.get("firstname"),
+            "lastname": user.get("lastname"),
+            "email": user.get("email"),
+            "isverified": user.get("isverified", False),
+            "avatar_url": user.get("avatar_url", "/default-avatar.png"),
+            "bio": info.get("bio", ""),
+            "phone": info.get("phone", ""),
+            "address_street": info.get("address_street", ""),
+            "barangay": info.get("address_barangay") or user.get("address_barangay", "Barretto"),
+            "address_province": info.get("address_province") or user.get("address_province", "Zambales"),
+            "address_city": info.get("address_city") or user.get("address_city", "Olongapo")
+        }
+
+        return jsonify({"status": "success", "profile": profile}), 200
+
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
     user_id = request.user_id
     data = request.json or {}
 
@@ -204,7 +378,8 @@ def update_profile():
             "bio": info.get("bio", ""),
             "phone": info.get("phone", ""),
             "address_barangay": info.get("address_barangay") or user.get("address_barangay", "Barretto"),
-            "address_province": info.get("address_province") or user.get("address_province", "Zambales")
+            "address_province": info.get("address_province") or user.get("address_province", "Zambales"),
+            "address_city": info.get("address_city") or user.get("address_city", "Olongapo")
         }
 
         return jsonify({"status": "success", "profile": profile}), 200
@@ -256,7 +431,8 @@ def update_profile():
             "phone": info.get("phone"),
             "address": info.get("address"),
             "address_barangay": info.get("address_barangay") or user.get("address_barangay"),
-            "address_province": info.get("address_province") or user.get("address_province", "Zambales")
+            "address_province": info.get("address_province") or user.get("address_province", "Zambales"),
+            "address_city": info.get("address_city") or user.get("address_city", "Olongapo")
         }
 
         return jsonify({"status": "success", "profile": profile}), 200
@@ -300,7 +476,8 @@ def update_profile():
             "bio": info.get("bio"),
             "phone": info.get("phone"),
             "address_barangay": info.get("address_barangay") or user.get("address_barangay"),
-            "address_province": info.get("address_province") or user.get("address_province", "Zambales")
+            "address_province": info.get("address_province") or user.get("address_province", "Zambales"),
+            "address_city": info.get("address_city") or user.get("address_city", "Olongapo")
         }
 
         return jsonify({"status": "success", "profile": profile}), 200
@@ -360,7 +537,8 @@ def update_profile():
             "phone": info.get("phone", ""),
             "address": info.get("address", ""),
             "address_barangay": info.get("address_barangay") or user.get("address_barangay", "Barretto"),
-            "address_province": info.get("address_province") or user.get("address_province", "Zambales")
+            "address_province": info.get("address_province") or user.get("address_province", "Zambales"),
+            "address_city": info.get("address_city") or user.get("address_city", "Olongapo")
         }
 
         return jsonify({"status": "success", "profile": profile}), 200
@@ -461,10 +639,11 @@ def update_profile():
 def delete_profile():
     user_id = request.user_id
     try:
-        supabase.table("reports").delete().eq("user_id", user_id).execute()
-        supabase.table("info").delete().eq("user_id", user_id).execute()
-        supabase.table("users").delete().eq("id", user_id).execute()
-        return jsonify({"status": "success", "message": "Profile deleted"}), 200
+        # Soft delete: set deleted_at to now
+        from datetime import datetime, timezone
+        now = datetime.now(timezone.utc).isoformat()
+        supabase.table("users").update({"deleted_at": now}).eq("id", user_id).execute()
+        return jsonify({"status": "success", "message": "Profile flagged as deleted"}), 200
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
 
@@ -476,13 +655,32 @@ def upload_avatar():
         return jsonify({"status": "error", "message": "No file uploaded"}), 400
     file = request.files["avatar"]
     user_id = request.user_id
-    filename = f"profile_{user_id}.png"
-    save_path = os.path.join("uploads", filename)
-    os.makedirs("uploads", exist_ok=True)
-    file.save(save_path)
-    avatar_url = f"/uploads/{filename}"
-    supabase.table("users").update({"avatar_url": avatar_url}).eq("id", user_id).execute()
-    return jsonify({"status": "success", "url": avatar_url}), 200
+
+    try:
+        # Open image with Pillow
+        img = Image.open(file.stream)
+        img = img.convert("RGB")  # Ensure JPEG compatible
+
+        # Resize if too large
+        max_size = 512
+        img.thumbnail((max_size, max_size))
+
+        # Save to buffer as JPEG
+        filename = f"profile_{user_id}.jpg"
+        save_path = os.path.join("uploads", filename)
+        os.makedirs("uploads", exist_ok=True)
+        img.save(save_path, "JPEG", quality=80, optimize=True)
+
+        avatar_url = f"/uploads/{filename}"
+        supabase.table("users").update({"avatar_url": avatar_url}).eq("id", user_id).execute()
+        return jsonify({"status": "success", "url": avatar_url}), 200
+    except Exception as e:
+        print("Avatar upload error:", e)
+        return jsonify({"status": "error", "message": str(e)}), 400
+
+@app.route('/uploads/<filename>')
+def uploaded_file(filename):
+    return send_from_directory('uploads', filename)
 
 # ----------------- DASHBOARD STATS -----------------
 @app.route("/api/stats", methods=["GET"])
