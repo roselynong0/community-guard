@@ -125,11 +125,15 @@
   background: none;
   border: none;
   color: white;
-  font-size: 1rem;
+  font-size: 1.3rem;
   text-decoration: none;
   display: flex;
   flex-direction: column;
   align-items: center;
+}
+
+.bottom-nav a.active {
+  color: #0073ff; 
 }
 
 .modal-overlay {
@@ -198,7 +202,7 @@
     display: flex;
     justify-content: space-around;
     background: #2d2d73;
-    padding: 0.5rem 0;
+    padding: 0.8rem 0;
     position: fixed;
     bottom: 0;
     left: 0;

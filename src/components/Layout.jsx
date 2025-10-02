@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
+import { FaHome, FaPlusCircle, FaBell, FaUser, FaSignOutAlt, FaBars, FaCalendarAlt, FaMap } from "react-icons/fa";
 import { Outlet, NavLink, useNavigate } from "react-router-dom";
-import { FaHome, FaPlusCircle, FaBell, FaUser, FaSignOutAlt, FaBars, FaCalendarAlt } from "react-icons/fa";
 import "./Layout.css";
 import logo from "../assets/logo.png";
 
@@ -72,6 +72,7 @@ function Layout({ session, setSession }) {
           </div>
           <nav>
             <NavLink to="/home"><FaHome /> Home</NavLink>
+            <NavLink to="/maps"><FaMap /> Map</NavLink> 
             <NavLink to="/reports"><FaPlusCircle /> Reports</NavLink>
             <NavLink to="/notifications"><FaBell /> Notifications</NavLink>
             <NavLink to="/profile"><FaUser /> Profile</NavLink>
@@ -92,10 +93,11 @@ function Layout({ session, setSession }) {
       </main>
 
       <nav className="bottom-nav">
-        <NavLink to="/home"><FaHome /> Home</NavLink>
-        <NavLink to="/reports"><FaPlusCircle /> Reports</NavLink>
-        <NavLink to="/notifications"><FaBell /> Notifications</NavLink>
-        <NavLink to="/profile"><FaUser /> Profile</NavLink>
+        <NavLink to="/home"><FaHome /></NavLink>
+        <NavLink to="/maps"><FaMap /></NavLink> 
+        <NavLink to="/reports"><FaPlusCircle /></NavLink>
+        <NavLink to="/notifications"><FaBell /></NavLink>
+        <NavLink to="/profile"><FaUser /></NavLink>
       </nav>
 
       {showLogoutConfirm && (
