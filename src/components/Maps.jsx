@@ -18,7 +18,7 @@ function Maps() {
   return (
     <div className="maps-page">
       <h2>Olongapo City Map</h2>
-      <p>View reported incidents and community points of interest on the map.</p>
+      <p>View reported incidents and community directions on the map.</p>
       
       
       <MapContainer 
