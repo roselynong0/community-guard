@@ -7,6 +7,8 @@ import Layout from "./components/Layout";
 import Home from "./components/Home";
 import Reports from "./components/Reports";
 import Profile from "./components/Profile";
+import Notifications from "./components/Notifications";
+import Maps from "./components/Maps";
 
 function App() {
   const [session, setSession] = useState(null); // in-memory session
@@ -21,8 +23,9 @@ function App() {
         {/* Protected routes */}
         <Route element={<Layout session={session} setSession={setSession} />}>
           <Route path="/home" element={<Home token={session?.token} />} />
+          <Route path="/maps" element={<Maps />} />
           <Route path="/reports" element={<Reports token={session?.token} />} />
-          <Route path="/notifications" element={<div>Notifications</div>} />
+          <Route path="/notifications" element={<Notifications />} />
           <Route path="/profile" element={<Profile token={session?.token} />} />
         </Route>
       </Routes>
