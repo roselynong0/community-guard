@@ -2,11 +2,14 @@ import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { FaEdit, FaSignOutAlt, FaTrashAlt } from "react-icons/fa";
 import "./Profile.css";
+import "./Notifications.css";
 
 function Profile({ token }) {
   const navigate = useNavigate();
+  const [notifications, setNotifications] = useState([]);
 
   const [user, setUser] = useState(null);
+  const [isLoading, setIsLoading] = useState(true);
   const [profilePic, setProfilePic] = useState(null);
   const [fullScreenImage, setFullScreenImage] = useState(null);
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
@@ -48,10 +51,20 @@ function Profile({ token }) {
     "Santa Rita", "West Bajac-Bajac", "West Tapinac",
   ];
 
+  const addNotification = (message, type = "error") => {
+    const id = Date.now();
+    setNotifications((prev) => [...prev, { id, message, type }]);
+    // auto remove after 5s
+    setTimeout(() => {
+      setNotifications((prev) => prev.filter((n) => n.id !== id));
+    }, 5000);
+  };
+
+
   // ------------------- FETCH PROFILE -------------------
   useEffect(() => {
     if (!token) {
-      setIsLoading(false); // Stop loading if no token
+      setIsLoading(false);
       return;
     }
 
@@ -62,39 +75,40 @@ function Profile({ token }) {
         });
         const data = await res.json();
         if (data.status === "success") {
-          const profile = data.profile;
-          setUser({
-            id: profile.id,
-            firstname: profile.firstname,
-            lastname: profile.lastname,
-            email: profile.email,
-            address_street: profile.address_street || "",
-            avatar_url: profile.avatar_url,
-            role: "Resident",
-            bio: profile.bio || "",
-            contact: profile.phone || "",
-            address_barangay: profile.address_barangay || "Barretto",
-            address_city: profile.address_city || "Olongapo",
-          });
+          const profile = data.profile; // includes joined info: users + info
+        setUser({
+          id: profile.id,
+          firstname: profile.firstname,
+          lastname: profile.lastname,
+          email: profile.email,
+          avatar_url: profile.avatar_url || "/default-avatar.png",
+          role: profile.role || "Resident",
+          address_barangay: profile.address_barangay,
+          address_province: profile.address_province || "Zambales",
+          bio: profile.bio || "",
+          phone: profile.phone || "",
+          address_street: profile.address_street || "",
+        });
           setEditProfileData({
             firstname: profile.firstname || "",
             lastname: profile.lastname || "",
             bio: profile.bio || "",
             phone: profile.phone || "",
             address_street: profile.address_street || "",
-            address_barangay: profile.address_barangay || "Barretto",
+            address_barangay: profile.address_barangay || "",
             email: profile.email || "",
           });
         }
       } catch (err) {
         console.error("Failed to fetch profile:", err);
       } finally {
-        setIsLoading(false); // 👈 Set to false after profile fetch attempt
+        setIsLoading(false);
       }
     };
 
     fetchProfile();
   }, [token]);
+
 
   // ------------------- FETCH REPORTS -------------------
   useEffect(() => {
@@ -230,82 +244,78 @@ function Profile({ token }) {
     try {
       const res = await fetch("http://localhost:5000/api/profile", {
         method: "DELETE",
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
+        headers: { Authorization: `Bearer ${token}` },
       });
       const data = await res.json();
       if (data.status === "success") {
-        navigate("/login");
+        navigate("/login"); // cascades to info & reports
       } else {
-        alert("Failed to delete account. Please try again.");
+        addNotification("Failed to delete account. Please try again.", "error");
       }
     } catch (err) {
-      alert("Server error. Please try again later.");
-    }
-  };
-
-  // ------------------- UPDATE PROFILE -------------------
-  const handleProfileUpdate = async () => {
-    let updateFields = {};
-    if (showModal === "header") {
-      updateFields = {
-        firstname: editProfileData.firstname,
-        lastname: editProfileData.lastname,
-        address_barangay: editProfileData.address_barangay,
-      };
-    } else if (showModal === "about") {
-      updateFields = {
-        bio: editProfileData.bio,
-      };
-    } else if (showModal === "personal") {
-      updateFields = {
-        email: editProfileData.email,
-        phone: editProfileData.phone,
-        address_street: editProfileData.address_street,
-      };
-    }
-
-    try {
-      const res = await fetch("http://localhost:5000/api/profile", {
-        method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify(updateFields),
-      });
-
-      const data = await res.json();
-
-      if (data.status === "success") {
-        const updatedProfile = data.profile || editProfileData;
-
-        setUser((prev) => ({
-          ...prev,
-          firstname: updatedProfile.firstname,
-          lastname: updatedProfile.lastname,
-          bio: updatedProfile.bio,
-          contact: updatedProfile.phone,
-          address_street: updatedProfile.address_street,
-          barangay: updatedProfile.address_barangay,
-          email: updatedProfile.email,
-        }));
-
-        setShowModal(null);
-      } else {
-        console.error("Failed to update:", data);
-        alert("Failed to update profile. Please try again.");
-      }
-    } catch (err) {
-      console.error("Error updating profile:", err);
-      alert("Server error. Please try again later.");
+      console.error("Failed to fetch profile:", err);
     }
   };
 
 
+// ------------------- UPDATE PROFILE -------------------
+const handleProfileUpdate = async () => {
+  let updateFields = {};
+  if (showModal === "header") {
+    updateFields = {
+      firstname: editProfileData.firstname,
+      lastname: editProfileData.lastname,
+      address_barangay: editProfileData.address_barangay,
+    };
+  } else if (showModal === "about") {
+    updateFields = {
+      bio: editProfileData.bio,
+    };
+  } else if (showModal === "personal") {
+    updateFields = {
+      email: editProfileData.email,
+      phone: editProfileData.phone,
+      address_street: editProfileData.address_street,
+    };
+  }
 
+  try {
+    const res = await fetch("http://localhost:5000/api/profile", {
+      method: "PUT",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify(updateFields),
+    });
 
+    const data = await res.json();
+
+    if (data.status === "success") {
+      const updatedProfile = data.profile || editProfileData;
+
+      setUser((prev) => ({
+        ...prev,
+        firstname: updatedProfile.firstname,
+        lastname: updatedProfile.lastname,
+        bio: updatedProfile.bio,
+        contact: updatedProfile.phone,
+        address_street: updatedProfile.address_street,
+        barangay: updatedProfile.address_barangay,
+        email: updatedProfile.email,
+      }));
+
+      setShowModal(null);
+      addNotification("Profile updated successfully!", "success");
+    } else {
+      addNotification("Failed to update profile. Please try again.", "error");
+      console.error("Failed to update:", data);
+    }
+  } catch (err) {
+    addNotification("Server error. Please try again later.", "error");
+    console.error("Error updating profile:", err);
+  }
+};
 
   const displayField = (field, fallback) =>
     field !== undefined && field !== null && field !== "" ? field : fallback;
@@ -324,7 +334,20 @@ function Profile({ token }) {
   // 👈 LOADING FIX: Show message if loading is done but no user data (e.g., failed to fetch or no token)
   if (!user) return <p className="error-message">Failed to load profile or unauthorized.</p>;
 
-  return (
+  <div className="notifications-page">
+  {notifications.map((notif) => (
+
+      <div
+        key={notif.id}
+        className={`notification-item ${notif.type === "error" ? "unread" : ""}`}
+      >
+        {notif.message}
+      </div>
+    ))}
+  </div>
+  return(
+
+    
     <div className="profile-page">
       {/* HEADER - Apply fade-in-up animation and stagger delay */}
       <div className="profile-header-card fade-in-up" style={{ animationDelay: '0s' }}>

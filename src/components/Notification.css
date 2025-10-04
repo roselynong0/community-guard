@@ -1,7 +1,7 @@
 /* Notifications (top-right) */
 .notif {
     position: fixed;
-    top: 20px;
+    top: 50px;
     right: 20px;
     max-width: 300px;
     padding: 14px 20px;
@@ -26,6 +26,30 @@
     background: linear-gradient(135deg, #eab003, #ea940a);
     /* background: #eb950b; */
     color: #3c3c3c; /* Dark text for yellow background */
+}
+
+/* Inline field errors */
+.error {
+  color: red;
+  font-size: 0.8rem;
+  margin-top:-8px;
+  margin-bottom: 0.5rem;
+}
+
+/* Live password validation */
+.password-rules {
+  margin-top: -8px;
+  margin-bottom: 12px;
+}
+
+.password-rules p {
+  font-size: 0.8rem;
+  color: red;
+  margin: 0.1rem 0;
+}
+
+.password-rules p.valid {
+  color: green;
 }
 
 /* Slide and fade animation */

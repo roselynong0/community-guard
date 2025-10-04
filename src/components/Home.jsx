@@ -16,62 +16,102 @@ import {
 import MapView from "../components/Mapview";
 import "./Home.css";
 
-// ✅ Fetch utility using token
+// ✅ Fetch utility using Supabase token
 async function fetchWithToken(url, token) {
+  if (!token) throw new Error("Token is required");
   const res = await fetch(url, {
     headers: {
       "Content-Type": "application/json",
       Authorization: `Bearer ${token}`,
     },
   });
+
+  if (!res.ok) {
+    const errData = await res.json().catch(() => ({}));
+    throw new Error(errData.message || "Failed to fetch");
+  }
+
   return res.json();
 }
 
 function Home({ token }) {
-  const [stats, setStats] = useState([]);
+  // ----------------- STATES -----------------
+  const [stats, setStats] = useState([
+    { title: "Total Reports", value: 0, icon: <FaExclamationTriangle />, color: "#2d2d73" },
+    { title: "Ongoing Cases", value: 0, icon: <FaSyncAlt />, color: "#f40014ff" },
+    { title: "Resolved Cases", value: 0, icon: <FaCheckCircle />, color: "#2a9d62ff" },
+    { title: "Pending Reports", value: 0, icon: <FaClock />, color: "#f4b761ff" },
+  ]);
   const [recentReports, setRecentReports] = useState([]);
-  const [categoryData, setCategoryData] = useState([]);
+  const [categoryData, setCategoryData] = useState([{ name: "No Data", value: 1 }]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+
   const COLORS = ["#e65252ff", "#263b53ff", "#2a869dff", "#61f464ff", "#e9c46a"];
+
+  // ----------------- FETCH DASHBOARD DATA -----------------
 
   useEffect(() => {
     if (!token) return;
 
     const fetchData = async () => {
+      setLoading(true);
+      setError(null);
+
       try {
-        // Fetch dashboard stats
+        // Dashboard Stats
         const statsRes = await fetchWithToken("http://localhost:5000/api/stats", token);
+        // Inside useEffect, when setting stats
         if (statsRes.status === "success") {
           setStats([
-            { title: "Total Reports", value: statsRes.totalReports, icon: <FaExclamationTriangle />, color: "#2d2d73" },
-            { title: "Ongoing Cases", value: statsRes.ongoing, icon: <FaSyncAlt />, color: "#f40014ff" },
-            { title: "Resolved Cases", value: statsRes.resolved, icon: <FaCheckCircle />, color: "#2a9d62ff" },
-            { title: "Pending Reports", value: statsRes.pending, icon: <FaClock />, color: "#f4b761ff" },
+            { title: "Total Reports", value: statsRes.totalReports || 0, icon: <FaExclamationTriangle />, color: "#2d2d73" },
+            { title: "Ongoing Cases", value: statsRes.ongoing || 0, icon: <FaSyncAlt />, color: "#f40014ff" },
+            { title: "Resolved Cases", value: statsRes.resolved || 0, icon: <FaCheckCircle />, color: "#2a9d62ff" },
+            { title: "Pending Reports", value: statsRes.pending || 0, icon: <FaClock />, color: "#f4b761ff" },
           ]);
-        } else {
-          setStats([]);
         }
 
-        // Fetch recent reports
-        const recentRes = await fetchWithToken("http://localhost:5000/api/reports?limit=5&sort=desc", token);
+
+       // Recent Reports
+        const recentRes = await fetchWithToken(
+          "http://localhost:5000/api/reports?limit=5&sort=desc",
+          token
+        );
         setRecentReports(recentRes.status === "success" ? recentRes.reports : []);
 
-        // Fetch category stats
-        const categoryRes = await fetchWithToken("http://localhost:5000/api/reports/categories", token);
-        setCategoryData(categoryRes.status === "success" ? categoryRes.data : []);
+        // Reports by Category
+        const categoryRes = await fetchWithToken(
+          "http://localhost:5000/api/reports/categories",
+          token
+        );
+        setCategoryData(categoryRes.status === "success" && categoryRes.data.length ? categoryRes.data : [{ name: "No Data", value: 1 }]);
 
       } catch (err) {
-        console.error("Error fetching dashboard data:", err);
-        setStats([]);
+        console.error("Dashboard fetch error:", err);
+        setError("Failed to load dashboard");
+        setStats([
+          { title: "Total Reports", value: 0, icon: <FaExclamationTriangle />, color: "#2d2d73" },
+          { title: "Ongoing Cases", value: 0, icon: <FaSyncAlt />, color: "#f40014ff" },
+          { title: "Resolved Cases", value: 0, icon: <FaCheckCircle />, color: "#2a9d62ff" },
+          { title: "Pending Reports", value: 0, icon: <FaClock />, color: "#f4b761ff" },
+        ]);
         setRecentReports([]);
-        setCategoryData([]);
+        setCategoryData([{ name: "No Data", value: 1 }]);
+      } finally {
+        setLoading(false);
       }
     };
 
     fetchData();
   }, [token]);
 
+  // ----------------- RENDER -----------------
+  if (loading) return <p>Loading dashboard...</p>;
+
   return (
     <div className="dashboard">
+      {error && <p className="error">{error}</p>}
+
       {/* Stats Cards */}
       <div className="stats-grid">
         {stats.map((stat, i) => (
@@ -90,16 +130,19 @@ function Home({ token }) {
       </div>
 
       {/* Recent Reports & Pie Chart */}
+      {/* Recent Reports & Pie Chart */}
       <div className="middle-grid animate-up" style={{ animationDelay: "0.2s" }}>
         <div className="recent-reports animate-up" style={{ animationDelay: "0.3s" }}>
           <h3>Recent Reports</h3>
           <ul>
             {recentReports.length ? (
-              recentReports.map((report) => (
+              recentReports.map(report => (
                 <li key={report.id}>
                   <div className="report-header">
                     <strong>{report.title}</strong>
-                    <span className="report-date">{report.created_at ? new Date(report.created_at).toLocaleString() : "N/A"}</span>
+                    <span className="report-date">
+                      {report.created_at ? new Date(report.created_at).toLocaleString() : "N/A"}
+                    </span>
                   </div>
                   <div className="report-category">{report.category || "Uncategorized"}</div>
                 </li>
@@ -116,7 +159,7 @@ function Home({ token }) {
             <ResponsiveContainer width="100%" height="100%">
               <PieChart>
                 <Pie
-                  data={categoryData.length ? categoryData : [{ name: "No Data", value: 1 }]}
+                  data={categoryData}
                   cx="50%"
                   cy="50%"
                   labelLine={false}
@@ -124,7 +167,7 @@ function Home({ token }) {
                   fill="#8884d8"
                   dataKey="value"
                 >
-                  {(categoryData.length ? categoryData : [{ name: "No Data", value: 1 }]).map((entry, index) => (
+                  {categoryData.map((entry, index) => (
                     <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                   ))}
                 </Pie>

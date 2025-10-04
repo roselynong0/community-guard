@@ -1,5 +1,5 @@
 import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
-import { useState } from "react";
+import { useState, useEffect } from "react"; // combined import
 import RegistrationForm from "./components/RegistrationForm";
 import LoginForm from "./components/LoginForm";
 import ForgotPassword from "./components/ForgotPassword";
@@ -9,9 +9,22 @@ import Reports from "./components/Reports";
 import Profile from "./components/Profile";
 import Notifications from "./components/Notifications";
 import Maps from "./components/Maps";
+import { fetchSession } from "./utils/session";
 
 function App() {
-  const [session, setSession] = useState(null); // in-memory session
+  const [session, setSession] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const initSession = async () => {
+      const currentSession = await fetchSession();
+      setSession(currentSession);
+      setLoading(false);
+    };
+    initSession();
+  }, []);
+
+  if (loading) return <p>Loading...</p>; // optional loading state
 
   return (
     <Router>

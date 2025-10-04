@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from "react";
-import { Link, useNavigate } from "react-router-dom"; // <-- import useNavigate
+import { Link, useNavigate } from "react-router-dom";
 import TermsModal from "./TermsModal";
 import "./RegistrationForm.css";
 import "./Notification.css";
 
 function RegistrationForm() {
-  const navigate = useNavigate(); // <-- initialize navigate
+  const navigate = useNavigate();
+
   const [formData, setFormData] = useState({
     firstname: "",
     lastname: "",
@@ -19,6 +20,30 @@ function RegistrationForm() {
   const [notification, setNotification] = useState({ message: "", type: "" });
   const [showTerms, setShowTerms] = useState(false);
 
+  const [passwordStatus, setPasswordStatus] = useState({
+    length: false,
+    number: false,
+    special: false,
+    uppercase: false,
+  });
+
+  // Password rules functions
+  const passwordRules = {
+    length: (pw) => pw.length >= 8,
+    number: (pw) => /\d/.test(pw),
+    special: (pw) => /[!@#$%^&*(),.?":{}|<>]/.test(pw),
+    uppercase: (pw) => /[A-Z]/.test(pw),
+  };
+
+  // Get live password validation status
+  const getPasswordStatus = (pw) => ({
+    length: passwordRules.length(pw),
+    number: passwordRules.number(pw),
+    special: passwordRules.special(pw),
+    uppercase: passwordRules.uppercase(pw),
+  });
+
+  // Notification timeout
   useEffect(() => {
     if (notification.message) {
       const timer = setTimeout(
@@ -29,35 +54,62 @@ function RegistrationForm() {
     }
   }, [notification]);
 
+  // Handle input changes
   const handleChange = (e) => {
     const { name, value, type, checked } = e.target;
-    setFormData({ ...formData, [name]: type === "checkbox" ? checked : value });
+    const newValue = type === "checkbox" ? checked : value;
 
-    if (errors[name]) {
-      setErrors({ ...errors, [name]: "" });
-    }
+    setFormData({ ...formData, [name]: newValue });
+
+    if (errors[name]) setErrors({ ...errors, [name]: "" });
+
+    if (name === "password") setPasswordStatus(getPasswordStatus(value));
   };
 
+  // Form validation
   const validate = () => {
     const newErrors = {};
+
     if (!formData.firstname) newErrors.firstname = "First name is required";
     if (!formData.lastname) newErrors.lastname = "Last name is required";
+
     if (!formData.email) newErrors.email = "Email is required";
     else if (!/\S+@\S+\.\S+/.test(formData.email))
       newErrors.email = "Invalid email";
+
     if (!formData.password) newErrors.password = "Password is required";
+    else {
+      // Rules priority
+      if (!passwordRules.length(formData.password))
+        newErrors.password = "Password must be at least 8 characters";
+      else if (!passwordRules.number(formData.password))
+        newErrors.password = "Password must include at least one number";
+      else if (!passwordRules.special(formData.password))
+        newErrors.password =
+          "Password must include at least one special character";
+      else if (!passwordRules.uppercase(formData.password))
+        newErrors.password =
+          "Password must include at least one uppercase letter";
+    }
+
     if (formData.password !== formData.confirmPassword)
       newErrors.confirmPassword = "Passwords do not match";
+
     if (!formData.agree) newErrors.agree = "You must agree to the terms";
+
     return newErrors;
   };
 
+  const notify = (msg, type) => setNotification({ message: msg, type });
+
+  // Handle form submit
   const handleSubmit = async (e) => {
     e.preventDefault();
 
     const validationErrors = validate();
     if (Object.keys(validationErrors).length > 0) {
       setErrors(validationErrors);
+      notify("Please fill out all required fields first.", "caution");
       return;
     }
 
@@ -76,12 +128,8 @@ function RegistrationForm() {
       const result = await res.json();
 
       if (res.ok && result.status === "success") {
-        setNotification({
-          message: "Account successfully registered! 🎉 Redirecting to login...",
-          type: "success",
-        });
+        notify("Account successfully registered! 🎉", "success");
 
-        // Clear the form
         setFormData({
           firstname: "",
           lastname: "",
@@ -91,32 +139,26 @@ function RegistrationForm() {
           agree: false,
         });
         setErrors({});
+        setPasswordStatus({
+          length: false,
+          number: false,
+          special: false,
+          uppercase: false,
+        });
 
-        // Redirect after 2 seconds to allow user to read notification
         setTimeout(() => navigate("/login"), 2000);
-
       } else if (result.status === "duplicate") {
-        setNotification({
-          message: "This email is already registered!",
-          type: "caution",
-        });
+        notify("This email is already registered!", "caution");
       } else {
-        setNotification({
-          message: "❌ Something went wrong.",
-          type: "error",
-        });
+        notify("❌ Something went wrong.", "error");
       }
     } catch (err) {
-      setNotification({
-        message: "❌ Server error: " + err.message,
-        type: "error",
-      });
+      notify("❌ Server error: " + err.message, "error");
     }
   };
 
   return (
     <div className="background">
-      {/* Notification fixed at top-right */}
       {notification.message && (
         <div className={`notif notif-${notification.type}`}>
           <span>{notification.message}</span>
@@ -182,6 +224,22 @@ function RegistrationForm() {
             {errors.confirmPassword && (
               <p className="error">{errors.confirmPassword}</p>
             )}
+
+            {/* Live password rules (after confirm password) */}
+            <div className="password-rules">
+              <p className={passwordStatus.length ? "valid" : ""}>
+                • Minimum 8 characters
+              </p>
+              <p className={passwordStatus.number ? "valid" : ""}>
+                • At least one number
+              </p>
+              <p className={passwordStatus.special ? "valid" : ""}>
+                • At least one special character (!@#$%^&*...)
+              </p>
+              <p className={passwordStatus.uppercase ? "valid" : ""}>
+                • At least one uppercase letter
+              </p>
+            </div>
 
             <label className="checkbox">
               <input

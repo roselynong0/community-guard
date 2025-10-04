@@ -1,9 +1,36 @@
 import React, { useState, useEffect } from "react";
 import axios from "axios";
 import { FaEdit, FaTrashAlt } from "react-icons/fa";
+import { MapContainer, TileLayer, Marker, useMapEvents } from "react-leaflet";
+import "leaflet/dist/leaflet.css";
+import L from "leaflet";
 import "./Reports.css";
+import markerIcon2x from "leaflet/dist/images/marker-icon-2x.png";
+import markerIcon from "leaflet/dist/images/marker-icon.png";
+import markerShadow from "leaflet/dist/images/marker-shadow.png";
 
 const API_URL = "http://localhost:5000/api";
+
+// Fix Leaflet marker icon issue
+delete L.Icon.Default.prototype._getIconUrl;
+L.Icon.Default.mergeOptions({
+  iconRetinaUrl: markerIcon2x,
+  iconUrl: markerIcon,
+  shadowUrl: markerShadow,
+});
+
+function LocationPicker({ setLocation }) {
+  const [position, setPosition] = useState(null);
+
+  useMapEvents({
+    click(e) {
+      setPosition(e.latlng);
+      setLocation(e.latlng);
+    },
+  });
+
+  return position ? <Marker position={position} /> : null;
+}
 
 function Reports({ session }) {
   const [reports, setReports] = useState([]);
@@ -19,9 +46,11 @@ function Reports({ session }) {
     title: "",
     description: "",
     category: "Concern",
-    barangay: "Barretto",
+    barangay: "All",
     addressStreet: "",
     images: [],
+    lat: null,
+    lng: null,
     date: new Date(),
   });
   const [editReportId, setEditReportId] = useState(null);
@@ -29,14 +58,32 @@ function Reports({ session }) {
   const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState(null);
 
-  const barangays = ["All", "Barretto", "OtherBarangay"];
-  const currentUser = session?.user?.email || "Unknown";
+  const barangays = [
+    "All", "Barretto", "East Bajac-Bajac", "East Tapinac", "Gordon Heights",
+    "Kalaklan", "Mabayuan", "New Asinan", "New Banicain", "New Cabalan",
+    "New Ilalim", "New Kababae", "New Kalalake", "Old Cabalan", "Pag-Asa",
+    "Santa Rita", "West Bajac-Bajac", "West Tapinac",
+  ];
 
+  const currentUser = session?.user?.email || "Unknown";
   const token = session?.token;
 
   useEffect(() => {
-    if (token) fetchReports();
-  }, [token, sort]);
+  const fetchReports = async () => {
+    try {
+      const res = await axios.get(
+        `${API_URL}/reports?sort=${sort === "latest" ? "desc" : "asc"}`,
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      if (res.data.status === "success") setReports(res.data.reports);
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  if (token) fetchReports();
+}, [token, sort]);
+
 
   const fetchReports = async () => {
     try {
@@ -58,6 +105,10 @@ function Reports({ session }) {
       formData.append("category", newReport.category);
       formData.append("barangay", newReport.barangay);
       formData.append("addressStreet", newReport.addressStreet);
+      if (newReport.lat && newReport.lng) {
+        formData.append("lat", newReport.lat);
+        formData.append("lng", newReport.lng);
+      }
       newReport.images.forEach((file) => formData.append("images", file));
 
       if (editReportId) {
@@ -88,6 +139,8 @@ function Reports({ session }) {
       barangay: report.barangay,
       addressStreet: report.addressStreet,
       images: [],
+      lat: report.lat,
+      lng: report.lng,
       date: new Date(report.date),
     });
     setIsModalOpen(true);
@@ -118,9 +171,11 @@ function Reports({ session }) {
       title: "",
       description: "",
       category: "Concern",
-      barangay: "Barretto",
+      barangay: "All",
       addressStreet: "",
       images: [],
+      lat: null,
+      lng: null,
       date: new Date(),
     });
   };
@@ -339,6 +394,23 @@ function Reports({ session }) {
               <option value="Others">Others</option>
             </select>
 
+            <label>Pick Location on Map:</label>
+            <MapContainer
+              center={[14.8477, 120.2879]}
+              zoom={13}
+              style={{ height: 250, width: "100%", marginBottom: 10 }}
+            >
+              <TileLayer
+                url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+                attribution="&copy; OpenStreetMap contributors"
+              />
+              <LocationPicker
+                setLocation={(latlng) =>
+                  setNewReport({ ...newReport, lat: latlng.lat, lng: latlng.lng })
+                }
+              />
+            </MapContainer>
+
             <label className="upload-btn">
               Upload Image(s)
               <input
@@ -347,12 +419,25 @@ function Reports({ session }) {
                 multiple
                 onChange={(e) => {
                   const files = Array.from(e.target.files).slice(0, 5);
-                  const urls = files.map((file) => URL.createObjectURL(file));
-                  setNewReport({ ...newReport, images: urls });
+                  setNewReport((prev) => ({ ...prev, images: files }));
                 }}
                 hidden
               />
             </label>
+
+            {newReport.images && newReport.images.length > 0 && (
+              <div className={`report-images images-${newReport.images.length}`}>
+                {newReport.images.map((file, idx) => (
+                  <img
+                    key={idx}
+                    src={typeof file === "string" ? file : URL.createObjectURL(file)}
+                    alt={`preview-${idx}`}
+                    className="report-collage-img"
+                    style={{ maxWidth: 80, maxHeight: 80, margin: 4 }}
+                  />
+                ))}
+              </div>
+            )}
 
             <div className="modal-buttons">
               <button
