@@ -48,56 +48,69 @@ function Home({ token }) {
 
   const COLORS = ["#e65252ff", "#263b53ff", "#2a869dff", "#61f464ff", "#e9c46a"];
 
-  useEffect(() => {
-    if (!token) return;
+  
+  // Map your category names to colors
+ const CATEGORY_COLORS = {
+  "Pending Reports": "#f4b761ff",
+  "Ongoing Cases": "#f40014ff",
+  "Resolved Cases": "#2a9d62ff",
+  default: "#f4b761ff", // fallback
+};
 
-    const fetchData = async () => {
-      setLoading(true);
-      setError(null);
-      try {
-        const statsRes = await fetchWithToken("http://localhost:5000/api/stats", token);
-        if (statsRes.status === "success") {
-          setStats([
-            { title: "Total Reports", value: statsRes.totalReports || 0, icon: <FaExclamationTriangle />, color: "#2d2d73" },
-            { title: "Ongoing Cases", value: statsRes.ongoing || 0, icon: <FaSyncAlt />, color: "#f40014ff" },
-            { title: "Resolved Cases", value: statsRes.resolved || 0, icon: <FaCheckCircle />, color: "#2a9d62ff" },
-            { title: "Pending Reports", value: statsRes.pending || 0, icon: <FaClock />, color: "#f4b761ff" },
-          ]);
-        }
 
-        const recentRes = await fetchWithToken(
-          "http://localhost:5000/api/reports?limit=5&sort=desc",
-          token
-        );
-        setRecentReports(recentRes.status === "success" ? recentRes.reports : []);
+useEffect(() => {
+  if (!token) return;
 
-        const categoryRes = await fetchWithToken(
-          "http://localhost:5000/api/reports/categories",
-          token
-        );
-        setCategoryData(
-          categoryRes.status === "success" && categoryRes.data.length
-            ? categoryRes.data
-            : [{ name: "No Data", value: 1 }]
-        );
-      } catch (err) {
-        console.error("Dashboard fetch error:", err);
-        setError("Failed to load dashboard");
+  const fetchData = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      // Fetch dashboard stats
+      const statsRes = await fetchWithToken("http://localhost:5000/api/stats", token);
+      if (statsRes.status === "success") {
+        // Update stats cards
         setStats([
-          { title: "Total Reports", value: 0, icon: <FaExclamationTriangle />, color: "#2d2d73" },
-          { title: "Ongoing Cases", value: 0, icon: <FaSyncAlt />, color: "#f40014ff" },
-          { title: "Resolved Cases", value: 0, icon: <FaCheckCircle />, color: "#2a9d62ff" },
-          { title: "Pending Reports", value: 0, icon: <FaClock />, color: "#f4b761ff" },
+          { title: "Total Reports", value: statsRes.totalReports || 0, icon: <FaExclamationTriangle />, color: "#2d2d73" },
+          { title: "Ongoing Cases", value: statsRes.ongoing || 0, icon: <FaSyncAlt />, color: "#f40014ff" },
+          { title: "Resolved Cases", value: statsRes.resolved || 0, icon: <FaCheckCircle />, color: "#2a9d62ff" },
+          { title: "Pending Reports", value: statsRes.pending || 0, icon: <FaClock />, color: "#f4b761ff" },
         ]);
-        setRecentReports([]);
-        setCategoryData([{ name: "No Data", value: 1 }]);
-      } finally {
-        setLoading(false);
-      }
-    };
 
-    fetchData();
-  }, [token]);
+        // Update pie chart to display statuses instead of categories
+        setCategoryData([
+          { name: "Pending", value: statsRes.pending || 0, color: CATEGORY_COLORS["Pending Reports"] },
+          { name: "Ongoing", value: statsRes.ongoing || 0, color: CATEGORY_COLORS["Ongoing Cases"] },
+          { name: "Resolved", value: statsRes.resolved || 0, color: CATEGORY_COLORS["Resolved Cases"] },
+        ]);
+      }
+
+      // Fetch recent reports
+      const recentRes = await fetchWithToken(
+        "http://localhost:5000/api/reports?limit=5&sort=desc",
+        token
+      );
+      setRecentReports(recentRes.status === "success" ? recentRes.reports : []);
+      
+    } catch (err) {
+      console.error("Dashboard fetch error:", err);
+      setError("Failed to load dashboard");
+      setStats([
+        { title: "Total Reports", value: 0, icon: <FaExclamationTriangle />, color: "#2d2d73" },
+        { title: "Ongoing Cases", value: 0, icon: <FaSyncAlt />, color: "#f40014ff" },
+        { title: "Resolved Cases", value: 0, icon: <FaCheckCircle />, color: "#2a9d62ff" },
+        { title: "Pending Reports", value: 0, icon: <FaClock />, color: "#f4b761ff" },
+      ]);
+      setRecentReports([]);
+      setCategoryData([
+        { name: "No Data", value: 1, color: CATEGORY_COLORS.default }
+      ]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  fetchData();
+}, [token]);
 
   if (loading) {
     return (
@@ -155,17 +168,9 @@ function Home({ token }) {
           <div className="chart-container">
             <ResponsiveContainer width="100%" height="100%">
               <PieChart>
-                <Pie
-                  data={categoryData}
-                  cx="50%"
-                  cy="50%"
-                  labelLine={false}
-                  outerRadius="70%"
-                  fill="#8884d8"
-                  dataKey="value"
-                >
+                <Pie data={categoryData} cx="50%" cy="50%" labelLine={false} outerRadius="70%" dataKey="value">
                   {categoryData.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                    <Cell key={`cell-${index}`} fill={entry.color} />
                   ))}
                 </Pie>
                 <Tooltip />
