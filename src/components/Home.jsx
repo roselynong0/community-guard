@@ -99,7 +99,14 @@ function Home({ token }) {
     fetchData();
   }, [token]);
 
-  if (loading) return <p>Loading dashboard...</p>;
+  if (loading) {
+    return (
+      <div className="loading-overlay">
+        <div className="spinner"></div>
+        <p>Loading dashboard...</p>
+      </div>
+    );
+  }
 
   return (
     <div className="dashboard">

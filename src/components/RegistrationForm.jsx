@@ -19,6 +19,7 @@ function RegistrationForm() {
   const [errors, setErrors] = useState({});
   const [notification, setNotification] = useState({ message: "", type: "" });
   const [showTerms, setShowTerms] = useState(false);
+  const [passwordTouched, setPasswordTouched] = useState(false);
 
   const [passwordStatus, setPasswordStatus] = useState({
     length: false,
@@ -63,7 +64,10 @@ function RegistrationForm() {
 
     if (errors[name]) setErrors({ ...errors, [name]: "" });
 
-    if (name === "password") setPasswordStatus(getPasswordStatus(value));
+    if (name === "password") {
+    setPasswordStatus(getPasswordStatus(value));
+    if (!passwordTouched && value.length > 0) setPasswordTouched(true);
+  }
   };
 
   // Form validation
@@ -78,19 +82,6 @@ function RegistrationForm() {
       newErrors.email = "Invalid email";
 
     if (!formData.password) newErrors.password = "Password is required";
-    else {
-      // Rules priority
-      if (!passwordRules.length(formData.password))
-        newErrors.password = "Password must be at least 8 characters";
-      else if (!passwordRules.number(formData.password))
-        newErrors.password = "Password must include at least one number";
-      else if (!passwordRules.special(formData.password))
-        newErrors.password =
-          "Password must include at least one special character";
-      else if (!passwordRules.uppercase(formData.password))
-        newErrors.password =
-          "Password must include at least one uppercase letter";
-    }
 
     if (formData.password !== formData.confirmPassword)
       newErrors.confirmPassword = "Passwords do not match";
@@ -226,20 +217,22 @@ function RegistrationForm() {
             )}
 
             {/* Live password rules (after confirm password) */}
-            <div className="password-rules">
-              <p className={passwordStatus.length ? "valid" : ""}>
-                • Minimum 8 characters
-              </p>
-              <p className={passwordStatus.number ? "valid" : ""}>
-                • At least one number
-              </p>
-              <p className={passwordStatus.special ? "valid" : ""}>
-                • At least one special character (!@#$%^&*...)
-              </p>
-              <p className={passwordStatus.uppercase ? "valid" : ""}>
-                • At least one uppercase letter
-              </p>
-            </div>
+            {passwordTouched && (
+              <div className="password-rules">
+                <p className={passwordStatus.length ? "valid" : ""}>
+                  • Minimum 8 characters
+                </p>
+                <p className={passwordStatus.number ? "valid" : ""}>
+                  • At least one number
+                </p>
+                <p className={passwordStatus.special ? "valid" : ""}>
+                  • At least one special character (!@#$%^&*...)
+                </p>
+                <p className={passwordStatus.uppercase ? "valid" : ""}>
+                  • At least one uppercase letter
+                </p>
+              </div>
+            )}
 
             <label className="checkbox">
               <input
