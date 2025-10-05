@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import axios from "axios";
-import { FaEdit, FaTrashAlt } from "react-icons/fa";
+import { FaEdit, FaTrashAlt, FaSearch, FaRedo} from "react-icons/fa";
 import { MapContainer, TileLayer, Marker, useMapEvents } from "react-leaflet";
 import "leaflet/dist/leaflet.css";
 import L from "leaflet";
@@ -65,37 +65,27 @@ function Reports({ session }) {
     "Santa Rita", "West Bajac-Bajac", "West Tapinac",
   ];
 
-  const currentUser = session?.user?.email || "Unknown";
+  const [appliedSearch, setAppliedSearch] = useState("");
+  const [appliedCategory, setAppliedCategory] = useState("All");
+  const [appliedBarangay, setAppliedBarangay] = useState("All");
   const token = session?.token;
 
+  // Fetch all reports from database
+  const fetchReports = async () => {
+    try {
+      const res = await axios.get(
+        `${API_URL}/reports?sort=${sort === "latest" ? "desc" : "asc"}`,
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      if (res.data.status === "success") setReports(res.data.reports);
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
   useEffect(() => {
-  const fetchReports = async () => {
-    try {
-      const res = await axios.get(
-        `${API_URL}/reports?sort=${sort === "latest" ? "desc" : "asc"}`,
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
-      if (res.data.status === "success") setReports(res.data.reports);
-    } catch (err) {
-      console.error(err);
-    }
-  };
-
-  if (token) fetchReports();
-}, [token, sort]);
-
-
-  const fetchReports = async () => {
-    try {
-      const res = await axios.get(
-        `${API_URL}/reports?sort=${sort === "latest" ? "desc" : "asc"}`,
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
-      if (res.data.status === "success") setReports(res.data.reports);
-    } catch (err) {
-      console.error(err);
-    }
-  };
+    if (token) fetchReports();
+  }, [token, sort]);
 
   const handleAddOrUpdateReport = async () => {
     try {
@@ -136,12 +126,12 @@ function Reports({ session }) {
       title: report.title,
       description: report.description,
       category: report.category,
-      barangay: report.barangay,
-      addressStreet: report.addressStreet,
+      barangay: report.address_barangay || "All",
+      addressStreet: report.address_street || "",
       images: [],
-      lat: report.lat,
-      lng: report.lng,
-      date: new Date(report.date),
+      lat: report.latitude,
+      lng: report.longitude,
+      date: new Date(report.created_at),
     });
     setIsModalOpen(true);
   };
@@ -149,9 +139,10 @@ function Reports({ session }) {
   const handleDelete = async () => {
     if (!deleteTarget) return;
     try {
-      await axios.delete(`${API_URL}/reports/${deleteTarget.id}`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      await axios.patch(`${API_URL}/reports/${deleteTarget.id}`, 
+        { deleted: true }, 
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
       setIsDeleteConfirmOpen(false);
       setDeleteTarget(null);
       fetchReports();
@@ -180,22 +171,25 @@ function Reports({ session }) {
     });
   };
 
+  // Apply filters: category, barangay, search, and showHistory
   const filteredReports = reports
-    .filter((r) => (showHistory ? true : r.user_email === currentUser))
-    .filter((r) => (category === "All" ? true : r.category === category))
-    .filter((r) => (barangay === "All" ? true : r.barangay === barangay))
+    // Show either all reports or only user's reports
+    .filter((r) => showHistory || r.user_id === session.user.id)
+    .filter((r) => (appliedCategory === "All" ? true : r.category === appliedCategory))
+    .filter((r) => (appliedBarangay === "All" ? true : r.barangay === appliedBarangay))
     .filter(
       (r) =>
-        r.title.toLowerCase().includes(search.toLowerCase()) ||
-        r.description.toLowerCase().includes(search.toLowerCase())
+        r.title.toLowerCase().includes(appliedSearch.toLowerCase()) ||
+        r.description.toLowerCase().includes(appliedSearch.toLowerCase())
     );
+
 
   return (
     <div className="reports-container">
       <div className="header-row">
         <h2>Community Reports</h2>
         <button className="history-btn" onClick={() => setShowHistory(!showHistory)}>
-          {showHistory ? "All Reports" : "My Reports"}
+          {showHistory ? "My Reports" : "All Reports"}
         </button>
       </div>
 
@@ -226,6 +220,37 @@ function Reports({ session }) {
           <option value="latest">Latest → Oldest</option>
           <option value="oldest">Oldest → Latest</option>
         </select>
+
+        {/* Buttons Group */}
+        <div className="filter-btns">
+          <button
+            className="filter-icon-btn"
+            title="Search"
+            onClick={() => {
+              setAppliedSearch(search);
+              setAppliedCategory(category);
+              setAppliedBarangay(barangay);
+            }}
+          >
+            <FaSearch />
+          </button>
+          <button
+            className="filter-icon-btn"
+            title="Reset"
+            onClick={() => {
+              setSearch("");
+              setCategory("All");
+              setBarangay("All");
+              setAppliedSearch("");
+              setAppliedCategory("All");
+              setAppliedBarangay("All");
+            }}
+          >
+            <FaRedo />
+          </button>
+        </div>
+
+        {/* Add Report Button */}
         <button
           className="add-btn"
           onClick={() => {
@@ -237,6 +262,7 @@ function Reports({ session }) {
           + Add Report
         </button>
       </div>
+
 
       <div className="reports-list">
         {filteredReports.length > 0 ? (
@@ -252,23 +278,25 @@ function Reports({ session }) {
               <div key={report.id} className="report-card">
                 <div className="report-header">
                   <div className="report-header-left">
-                    <img src="/src/assets/profile.png" alt="profile" className="profile-pic" />
+                    <img
+                      src={report.reporter?.avatar_url || "/src/assets/profile.png"}
+                      alt="profile"
+                      className="profile-pic"
+                    />
                     <div className="report-header-text">
                       <p className="report-user">
-                        {report.user}{" "}
-                        <span
-                          className={`user-verified-badge ${
-                            report.user_verified ? "verified" : "unverified"
-                          }`}
-                        >
+                        {report.reporter
+                          ? `${report.reporter.firstname} ${report.reporter.lastname}`.trim()
+                          : "Unknown User"}{" "}
+                        <span className={`user-verified-badge ${report.user_verified ? "verified" : "unverified"}`}>
                           {report.user_verified ? "Verified" : "Unverified"}
                         </span>
                       </p>
                       <p className="report-subinfo">
-                        {new Date(report.date).toLocaleString()} · {report.category}
+                        {new Date(report.created_at).toLocaleString()} · {report.category}
                       </p>
                       <p className="report-address-info">
-                        {report.addressStreet}, {report.barangay}, Olongapo City
+                        {report.address_street}, {report.address_barangay}, Olongapo City
                       </p>
                     </div>
                   </div>
@@ -278,7 +306,7 @@ function Reports({ session }) {
                       {report.status}
                     </span>
 
-                    {report.user_email === currentUser && (
+                      {report.user_id === session.user.id && (
                       <>
                         <button className="icon-btn edit-btn" onClick={() => handleEdit(report)}>
                           <FaEdit />
@@ -294,6 +322,7 @@ function Reports({ session }) {
                         </button>
                       </>
                     )}
+
                   </div>
                 </div>
 
@@ -311,17 +340,20 @@ function Reports({ session }) {
 
                 {report.images && report.images.length > 0 && (
                   <div className={`report-images images-${report.images.length}`}>
-                    {report.images.map((img, idx) => (
+                    {report.images.map((imgObj, idx) => (
                       <img
                         key={idx}
-                        src={img}
+                        src={`${API_URL}${imgObj.url}`}
                         alt={`report-${idx}`}
                         className="report-collage-img"
-                        onClick={() => setPreviewImage(img)}
+                        onClick={() => setPreviewImage(`${API_URL}${imgObj.url}`)}
                       />
                     ))}
+
                   </div>
                 )}
+
+
 
                 <div className="report-actions">
                   <button className="like-btn">Like</button>
@@ -338,106 +370,105 @@ function Reports({ session }) {
       {isModalOpen && (
         <div className="modal-overlay" onClick={() => setIsModalOpen(false)}>
           <div className="modal-content" onClick={(e) => e.stopPropagation()}>
-            <h3>{editReportId ? "Edit Report" : "Add New Report"}</h3>
-            <p>
-              <strong>Resident:</strong> {currentUser}
-            </p>
-            <p>
-              <strong>Date:</strong> {new Date(newReport.date).toLocaleDateString()}
-            </p>
+            <div className="modal-scrollable">
+              <h3>{editReportId ? "Edit Report" : "Add New Report"}</h3>
 
-            <label>Title:</label>
-            <input
-              type="text"
-              placeholder="Title"
-              value={newReport.title}
-              onChange={(e) => setNewReport({ ...newReport, title: e.target.value })}
-            />
-
-            <label>Description:</label>
-            <textarea
-              placeholder="Description"
-              value={newReport.description}
-              onChange={(e) => setNewReport({ ...newReport, description: e.target.value })}
-            />
-
-            <div className="address-fields">
-              <label>Street Address:</label>
+              <label>Title:</label>
               <input
                 type="text"
-                placeholder="e.g. 45 Rizal Avenue"
-                value={newReport.addressStreet}
-                onChange={(e) => setNewReport({ ...newReport, addressStreet: e.target.value })}
+                placeholder="Title"
+                value={newReport.title}
+                onChange={(e) => setNewReport({ ...newReport, title: e.target.value })}
               />
-              <label>Barangay:</label>
-              <select
-                value={newReport.barangay}
-                onChange={(e) => setNewReport({ ...newReport, barangay: e.target.value })}
-              >
-                {barangays.filter((b) => b !== "All").map((b) => (
-                  <option key={b} value={b}>
-                    {b}
-                  </option>
-                ))}
-              </select>
-            </div>
 
-            <label>Category:</label>
-            <select
-              value={newReport.category}
-              onChange={(e) => setNewReport({ ...newReport, category: e.target.value })}
-            >
-              <option value="Concern">Concern</option>
-              <option value="Crime">Crime</option>
-              <option value="Hazard">Hazard</option>
-              <option value="Lost&Found">Lost & Found</option>
-              <option value="Others">Others</option>
-            </select>
-
-            <label>Pick Location on Map:</label>
-            <MapContainer
-              center={[14.8477, 120.2879]}
-              zoom={13}
-              style={{ height: 250, width: "100%", marginBottom: 10 }}
-            >
-              <TileLayer
-                url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-                attribution="&copy; OpenStreetMap contributors"
+              <label>Description:</label>
+              <textarea
+                placeholder="Description"
+                value={newReport.description}
+                onChange={(e) => setNewReport({ ...newReport, description: e.target.value })}
               />
-              <LocationPicker
-                setLocation={(latlng) =>
-                  setNewReport({ ...newReport, lat: latlng.lat, lng: latlng.lng })
-                }
-              />
-            </MapContainer>
 
-            <label className="upload-btn">
-              Upload Image(s)
-              <input
-                type="file"
-                accept="image/*"
-                multiple
-                onChange={(e) => {
-                  const files = Array.from(e.target.files).slice(0, 5);
-                  setNewReport((prev) => ({ ...prev, images: files }));
-                }}
-                hidden
-              />
-            </label>
-
-            {newReport.images && newReport.images.length > 0 && (
-              <div className={`report-images images-${newReport.images.length}`}>
-                {newReport.images.map((file, idx) => (
-                  <img
-                    key={idx}
-                    src={typeof file === "string" ? file : URL.createObjectURL(file)}
-                    alt={`preview-${idx}`}
-                    className="report-collage-img"
-                    style={{ maxWidth: 80, maxHeight: 80, margin: 4 }}
-                  />
-                ))}
+              <div className="address-fields">
+                <label>Street Address:</label>
+                <input
+                  type="text"
+                  placeholder="e.g. 45 Rizal Avenue"
+                  value={newReport.addressStreet}
+                  onChange={(e) => setNewReport({ ...newReport, addressStreet: e.target.value })}
+                />
+                <label>Barangay:</label>
+                <select
+                  value={newReport.barangay}
+                  onChange={(e) => setNewReport({ ...newReport, barangay: e.target.value })}
+                >
+                  {barangays.filter((b) => b !== "All").map((b) => (
+                    <option key={b} value={b}>
+                      {b}
+                    </option>
+                  ))}
+                </select>
               </div>
-            )}
+
+              <label>Category:</label>
+              <select
+                value={newReport.category}
+                onChange={(e) => setNewReport({ ...newReport, category: e.target.value })}
+              >
+                <option value="Concern">Concern</option>
+                <option value="Crime">Crime</option>
+                <option value="Hazard">Hazard</option>
+                <option value="Lost&Found">Lost & Found</option>
+                <option value="Others">Others</option>
+              </select>
+
+              <div className="map-field">
+                <label>Pick Location on Map:</label>
+                <MapContainer
+                  center={[14.8477, 120.2879]}
+                  zoom={13}
+                  style={{ height: 250, width: "100%", marginBottom: 10 }}
+                >
+                  <TileLayer
+                    url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+                    attribution="&copy; OpenStreetMap contributors"
+                  />
+                  <LocationPicker
+                    setLocation={(latlng) =>
+                      setNewReport({ ...newReport, lat: latlng.lat, lng: latlng.lng })
+                    }
+                  />
+                </MapContainer>
+              </div>
+
+
+              <label className="upload-btn">
+                Upload Image(s)
+                <input
+                  type="file"
+                  accept="image/*"
+                  multiple
+                  onChange={(e) => {
+                    const files = Array.from(e.target.files).slice(0, 5);
+                    setNewReport((prev) => ({ ...prev, images: files }));
+                  }}
+                  hidden
+                />
+              </label>
+
+              {newReport.images && newReport.images.length > 0 && (
+                <div className={`report-images images-${newReport.images.length}`}>
+                  {newReport.images.map((file, idx) => (
+                    <img
+                      key={idx}
+                      src={typeof file === "string" ? file : URL.createObjectURL(file)}
+                      alt={`preview-${idx}`}
+                      className="report-collage-img"
+                      style={{ maxWidth: 80, maxHeight: 80, margin: 4 }}
+                    />
+                  ))}
+                </div>
+              )}
+            </div>
 
             <div className="modal-buttons">
               <button

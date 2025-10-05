@@ -67,6 +67,85 @@ h2 {
     background-color: #3b3b9f;
 }
 
+/* Scrollable Add/Edit Modal */
+.modal-content {
+    background-color: #fff;
+    border-radius: 12px;
+    width: 500px;
+    max-width: 90%;
+    max-height: 80vh; /* limit height */
+    padding: 20px;
+    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.25);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden; /* contain inner scroll */
+}
+
+.modal-scrollable {
+    overflow-y: auto; /* vertical scroll if content exceeds */
+    padding-right: 5px; /* prevent horizontal overflow */
+    max-height: 70vh; /* scrollable area */
+}
+
+/* Scrollbar styles for modal */
+.modal-scrollable::-webkit-scrollbar {
+    width: 6px;
+}
+
+.modal-scrollable::-webkit-scrollbar-thumb {
+    background-color: #2d2d73;
+    border-radius: 3px;
+}
+
+.modal-scrollable::-webkit-scrollbar-track {
+    background: #f0f0f0;
+    border-radius: 3px;
+}
+
+/* Keep modal buttons consistent with colors */
+.modal-buttons button {
+    border-radius: 25px;
+    padding: 8px 18px;
+    font-size: 14px;
+    cursor: pointer;
+    transition: background-color 0.2s;
+}
+
+.modal-buttons button:first-child {
+    background-color: #ccc;
+    color: #333;
+}
+
+.modal-buttons button:last-child {
+    background-color: #2d2d73;
+    color: #fff;
+}
+
+.modal-buttons button:last-child:hover {
+    background-color: #3b3b9f;
+}
+
+/* Map container responsiveness */
+.modal-scrollable .leaflet-container {
+    border-radius: 8px;
+    margin-bottom: 10px;
+    width: 100%;
+    height: 250px;
+}
+
+/* Image previews inside modal */
+.modal-scrollable .report-images {
+    margin-bottom: 10px;
+}
+
+.modal-scrollable .report-collage-img {
+    max-width: 80px;
+    max-height: 80px;
+    margin: 4px;
+    border-radius: 6px;
+    object-fit: cover;
+}
+
 .modal-overlay {
     position: fixed;
     top: 0;
@@ -266,6 +345,7 @@ h2 {
 .edit-btn {
     color: #29ce29;
 }
+
 .edit-btn:hover {
     background-color: #ebf9eb;
 }
@@ -275,6 +355,45 @@ h2 {
 }
 .delete-btn:hover {
     background-color: #fcebeb;
+}
+
+/* New wrapper for filter icons */
+.filter-btns {
+    display: flex;
+    gap: 8px; /* spacing between buttons */
+    flex-shrink: 0;
+}
+
+/* Keep icons consistent */
+.filter-icon-btn {
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-size: 1.1rem;
+    padding: 6px;
+    border-radius: 50%;
+    transition: background-color 0.2s, color 0.2s;
+    color: #2d2d73;
+}
+
+.filter-icon-btn:hover {
+    background-color: #ebf9eb;
+    color: #29ce29;
+}
+
+.filter-icon-btn:focus {
+    outline: none; /* remove default browser outline */
+    box-shadow: none; /* remove any shadow */
+}
+
+
+/* Ensure wrapper stays horizontal on mobile */
+@media (max-width: 768px) {
+    .filter-btns {
+        flex-direction: row; /* force horizontal layout */
+        justify-content: flex-start;
+        margin-top: 5px;
+    }
 }
 
 .user-verified-badge {
