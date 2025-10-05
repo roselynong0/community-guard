@@ -42,11 +42,11 @@ function App() {
   return (
     <Router>
       <Routes>
+        {/* Root path "/" -> show login */}
+        <Route path="/" element={<LoginWrapper session={session} setSession={setSession} />} />
+
         {/* Public routes */}
-        <Route
-          path="/login"
-          element={<LoginWrapper session={session} setSession={setSession} />}
-        />
+        <Route path="/login" element={<LoginWrapper session={session} setSession={setSession} />} />
         <Route path="/register" element={<RegistrationForm />} />
         <Route path="/forgot-password" element={<ForgotPassword />} />
 

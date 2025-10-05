@@ -29,7 +29,6 @@ app = Flask(__name__)
 CORS(app, supports_credentials=True)
 
 # ----------------- SESSION -----------------
-# ----------------- SESSION -----------------
 def token_required(f):
     @wraps(f)
     def decorated(*args, **kwargs):
@@ -300,20 +299,20 @@ def get_profile():
 
         profile = {
             "id": user.get("id"),
-            "firstname": user.get("firstname", ""),
-            "lastname": user.get("lastname", ""),
-            "email": user.get("email", ""),
+            "firstname": with_default(user.get("firstname"), "No name added yet"),
+            "lastname": with_default(user.get("lastname"), ""),
+            "email": with_default(user.get("email"), "No email added yet"),
             "isverified": user.get("isverified", False),
             "label": "Verified" if user.get("isverified", False) else "Unverified",
-            "avatar_url": user.get("avatar_url", "/default-avatar.png"),
-            "bio": info.get("bio", ""),
-            "phone": info.get("phone", ""),
-            "address": info.get("address", ""),
-            "address_street": info.get("address_street", ""),
-            "address_barangay": info.get("address_barangay") or user.get("address_barangay", "Barretto"),
-            "address_province": info.get("address_province") or user.get("address_province", "Zambales"),
-            "address_city": info.get("address_city") or user.get("address_city", "Olongapo"),
-            "birthdate": info.get("birthdate", "")
+            "avatar_url": with_default(user.get("avatar_url"), "/default-avatar.png"),
+            "bio": with_default(info.get("bio"), "No information added yet"),
+            "phone": with_default(info.get("phone"), "No contact info yet"),
+            "address": with_default(info.get("address"), ""),
+            "address_street": with_default(info.get("address_street"), "No location"),
+            "address_barangay": with_default(info.get("address_barangay"), user.get("address_barangay") or "No barangay selected"),
+            "address_province": with_default(info.get("address_province"), user.get("address_province") or "Zambales"),
+            "address_city": with_default(info.get("address_city"), user.get("address_city") or "Olongapo"),
+            "birthdate": with_default(info.get("birthdate"), "")
         }
 
         return jsonify({"status": "success", "profile": profile}), 200
@@ -328,7 +327,7 @@ def update_profile():
     user_id = request.user_id
     data = request.json or {}
 
-    # ----------------- PREPARE UPDATES -----------------
+    # Prepare updates
     user_update = {k: data[k] for k in ["firstname", "lastname"] if k in data}
     info_update = {
         "user_id": user_id,
@@ -341,11 +340,9 @@ def update_profile():
     }
 
     try:
-        # Update users table if needed
         if user_update:
             supabase.table("users").update(user_update).eq("id", user_id).execute()
 
-        # Upsert info table
         supabase.table("info").upsert(info_update, on_conflict=["user_id"]).execute()
 
         # Fetch updated data
@@ -355,25 +352,24 @@ def update_profile():
         info = info_resp.data[0] if info_resp.data else {}
 
         profile = {
-            "id": user.get("id"),
-            "firstname": user.get("firstname"),
-            "lastname": user.get("lastname"),
-            "email": user.get("email"),
             "isverified": user.get("isverified", False),
-            "avatar_url": user.get("avatar_url") or "/default-avatar.png",
-            "bio": info.get("bio", ""),
-            "phone": info.get("phone", ""),
-            "address": info.get("address", ""),
-            "address_barangay": info.get("address_barangay") or user.get("address_barangay", "Barretto"),
-            "address_province": info.get("address_province") or user.get("address_province", "Zambales"),
-            "address_city": info.get("address_city") or user.get("address_city", "Olongapo")
+            "avatar_url": with_default(user.get("avatar_url"), "/default-avatar.png"),
+            "bio": with_default(info.get("bio"), "No information added yet"),
+            "phone": with_default(info.get("phone"), "No contact info yet"),
+            "address": with_default(info.get("address"), ""),
+            "address_barangay": with_default(info.get("address_barangay"), user.get("address_barangay") or "No barangay selected"),
+            "address_province": with_default(info.get("address_province"), user.get("address_province") or "Zambales"),
+            "address_city": with_default(info.get("address_city"), user.get("address_city") or "Olongapo")
         }
 
         return jsonify({"status": "success", "profile": profile}), 200
 
     except Exception as e:
-        print("Update error:", str(e))
         return jsonify({"status": "error", "message": str(e)}), 500
+
+def with_default(value, default):
+    return default if value is None or value == "" else value
+
 
 # ----------------- DELETE PROFILE -----------------
 @app.route("/api/profile", methods=["DELETE"])
@@ -390,233 +386,275 @@ def delete_profile():
         return jsonify({"status": "error", "message": str(e)}), 500
 
 # ----------------- UPLOAD AVATAR -----------------
+# Example: upload avatar to Supabase Storage
 @app.route("/api/profile/upload-avatar", methods=["POST"])
 @token_required
 def upload_avatar():
     user_id = request.user_id
 
-    # Default avatar if no file is uploaded
-    avatar_url = "/default-avatar.png"
+    if "avatar" not in request.files:
+        return jsonify({"status": "error", "message": "No file uploaded"}), 400
 
-    if "avatar" in request.files:
-        file = request.files["avatar"]
+    file = request.files["avatar"]
+    if file.mimetype not in ["image/jpeg", "image/png"]:
+        return jsonify({"status": "error", "message": "Invalid file type"}), 400
 
-        # Validate file type
-        if file.mimetype not in ["image/jpeg", "image/png"]:
-            return jsonify({"status": "error", "message": "Invalid file type"}), 400
+    try:
+        # Upload to Supabase Storage
+        filename = f"profile_{user_id}_{uuid.uuid4().hex}.jpg"
+        bucket_name = "avatars"  # make sure you have this bucket in Supabase
+        file_contents = file.read()
 
-        try:
-            # Process image
-            img = Image.open(file.stream).convert("RGB")
-            img.thumbnail((512, 512))
+        supabase.storage.from_(bucket_name).upload(filename, file_contents, {"content-type": file.mimetype})
 
-            # Save file
-            os.makedirs("uploads", exist_ok=True)
-            filename = f"profile_{user_id}_{uuid.uuid4().hex}.jpg"
-            save_path = os.path.join("uploads", filename)
-            img.save(save_path, format="JPEG")
-            avatar_url = f"/uploads/{filename}"
+        # Get public URL
+        avatar_url = supabase.storage.from_(bucket_name).get_public_url(filename)["publicUrl"]
 
-        except Exception as e:
-            return jsonify({"status": "error", "message": str(e)}), 500
+        # Update users table
+        supabase.table("users").update({"avatar_url": avatar_url}).eq("id", user_id).execute()
 
-    # Update avatar URL in users table
-    supabase.table("users").update({"avatar_url": avatar_url}).eq("id", user_id).execute()
+        return jsonify({"status": "success", "url": avatar_url}), 200
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
 
-    return jsonify({"status": "success", "url": avatar_url}), 200
-
-# ----------------- DASHBOARD STATS -----------------
+# ----------------- DASHBOARD / REPORTS -----------------
 DEFAULT_REPORTER = {"id": 0, "firstname": "Unknown", "lastname": "", "avatar_url": "/default-avatar.png"}
 
-def fetch_global_reports(limit=10, sort="desc"):
+def fetch_reports(limit=10, sort="desc", user_only=False, user_id=None):
+    """Fetch reports (including incidents) with optional user filter and their images."""
     try:
-        resp = supabase.table("reports") \
-            .select("*") \
-            .order("created_at", desc=(sort=="desc")) \
-            .limit(limit) \
-            .execute()
-        reports = resp.data if resp.data else []
+        query = supabase.table("reports").select("*").is_("deleted_at", None)
+        if user_only and user_id:
+            query = query.eq("user_id", user_id)
+        query = query.order("created_at", desc=(sort=="desc")).limit(limit)
+        resp = query.execute()
+        reports = getattr(resp, "data", []) or []
 
+        # Attach reporter info and images
         for report in reports:
-            user_id = report.get("user_id")
-            reporter = None
-            if user_id:
-                try:
-                    user_resp = supabase.table("users").select("id, firstname, lastname, avatar_url").eq("id", user_id).execute()
-                    reporter = user_resp.data[0] if user_resp.data else None
-                except Exception:
-                    reporter = None
-            report["reporter"] = reporter or DEFAULT_REPORTER
+            author_id = report.get("user_id")
+            user_resp = supabase.table("users").select("id, firstname, lastname, avatar_url, email").eq("id", author_id).execute()
+            reporter = getattr(user_resp, "data", [None])[0] or DEFAULT_REPORTER
+            report["reporter"] = reporter
+            report["user_email"] = reporter.get("email")
+
+            # Fetch all images for this report
+            images_resp = supabase.table("report_images").select("image_url").eq("report_id", report["id"]).execute()
+            report["images"] = [{"url": img["image_url"]} for img in getattr(images_resp, "data", [])] if images_resp.data else []
 
         return reports
     except Exception as e:
-        print("fetch_global_reports error:", e)
+        print("fetch_reports error:", e)
         return []
 
+# ----------------- REPORTS / INCIDENTS -----------------
 @app.route("/api/reports", methods=["GET"])
 @token_required
-def get_global_reports():
-    try:
-        # Parse query params safely
-        try:
-            limit = int(request.args.get("limit", 10))
-        except ValueError:
-            limit = 10
-        sort = request.args.get("sort", "desc").lower()
-        if sort not in ["asc", "desc"]:
-            sort = "desc"
-
-        # Fetch reports
-        resp = (
-            supabase.table("reports")
-            .select("*")
-            .is_("deleted_at", None)
-            .order("created_at", desc=(sort=="desc"))
-            .limit(limit)
-            .execute()
-        )
-        reports = resp.data if resp.data else []
-
-        # Attach reporter info safely
-        for report in reports:
-            user_id = report.get("user_id")
-            reporter = None
-            if user_id:
-                try:
-                    user_resp = supabase.table("users").select("id, firstname, lastname, avatar_url").eq("id", user_id).execute()
-                    reporter = user_resp.data[0] if user_resp.data else None
-                except Exception:
-                    reporter = None
-            report["reporter"] = reporter or DEFAULT_REPORTER
-
-        return jsonify({"status": "success", "reports": reports}), 200
-
-    except Exception as e:
-        return jsonify({"status": "error", "message": str(e), "reports": []}), 500
-
-@app.route("/api/stats", methods=["GET"])
-def get_stats():
+def get_reports():
     try:
         limit = int(request.args.get("limit", 10))
-        sort = request.args.get("sort", "desc")
-        reports = fetch_global_reports(limit, sort)
+        sort = request.args.get("sort", "desc").lower()
+        user_only = request.args.get("user_only", "false").lower() == "true"
+
+        reports = fetch_reports(limit, sort, user_only, request.user_id)
         return jsonify({"status": "success", "reports": reports}), 200
     except Exception as e:
         return jsonify({"status": "error", "message": str(e), "reports": []}), 500
+
+@app.route("/api/reports", methods=["POST"])
+@token_required
+def add_report():
+    user_id = request.user_id
+    try:
+        data = request.json if request.is_json else request.form
+
+        report = {
+            "user_id": user_id,
+            "title": data.get("title"),
+            "description": data.get("description"),
+            "category": data.get("category", "Uncategorized"),
+            "status": data.get("status", "Pending"),
+            "created_at": datetime.now(timezone.utc).isoformat(),
+            "deleted_at": None,
+            "address_street": data.get("addressStreet", ""),
+            "address_barangay": data.get("barangay", "All"),
+            "latitude": float(data.get("lat")) if data.get("lat") else None,
+            "longitude": float(data.get("lng")) if data.get("lng") else None
+        }
+
+        resp = supabase.table("reports").insert(report).execute()
+        report_id = resp.data[0]["id"]
+
+        # Save images if any
+        images_urls = []
+        if "images" in request.files:
+            files = request.files.getlist("images")
+            os.makedirs("uploads", exist_ok=True)
+            for file in files:
+                filename = f"report_{user_id}_{uuid.uuid4().hex}_{file.filename}"
+                save_path = os.path.join("uploads", filename)
+                file.save(save_path)
+                image_url = f"/uploads/{filename}"
+                images_urls.append(image_url)
+                supabase.table("report_images").insert({
+                    "report_id": report_id,
+                    "image_url": image_url,
+                    "created_at": datetime.now(timezone.utc).isoformat()
+                }).execute()
+
+        user_resp = supabase.table("users").select("id, firstname, lastname, avatar_url").eq("id", user_id).execute()
+        reporter = getattr(user_resp, "data", [None])[0] or DEFAULT_REPORTER
+
+        report["images"] = [{"url": url} for url in images_urls]
+        report["reporter"] = reporter
+
+        return jsonify({"status": "success", "report": report}), 201
+    except Exception as e:
+        print("add_report error:", e)
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+@app.route("/api/reports/<report_id>/upload", methods=["POST"])
+@token_required
+def upload_report_file(report_id):
+    if "file" not in request.files:
+        return jsonify({"status": "error", "message": "No file uploaded"}), 400
+    file = request.files["file"]
+    try:
+        os.makedirs("uploads", exist_ok=True)
+        filename = f"report_{report_id}_{file.filename}"
+        save_path = os.path.join("uploads", filename)
+        file.save(save_path)
+        attachment_url = f"/uploads/{filename}"
+        supabase.table("reports").update({"attachment_url": attachment_url}).eq("id", report_id).execute()
+        return jsonify({"status": "success", "url": attachment_url}), 200
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+@app.route("/api/reports/<report_id>", methods=["PUT"])
+@token_required
+def update_report(report_id):
+    try:
+        data = request.form if request.form else request.json
+
+        # Only allow the owner to update
+        report_resp = supabase.table("reports").select("user_id").eq("id", report_id).execute()
+        report = getattr(report_resp, "data", [None])[0]
+        if not report or report["user_id"] != request.user_id:
+            return jsonify({"status": "error", "message": "Not authorized"}), 403
+
+        # Update report data
+        update_data = {
+            "title": data.get("title"),
+            "description": data.get("description"),
+            "category": data.get("category"),
+            "address_street": data.get("addressStreet"),
+            "address_barangay": data.get("barangay"),
+            "latitude": float(data.get("lat")) if data.get("lat") else None,
+            "longitude": float(data.get("lng")) if data.get("lng") else None,
+        }
+
+        supabase.table("reports").update(update_data).eq("id", report_id).execute()
+
+        # Handle image replacement
+        if "images" in request.files:
+            # Delete existing images from backend DB
+            existing_images_resp = supabase.table("report_images").select("*").eq("report_id", report_id).execute()
+            existing_images = getattr(existing_images_resp, "data", [])
+            for img in existing_images:
+                # Delete file from filesystem
+                file_path = img.get("image_url").lstrip("/")  # adjust if needed
+                if os.path.exists(file_path):
+                    os.remove(file_path)
+                # Delete from DB
+                supabase.table("report_images").delete().eq("id", img["id"]).execute()
+
+            # Upload new images
+            files = request.files.getlist("images")
+            os.makedirs("uploads", exist_ok=True)
+            for file in files:
+                filename = f"report_{report_id}_{uuid.uuid4().hex}_{file.filename}"
+                save_path = os.path.join("uploads", filename)
+                file.save(save_path)
+                image_url = f"/uploads/{filename}"
+                supabase.table("report_images").insert({
+                    "report_id": report_id,
+                    "image_url": image_url,
+                    "created_at": datetime.now(timezone.utc).isoformat()
+                }).execute()
+
+        return jsonify({"status": "success", "message": "Report updated"}), 200
+
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+@app.route("/api/reports/<report_id>", methods=["PATCH"])
+@token_required
+def soft_delete_report(report_id):
+    try:
+        # Only allow the owner to delete
+        report_resp = supabase.table("reports").select("user_id").eq("id", report_id).execute()
+        report = getattr(report_resp, "data", [None])[0]
+        if not report or report["user_id"] != request.user_id:
+            return jsonify({"status": "error", "message": "Not authorized"}), 403
+
+        # Soft delete by setting deleted_at
+        supabase.table("reports").update({"deleted_at": datetime.now(timezone.utc).isoformat()}).eq("id", report_id).execute()
+
+        return jsonify({"status": "success", "message": "Report deleted"}), 200
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+# ----------------- REPORT STATS -----------------
+@app.route("/api/stats", methods=["GET"])
+@token_required
+def get_stats():
+    try:
+        reports_resp = supabase.table("reports").select("status").is_("deleted_at", None).execute()
+        reports = getattr(reports_resp, "data", []) or []
+
+        stats = {"totalReports": len(reports), "pending": 0, "ongoing": 0, "resolved": 0}
+
+        for report in reports:
+            status = (report.get("status") or "").lower()
+            if status == "pending":
+                stats["pending"] += 1
+            elif status == "ongoing":
+                stats["ongoing"] += 1
+            elif status == "resolved":
+                stats["resolved"] += 1
+
+        return jsonify({"status": "success", **stats}), 200
+
+    except Exception as e:
+        print("get_stats error:", e)
+        return jsonify({"status": "error", "message": str(e), "totalReports": 0, "pending": 0, "ongoing": 0, "resolved": 0}), 500
 
 @app.route("/api/reports/categories", methods=["GET"])
 @token_required
 def get_report_categories():
     try:
         resp = supabase.table("reports").select("category").is_("deleted_at", None).execute()
-        reports = resp.data if resp.data else []
+        reports = getattr(resp, "data", []) or []
 
         category_counts = {}
         for report in reports:
-            cat = report.get("category", "Uncategorized")
+            if not report:
+                continue
+            cat = report.get("category") or "Uncategorized"
             category_counts[cat] = category_counts.get(cat, 0) + 1
 
-        # If no categories exist, provide a default placeholder
-        if not category_counts:
-            data = [{"name": "No Data", "value": 1}]
-        else:
-            data = [{"name": k, "value": v} for k, v in category_counts.items()]
-
+        data = [{"name": k, "value": v} for k, v in category_counts.items()] or [{"name": "No Data", "value": 1}]
         return jsonify({"status": "success", "data": data}), 200
-
     except Exception as e:
+        print("get_report_categories error:", e)
         return jsonify({"status": "error", "message": str(e), "data": [{"name": "No Data", "value": 1}]}), 500
 
+# ----------------- SERVE UPLOADED FILES -----------------
+UPLOAD_FOLDER = os.path.join(os.getcwd(), "uploads")
 
-
-# ----------------- INCIDENTS -----------------
-# Create a new incident (similar to reports)
-@app.route("/api/incidents", methods=["POST"])
-@token_required
-def create_incident():
-    data = request.json
-    user_id = request.user_id
-
-    try:
-        incident = {
-            "user_id": user_id,
-            "title": data.get("title"),
-            "description": data.get("description"),
-            "status": "Pending",
-            "created_at": datetime.now(timezone.utc).isoformat(),
-            "deleted_at": None
-        }
-        supabase.table("incidents").insert(incident).execute()
-        return jsonify({"status": "success", "incident": incident}), 201
-    except Exception as e:
-        return jsonify({"status": "error", "message": str(e)}), 500
-
-# Get incidents (optionally filter by user)
-@app.route("/api/incidents", methods=["GET"])
-@token_required
-def get_incidents():
-    user_only = request.args.get("user_only", "false").lower() == "true"
-    try:
-        query = supabase.table("incidents").select("*").is_("deleted_at", None)
-        if user_only:
-            query = query.eq("user_id", request.user_id)
-        incidents_resp = query.execute()
-        incidents = incidents_resp.data if incidents_resp.data else []
-
-        # Attach reporter info
-        for inc in incidents:
-            user_resp = supabase.table("users").select("firstname, lastname, avatar_url").eq("id", inc["user_id"]).execute()
-            if user_resp.data:
-                inc["reporter"] = user_resp.data[0]
-
-        return jsonify({"status": "success", "incidents": incidents}), 200
-    except Exception as e:
-        return jsonify({"status": "error", "message": str(e)}), 500
-
-# Update an incident
-@app.route("/api/incidents/<incident_id>", methods=["PUT"])
-@token_required
-def update_incident(incident_id):
-    data = request.json
-    try:
-        update_fields = {k: data[k] for k in ["title", "description", "status"] if k in data}
-        supabase.table("incidents").update(update_fields).eq("id", incident_id).execute()
-        return jsonify({"status": "success", "updated": update_fields}), 200
-    except Exception as e:
-        return jsonify({"status": "error", "message": str(e)}), 500
-
-# Soft delete an incident
-@app.route("/api/incidents/<incident_id>", methods=["DELETE"])
-@token_required
-def delete_incident(incident_id):
-    try:
-        now = datetime.now(timezone.utc).isoformat()
-        supabase.table("incidents").update({"deleted_at": now}).eq("id", incident_id).execute()
-        return jsonify({"status": "success", "message": "Incident flagged as deleted"}), 200
-    except Exception as e:
-        return jsonify({"status": "error", "message": str(e)}), 500
-
-# Upload incident attachment
-@app.route("/api/incidents/<incident_id>/upload", methods=["POST"])
-@token_required
-def upload_incident_file(incident_id):
-    if "file" not in request.files:
-        return jsonify({"status": "error", "message": "No file uploaded"}), 400
-
-    file = request.files["file"]
-    try:
-        filename = f"incident_{incident_id}_{file.filename}"
-        os.makedirs("uploads", exist_ok=True)
-        save_path = os.path.join("uploads", filename)
-        file.save(save_path)
-
-        attachment_url = f"/uploads/{filename}"
-        supabase.table("incidents").update({"attachment_url": attachment_url}).eq("id", incident_id).execute()
-
-        return jsonify({"status": "success", "url": attachment_url}), 200
-
-    except Exception as e:
-        return jsonify({"status": "error", "message": str(e)}), 500
+@app.route("/api/uploads/<filename>")
+def uploaded_file(filename):
+    return send_from_directory(UPLOAD_FOLDER, filename)
 
 # ----------------- RUN APP -----------------
 if __name__ == "__main__":
