@@ -3,32 +3,11 @@ import { Link, useNavigate } from "react-router-dom";
 import "./RegistrationForm.css";
 import "./Notification.css";
 
-function LoginForm({ session, setSession }) {
+function LoginForm({ setSession }) {
   const [formData, setFormData] = useState({ email: "", password: "" });
   const [errors, setErrors] = useState({});
   const [notification, setNotification] = useState({ message: "", type: "" });
   const navigate = useNavigate();
-
-  // ----------------- VERIFY TOKEN ON LOAD -----------------
-  useEffect(() => {
-    const verifyToken = async () => {
-      if (!session?.token) return; // No session yet
-      try {
-        const res = await fetch("http://localhost:5000/api/profile", {
-          headers: { Authorization: `Bearer ${session.token}` },
-        });
-        if (!res.ok) {
-          setSession(null);
-          navigate("/login");
-        }
-      } catch {
-        // Silently fail and reset session
-        setSession(null);
-        navigate("/login");
-      }
-    };
-    verifyToken();
-  }, [session, navigate, setSession]);
 
   // ----------------- CLEAR NOTIFICATIONS -----------------
   useEffect(() => {
@@ -38,6 +17,7 @@ function LoginForm({ session, setSession }) {
     }
   }, [notification]);
 
+  // ----------------- FORM HANDLERS -----------------
   const handleChange = (e) => {
     const { name, value } = e.target;
     setFormData({ ...formData, [name]: value });
@@ -54,6 +34,7 @@ function LoginForm({ session, setSession }) {
     return newErrors;
   };
 
+  // ----------------- SUBMIT LOGIN -----------------
   const handleSubmit = async (e) => {
     e.preventDefault();
     const validationErrors = validate();
@@ -83,8 +64,12 @@ function LoginForm({ session, setSession }) {
       const result = await res.json();
 
       if (res.ok && result.status === "success") {
-        // ✅ Use React state only, no localStorage
+        // ✅ Save token in localStorage
+        localStorage.setItem("token", result.session.token);
+
+        // ✅ Update React global session state
         setSession(result.session);
+
         setNotification({ message: "Login successful! 🎉", type: "success" });
         setTimeout(() => navigate("/home"), 1000);
       } else if (result.status === "invalid_credentials") {
@@ -141,7 +126,7 @@ function LoginForm({ session, setSession }) {
             <Link to="/forgot-password" className="forgot-password-link">
               Forgot Password?
             </Link>
-            <Link to="/" className="back-link">
+            <Link to="/register" className="back-link">
               Don't have an account? Register
             </Link>
           </form>

@@ -262,7 +262,7 @@ function RegistrationForm() {
             {errors.agree && <p className="error">{errors.agree}</p>}
 
             <button type="submit">Sign Up</button>
-            <Link to="/login" className="back-link">
+            <Link to="/login?force=true" className="back-link">
               Go to Login
             </Link>
           </form>

@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { FaCheckCircle, FaExclamationCircle, FaThumbsUp, FaRegBell, FaTrashAlt } from 'react-icons/fa'; 
-import './Notifications.css'; 
+import './Notifications.css';
+import './Notification.css';
 
 const mockNotifications = [
   {
@@ -154,5 +155,21 @@ function Notifications() {
     </div>
   );
 }
+
+// Dynamic top-right notifications
+export function notify(message, type = "success", duration = 4000) {
+  const notif = document.createElement("div");
+  notif.className = `notif notif-${type}`;
+  notif.textContent = message;
+
+  document.body.appendChild(notif);
+
+  setTimeout(() => {
+    notif.style.opacity = "0";
+    notif.style.transform = "translateX(50px)";
+    setTimeout(() => document.body.removeChild(notif), 300);
+  }, duration);
+}
+
 
 export default Notifications;

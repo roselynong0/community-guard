@@ -13,10 +13,10 @@ import {
   ResponsiveContainer,
   Legend,
 } from "recharts";
-import MapView from "../components/Mapview";
+import MapView from "../components/Mapview"; // <-- use imported component
 import "./Home.css";
 
-// ✅ Fetch utility using Supabase token
+// ----------------- FETCH UTILITY -----------------
 async function fetchWithToken(url, token) {
   if (!token) throw new Error("Token is required");
   const res = await fetch(url, {
@@ -35,7 +35,6 @@ async function fetchWithToken(url, token) {
 }
 
 function Home({ token }) {
-  // ----------------- STATES -----------------
   const [stats, setStats] = useState([
     { title: "Total Reports", value: 0, icon: <FaExclamationTriangle />, color: "#2d2d73" },
     { title: "Ongoing Cases", value: 0, icon: <FaSyncAlt />, color: "#f40014ff" },
@@ -49,19 +48,14 @@ function Home({ token }) {
 
   const COLORS = ["#e65252ff", "#263b53ff", "#2a869dff", "#61f464ff", "#e9c46a"];
 
-  // ----------------- FETCH DASHBOARD DATA -----------------
-
   useEffect(() => {
     if (!token) return;
 
     const fetchData = async () => {
       setLoading(true);
       setError(null);
-
       try {
-        // Dashboard Stats
         const statsRes = await fetchWithToken("http://localhost:5000/api/stats", token);
-        // Inside useEffect, when setting stats
         if (statsRes.status === "success") {
           setStats([
             { title: "Total Reports", value: statsRes.totalReports || 0, icon: <FaExclamationTriangle />, color: "#2d2d73" },
@@ -71,21 +65,21 @@ function Home({ token }) {
           ]);
         }
 
-
-       // Recent Reports
         const recentRes = await fetchWithToken(
           "http://localhost:5000/api/reports?limit=5&sort=desc",
           token
         );
         setRecentReports(recentRes.status === "success" ? recentRes.reports : []);
 
-        // Reports by Category
         const categoryRes = await fetchWithToken(
           "http://localhost:5000/api/reports/categories",
           token
         );
-        setCategoryData(categoryRes.status === "success" && categoryRes.data.length ? categoryRes.data : [{ name: "No Data", value: 1 }]);
-
+        setCategoryData(
+          categoryRes.status === "success" && categoryRes.data.length
+            ? categoryRes.data
+            : [{ name: "No Data", value: 1 }]
+        );
       } catch (err) {
         console.error("Dashboard fetch error:", err);
         setError("Failed to load dashboard");
@@ -105,14 +99,12 @@ function Home({ token }) {
     fetchData();
   }, [token]);
 
-  // ----------------- RENDER -----------------
   if (loading) return <p>Loading dashboard...</p>;
 
   return (
     <div className="dashboard">
       {error && <p className="error">{error}</p>}
 
-      {/* Stats Cards */}
       <div className="stats-grid">
         {stats.map((stat, i) => (
           <div
@@ -129,8 +121,6 @@ function Home({ token }) {
         ))}
       </div>
 
-      {/* Recent Reports & Pie Chart */}
-      {/* Recent Reports & Pie Chart */}
       <div className="middle-grid animate-up" style={{ animationDelay: "0.2s" }}>
         <div className="recent-reports animate-up" style={{ animationDelay: "0.3s" }}>
           <h3>Recent Reports</h3>
@@ -179,11 +169,10 @@ function Home({ token }) {
         </div>
       </div>
 
-      {/* Map Section */}
       <div className="map-section animate-up" style={{ animationDelay: "0.5s" }}>
         <h3>Community Map</h3>
         <div className="map-placeholder">
-          <MapView />
+          <MapView reports={recentReports} /> {/* pass reports to MapView */}
         </div>
       </div>
     </div>

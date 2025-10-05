@@ -1,5 +1,5 @@
-import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
-import { useState, useEffect } from "react"; // combined import
+import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from "react-router-dom";
+import { useState, useEffect } from "react";
 import RegistrationForm from "./components/RegistrationForm";
 import LoginForm from "./components/LoginForm";
 import ForgotPassword from "./components/ForgotPassword";
@@ -11,6 +11,19 @@ import Notifications from "./components/Notifications";
 import Maps from "./components/Maps";
 import { fetchSession } from "./utils/session";
 
+// ---------------- LOGIN WRAPPER ----------------
+function LoginWrapper({ session, setSession }) {
+  const location = useLocation();
+  const params = new URLSearchParams(location.search);
+  const forceLogin = params.get("force");
+
+  // Redirect to home only if session exists AND user is not forcing login
+  if (session && !forceLogin) return <Navigate to="/home" replace />;
+
+  return <LoginForm setSession={setSession} />;
+}
+
+// ---------------- APP COMPONENT ----------------
 function App() {
   const [session, setSession] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -24,20 +37,32 @@ function App() {
     initSession();
   }, []);
 
-  if (loading) return <p>Loading...</p>; // optional loading state
+  if (loading) return <p>Loading...</p>;
 
   return (
     <Router>
       <Routes>
-        <Route path="/" element={<RegistrationForm />} />
-        <Route path="/login" element={<LoginForm setSession={setSession} />} />
+        {/* Public routes */}
+        <Route
+          path="/login"
+          element={<LoginWrapper session={session} setSession={setSession} />}
+        />
+        <Route path="/register" element={<RegistrationForm />} />
         <Route path="/forgot-password" element={<ForgotPassword />} />
 
         {/* Protected routes */}
-        <Route element={<Layout session={session} setSession={setSession} />}>
+        <Route
+          element={
+            session ? (
+              <Layout session={session} setSession={setSession} />
+            ) : (
+              <Navigate to="/login" replace />
+            )
+          }
+        >
           <Route path="/home" element={<Home token={session?.token} />} />
           <Route path="/maps" element={<Maps />} />
-          <Route path="/reports" element={<Reports token={session?.token} />} />
+          <Route path="/reports" element={<Reports session={session} />} />
           <Route path="/notifications" element={<Notifications />} />
           <Route path="/profile" element={<Profile token={session?.token} />} />
         </Route>

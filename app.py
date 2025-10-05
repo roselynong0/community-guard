@@ -12,6 +12,7 @@ from PIL import Image
 import io
 from flask import make_response
 import uuid
+import secrets
 
 # ----------------- LOAD ENV -----------------
 load_dotenv()
@@ -25,59 +26,109 @@ supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 
 # ----------------- APP -----------------
 app = Flask(__name__)
-CORS(app)
+CORS(app, supports_credentials=True)
 
-# ----------------- JWT DECORATOR -----------------
+# ----------------- SESSION -----------------
+# ----------------- SESSION -----------------
 def token_required(f):
     @wraps(f)
     def decorated(*args, **kwargs):
-        token = request.headers.get("Authorization", "").split(" ")[-1] or request.cookies.get("token")
-
-        if not token:
+        auth_header = request.headers.get("Authorization", "")
+        if not auth_header:
             return jsonify({"status": "unauthorized"}), 401
 
-        try:
-            payload = jwt.decode(token, EMAIL_SECRET_KEY, algorithms=["HS256"])
-            user_id = payload["user_id"]
+        parts = auth_header.split(" ")
+        if len(parts) != 2 or parts[0] != "Bearer":
+            return jsonify({"status": "unauthorized"}), 401
 
-            # Check token in DB
-            user_resp = supabase.table("users").select("current_token").eq("id", user_id).execute()
-            user = getattr(user_resp, "data", []) or []
-            user = user[0] if user else None
+        token = parts[1]
 
-            if not user or user.get("current_token") != token:
-                return jsonify({"status": "invalid_token"}), 401
-
-            request.user_id = user_id
-
-        except jwt.ExpiredSignatureError:
-            return jsonify({"status": "expired_token"}), 401
-        except jwt.InvalidTokenError:
+        # Look up session in Supabase
+        session_resp = supabase.table("sessions").select("*").eq("token", token).execute()
+        sessions = getattr(session_resp, "data", []) or []
+        if not sessions:
             return jsonify({"status": "invalid_token"}), 401
+
+        session = sessions[0]
+
+        # Check expiry
+        now = datetime.now(timezone.utc)
+        if now > datetime.fromisoformat(session["expires_at"]):
+            print(f"⚠️ Expired session detected for user_id={session['user_id']}, token={token[:8]}...")  
+            return jsonify({"status": "expired_token"}), 401
+
+        # Attach user_id and session
+        request.user_id = session["user_id"]
+        request.session = session
 
         return f(*args, **kwargs)
     return decorated
 
-
-@app.route("/api/session", methods=["GET"])
+# ----------------- LIST USER SESSIONS -----------------
+@app.route("/api/sessions", methods=["GET"])
 @token_required
-def get_session():
+def list_sessions():
     user_id = request.user_id
-    user_resp = supabase.table("users").select("*").eq("id", user_id).execute()
-    if not user_resp.data:
-        return jsonify({"status": "not_found"}), 404
-    user = user_resp.data[0]
-    session = {
-        "user": {
-            "id": user["id"],
-            "firstname": user["firstname"],
-            "lastname": user["lastname"],
-            "email": user["email"],
-            "avatar_url": user.get("avatar_url", "/default-avatar.png"),
-        },
-        "token": user.get("current_token")
-    }
-    return jsonify({"status": "success", "session": session}), 200
+    try:
+        resp = (
+            supabase.table("sessions")
+            .select("id, token, expires_at, created_at")
+            .eq("user_id", user_id)
+            .order("created_at", desc=True)
+            .execute()
+        )
+
+        sessions = resp.data if resp.data else []
+
+        return jsonify({"status": "success", "sessions": sessions}), 200
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e), "sessions": []}), 500
+
+
+# ----------------- REVOKE SINGLE SESSION -----------------
+@app.route("/api/sessions/<session_id>", methods=["DELETE"])
+@token_required
+def revoke_session(session_id):
+    user_id = request.user_id
+    try:
+        # Only delete session if it belongs to this user
+        supabase.table("sessions").delete().eq("id", session_id).eq("user_id", user_id).execute()
+        return jsonify({"status": "success", "message": "Session revoked"}), 200
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+# ----------------- REVOKE ALL SESSIONS -----------------
+@app.route("/api/sessions/revoke_all", methods=["DELETE"])
+@token_required
+def revoke_all_sessions():
+    try:
+        user_id = request.user_id
+
+        # Delete all sessions for this user
+        supabase.table("sessions").delete().eq("user_id", user_id).execute()
+
+        # Fetch updated session list (should be empty after delete)
+        resp = (
+            supabase.table("sessions")
+            .select("id, token, expires_at, created_at")
+            .eq("user_id", user_id)
+            .order("created_at", desc=True)
+            .execute()
+        )
+        sessions = resp.data if resp.data else []
+
+        return jsonify({
+            "status": "success",
+            "message": "All sessions revoked",
+            "sessions": sessions
+        }), 200
+
+    except Exception as e:
+        return jsonify({
+            "status": "error",
+            "message": str(e),
+            "sessions": []
+        }), 500
 
 # ----------------- REGISTER -----------------
 @app.route("/api/register", methods=["POST"])
@@ -142,53 +193,97 @@ def login():
     email = data.get("email")
     password = data.get("password")
 
-    try:
-        resp = supabase.table("users").select("*").eq("email", email).is_("deleted_at", None).execute()
-        users = getattr(resp, "data", []) or []
+    # Find user
+    resp = supabase.table("users").select("*").eq("email", email).is_("deleted_at", None).execute()
+    users = getattr(resp, "data", []) or []
+    if not users:
+        return jsonify({"status": "not_found"}), 404
 
-        if not users:
-            return jsonify({"status": "not_found"}), 404
+    user = users[0]
+    if not checkpw(password.encode(), user["password"].encode()):
+        return jsonify({"status": "invalid_credentials"}), 401
 
-        user = users[0]
-        if not checkpw(password.encode(), user["password"].encode()):
-            return jsonify({"status": "invalid_credentials"}), 401
+    # 1. Look for existing valid session
+    now = datetime.now(timezone.utc)
+    session_resp = (
+        supabase.table("sessions")
+        .select("*")
+        .eq("user_id", user["id"])
+        .gt("expires_at", now.isoformat())  # still valid
+        .order("created_at", desc=True)
+        .limit(1)
+        .execute()
+    )
+    existing_sessions = getattr(session_resp, "data", []) or []
 
-        token_payload = {
+    if existing_sessions:
+        session = existing_sessions[0]
+        token = session["token"]
+        expires_at = session["expires_at"]
+    else:
+        # 2. Create a new session token
+        token = secrets.token_urlsafe(64)
+        expires_at = (now + timedelta(hours=24)).isoformat()
+
+        supabase.table("sessions").insert({
             "user_id": user["id"],
+            "token": token,
+            "expires_at": expires_at
+        }).execute()
+
+    session_data = {
+        "user": {
+            "id": user["id"],
+            "firstname": user["firstname"],
+            "lastname": user["lastname"],
             "email": user["email"],
-            "exp": datetime.now(timezone.utc) + timedelta(hours=24)
-        }
-        token = jwt.encode(token_payload, EMAIL_SECRET_KEY, algorithm="HS256")
-        if isinstance(token, bytes):
-            token = token.decode("utf-8")
+            "isverified": user.get("isverified", False),
+            "avatar_url": user.get("avatar_url", "/default-avatar.png"),
+        },
+        "token": token,
+        "expires_at": expires_at
+    }
 
-        # Save token
-        supabase.table("users").update({"current_token": token}).eq("id", user["id"]).execute()
+    return jsonify({"status": "success", "session": session_data}), 200
 
-        session = {
-            "user": {
-                "id": user["id"],
-                "firstname": user["firstname"],
-                "lastname": user["lastname"],
-                "email": user["email"],
-                "isverified": user.get("isverified", False),
-                "avatar_url": user.get("avatar_url", "/default-avatar.png"),
-                "label": "Verified" if user.get("isverified", False) else "Unverified"
-            },
-            "token": token
-        }
+# ----------------- LOGOUT -----------------
+@app.route("/api/logout", methods=["POST"])
+@token_required
+def logout():
+    try:
+        user_id = request.user_id
+        auth_header = request.headers.get("Authorization", "")
+        token = auth_header.split(" ")[1] if " " in auth_header else None
 
-        response = make_response(jsonify({"status": "success", "session": session}))
-        response.set_cookie("token", token, httponly=True, samesite="Lax", max_age=24*3600)
-        return response
+        if not token:
+            return jsonify({"status": "error", "message": "Missing token"}), 400
+
+        # Delete only this session from DB
+        supabase.table("sessions").delete().eq("token", token).eq("user_id", user_id).execute()
+
+        # Fetch remaining sessions for this user
+        resp = (
+            supabase.table("sessions")
+            .select("id, token, expires_at, created_at")
+            .eq("user_id", user_id)
+            .order("created_at", desc=True)
+            .execute()
+        )
+        sessions = resp.data if resp.data else []
+
+        response = jsonify({
+            "status": "success",
+            "message": "Logged out successfully",
+            "sessions": sessions
+        })
+        response.set_cookie("token", "", expires=0)  # Clear cookie
+        return response, 200
 
     except Exception as e:
-        return jsonify({"status": "error", "message": str(e)}), 500
+        return jsonify({"status": "error", "message": str(e), "sessions": []}), 500
 
-        import traceback
-        traceback.print_exc()
-        return jsonify({"status": "error", "message": str(e)}), 500
-# ----------------- GET PROFILE -----------------
+
+# ----------------- PROFILE -----------------
 @app.route("/api/profile", methods=["GET"])
 @token_required
 def get_profile():
@@ -225,109 +320,6 @@ def get_profile():
 
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
-
-# ----------------- DASHBOARD STATS -----------------
-# ----------------- DASHBOARD STATS -----------------
-DEFAULT_REPORTER = {"id": 0, "firstname": "Unknown", "lastname": "", "avatar_url": "/default-avatar.png"}
-
-def fetch_global_reports(limit=10, sort="desc"):
-    try:
-        resp = supabase.table("reports") \
-            .select("*") \
-            .order("created_at", desc=(sort=="desc")) \
-            .limit(limit) \
-            .execute()
-        reports = resp.data if resp.data else []
-
-        for report in reports:
-            user_id = report.get("user_id")
-            reporter = None
-            if user_id:
-                try:
-                    user_resp = supabase.table("users").select("id, firstname, lastname, avatar_url").eq("id", user_id).execute()
-                    reporter = user_resp.data[0] if user_resp.data else None
-                except Exception:
-                    reporter = None
-            report["reporter"] = reporter or DEFAULT_REPORTER
-
-        return reports
-    except Exception as e:
-        print("fetch_global_reports error:", e)
-        return []
-
-@app.route("/api/reports", methods=["GET"])
-@token_required
-def get_global_reports():
-    try:
-        # Parse query params safely
-        try:
-            limit = int(request.args.get("limit", 10))
-        except ValueError:
-            limit = 10
-        sort = request.args.get("sort", "desc").lower()
-        if sort not in ["asc", "desc"]:
-            sort = "desc"
-
-        # Fetch reports
-        resp = (
-            supabase.table("reports")
-            .select("*")
-            .is_("deleted_at", None)
-            .order("created_at", desc=(sort=="desc"))
-            .limit(limit)
-            .execute()
-        )
-        reports = resp.data if resp.data else []
-
-        # Attach reporter info safely
-        for report in reports:
-            user_id = report.get("user_id")
-            reporter = None
-            if user_id:
-                try:
-                    user_resp = supabase.table("users").select("id, firstname, lastname, avatar_url").eq("id", user_id).execute()
-                    reporter = user_resp.data[0] if user_resp.data else None
-                except Exception:
-                    reporter = None
-            report["reporter"] = reporter or DEFAULT_REPORTER
-
-        return jsonify({"status": "success", "reports": reports}), 200
-
-    except Exception as e:
-        return jsonify({"status": "error", "message": str(e), "reports": []}), 500
-
-@app.route("/api/stats", methods=["GET"])
-def get_stats():
-    try:
-        limit = int(request.args.get("limit", 10))
-        sort = request.args.get("sort", "desc")
-        reports = fetch_global_reports(limit, sort)
-        return jsonify({"status": "success", "reports": reports}), 200
-    except Exception as e:
-        return jsonify({"status": "error", "message": str(e), "reports": []}), 500
-
-@app.route("/api/reports/categories", methods=["GET"])
-@token_required
-def get_report_categories():
-    try:
-        resp = supabase.table("reports").select("category").is_("deleted_at", None).execute()
-        reports = resp.data if resp.data else []
-
-        category_counts = {}
-        for report in reports:
-            cat = report.get("category", "Uncategorized")
-            category_counts[cat] = category_counts.get(cat, 0) + 1
-
-        # If no categories exist, provide a default placeholder
-        if not category_counts:
-            data = [{"name": "No Data", "value": 1}]
-        else:
-            data = [{"name": k, "value": v} for k, v in category_counts.items()]
-
-        return jsonify({"status": "success", "data": data}), 200
-
-    except Exception as e:
-        return jsonify({"status": "error", "message": str(e), "data": [{"name": "No Data", "value": 1}]}), 500
 
 # ----------------- UPDATE -----------------
 @app.route("/api/profile", methods=["PUT"])
@@ -433,6 +425,110 @@ def upload_avatar():
 
     return jsonify({"status": "success", "url": avatar_url}), 200
 
+# ----------------- DASHBOARD STATS -----------------
+DEFAULT_REPORTER = {"id": 0, "firstname": "Unknown", "lastname": "", "avatar_url": "/default-avatar.png"}
+
+def fetch_global_reports(limit=10, sort="desc"):
+    try:
+        resp = supabase.table("reports") \
+            .select("*") \
+            .order("created_at", desc=(sort=="desc")) \
+            .limit(limit) \
+            .execute()
+        reports = resp.data if resp.data else []
+
+        for report in reports:
+            user_id = report.get("user_id")
+            reporter = None
+            if user_id:
+                try:
+                    user_resp = supabase.table("users").select("id, firstname, lastname, avatar_url").eq("id", user_id).execute()
+                    reporter = user_resp.data[0] if user_resp.data else None
+                except Exception:
+                    reporter = None
+            report["reporter"] = reporter or DEFAULT_REPORTER
+
+        return reports
+    except Exception as e:
+        print("fetch_global_reports error:", e)
+        return []
+
+@app.route("/api/reports", methods=["GET"])
+@token_required
+def get_global_reports():
+    try:
+        # Parse query params safely
+        try:
+            limit = int(request.args.get("limit", 10))
+        except ValueError:
+            limit = 10
+        sort = request.args.get("sort", "desc").lower()
+        if sort not in ["asc", "desc"]:
+            sort = "desc"
+
+        # Fetch reports
+        resp = (
+            supabase.table("reports")
+            .select("*")
+            .is_("deleted_at", None)
+            .order("created_at", desc=(sort=="desc"))
+            .limit(limit)
+            .execute()
+        )
+        reports = resp.data if resp.data else []
+
+        # Attach reporter info safely
+        for report in reports:
+            user_id = report.get("user_id")
+            reporter = None
+            if user_id:
+                try:
+                    user_resp = supabase.table("users").select("id, firstname, lastname, avatar_url").eq("id", user_id).execute()
+                    reporter = user_resp.data[0] if user_resp.data else None
+                except Exception:
+                    reporter = None
+            report["reporter"] = reporter or DEFAULT_REPORTER
+
+        return jsonify({"status": "success", "reports": reports}), 200
+
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e), "reports": []}), 500
+
+@app.route("/api/stats", methods=["GET"])
+def get_stats():
+    try:
+        limit = int(request.args.get("limit", 10))
+        sort = request.args.get("sort", "desc")
+        reports = fetch_global_reports(limit, sort)
+        return jsonify({"status": "success", "reports": reports}), 200
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e), "reports": []}), 500
+
+@app.route("/api/reports/categories", methods=["GET"])
+@token_required
+def get_report_categories():
+    try:
+        resp = supabase.table("reports").select("category").is_("deleted_at", None).execute()
+        reports = resp.data if resp.data else []
+
+        category_counts = {}
+        for report in reports:
+            cat = report.get("category", "Uncategorized")
+            category_counts[cat] = category_counts.get(cat, 0) + 1
+
+        # If no categories exist, provide a default placeholder
+        if not category_counts:
+            data = [{"name": "No Data", "value": 1}]
+        else:
+            data = [{"name": k, "value": v} for k, v in category_counts.items()]
+
+        return jsonify({"status": "success", "data": data}), 200
+
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e), "data": [{"name": "No Data", "value": 1}]}), 500
+
+
+
 # ----------------- INCIDENTS -----------------
 # Create a new incident (similar to reports)
 @app.route("/api/incidents", methods=["POST"])
@@ -521,17 +617,6 @@ def upload_incident_file(incident_id):
 
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
-
-
-# ----------------- LOGOUT -----------------
-@app.route("/api/logout", methods=["POST"])
-@token_required
-def logout():
-    user_id = request.user_id
-    supabase.table("users").update({"current_token": None}).eq("id", user_id).execute()
-    response = jsonify({"status": "success", "message": "Logged out successfully"})
-    response.set_cookie("token", "", expires=0)
-    return response
 
 # ----------------- RUN APP -----------------
 if __name__ == "__main__":
