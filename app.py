@@ -459,11 +459,23 @@ def get_reports():
     try:
         limit = int(request.args.get("limit", 10))
         sort = request.args.get("sort", "desc").lower()
-        user_only = request.args.get("user_only", "false").lower() == "true"
+        filter_type = request.args.get("filter", "all").lower() # 'all' or 'my'
+        
+        # Determine if we should filter by the logged-in user
+        user_only_filter = filter_type == "my" # <--- New: This is the boolean flag
+        user_id_to_filter = request.user_id if user_only_filter else None # <--- New: This is the ID
 
-        reports = fetch_reports(limit, sort, user_only, request.user_id)
+        # IMPORTANT: Pass the new user_only_filter and user_id_to_filter arguments correctly
+        reports = fetch_reports(
+            limit=limit, 
+            sort=sort, 
+            user_only=user_only_filter, # <--- Correctly pass the boolean
+            user_id=user_id_to_filter   # <--- Correctly pass the user ID
+        ) 
+        
         return jsonify({"status": "success", "reports": reports}), 200
     except Exception as e:
+        # NOTE: Make sure DEFAULT_REPORTER is defined globally
         return jsonify({"status": "error", "message": str(e), "reports": []}), 500
 
 @app.route("/api/reports", methods=["POST"])

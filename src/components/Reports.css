@@ -25,12 +25,66 @@ h2 {
     font-weight: 500;
 }
 
+/* --- TOP CONTROLS STYLING --- */
+
 .top-controls {
     display: flex;
     align-items: center;
     gap: 0.5rem;
     margin: 0 0 20px;
     flex-wrap: wrap; 
+}
+
+/* NEW: Container for the search input and buttons */
+.search-group {
+    display: flex;
+    align-items: center;
+    flex: 1; /* Allows the group to grow and take space */
+    min-width: 250px; /* Ensure a decent minimum width */
+    position: relative; /* **Key for positioning the icons** */
+}
+
+/* Style for the search input inside the new group */
+.top-controls .search-input {
+    flex-grow: 1; 
+    min-width: 150px; 
+    /* The crucial padding to make space for the two icons */
+    padding-right: 70px; 
+    padding: 8px 70px 8px 12px; /* Adjusted: top/bottom 8px, right 70px (35*2=70 for two icons), left 12px */
+    border: 1px solid #ccc; 
+    border-radius: 20px;
+}
+
+/* Styles for the icon buttons (Search and Reset) */
+.search-group .filter-icon-btn {
+    position: absolute; /* **Key for positioning the icons** */
+    z-index: 2; 
+    top: 50%;
+    transform: translateY(-50%); /* Vertically center the buttons */
+    
+    /* General button appearance */
+    background: none; 
+    border: none; 
+    cursor: pointer;
+    color: #555; /* Icon color */
+    padding: 6px;
+    transition: color 0.2s;
+}
+
+.search-group .filter-icon-btn:hover {
+    color: #007bff; /* Highlight color on hover */
+}
+
+/* Position the Search button (FaSearch) */
+.search-group .search-btn {
+    right: 35px;
+    width: auto;
+}
+
+/* Position the Reset button (FaRedo) */
+.search-group .reset-btn {
+    right: 5px; 
+    width: auto;
 }
 
 .top-controls input,
@@ -586,6 +640,38 @@ p.report-description-text {
     to {
         opacity: 1;
         transform: scale(1);
+    }
+}
+
+/* ----------------- LOADING ANIMATION ----------------- */
+.loading-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 50px 0;
+    width: 100%;
+    min-height: 200px; 
+}
+
+.loading-container p {
+    color: #555;
+    font-size: 1.1rem;
+    margin-top: 15px;
+}
+
+.spinner {
+    border: 4px solid rgba(0, 0, 0, 0.1);
+    border-left-color: #2d2d73; 
+    border-radius: 50%;
+    width: 40px;
+    height: 40px;
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    to {
+        transform: rotate(360deg);
     }
 }
 

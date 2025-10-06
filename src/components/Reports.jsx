@@ -19,6 +19,14 @@ L.Icon.Default.mergeOptions({
   shadowUrl: markerShadow,
 });
 
+// New Loading Component
+const LoadingSpinner = () => (
+    <div className="loading-container">
+        <div className="spinner"></div>
+        <p>Fetching reports...</p>
+    </div>
+);
+
 function LocationPicker({ setLocation }) {
   const [position, setPosition] = useState(null);
 
@@ -38,8 +46,9 @@ function Reports({ session }) {
   const [category, setCategory] = useState("All");
   const [barangay, setBarangay] = useState("All");
   const [sort, setSort] = useState("latest");
-  const [showHistory, setShowHistory] = useState(false);
+  const [view, setView] = useState("all"); 
   const [previewImage, setPreviewImage] = useState(null);
+  const [isLoading, setIsLoading] = useState(false); 
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [newReport, setNewReport] = useState({
@@ -71,21 +80,26 @@ function Reports({ session }) {
   const token = session?.token;
 
   // Fetch reports from backend
-  const fetchReports = async () => {
+  const fetchReports = async (currentView = view) => {
+    if (!token) return;
+    setIsLoading(true); 
     try {
-    const res = await axios.get(
-      `${API_URL}/reports?sort=${sort === "latest" ? "desc" : "asc"}`,
-      { headers: { Authorization: `Bearer ${token}` } }
-    );
-    if (res.data.status === "success") setReports(res.data.reports || []);
+      const filterParam = currentView === "my" ? "&filter=my" : ""; 
+      const res = await axios.get(
+        `${API_URL}/reports?sort=${sort === "latest" ? "desc" : "asc"}${filterParam}`,
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      if (res.data.status === "success") setReports(res.data.reports);
     } catch (err) {
       console.error(err);
+    } finally {
+      setIsLoading(false);
     }
   };
 
   useEffect(() => {
-    if (token) fetchReports();
-  }, [token, sort]);
+    if (token) fetchReports(view); 
+  }, [token, sort, view]);
 
   // Add or update report
   const handleAddOrUpdateReport = async () => {
@@ -115,7 +129,7 @@ function Reports({ session }) {
       resetNewReport();
       setIsModalOpen(false);
       setEditReportId(null);
-      fetchReports();
+      fetchReports(view);
     } catch (err) {
       console.error(err);
     }
@@ -127,7 +141,7 @@ function Reports({ session }) {
       title: report.title || "",
       description: report.description || "",
       category: report.category || "Concern",
-      barangay: report.barangay || "All",
+      barangay: report.address_barangay || report.barangay || "All",
       addressStreet: report.address_street || "",
       images: [],
       lat: report.latitude || null,
@@ -140,13 +154,13 @@ function Reports({ session }) {
   const handleDelete = async () => {
     if (!deleteTarget) return;
     try {
-      await axios.patch(`${API_URL}/reports/${deleteTarget.id}`,
-        { deleted: true },
+      await axios.patch(`${API_URL}/reports/${deleteTarget.id}`, 
+        { deleted: true }, 
         { headers: { Authorization: `Bearer ${token}` } }
       );
       setIsDeleteConfirmOpen(false);
       setDeleteTarget(null);
-      fetchReports();
+      fetchReports(view);
     } catch (err) {
       console.error(err);
     }
@@ -174,34 +188,70 @@ function Reports({ session }) {
 
   // Apply filters safely
   const filteredReports = reports
-    .filter((r) => showHistory || String(r.user_id) === String(session.user.id))
     .filter((r) => (appliedCategory === "All" ? true : r.category === appliedCategory))
-    .filter((r) => (appliedBarangay === "All" || (r.barangay || "All") === appliedBarangay))
-    .filter((r) =>
-      (r.title || "").toLowerCase().includes(appliedSearch.toLowerCase()) ||
-      (r.description || "").toLowerCase().includes(appliedSearch.toLowerCase())
+    .filter((r) => (appliedBarangay === "All" ? true : (r.barangay || r.address_barangay) === appliedBarangay))
+    .filter(
+      (r) =>
+        (r.title || "").toLowerCase().includes(appliedSearch.toLowerCase()) ||
+        (r.description || "").toLowerCase().includes(appliedSearch.toLowerCase())
     );
-
 
   return (
     <div className="reports-container">
       {/* Header */}
       <div className="header-row">
-        <h2>Community Reports</h2>
-        <button className="history-btn" onClick={() => setShowHistory(!showHistory)}>
-          {showHistory ? "My Reports" : "All Reports"}
+        <h2>{view === "all" ? "All Community Reports" : "My Reports History"}</h2>
+        <button 
+          className="history-btn" 
+          onClick={() => setView(view === "all" ? "my" : "all")}
+        >
+          {view === "all" ? "My Reports" : "All Reports"}
         </button>
       </div>
 
       {/* Filters */}
       <div className="top-controls">
-        <input
-          type="text"
-          placeholder="Search reports..."
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          className="search-input"
-        />
+        {/* NEW CONTAINER: search-group */}
+        <div className="search-group"> 
+          <input
+            type="text"
+            placeholder="Search reports..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="search-input"
+          />
+          
+          {/* Search Button */}
+          <button
+            className="filter-icon-btn search-btn"
+            title="Search"
+            onClick={() => {
+              setAppliedSearch(search);
+              setAppliedCategory(category);
+              setAppliedBarangay(barangay);
+            }}
+          >
+            <FaSearch />
+          </button>
+
+          {/* Reset Button */}
+          <button
+            className="filter-icon-btn reset-btn"
+            title="Reset"
+            onClick={() => {
+              setSearch("");
+              setCategory("All");
+              setBarangay("All");
+              setAppliedSearch("");
+              setAppliedCategory("All");
+              setAppliedBarangay("All");
+            }}
+          >
+            <FaRedo />
+          </button>
+        </div>
+        {/* END search-group */}
+
         <select value={category} onChange={(e) => setCategory(e.target.value)}>
           <option value="All">All Categories</option>
           <option value="Concern">Concern</option>
@@ -222,35 +272,6 @@ function Reports({ session }) {
           <option value="oldest">Oldest → Latest</option>
         </select>
 
-        {/* Buttons Group */}
-        <div className="filter-btns">
-          <button
-            className="filter-icon-btn"
-            title="Search"
-            onClick={() => {
-              setAppliedSearch(search);
-              setAppliedCategory(category);
-              setAppliedBarangay(barangay);
-            }}
-          >
-            <FaSearch />
-          </button>
-          <button
-            className="filter-icon-btn"
-            title="Reset"
-            onClick={() => {
-              setSearch("");
-              setCategory("All");
-              setBarangay("All");
-              setAppliedSearch("");
-              setAppliedCategory("All");
-              setAppliedBarangay("All");
-            }}
-          >
-            <FaRedo />
-          </button>
-        </div>
-
         {/* Add Report Button */}
         <button
           className="add-btn"
@@ -266,12 +287,17 @@ function Reports({ session }) {
 
       {/* Reports List */}
       <div className="reports-list">
-        {filteredReports.length > 0 ? (
+        {isLoading ? (
+            <LoadingSpinner />
+        ) : filteredReports.length > 0 ? (
           filteredReports.map((report) => {
             const isExpanded = expandedPosts.includes(report.id);
             const displayDescription = isExpanded
               ? report.description
-              : `${(report.description || "").slice(0, 130)}${(report.description?.length || 0) > 130 ? "..." : ""}`;
+              : `${(report.description || "").slice(0, 130)}${
+                  (report.description?.length || 0) > 130 ? "..." : ""
+                }`;
+
             return (
               <div key={report.id} className="report-card">
                 {/* Header */}
@@ -284,13 +310,18 @@ function Reports({ session }) {
                     />
                     <div className="report-header-text">
                       <p className="report-user">
-                        {report.reporter ? `${report.reporter.firstname || ""} ${report.reporter.lastname || ""}`.trim() : "Unknown User"}
+                        {report.reporter
+                          ? `${report.reporter.firstname || ""} ${report.reporter.lastname || ""}`.trim()
+                          : "Unknown User"}{" "}
+                        <span className={`user-verified-badge ${report.user_verified ? "verified" : "unverified"}`}>
+                          {report.user_verified ? "Verified" : "Unverified"}
+                        </span>
                       </p>
                       <p className="report-subinfo">
                         {report.created_at ? new Date(report.created_at).toLocaleString() : ""} · {report.category || "N/A"}
                       </p>
                       <p className="report-address-info">
-                        {(report.address_street || "")}, {(report.barangay || "")}, Olongapo City
+                        {(report.address_street || "")}, {(report.address_barangay || report.barangay || "")}, Olongapo City
                       </p>
                     </div>
                   </div>
@@ -300,10 +331,20 @@ function Reports({ session }) {
                       {report.status || "Pending"}
                     </span>
 
-                    {String(report.user_id) === String(session.user.id) && (
+                    {session?.user?.id && String(report.user_id) === String(session.user.id) && (
                       <>
-                        <button className="icon-btn edit-btn" onClick={() => handleEdit(report)}><FaEdit /></button>
-                        <button className="icon-btn delete-btn" onClick={() => { setDeleteTarget(report); setIsDeleteConfirmOpen(true); }}><FaTrashAlt /></button>
+                        <button className="icon-btn edit-btn" onClick={() => handleEdit(report)}>
+                          <FaEdit />
+                        </button>
+                        <button
+                          className="icon-btn delete-btn"
+                          onClick={() => {
+                            setDeleteTarget(report);
+                            setIsDeleteConfirmOpen(true);
+                          }}
+                        >
+                          <FaTrashAlt />
+                        </button>
                       </>
                     )}
                   </div>
@@ -323,21 +364,23 @@ function Reports({ session }) {
                 </div>
 
                 {/* Images */}
-                {report.images?.length > 0 && (
-                  <div className="report-images">
-                    {report.images.map((imgObj, idx) =>
-                      imgObj?.url ? (
-                        <img
-                          key={idx}
-                          src={`${API_URL}${imgObj.url}`}
-                          alt="report"
-                          className="report-image"
-                          onClick={() => { setPreviewImage(`${API_URL}${imgObj.url}`); }}
-                        />
-                      ) : null
-                    )}
+                {report.images && report.images.length > 0 && (
+                  <div className={`report-images images-${report.images.length}`}>
+                    {report.images.map((imgObj, idx) => (
+                      <img
+                        key={idx}
+                        src={`${API_URL}${imgObj.url}`}
+                        alt={`report-${idx}`}
+                        className="report-collage-img"
+                        onClick={() => setPreviewImage(`${API_URL}${imgObj.url}`)}
+                      />
+                    ))}
                   </div>
                 )}
+                
+                <div className="report-actions">
+                  <button className="like-btn">Like</button>
+                </div>
               </div>
             );
           })
