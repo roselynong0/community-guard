@@ -384,6 +384,122 @@ def verify_email_code():
         print(traceback.format_exc())
         return jsonify({"status": "error", "message": "Unexpected error occurred"}), 500
     
+# ----------------- PASSWORD RESET ROUTES -----------------
+from flask_cors import cross_origin
+
+@app.route("/api/password/forgot", methods=["POST", "OPTIONS"])
+@cross_origin()  # ensures CORS for this endpoint
+def forgot_password():
+    if request.method == "OPTIONS":
+        return '', 200  # handle preflight
+
+    data = request.json
+    email = data.get("email")
+
+    if not email:
+        return jsonify({"status": "error", "message": "Email required"}), 400
+
+    try:
+        # Get user
+        user_resp = supabase.table("users").select("*").eq("email", email).execute()
+        user = getattr(user_resp, "data", [None])[0]
+        if not user:
+            return jsonify({"status": "not_found", "message": "User not found"}), 404
+
+        # Generate 6-digit reset code
+        reset_code = "{:06}".format(secrets.randbelow(1000000))
+        expires_at = datetime.now(timezone.utc) + timedelta(minutes=EMAIL_CODE_EXPIRY)
+
+        # Upsert to avoid duplicate user_id
+        supabase.table("password_resets").upsert({
+            "user_id": user["id"],
+            "email": email,
+            "code": reset_code,
+            "expires_at": expires_at.isoformat(),
+            "used": False
+        }, on_conflict="user_id").execute()
+
+        mail_sent = send_reset_code_email(email, reset_code)
+        if mail_sent:
+            return jsonify({"status": "success", "message": "Reset code sent!"}), 200
+        else:
+            return jsonify({"status": "error", "message": "Failed to send email"}), 500
+
+    except Exception as e:
+        print("Forgot password exception:", e, traceback.format_exc())
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+
+@app.route("/api/password/reset", methods=["POST", "OPTIONS"])
+@cross_origin()
+def reset_password():
+    if request.method == "OPTIONS":
+        return '', 200
+
+    data = request.json
+    email = data.get("email")
+    code = data.get("code")
+    new_password = data.get("new_password")
+
+    if not email or not code or not new_password:
+        return jsonify({"status": "error", "message": "Email, code, and new password required"}), 400
+
+    try:
+        resp = supabase.table("password_resets") \
+            .select("*") \
+            .eq("email", email) \
+            .eq("code", code) \
+            .eq("used", False).execute()
+
+        if not resp.data:
+            return jsonify({"status": "invalid", "message": "Invalid or expired code"}), 400
+
+        # inside reset_password()
+        record = resp.data[0]
+        expires_at = datetime.fromisoformat(record["expires_at"])
+
+        # Make it UTC-aware if it's naive
+        if expires_at.tzinfo is None:
+            expires_at = expires_at.replace(tzinfo=timezone.utc)
+
+        if datetime.now(timezone.utc) > expires_at:
+            return jsonify({"status": "expired", "message": "Code expired"}), 400
+
+        # Hash new password
+        hashed_pw = hashpw(new_password.encode(), gensalt()).decode()
+        supabase.table("users").update({"password": hashed_pw}).eq("id", record["user_id"]).execute()
+        supabase.table("password_resets").update({"used": True}).eq("id", record["id"]).execute()
+
+        return jsonify({"status": "success", "message": "Password reset successful"}), 200
+
+    except Exception as e:
+        print("Reset password exception:", e, traceback.format_exc())
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+
+# ----------------- EMAIL SENDER -----------------
+def send_reset_code_email(to_email, code):
+    data = {
+        'Messages': [{
+            "From": {"Email": "roselynong0@gmail.com", "Name": "Team CodeWise"},
+            "To": [{"Email": to_email}],
+            "Subject": "Password Reset Code",
+            "HTMLPart": f"""
+                <div style='font-family:Segoe UI;padding:1rem;text-align:center;'>
+                    <h2>Password Reset</h2>
+                    <p>Use the code below to reset your password (expires in {EMAIL_CODE_EXPIRY} mins):</p>
+                    <h3 style="font-size:2rem;">{code}</h3>
+                </div>
+            """
+        }]
+    }
+    try:
+        result = mailjet_client.send.create(data=data)
+        return result.status_code == 200
+    except Exception as e:
+        print("Error sending reset code email:", e)
+        return False
+
 # ----------------- LOGIN -----------------
 @app.route("/api/login", methods=["POST"])
 def login():

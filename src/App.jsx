@@ -3,6 +3,7 @@ import { useState, useEffect } from "react";
 import RegistrationForm from "./components/RegistrationForm";
 import LoginForm from "./components/LoginForm";
 import ForgotPassword from "./components/ForgotPassword";
+import ResetPassword from "./components/ResetPassword"; // ✅ new import
 import Layout from "./components/Layout";
 import Home from "./components/Home";
 import Reports from "./components/Reports";
@@ -51,6 +52,7 @@ function App() {
         <Route path="/register" element={<RegistrationForm />} />
         <Route path="/verify-email" element={<VerificationForm />} />
         <Route path="/forgot-password" element={<ForgotPassword />} />
+        <Route path="/reset-password" element={<ResetPassword />} /> {/* ✅ added */}
 
         {/* Protected routes */}
         <Route
