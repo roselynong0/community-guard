@@ -13,12 +13,20 @@ import io
 from flask import make_response
 import uuid
 import secrets
+from werkzeug.utils import secure_filename
+from mailjet_rest import Client
+import random
+import traceback
+from werkzeug.exceptions import HTTPException
 
 # ----------------- LOAD ENV -----------------
 load_dotenv()
 SUPABASE_URL = os.getenv("SUPABASE_URL")
 SUPABASE_KEY = os.getenv("SUPABASE_KEY")
 EMAIL_SECRET_KEY = os.getenv("EMAIL_SECRET_KEY")
+MAILJET_API_KEY = os.getenv("MAILJET_API_KEY")
+MAILJET_API_SECRET = os.getenv("MAILJET_API_SECRET")
+EMAIL_CODE_EXPIRY = int(os.getenv("EMAIL_CODE_EXPIRY_MINUTES", 10))
 FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:3000")
 
 # ----------------- CLIENT -----------------
@@ -83,7 +91,6 @@ def list_sessions():
     except Exception as e:
         return jsonify({"status": "error", "message": str(e), "sessions": []}), 500
 
-
 # ----------------- REVOKE SINGLE SESSION -----------------
 @app.route("/api/sessions/<session_id>", methods=["DELETE"])
 @token_required
@@ -129,7 +136,7 @@ def revoke_all_sessions():
             "sessions": []
         }), 500
 
-# ----------------- REGISTER -----------------
+# ----------------- REGISTRATION -----------------
 @app.route("/api/register", methods=["POST"])
 def register():
     data = request.json
@@ -137,16 +144,18 @@ def register():
     firstname = data.get("firstname")
     lastname = data.get("lastname")
     password = data.get("password")
-    address_barangay = data.get("address_barangay") or "Unspecified"
+    address_barangay = data.get("address_barangay") or None
     address_city = data.get("address_city") or "Olongapo"
 
+    if not email or not firstname or not lastname or not password:
+        return jsonify({"status": "error", "message": "Missing required fields"}), 400
+
     try:
-        # Check existing user
+        # Check if email already exists
         existing_resp = supabase.table("users").select("*").eq("email", email).execute()
         existing_users = getattr(existing_resp, "data", []) or []
-
         if existing_users:
-            return jsonify({"status": "duplicate", "message": "Email already registered"}), 400
+            return jsonify({"status": "duplicate", "message": "Email already registered"}), 200
 
         # Hash password
         hashed_pw = hashpw(password.encode(), gensalt()).decode()
@@ -167,7 +176,7 @@ def register():
 
         new_user_id = user_data[0]["id"]
 
-        # Insert into info
+        # Insert info
         info_insert = supabase.table("info").insert({
             "user_id": new_user_id,
             "address_barangay": address_barangay,
@@ -176,15 +185,205 @@ def register():
 
         info_data = getattr(info_insert, "data", []) or []
         if not info_data:
-            # Rollback user
+            # Rollback user if info fails
             supabase.table("users").delete().eq("id", new_user_id).execute()
             return jsonify({"status": "error", "message": "Failed to insert user info. Registration rolled back."}), 500
 
-        return jsonify({"status": "success"}), 201
+        # ----------------- Automatically send verification code -----------------
+        email_sent = False
+        try:
+            code = generate_verification_code()
+            expires_at = datetime.now(timezone.utc) + timedelta(minutes=EMAIL_CODE_EXPIRY)
 
+            # Save code to email_verifications table
+            supabase.table("email_verifications").upsert({
+                "user_id": new_user_id,
+                "email": email,
+                "code": code,
+                "expires_at": expires_at.isoformat(),
+                "is_used": False
+            }, on_conflict="user_id").execute()
+
+            # Send email
+            email_sent = send_verification_email(email, code)
+
+            # <<< ADD THIS FOR DEBUGGING >>>
+            if email_sent:
+                print(f"Verification code [{code}] was sent to {email} (user_id: {new_user_id})")
+            else:
+                print(f"Failed to send verification code [{code}] to {email} (user_id: {new_user_id})")
+
+        except Exception as e:
+            print("Failed to send verification email:", e)
+
+
+        except Exception as e:
+            print("Failed to send verification email:", e)
+
+        # ✅ Return success with user_id and email_sent flag
+        return jsonify({
+            "status": "success",
+            "user_id": new_user_id,
+            "email": email,
+            "email_sent": email_sent
+        }), 201
+
+    except Exception as e:
+        print("\n=== ERROR in /api/register ===")
+        print("ERROR:", e)
+        print(traceback.format_exc())
+        print("Request Body:", request.json)
+        return jsonify({"status": "error", "message": "Internal server error"}), 500
+
+@app.errorhandler(Exception)
+def handle_global_exception(e):
+    if isinstance(e, HTTPException):
+        return jsonify({
+            "status": "error",
+            "message": e.description
+        }), e.code
+
+    print("\n=== Global exception ===")
+    print(traceback.format_exc())
+    return jsonify({"status": "error", "message": "Unexpected error occurred"}), 500
+
+# ----------------- EMAIL VERIFICATION -----------------
+mailjet_client = Client(auth=(MAILJET_API_KEY, MAILJET_API_SECRET), version='v3.1')
+# ----------------- UTILITIES -----------------
+def generate_verification_code():
+    return f"{random.randint(0, 999999):06}"
+
+def send_verification_email(to_email, code):
+    data = {
+        'Messages': [{
+            "From": {"Email": "roselynong0@gmail.com", "Name": "Team CodeWise"},
+            "To": [{"Email": to_email}],
+            "Subject": "Verify Your Email",
+            "HTMLPart": f"""
+            <div style='font-family:Segoe UI;padding:1rem;text-align:center;'>
+                <h2>Get Verified on Community Guard </h2>
+                <p>Use the code below:</p>
+                <h1>{code}</h1>
+                <p>Expires in {EMAIL_CODE_EXPIRY} minutes.</p>
+            </div>
+            """
+        }]
+    }
+    try:
+        result = mailjet_client.send.create(data=data)
+        return result.status_code == 200
+    except Exception:
+        return False
+
+# ----------------- SEND VERIFICATION CODE -----------------
+@app.route("/api/email/send-code", methods=["POST"])
+def send_email_code():
+    data = request.json
+    email = data.get("email")
+    user_id = data.get("user_id")  # <- now comes from registration response
+
+    if not email or not user_id:
+        return jsonify({"status": "error", "message": "Email and user_id required"}), 400
+
+    code = generate_verification_code()
+    expires_at = datetime.now(timezone.utc) + timedelta(minutes=EMAIL_CODE_EXPIRY)
+
+    try:
+        supabase.table("email_verifications").upsert({
+            "user_id": user_id,
+            "email": email,
+            "code": code,
+            "expires_at": expires_at.isoformat(),
+            "is_used": False
+        }, on_conflict="user_id").execute()
+
+
+        if send_verification_email(email, code):
+            print(f"Resent verification code [{code}] to {email} (user_id: {user_id})")
+            return jsonify({"status": "success", "message": "Verification code sent!"}), 200
+        else:
+            print(f"FAILED to resend verification code [{code}] to {email} (user_id: {user_id})")
+            return jsonify({"status": "error", "message": "Failed to send email"}), 500
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
 
+# ----------------- VERIFY CODE -----------------
+@app.route("/api/email/verify-code", methods=["POST"])
+def verify_email_code():
+    data = request.json or {}
+    email = data.get("email")
+    code = data.get("code")
+    user_id = data.get("user_id")  # required in our flow
+
+    # 1) Validate inputs
+    if not user_id or not code:
+        print("[verify] missing user_id or code:", data)
+        return jsonify({"status": "error", "message": "user_id and code required"}), 400
+
+    try:
+        # 2) Fetch latest unused record for this user+code
+        resp = (
+            supabase.table("email_verifications")
+            .select("*")
+            .eq("user_id", user_id)
+            .eq("code", code)
+            .eq("is_used", False)
+            .order("created_at", desc=True)
+            .limit(1)
+            .execute()
+        )
+        records = getattr(resp, "data", []) or []
+        print("[verify] supabase resp:", records)
+
+        if not records:
+            print("[verify] no matching unused record for user_id:", user_id, "code:", code)
+            return jsonify({"status": "invalid_code", "message": "Invalid or expired code"}), 400
+
+        code_record = records[0]
+        print("[verify] code_record:", code_record)
+
+        # 3) Parse expiry robustly (handle naive, 'Z', or offset-aware strings)
+        raw_expires = code_record.get("expires_at")
+        if isinstance(raw_expires, str):
+            # Normalize 'Z' to '+00:00' for fromisoformat
+            iso = raw_expires.replace("Z", "+00:00")
+            try:
+                expires_at = datetime.fromisoformat(iso)
+            except Exception as pe:
+                print("[verify] bad expires_at string:", raw_expires, "parse_err:", pe)
+                return jsonify({"status": "error", "message": "Invalid expiry format"}), 500
+        elif isinstance(raw_expires, datetime):
+            expires_at = raw_expires
+        else:
+            print("[verify] unknown expires_at type:", type(raw_expires), raw_expires)
+            return jsonify({"status": "error", "message": "Invalid expiry type"}), 500
+
+        # If expires_at is naive (no tz), assume UTC
+        if expires_at.tzinfo is None:
+            expires_at = expires_at.replace(tzinfo=timezone.utc)
+
+        now_utc = datetime.now(timezone.utc)
+        if now_utc > expires_at:
+            print("[verify] code expired. now:", now_utc, "expires_at:", expires_at)
+            return jsonify({"status": "expired", "message": "Verification code expired"}), 400
+
+        # 4) Mark code as used
+        upd = supabase.table("email_verifications").update({"is_used": True}).eq("id", code_record["id"]).execute()
+        print("[verify] marked used result:", getattr(upd, "data", None))
+
+        # 5) Mark user verified
+        uupd = supabase.table("users").update({"isverified": True}).eq("id", user_id).execute()
+        print("[verify] user updated result:", getattr(uupd, "data", None))
+
+        print(f"[verify] SUCCESS for user_id={user_id}")
+        return jsonify({"status": "success", "message": "Email verified!"}), 200
+
+    except Exception as e:
+        print("\n=== ERROR in /api/email/verify-code ===")
+        print("Error:", e)
+        print(traceback.format_exc())
+        return jsonify({"status": "error", "message": "Unexpected error occurred"}), 500
+    
 # ----------------- LOGIN -----------------
 @app.route("/api/login", methods=["POST"])
 def login():
@@ -288,11 +487,12 @@ def logout():
 def get_profile():
     user_id = request.user_id
     try:
-        user_resp = supabase.table("users").select("*").eq("id", user_id).execute()
+        # ✅ Only fetch user if not soft deleted
+        user_resp = supabase.table("users").select("*").eq("id", user_id).is_("deleted_at", None).execute()
         info_resp = supabase.table("info").select("*").eq("user_id", user_id).execute()
 
         if not user_resp.data:
-            return jsonify({"status": "not_found"}), 404
+            return jsonify({"status": "not_found", "message": "User not found or deleted"}), 404
 
         user = user_resp.data[0]
         info = info_resp.data[0] if info_resp.data else {}
@@ -377,11 +577,17 @@ def with_default(value, default):
 def delete_profile():
     user_id = request.user_id
     try:
-        # Soft delete: set deleted_at to now
         from datetime import datetime, timezone
         now = datetime.now(timezone.utc).isoformat()
+
+        # 1️⃣ Soft delete the user
         supabase.table("users").update({"deleted_at": now}).eq("id", user_id).execute()
-        return jsonify({"status": "success", "message": "Profile flagged as deleted"}), 200
+
+        # 2️⃣ Permanently delete all posts of this user
+        supabase.table("posts").delete().eq("user_id", user_id).execute()
+
+        return jsonify({"status": "success", "message": "Profile flagged as deleted and posts permanently removed"}), 200
+
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
 

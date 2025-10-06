@@ -87,6 +87,57 @@ h2 {
     width: auto;
 }
 
+/* Reuse your existing animation */
+.animate-up {
+animation: slideUp 0.6s ease-out forwards;
+opacity: 0;
+}
+
+@keyframes slideUp {
+from { transform: translateY(8px); opacity: 0; }
+to { transform: translateY(0); opacity: 1; }
+}
+
+/* Shared loading overlay */
+.loading-overlay {
+display: flex;
+flex-direction: column;
+justify-content: center;
+align-items: center;
+height: 80vh;
+gap: 1rem;
+background: #f4f4f4;
+color: #2d2d73;
+}
+
+/* Spinner reused */
+.spinner {
+width: 30px;
+height: 30px;
+border: 6px solid #ddd;
+border-top-color: #2d2d73;
+border-radius: 50%;
+animation: spin 1s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+.loading-user {
+height: calc(100vh - 6rem);
+background: transparent;
+animation: slideUp 0.5s ease-out both;
+}
+.loading-user .spinner {
+width: 46px;
+height: 46px;
+border-width: 5px;
+}
+.loading-user p {
+margin: 0;
+font-size: 0.95rem;
+color: #2d2d73;
+opacity: 0.9;
+}
+
 .top-controls input,
 .top-controls select {
     padding: 8px 12px;
@@ -450,6 +501,13 @@ h2 {
     flex-shrink: 0;
 }
 
+/* New wrapper for filter icons */
+.filter-btns {
+    display: flex;
+    gap: 8px; /* spacing between buttons */
+    flex-shrink: 0;
+}
+
 /* Keep icons consistent */
 .filter-icon-btn {
     background: none;
@@ -463,6 +521,7 @@ h2 {
 }
 
 .filter-icon-btn:hover {
+    background-color: #ebf9eb;
     color: #29ce29;
 }
 
@@ -470,7 +529,6 @@ h2 {
     outline: none; /* remove default browser outline */
     box-shadow: none; /* remove any shadow */
 }
-
 
 /* Ensure wrapper stays horizontal on mobile */
 @media (max-width: 768px) {
@@ -497,7 +555,6 @@ h2 {
 .user-verified-badge.unverified {
   background-color: #dc3545; /* red */
 }
-
 
 .report-caption strong {
     display: block;

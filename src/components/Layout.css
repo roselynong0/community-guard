@@ -194,6 +194,39 @@
   color: white;
 }
 
+.mobile-logout-btn {
+  display: none;
+  position: fixed;
+  bottom: 4.1rem;
+  right: 1.5rem;
+  z-index: 1100;
+  background: #2d2d73;
+  color: #fff;
+  border-radius: 50%;
+  width: 48px;
+  height: 48px;
+  box-shadow: 0 4px 10px rgba(0,0,0,0.13);
+  font-size: 1.25rem;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  opacity: 0.85;
+  transition: all 0.18s;
+  border: none;
+}
+.mobile-logout-btn:hover,
+.mobile-logout-btn:active {
+  opacity: 1;
+  background: #d9534f;
+  color: #fff;
+  box-shadow: 0 6px 16px rgba(217,83,79,0.32);
+}
+@media (max-width: 768px) {
+  .mobile-logout-btn {
+    display: flex;
+  }
+}
+
 @media (max-width: 768px) {
   .sidebar {
     display: none;

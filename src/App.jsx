@@ -10,6 +10,7 @@ import Profile from "./components/Profile";
 import Notifications from "./components/Notifications";
 import Maps from "./components/Maps";
 import { fetchSession } from "./utils/session";
+import VerificationForm from "./components/VerificationForm";
 
 // ---------------- LOGIN WRAPPER ----------------
 function LoginWrapper({ session, setSession }) {
@@ -48,6 +49,7 @@ function App() {
         {/* Public routes */}
         <Route path="/login" element={<LoginWrapper session={session} setSession={setSession} />} />
         <Route path="/register" element={<RegistrationForm />} />
+        <Route path="/verify-email" element={<VerificationForm />} />
         <Route path="/forgot-password" element={<ForgotPassword />} />
 
         {/* Protected routes */}

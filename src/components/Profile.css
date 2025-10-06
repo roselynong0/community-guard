@@ -16,13 +16,29 @@
 }
 
 /* --- Loading State Styles (For a better loading message) --- */
-.loading-message, .error-message {
-    text-align: center;
-    padding: 50px;
-    font-size: 1.2rem;
-    color: #2d2d73;
-    font-weight: bold;
+.loading-compact {
+height: 220px;
+background: transparent;
+animation: slideUp 0.5s ease-out both;
 }
+.loading-compact .spinner {
+width: 42px;
+height: 42px;
+border-width: 5px;
+}
+.loading-compact p {
+margin: 0.4rem 0 0;
+font-size: 0.95rem;
+color: #2d2d73;
+opacity: 0.9;
+}
+
+/* If slideUp isn’t defined yet in this CSS file */
+@keyframes slideUp {
+from { transform: translateY(8px); opacity: 0; }
+to { transform: translateY(0); opacity: 1; }
+}
+
 /* --- END Fade-Up Transition Styles --- */
 
 .profile-page {
@@ -114,35 +130,27 @@
   min-width: 0;
 }
 
-.add-report-btn {
-    display: inline-block;
-    background: #e9e9ff;
-    color: #2d2d73;
-    width: 200px;
-    padding: 6px 12px;
-    border-radius: 6px;
-    font-size: 13px;
-    cursor: pointer;
-}
-
 .profile-content {
     display: grid;
-    grid-template-columns: 1fr 2fr;
+    grid-template-columns: 1fr; /* default single column for small screens */
     gap: 20px;
 }
 
+/* Sidebar with all three cards side by side on wider screens */
 .profile-sidebar {
-    display: flex;
-    flex-direction: column;
+    display: grid;
+    grid-template-columns: 1fr; /* default stack */
     gap: 20px;
 }
 
-.profile-posts {
-    display: flex;
-    flex-direction: column;
-    gap: 20px;
+/* Make cards appear side by side on medium and larger screens */
+@media screen and (min-width: 900px) {
+    .profile-sidebar {
+        grid-template-columns: repeat(3, 1fr); /* three equal columns */
+    }
 }
 
+/* Keep other card styles */
 .profile-card {
     background: #fff;
     padding: 16px 20px;

@@ -119,8 +119,15 @@ function RegistrationForm() {
       const result = await res.json();
 
       if (res.ok && result.status === "success") {
-        notify("Account successfully registered! 🎉", "success");
+        // Notify based on email_sent flag
+        notify(
+          result.email_sent
+            ? "Account registered! Verification code sent to your email. 🎉"
+            : "Account registered! Please request verification code.",
+          "success"
+        );
 
+        // Clear form
         setFormData({
           firstname: "",
           lastname: "",
@@ -137,7 +144,12 @@ function RegistrationForm() {
           uppercase: false,
         });
 
-        setTimeout(() => navigate("/login"), 2000);
+        // Redirect immediately to VerificationForm
+        setTimeout(() => {
+          navigate("/verify-email", {
+            state: { email: result.email, user_id: result.user_id },
+          });
+        }, 1000);
       } else if (result.status === "duplicate") {
         notify("This email is already registered!", "caution");
       } else {

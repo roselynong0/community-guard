@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect } from "react";
 import {
   FaHome,
   FaPlusCircle,
@@ -10,54 +10,52 @@ import {
   FaMap,
 } from "react-icons/fa";
 import { Outlet, NavLink, useNavigate } from "react-router-dom";
-import { logout } from "../utils/session";   // ✅ shared logout util
+import { logout } from "../utils/session";
 import "./Layout.css";
 import logo from "../assets/logo.png";
 
 function Layout({ session, setSession }) {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [dateTime, setDateTime] = useState(new Date());
-  const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
+  const [showAuthModal, setShowAuthModal] = useState(false); // for unauthenticated
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
+
   const navigate = useNavigate();
 
-  // 🔹 Fetch profile when session token exists
-  const loadProfile = useCallback(async () => {
-    if (!session?.token) {
-      setLoading(false);
-      return navigate("/login");
-    }
-
-    try {
-      const res = await fetch("http://localhost:5000/api/profile", {
-        headers: { Authorization: `Bearer ${session.token}` },
-      });
-      const data = await res.json();
-
-      if (!res.ok || data.status !== "success") {
+  // 🔹 Fetch profile if session exists
+  useEffect(() => {
+    const loadProfile = async () => {
+      if (!session?.token) {
+        setLoading(false);
+        return;
+      }
+      try {
+        const res = await fetch("http://localhost:5000/api/profile", {
+          headers: { Authorization: `Bearer ${session.token}` },
+        });
+        const data = await res.json();
+        if (!res.ok || data.status !== "success") {
+          setSession(null);
+          setUser(null);
+        } else {
+          setUser({
+            ...data.profile,
+            avatar_url: data.profile?.avatar_url || "/default-avatar.png",
+          });
+        }
+      } catch (err) {
+        console.error("Profile fetch error:", err);
         setSession(null);
         setUser(null);
-        navigate("/login");
-      } else {
-        setUser({
-          ...data.profile,
-          avatar_url: data.profile?.avatar_url || "/default-avatar.png",
-        });
+      } finally {
+        setLoading(false);
       }
-    } catch (err) {
-      console.error("Profile fetch error:", err);
-      setSession(null);
-      setUser(null);
-      navigate("/login");
-    } finally {
-      setLoading(false);
-    }
-  }, [session, setSession, navigate]);
+    };
 
-  useEffect(() => {
-    if (session?.token) loadProfile();
-  }, [session, loadProfile]);
+    loadProfile();
+  }, [session, setSession]);
 
   // 🔹 Update date/time every second
   useEffect(() => {
@@ -78,7 +76,7 @@ function Layout({ session, setSession }) {
 
   // ✅ Centralized logout
   const confirmLogout = async () => {
-    await logout(setSession);  // shared util clears token + session
+    await logout(setSession);
     setUser(null);
     navigate("/login");
   };
@@ -89,8 +87,6 @@ function Layout({ session, setSession }) {
         Loading user...
       </div>
     );
-
-  if (!session || !user) return null;
 
   return (
     <div className="home-container">
@@ -106,7 +102,17 @@ function Layout({ session, setSession }) {
             <NavLink to="/maps"><FaMap /> Map</NavLink>
             <NavLink to="/reports"><FaPlusCircle /> Reports</NavLink>
             <NavLink to="/notifications"><FaBell /> Notifications</NavLink>
-            <NavLink to="/profile"><FaUser /> Profile</NavLink>
+            <NavLink
+              to={user ? "/profile" : "#"}   // navigate only if signed in
+              onClick={(e) => {
+                if (!user) {
+                  e.preventDefault();
+                  setShowAuthModal(true);   // show modal if not signed in
+                }
+              }}
+            >
+              <FaUser /> Profile
+            </NavLink>
           </nav>
           <button
             className="logout-btn"
@@ -142,8 +148,27 @@ function Layout({ session, setSession }) {
         <NavLink to="/maps"><FaMap /></NavLink>
         <NavLink to="/reports"><FaPlusCircle /></NavLink>
         <NavLink to="/notifications"><FaBell /></NavLink>
-        <NavLink to="/profile"><FaUser /></NavLink>
+        <NavLink
+          to={user ? "/profile" : "#"}
+          onClick={(e) => {
+            if (!user) {
+              e.preventDefault();
+              setShowAuthModal(true);
+            }
+          }}
+        >
+          <FaUser />
+        </NavLink>
       </nav>
+
+      {/* Mobile logout button */}
+      <div
+        className="mobile-logout-btn"
+        onClick={() => setShowLogoutConfirm(true)}
+        title="Logout"
+      >
+        <FaSignOutAlt />
+      </div>
 
       {/* Logout confirmation modal */}
       {showLogoutConfirm && (
@@ -160,6 +185,33 @@ function Layout({ session, setSession }) {
               </button>
               <button onClick={confirmLogout} className="confirm-btn">
                 Logout
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Unauthenticated profile modal */}
+      {showAuthModal && (
+        <div className="modal-overlay">
+          <div className="modal">
+            <h3>Sign In Required</h3>
+            <p>You must be signed in to access your profile.</p>
+            <div className="modal-actions">
+              <button
+                onClick={() => setShowAuthModal(false)}
+                className="cancel-btn"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => {
+                  setShowAuthModal(false);
+                  navigate("/login");
+                }}
+                className="confirm-btn"
+              >
+                Sign In
               </button>
             </div>
           </div>
