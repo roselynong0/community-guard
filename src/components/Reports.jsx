@@ -4,7 +4,7 @@ import { FaEdit, FaTrashAlt, FaSearch, FaRedo} from "react-icons/fa";
 import { MapContainer, TileLayer, Marker, useMapEvents } from "react-leaflet";
 import "leaflet/dist/leaflet.css";
 import L from "leaflet";
-import "./Reports.css";
+import "./Reports.css"; // Ensure this CSS file is present for styling
 import markerIcon2x from "leaflet/dist/images/marker-icon-2x.png";
 import markerIcon from "leaflet/dist/images/marker-icon.png";
 import markerShadow from "leaflet/dist/images/marker-shadow.png";
@@ -42,11 +42,14 @@ function LocationPicker({ setLocation }) {
 
 function Reports({ session }) {
   const [reports, setReports] = useState([]);
+  
+  // States holding the current dropdown/input values (pre-applied)
   const [search, setSearch] = useState("");
   const [category, setCategory] = useState("All");
   const [barangay, setBarangay] = useState("All");
   const [sort, setSort] = useState("latest");
   const [view, setView] = useState("all"); 
+  
   const [previewImage, setPreviewImage] = useState(null);
   const [isLoading, setIsLoading] = useState(false); 
 
@@ -74,12 +77,13 @@ function Reports({ session }) {
     "Santa Rita", "West Bajac-Bajac", "West Tapinac",
   ];
 
+  // States holding the actively applied filters (used for client-side filtering)
   const [appliedSearch, setAppliedSearch] = useState("");
   const [appliedCategory, setAppliedCategory] = useState("All");
   const [appliedBarangay, setAppliedBarangay] = useState("All");
   const token = session?.token;
 
-  // Fetch reports from backend
+  // Fetch reports from backend (handles sort and view filters)
   const fetchReports = async (currentView = view) => {
     if (!token) return;
     setIsLoading(true); 
@@ -97,8 +101,14 @@ function Reports({ session }) {
     }
   };
 
+  // useEffect: Triggers a fetch when sort or view changes.
   useEffect(() => {
-    if (token) fetchReports(view); 
+    if (token) {
+        fetchReports(view);
+        // Ensure the current category/barangay filters are applied to the new data set
+        setAppliedCategory(category);
+        setAppliedBarangay(barangay);
+    } 
   }, [token, sort, view]);
 
   // Add or update report
@@ -186,7 +196,7 @@ function Reports({ session }) {
     });
   };
 
-  // Apply filters safely
+  // Client-side filtering logic: uses the 'applied' states
   const filteredReports = reports
     .filter((r) => (appliedCategory === "All" ? true : r.category === appliedCategory))
     .filter((r) => (appliedBarangay === "All" ? true : (r.barangay || r.address_barangay) === appliedBarangay))
@@ -200,7 +210,7 @@ function Reports({ session }) {
     <div className="reports-container">
       {/* Header */}
       <div className="header-row">
-        <h2>{view === "all" ? "All Community Reports" : "My Reports History"}</h2>
+        <h2>{view === "all" ? "Community Reports" : "My Reports"}</h2>
         <button 
           className="history-btn" 
           onClick={() => setView(view === "all" ? "my" : "all")}
@@ -211,7 +221,7 @@ function Reports({ session }) {
 
       {/* Filters */}
       <div className="top-controls">
-        {/* NEW CONTAINER: search-group */}
+        {/* NEW CONTAINER: search-group (Input and Icons) */}
         <div className="search-group"> 
           <input
             type="text"
@@ -221,12 +231,13 @@ function Reports({ session }) {
             className="search-input"
           />
           
-          {/* Search Button */}
+          {/* Search Button: Applies search, category, AND barangay filters */}
           <button
             className="filter-icon-btn search-btn"
             title="Search"
             onClick={() => {
               setAppliedSearch(search);
+              // Apply the currently selected dropdown values as well
               setAppliedCategory(category);
               setAppliedBarangay(barangay);
             }}
@@ -234,17 +245,23 @@ function Reports({ session }) {
             <FaSearch />
           </button>
 
-          {/* Reset Button */}
+          {/* Reset Button: Resets all filters and fetches base data */}
           <button
             className="filter-icon-btn reset-btn"
             title="Reset"
             onClick={() => {
+              // Reset the control states
               setSearch("");
               setCategory("All");
               setBarangay("All");
+              
+              // Reset the applied filter states (to clear client-side filter instantly)
               setAppliedSearch("");
               setAppliedCategory("All");
               setAppliedBarangay("All");
+              
+              // Re-fetch data using the current sort/view
+              fetchReports(); 
             }}
           >
             <FaRedo />
@@ -252,7 +269,16 @@ function Reports({ session }) {
         </div>
         {/* END search-group */}
 
-        <select value={category} onChange={(e) => setCategory(e.target.value)}>
+        {/* Category Filter */}
+        <select 
+          value={category} 
+          onChange={(e) => {
+            const newCategory = e.target.value;
+            setCategory(newCategory);
+            // Immediately apply the filter for instant client-side update
+            setAppliedCategory(newCategory);
+          }}
+        >
           <option value="All">All Categories</option>
           <option value="Concern">Concern</option>
           <option value="Crime">Crime</option>
@@ -260,14 +286,32 @@ function Reports({ session }) {
           <option value="Lost&Found">Lost & Found</option>
           <option value="Others">Others</option>
         </select>
-        <select value={barangay} onChange={(e) => setBarangay(e.target.value)}>
+
+        {/* Barangay Filter */}
+        <select 
+          value={barangay} 
+          onChange={(e) => {
+            const newBarangay = e.target.value;
+            setBarangay(newBarangay);
+            // Immediately apply the filter for instant client-side update
+            setAppliedBarangay(newBarangay);
+          }}
+        >
           {barangays.map((b) => (
             <option key={b} value={b}>
               {b}
             </option>
           ))}
         </select>
-        <select value={sort} onChange={(e) => setSort(e.target.value)}>
+
+        {/* Sort Filter */}
+        <select 
+          value={sort} 
+          onChange={(e) => {
+            setSort(e.target.value);
+            // Changing sort triggers the API re-fetch in the useEffect hook.
+          }}
+        >
           <option value="latest">Latest → Oldest</option>
           <option value="oldest">Oldest → Latest</option>
         </select>
