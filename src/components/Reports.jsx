@@ -70,14 +70,14 @@ function Reports({ session }) {
   const [appliedBarangay, setAppliedBarangay] = useState("All");
   const token = session?.token;
 
-  // Fetch all reports from database
+  // Fetch reports from backend
   const fetchReports = async () => {
     try {
-      const res = await axios.get(
-        `${API_URL}/reports?sort=${sort === "latest" ? "desc" : "asc"}`,
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
-      if (res.data.status === "success") setReports(res.data.reports);
+    const res = await axios.get(
+      `${API_URL}/reports?sort=${sort === "latest" ? "desc" : "asc"}`,
+      { headers: { Authorization: `Bearer ${token}` } }
+    );
+    if (res.data.status === "success") setReports(res.data.reports || []);
     } catch (err) {
       console.error(err);
     }
@@ -87,6 +87,7 @@ function Reports({ session }) {
     if (token) fetchReports();
   }, [token, sort]);
 
+  // Add or update report
   const handleAddOrUpdateReport = async () => {
     try {
       const formData = new FormData();
@@ -123,15 +124,15 @@ function Reports({ session }) {
   const handleEdit = (report) => {
     setEditReportId(report.id);
     setNewReport({
-      title: report.title,
-      description: report.description,
-      category: report.category,
-      barangay: report.address_barangay || "All",
+      title: report.title || "",
+      description: report.description || "",
+      category: report.category || "Concern",
+      barangay: report.barangay || "All",
       addressStreet: report.address_street || "",
       images: [],
-      lat: report.latitude,
-      lng: report.longitude,
-      date: new Date(report.created_at),
+      lat: report.latitude || null,
+      lng: report.longitude || null,
+      date: report.created_at ? new Date(report.created_at) : new Date(),
     });
     setIsModalOpen(true);
   };
@@ -139,8 +140,8 @@ function Reports({ session }) {
   const handleDelete = async () => {
     if (!deleteTarget) return;
     try {
-      await axios.patch(`${API_URL}/reports/${deleteTarget.id}`, 
-        { deleted: true }, 
+      await axios.patch(`${API_URL}/reports/${deleteTarget.id}`,
+        { deleted: true },
         { headers: { Authorization: `Bearer ${token}` } }
       );
       setIsDeleteConfirmOpen(false);
@@ -171,21 +172,20 @@ function Reports({ session }) {
     });
   };
 
-  // Apply filters: category, barangay, search, and showHistory
+  // Apply filters safely
   const filteredReports = reports
-    // Show either all reports or only user's reports
-    .filter((r) => showHistory || r.user_id === session.user.id)
+    .filter((r) => showHistory || String(r.user_id) === String(session.user.id))
     .filter((r) => (appliedCategory === "All" ? true : r.category === appliedCategory))
-    .filter((r) => (appliedBarangay === "All" ? true : r.barangay === appliedBarangay))
-    .filter(
-      (r) =>
-        r.title.toLowerCase().includes(appliedSearch.toLowerCase()) ||
-        r.description.toLowerCase().includes(appliedSearch.toLowerCase())
+    .filter((r) => (appliedBarangay === "All" || (r.barangay || "All") === appliedBarangay))
+    .filter((r) =>
+      (r.title || "").toLowerCase().includes(appliedSearch.toLowerCase()) ||
+      (r.description || "").toLowerCase().includes(appliedSearch.toLowerCase())
     );
 
 
   return (
     <div className="reports-container">
+      {/* Header */}
       <div className="header-row">
         <h2>Community Reports</h2>
         <button className="history-btn" onClick={() => setShowHistory(!showHistory)}>
@@ -193,6 +193,7 @@ function Reports({ session }) {
         </button>
       </div>
 
+      {/* Filters */}
       <div className="top-controls">
         <input
           type="text"
@@ -263,19 +264,17 @@ function Reports({ session }) {
         </button>
       </div>
 
-
+      {/* Reports List */}
       <div className="reports-list">
         {filteredReports.length > 0 ? (
           filteredReports.map((report) => {
             const isExpanded = expandedPosts.includes(report.id);
             const displayDescription = isExpanded
               ? report.description
-              : `${report.description.slice(0, 130)}${
-                  report.description.length > 130 ? "..." : ""
-                }`;
-
+              : `${(report.description || "").slice(0, 130)}${(report.description?.length || 0) > 130 ? "..." : ""}`;
             return (
               <div key={report.id} className="report-card">
+                {/* Header */}
                 <div className="report-header">
                   <div className="report-header-left">
                     <img
@@ -285,52 +284,37 @@ function Reports({ session }) {
                     />
                     <div className="report-header-text">
                       <p className="report-user">
-                        {report.reporter
-                          ? `${report.reporter.firstname} ${report.reporter.lastname}`.trim()
-                          : "Unknown User"}{" "}
-                        <span className={`user-verified-badge ${report.user_verified ? "verified" : "unverified"}`}>
-                          {report.user_verified ? "Verified" : "Unverified"}
-                        </span>
+                        {report.reporter ? `${report.reporter.firstname || ""} ${report.reporter.lastname || ""}`.trim() : "Unknown User"}
                       </p>
                       <p className="report-subinfo">
-                        {new Date(report.created_at).toLocaleString()} · {report.category}
+                        {report.created_at ? new Date(report.created_at).toLocaleString() : ""} · {report.category || "N/A"}
                       </p>
                       <p className="report-address-info">
-                        {report.address_street}, {report.address_barangay}, Olongapo City
+                        {(report.address_street || "")}, {(report.barangay || "")}, Olongapo City
                       </p>
                     </div>
                   </div>
 
                   <div className="report-header-actions">
-                    <span className={`status-badge status-${report.status.toLowerCase()}`}>
-                      {report.status}
+                    <span className={`status-badge status-${(report.status || "pending").toLowerCase()}`}>
+                      {report.status || "Pending"}
                     </span>
 
-                      {report.user_id === session.user.id && (
+                    {String(report.user_id) === String(session.user.id) && (
                       <>
-                        <button className="icon-btn edit-btn" onClick={() => handleEdit(report)}>
-                          <FaEdit />
-                        </button>
-                        <button
-                          className="icon-btn delete-btn"
-                          onClick={() => {
-                            setDeleteTarget(report);
-                            setIsDeleteConfirmOpen(true);
-                          }}
-                        >
-                          <FaTrashAlt />
-                        </button>
+                        <button className="icon-btn edit-btn" onClick={() => handleEdit(report)}><FaEdit /></button>
+                        <button className="icon-btn delete-btn" onClick={() => { setDeleteTarget(report); setIsDeleteConfirmOpen(true); }}><FaTrashAlt /></button>
                       </>
                     )}
-
                   </div>
                 </div>
 
+                {/* Caption */}
                 <div className="report-caption">
-                  <strong>{report.title}</strong>
+                  <strong>{report.title || ""}</strong>
                   <p className="report-description-text">
                     {displayDescription}
-                    {report.description.length > 130 && (
+                    {report.description?.length > 130 && (
                       <span className="more-link" onClick={() => toggleExpand(report.id)}>
                         {isExpanded ? " Show less" : " ...more"}
                       </span>
@@ -338,31 +322,27 @@ function Reports({ session }) {
                   </p>
                 </div>
 
-                {report.images && report.images.length > 0 && (
-                  <div className={`report-images images-${report.images.length}`}>
-                    {report.images.map((imgObj, idx) => (
-                      <img
-                        key={idx}
-                        src={`${API_URL}${imgObj.url}`}
-                        alt={`report-${idx}`}
-                        className="report-collage-img"
-                        onClick={() => setPreviewImage(`${API_URL}${imgObj.url}`)}
-                      />
-                    ))}
-
+                {/* Images */}
+                {report.images?.length > 0 && (
+                  <div className="report-images">
+                    {report.images.map((imgObj, idx) =>
+                      imgObj?.url ? (
+                        <img
+                          key={idx}
+                          src={`${API_URL}${imgObj.url}`}
+                          alt="report"
+                          className="report-image"
+                          onClick={() => { setPreviewImage(`${API_URL}${imgObj.url}`); }}
+                        />
+                      ) : null
+                    )}
                   </div>
                 )}
-
-
-
-                <div className="report-actions">
-                  <button className="like-btn">Like</button>
-                </div>
               </div>
             );
           })
         ) : (
-          <p>No reports found.</p>
+          <p className="no-report-msg">No reports found.</p>
         )}
       </div>
 

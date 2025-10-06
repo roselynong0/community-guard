@@ -332,29 +332,57 @@ h2 {
     gap: 8px;
 }
 
-.icon-btn {
-    background: none;
-    border: none;
+/* Icon buttons (edit, delete, etc.) */
+.icon-btn,
+.edit-btn,
+.delete-btn {
+    background: none;     
+    border: none;         
     cursor: pointer;
     font-size: 1rem;
     padding: 5px;
     border-radius: 50%;
-    transition: background-color 0.2s;
+    transition: background-color 0.2s, color 0.2s, box-shadow 0.2s;
+    color: #2d2d73;      /* default icon color */
 }
 
-.edit-btn {
-    color: #29ce29;
-}
-
+/* Hover state with subtle colored background like filter buttons */
 .edit-btn:hover {
-    background-color: #ebf9eb;
+    color: #29ce29; /* green icon */
+    background-color: rgba(41, 206, 41, 0.15); /* light green background */
+    box-shadow: 0 0 6px rgba(41, 206, 41, 0.3); /* optional glow effect */
 }
 
-.delete-btn {
-    color: #e5231d;
-}
 .delete-btn:hover {
-    background-color: #fcebeb;
+    color: #e5231d; /* red icon */
+    background-color: rgba(229, 35, 29, 0.15); /* light red background */
+    box-shadow: 0 0 6px rgba(229, 35, 29, 0.3); /* optional glow effect */
+}
+
+/* Remove focus outline/shadow to avoid default highlights */
+.icon-btn:focus,
+.edit-btn:focus,
+.delete-btn:focus {
+    outline: none;
+    box-shadow: none;
+    background-color: transparent;
+}
+
+/* Remove active background on click */
+.icon-btn:active,
+.edit-btn:active,
+.delete-btn:active {
+    background-color: transparent;
+    box-shadow: none;
+}
+
+
+/* Remove active background on click */
+.icon-btn:active,
+.edit-btn:active,
+.delete-btn:active {
+    background-color: transparent;
+    box-shadow: none;
 }
 
 /* New wrapper for filter icons */

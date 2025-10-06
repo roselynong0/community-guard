@@ -418,10 +418,10 @@ def upload_avatar():
         return jsonify({"status": "error", "message": str(e)}), 500
 
 # ----------------- DASHBOARD / REPORTS -----------------
+# ----------------- DASHBOARD / REPORTS -----------------
 DEFAULT_REPORTER = {"id": 0, "firstname": "Unknown", "lastname": "", "avatar_url": "/default-avatar.png"}
 
 def fetch_reports(limit=10, sort="desc", user_only=False, user_id=None):
-    """Fetch reports (including incidents) with optional user filter and their images."""
     try:
         query = supabase.table("reports").select("*").is_("deleted_at", None)
         if user_only and user_id:
@@ -429,6 +429,8 @@ def fetch_reports(limit=10, sort="desc", user_only=False, user_id=None):
         query = query.order("created_at", desc=(sort=="desc")).limit(limit)
         resp = query.execute()
         reports = getattr(resp, "data", []) or []
+
+        print("Fetched reports:", reports)  # <<< Add this
 
         # Attach reporter info and images
         for report in reports:
@@ -438,7 +440,10 @@ def fetch_reports(limit=10, sort="desc", user_only=False, user_id=None):
             report["reporter"] = reporter
             report["user_email"] = reporter.get("email")
 
-            # Fetch all images for this report
+            # Force barangay to string
+            report["barangay"] = str(report.get("address_barangay") or "All")
+
+            # Ensure images list exists
             images_resp = supabase.table("report_images").select("image_url").eq("report_id", report["id"]).execute()
             report["images"] = [{"url": img["image_url"]} for img in getattr(images_resp, "data", [])] if images_resp.data else []
 
