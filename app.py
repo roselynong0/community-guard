@@ -418,7 +418,6 @@ def upload_avatar():
         return jsonify({"status": "error", "message": str(e)}), 500
 
 # ----------------- DASHBOARD / REPORTS -----------------
-# ----------------- DASHBOARD / REPORTS -----------------
 DEFAULT_REPORTER = {"id": 0, "firstname": "Unknown", "lastname": "", "avatar_url": "/default-avatar.png"}
 
 def fetch_reports(limit=10, sort="desc", user_only=False, user_id=None):
