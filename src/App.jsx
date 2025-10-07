@@ -13,23 +13,25 @@ import Maps from "./components/Maps";
 import { fetchSession } from "./utils/session";
 import VerificationForm from "./components/VerificationForm";
 
+
 // ---------------- LOGIN WRAPPER ----------------
-function LoginWrapper({ session, setSession }) {
+function LoginWrapper({ session, setSession, setNotification }) {
   const location = useLocation();
   const params = new URLSearchParams(location.search);
   const forceLogin = params.get("force");
 
-  // Redirect to home only if session exists AND user is not forcing login
   if (session && !forceLogin) return <Navigate to="/home" replace />;
 
-  return <LoginForm setSession={setSession} />;
+  return <LoginForm setSession={setSession} setNotification={setNotification} />;
 }
 
 // ---------------- APP COMPONENT ----------------
 function App() {
   const [session, setSession] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [notification, setNotification] = useState({ message: "", type: "" });
 
+  // Initialize session
   useEffect(() => {
     const initSession = async () => {
       const currentSession = await fetchSession();
@@ -39,38 +41,52 @@ function App() {
     initSession();
   }, []);
 
+  // Auto-hide notification after 4 seconds
+  useEffect(() => {
+    if (notification.message) {
+      const timer = setTimeout(() => setNotification({ message: "", type: "" }), 4000);
+      return () => clearTimeout(timer);
+    }
+  }, [notification]);
+
   if (loading) return <p>Loading...</p>;
 
   return (
     <Router>
-      <Routes>
-        {/* Root path "/" -> show login */}
-        <Route path="/" element={<LoginWrapper session={session} setSession={setSession} />} />
+      {/* Global notification div */}
+      {notification.message && (
+        <div className={`notif notif-${notification.type}`}>
+          {notification.message}
+        </div>
+      )}
 
-        {/* Public routes */}
-        <Route path="/login" element={<LoginWrapper session={session} setSession={setSession} />} />
-        <Route path="/register" element={<RegistrationForm />} />
-        <Route path="/verify-email" element={<VerificationForm />} />
-        <Route path="/forgot-password" element={<ForgotPassword />} />
-        <Route path="/reset-password" element={<ResetPassword />} /> {/* ✅ added */}
+  <Routes>
+    {/* Public routes */}
+    <Route path="/login" element={<LoginForm setSession={setSession} setNotification={setNotification} />} />
+    <Route path="/register" element={<RegistrationForm />} />
+    <Route path="/verify-email" element={<VerificationForm />} />
+    <Route path="/forgot-password" element={<ForgotPassword />} />
+    <Route path="/reset-password" element={<ResetPassword />} />
 
-        {/* Protected routes */}
-        <Route
-          element={
-            session ? (
-              <Layout session={session} setSession={setSession} />
-            ) : (
-              <Navigate to="/login" replace />
-            )
-          }
-        >
-          <Route path="/home" element={<Home token={session?.token} />} />
-          <Route path="/maps" element={<Maps />} />
-          <Route path="/reports" element={<Reports session={session} />} />
-          <Route path="/notifications" element={<Notifications />} />
-          <Route path="/profile" element={<Profile token={session?.token} />} />
-        </Route>
-      </Routes>
+    {/* Protected routes wrapped in Layout */}
+    <Route
+      element={
+        session ? <Layout session={session} setSession={setSession} setNotification={setNotification} />
+                : <Navigate to="/login" replace />
+      }
+    >
+      <Route path="/home" element={<Home token={session.token} />} />
+      <Route path="/maps" element={<Maps token={session.token} />} />
+      <Route path="/reports" element={<Reports session={session} />} />
+      <Route path="/notifications" element={<Notifications token={session.token} />} />
+      <Route path="/profile" element={<Profile token={session.token} />} />
+    </Route>
+
+
+    {/* Fallback */}
+    <Route path="*" element={<Navigate to="/home" replace />} />
+  </Routes>
+
     </Router>
   );
 }

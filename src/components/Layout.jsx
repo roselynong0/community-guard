@@ -14,10 +14,10 @@ import { logout } from "../utils/session";
 import "./Layout.css";
 import logo from "../assets/logo.png";
 
-function Layout({ session, setSession }) {
+function Layout({ session, setSession, setNotification }) { // ✅ add setNotification
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [dateTime, setDateTime] = useState(new Date());
-  const [showAuthModal, setShowAuthModal] = useState(false); // for unauthenticated
+  const [showAuthModal, setShowAuthModal] = useState(false);
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
@@ -78,6 +78,7 @@ function Layout({ session, setSession }) {
   const confirmLogout = async () => {
     await logout(setSession);
     setUser(null);
+    setNotification({ message: "Logged out successfully.", type: "success" }); // 🔹 notify
     navigate("/login");
   };
 

@@ -605,6 +605,11 @@ label {
   pointer-events: none;
 }
 
+.notifications-page {
+  display: none;
+}
+
+
 @media (max-width: 900px) {
     .profile-content {
         grid-template-columns: 1fr;

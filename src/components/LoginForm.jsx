@@ -1,23 +1,13 @@
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import "./RegistrationForm.css";
 import "./Notification.css";
 
-function LoginForm({ setSession }) {
+function LoginForm({ setSession, setNotification }) {
   const [formData, setFormData] = useState({ email: "", password: "" });
   const [errors, setErrors] = useState({});
-  const [notification, setNotification] = useState({ message: "", type: "" });
   const navigate = useNavigate();
 
-  // ----------------- CLEAR NOTIFICATIONS -----------------
-  useEffect(() => {
-    if (notification.message) {
-      const timer = setTimeout(() => setNotification({ message: "", type: "" }), 4000);
-      return () => clearTimeout(timer);
-    }
-  }, [notification]);
-
-  // ----------------- FORM HANDLERS -----------------
   const handleChange = (e) => {
     const { name, value } = e.target;
     setFormData({ ...formData, [name]: value });
@@ -34,7 +24,6 @@ function LoginForm({ setSession }) {
     return newErrors;
   };
 
-  // ----------------- SUBMIT LOGIN -----------------
   const handleSubmit = async (e) => {
     e.preventDefault();
     const validationErrors = validate();
@@ -63,16 +52,12 @@ function LoginForm({ setSession }) {
 
       const result = await res.json();
 
-      if (res.ok && result.status === "success") {
-        // ✅ Save token in localStorage
-        localStorage.setItem("token", result.session.token);
-
-        // ✅ Update React global session state
-        setSession(result.session);
-
-        setNotification({ message: "Login successful! 🎉", type: "success" });
-        setTimeout(() => navigate("/home"), 1000);
-      } else if (result.status === "invalid_credentials") {
+        if (res.ok && result.status === "success") {
+          localStorage.setItem("token", result.session.token);
+          setSession(result.session);
+          setNotification({ message: "Login successful! 🎉", type: "success" }); // ✅ global
+          setTimeout(() => navigate("/home"), 3000);
+        } else if (result.status === "invalid_credentials") {
         setNotification({ message: "Incorrect email or password.", type: "error" });
         ["email", "password"].forEach((field) => {
           const el = document.querySelector(`input[name="${field}"]`);
@@ -91,49 +76,46 @@ function LoginForm({ setSession }) {
   };
 
   return (
-    <div className="background">
-      {notification.message && (
-        <div className={`notif notif-${notification.type}`}>
-          <span>{notification.message}</span>
-        </div>
-      )}
+    <>
+      {/* Main content */}
+      <div className="background">
+        <div className="wrapper">
+          <div className="top-section">
+            <h1>Community Guard</h1>
+            <p>Welcome Back, Resident.</p>
+          </div>
 
-      <div className="wrapper">
-        <div className="top-section">
-          <h1>Community Guard</h1>
-          <p>Welcome Back, Resident.</p>
-        </div>
+          <div className="form-card">
+            <h2>Login</h2>
+            <form onSubmit={handleSubmit}>
+              <input
+                type="email"
+                name="email"
+                placeholder="Email Address"
+                value={formData.email}
+                onChange={handleChange}
+              />
+              <input
+                type="password"
+                name="password"
+                placeholder="Password"
+                value={formData.password}
+                onChange={handleChange}
+              />
+              <button type="submit">Login</button>
 
-        <div className="form-card">
-          <h2>Login</h2>
-          <form onSubmit={handleSubmit}>
-            <input
-              type="email"
-              name="email"
-              placeholder="Email Address"
-              value={formData.email}
-              onChange={handleChange}
-            />
-            <input
-              type="password"
-              name="password"
-              placeholder="Password"
-              value={formData.password}
-              onChange={handleChange}
-            />
-            <button type="submit">Login</button>
-
-            <Link to="/forgot-password" className="forgot-password-link">
-              Forgot Password?
-            </Link>
-            <Link to="/register" className="back-link">
-              Don't have an account? Register
-            </Link>
-          </form>
+              <Link to="/forgot-password" className="forgot-password-link">
+                Forgot Password?
+              </Link>
+              <Link to="/register" className="back-link">
+                Don't have an account? Register
+              </Link>
+            </form>
+          </div>
         </div>
       </div>
-    </div>
+    </>
   );
 }
 
-export default LoginForm;
+export default LoginForm; // ✅ export at top level

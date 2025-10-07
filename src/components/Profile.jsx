@@ -6,140 +6,160 @@ import "./Notifications.css";
 import DatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css"
 import { format, parseISO } from "date-fns";
+import axios from "axios";
 
 
 function Profile({ token }) {
-  const navigate = useNavigate();
-  const [notifications, setNotifications] = useState([]);
+    const navigate = useNavigate();
 
-  const [user, setUser] = useState(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const [profilePic, setProfilePic] = useState(null);
-  const [fullScreenImage, setFullScreenImage] = useState(null);
-  const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
-  const [showModal, setShowModal] = useState(null); // "header", "about", "personal"
-  const [showDeleteAccount, setShowDeleteAccount] = useState(false);
-  const displayField = (field, placeholder) => field || placeholder;
+    // ------------------- STATES -------------------
+    const [user, setUser] = useState(null);
+    const [isLoading, setIsLoading] = useState(true);
+    const [profilePic, setProfilePic] = useState(null);
+    const [fullScreenImage, setFullScreenImage] = useState(null);
+    const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
+    const [showModal, setShowModal] = useState(null); // "header", "about", "personal"
+    const [showDeleteAccount, setShowDeleteAccount] = useState(false);
+    const [notifications, setNotifications] = useState([]);
+    const [reports, setReports] = useState([]);
+    const [reportsSubmitted, setReportsSubmitted] = useState(0);
+    const [reportsResolved, setReportsResolved] = useState(0);
 
-  const [reports, setReports] = useState([]);
+    const [editProfileData, setEditProfileData] = useState({
+      firstname: "",
+      lastname: "",
+      bio: "",
+      phone: "",
+      address_street: "",
+      address_barangay: "",
+      email: "",
+      birthdate: "",
+    });
 
-  const [editProfileData, setEditProfileData] = useState({
-    firstname: "",
-    lastname: "",
-    bio: "",
-    phone: "",
-    address_street: "",
-    address_barangay: "",
-    email: "",
-  });
+    const API_URL = "http://localhost:5000/api"; // adjust as needed
+    const barangays = [
+      "All", "Barretto", "East Bajac-Bajac", "East Tapinac", "Gordon Heights",
+      "Kalaklan", "Mabayuan", "New Asinan", "New Banicain", "New Cabalan",
+      "New Ilalim", "New Kababae", "New Kalalake", "Old Cabalan", "Pag-Asa",
+      "Santa Rita", "West Bajac-Bajac", "West Tapinac",
+    ];
 
-  const barangays = [
-    "All", "Barretto", "East Bajac-Bajac", "East Tapinac", "Gordon Heights",
-    "Kalaklan", "Mabayuan", "New Asinan", "New Banicain", "New Cabalan",
-    "New Ilalim", "New Kababae", "New Kalalake", "Old Cabalan", "Pag-Asa",
-    "Santa Rita", "West Bajac-Bajac", "West Tapinac",
-  ];
+    const displayField = (field, placeholder) => field || placeholder;
 
-  const addNotification = (message, type = "error") => {
-    const id = Date.now();
-    setNotifications((prev) => [...prev, { id, message, type }]);
-    // auto remove after 5s
-    setTimeout(() => {
-      setNotifications((prev) => prev.filter((n) => n.id !== id));
-    }, 5000);
-  };
+    const addNotification = (message, type = "error") => {
+      const id = Date.now();
+      setNotifications((prev) => [...prev, { id, message, type }]);
+      setTimeout(() => {
+        setNotifications((prev) => prev.filter((n) => n.id !== id));
+      }, 5000);
+    };
 
   // ------------------- FETCH PROFILE -------------------
-useEffect(() => {
-  if (!token) return;
+  useEffect(() => {
+    if (!token) return;
 
-  const fetchProfile = async () => {
-    try {
-      const res = await fetch("http://localhost:5000/api/profile", {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      const data = await res.json();
-      if (data.status === "success") {
-        const profile = data.profile;
-        setUser({
-          ...profile,
-          address_barangay: profile.address_barangay || "Barretto",
-          address_city: profile.address_city || "Olongapo",
-          role: "Resident",
-          contact: profile.phone || "",
+    const fetchProfile = async () => {
+      try {
+        const res = await fetch(`${API_URL}/profile`, {
+          headers: { Authorization: `Bearer ${token}` },
         });
-        setEditProfileData({
-          firstname: profile.firstname || "",
-          lastname: profile.lastname || "",
-          bio: profile.bio || "",
-          phone: profile.phone || "",
-          address_street: profile.address_street || "",
-          address_barangay: profile.address_barangay || "Barretto",
-          email: profile.email || "",
-          birthdate: profile.birthdate || "",
+        const data = await res.json();
+        if (data.status === "success") {
+          const profile = data.profile;
+          setUser({
+            ...profile,
+            address_barangay: profile.address_barangay || "Barretto",
+            address_city: profile.address_city || "Olongapo",
+            role: "Resident",
+            contact: profile.phone || "",
+          });
+          setEditProfileData({
+            firstname: profile.firstname || "",
+            lastname: profile.lastname || "",
+            bio: profile.bio || "",
+            phone: profile.phone || "",
+            address_street: profile.address_street || "",
+            address_barangay: profile.address_barangay || "Barretto",
+            email: profile.email || "",
+            birthdate: profile.birthdate || "",
+          });
+        }
+      } catch (err) {
+        console.error("Failed to fetch profile:", err);
+        addNotification("Failed to load profile.", "error");
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    const fetchReports = async () => {
+      try {
+        const res = await fetch(`${API_URL}/reports`, {
+          headers: { Authorization: `Bearer ${token}` },
         });
+        const data = await res.json();
+        if (data.status === "success") {
+          setReports(data.reports);
+        } else {
+          addNotification("Failed to fetch reports.", "error");
+        }
+      } catch (err) {
+        console.error("Failed to fetch reports:", err);
       }
-    } catch (err) {
-      console.error("Failed to fetch profile:", err);
-    } finally {
-      setIsLoading(false);
-    }
-  };
+    };
 
-  fetchProfile();
-}, [token]);
-
-useEffect(() => {
-  if (!token) return;
-
-  const fetchReports = async () => {
-    try {
-      const res = await fetch("http://localhost:5000/api/reports", {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      const data = await res.json();
-      if (data.status === "success") {
-        setReports(data.reports); // assuming backend returns an array in data.reports
-      } else {
-        addNotification("Failed to fetch reports", "error");
+    const fetchUserStats = async () => {
+      try {
+        const res = await axios.get(`${API_URL}/stats/user`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (res.data.status === "success") {
+          setReportsSubmitted(res.data.totalReports);
+          setReportsResolved(res.data.resolved);
+        }
+      } catch (err) {
+        console.error("Failed to fetch user stats:", err);
       }
-    } catch (err) {
-      console.error("Failed to fetch reports:", err);
-    }
-  };
+    };
 
-  fetchReports();
-}, [token]);
+    fetchProfile();
+    fetchReports();
+    fetchUserStats();
+  }, [token]);
 
+  // ------------------- UPDATE REPORTS STATS -------------------
+  useEffect(() => {
+    if (!user) return;
+    const userReports = reports.filter(r => String(r.user_id) === String(user.id));
+    setReportsSubmitted(userReports.length);
+    setReportsResolved(userReports.filter(r => (r.status || "").toLowerCase() === "resolved").length);
+  }, [reports, user]);
 
   // ------------------- PROFILE PICTURE -------------------
   const handlePicUpload = async (e) => {
     const file = e.target.files[0];
     if (!file) return;
-    const url = URL.createObjectURL(file);
-    setProfilePic(url);
+    setProfilePic(URL.createObjectURL(file));
 
     const formData = new FormData();
     formData.append("avatar", file);
     try {
-      const res = await fetch("http://localhost:5000/api/profile/upload-avatar", {
+      const res = await fetch(`${API_URL}/profile/upload-avatar`, {
         method: "POST",
         headers: { Authorization: `Bearer ${token}` },
         body: formData,
       });
       const data = await res.json();
       if (data.status === "success") {
-        setProfilePic(null); // clear preview
-        setUser((prev) => ({
-          ...prev,
-          avatar_url: data.url || data.avatar_url,
-        }));
+        setProfilePic(null);
+        setUser(prev => ({ ...prev, avatar_url: data.url || data.avatar_url }));
       }
     } catch (err) {
       console.error("Failed to upload avatar:", err);
     }
   };
 
+  // ------------------- LOGOUT -------------------
   const handleLogout = () => {
     setShowLogoutConfirm(false);
     navigate("/login");
@@ -203,11 +223,7 @@ const handleProfileUpdate = async () => {
   }
 };
 
-const userReports = reports.filter(r => String(r.user) === String(user?.id));
-
-const reportsSubmitted = userReports.length;
-const reportsResolved = userReports.filter(r => r.status === "Resolved").length;
-
+// Filter reports for the logged-in user
 if (isLoading) return <p className="loading-message">Loading profile...</p>;
 if (!user) return <p className="error-message">Failed to load profile or unauthorized.</p>;
 
@@ -306,16 +322,12 @@ return (
             </p>
           </div>
 
-          {/* Card 3 - Apply stagger delay */}
-          <div className="profile-card fade-in-up" style={{ animationDelay: '0.3s' }}>
-            <h3>Activity</h3>
-            <p>
-              📌 Reports Submitted: <strong>{reportsSubmitted}</strong>
-            </p>
-            <p>
-              ✅ Reports Resolved: <strong>{reportsResolved}</strong>
-            </p>
-          </div>
+          {/* Profile Card */}
+            <div className="profile-card fade-in-up" style={{ animationDelay: '0.3s' }}>
+              <h3>Activity</h3>
+              <p>📌 Reports Submitted: <strong>{reportsSubmitted}</strong></p>
+              <p>✅ Reports Resolved: <strong>{reportsResolved}</strong></p>
+            </div>
         </div>
 
 

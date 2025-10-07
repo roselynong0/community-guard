@@ -377,21 +377,18 @@ const filteredReports = reports
 
                 {/* Images */}
                 {report.images?.length > 0 && (
-                  <div className="report-images">
-                    {report.images.map((imgObj, idx) =>
-                      imgObj?.url ? (
-                        <img
-                          key={idx}
-                          src={`${API_URL}${imgObj.url}`}
-                          alt="report"
-                          className="report-image"
-                          onClick={() => {
-                            setPreviewImage(`${API_URL}${imgObj.url}`);
-                          }}
-                        />
-                      ) : null
-                    )}
+                  <div className={`report-images images-${report.images.length}`}>
+                    {report.images.map((imgObj, idx) => (
+                      <img
+                        key={idx}
+                        src={`${API_URL}${imgObj.url}`}
+                        alt="report"
+                        className="report-collage-img"
+                        onClick={() => setPreviewImage(`${API_URL}${imgObj.url}`)}
+                      />
+                    ))}
                   </div>
+
                 )}
               </div>
             );
@@ -499,7 +496,6 @@ const filteredReports = reports
                       src={typeof file === "string" ? file : URL.createObjectURL(file)}
                       alt={`preview-${idx}`}
                       className="report-collage-img"
-                      style={{ maxWidth: 80, maxHeight: 80, margin: 4 }}
                     />
                   ))}
                 </div>

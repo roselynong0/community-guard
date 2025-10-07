@@ -1,113 +1,112 @@
-import React, { useState } from 'react';
-import { FaCheckCircle, FaExclamationCircle, FaThumbsUp, FaRegBell, FaTrashAlt } from 'react-icons/fa'; 
+import React, { useState, useEffect } from 'react';
+import { FaCheckCircle, FaExclamationCircle, FaThumbsUp, FaRegBell, FaTrashAlt } from 'react-icons/fa';
+import axios from 'axios';
 import './Notifications.css';
 import './Notification.css';
 
-const mockNotifications = [
-  {
-    id: 101,
-    type: 'Complete',
-    reportId: 1,
-    title: 'Pickpocket Incident',
-    status: 'Resolved',
-    message: 'Your report "Pickpocket Incident" has been RESOLVED by the authorities.',
-    icon: <FaCheckCircle className="icon-resolved" />,
-    time: new Date(Date.now() - 60000 * 30).toISOString(), 
-    isRead: false,
-  },
-  {
-    id: 102,
-    type: 'Status Update',
-    reportId: 2,
-    title: 'Fallen Electric Post',
-    status: 'Ongoing',
-    message: 'The status of your report "Fallen Electric Post" has been updated to ONGOING.',
-    icon: <FaExclamationCircle className="icon-ongoing" />,
-    time: new Date(Date.now() - 60000 * 120).toISOString(), 
-    isRead: false,
-  },
-  {
-    id: 103,
-    type: 'Likes',
-    reportId: 1,
-    title: 'Pickpocket Incident',
-    status: 'Resolved',
-    message: 'Your report received 25 Likes from other residents.',
-    icon: <FaThumbsUp className="icon-upvote" />,
-    time: new Date(Date.now() - 60000 * 180).toISOString(), 
-    isRead: true,
-  },
-  {
-    id: 104,
-    type: 'Status Update',
-    reportId: 3,
-    title: 'Garbage Overflowing',
-    status: 'Pending',
-    message: 'Your report "Garbage Overflowing" has been received and is currently PENDING.',
-    icon: <FaRegBell className="icon-pending" />,
-    time: new Date(Date.now() - 60000 * 300).toISOString(), 
-    isRead: true,
-  },
-];
+const API_URL = "http://localhost:5000/api";
 
-const formatTime = (isoString) => {
-  const now = new Date();
-  const date = new Date(isoString);
-  const diffInMinutes = Math.floor((now - date) / (1000 * 60));
-  const diffInHours = Math.floor(diffInMinutes / 60);
-
-  if (diffInMinutes < 60) return `${diffInMinutes} minutes ago`;
-  if (diffInHours < 24) return `${diffInHours} hours ago`;
-  return date.toLocaleDateString();
-};
-
-function Notifications() {
-  const [notifications, setNotifications] = useState(mockNotifications);
+function Notifications({ token }) {
   const [activeFilter, setActiveFilter] = useState('All');
+  const [notifications, setNotifications] = useState([]);
+  const [loading, setLoading] = useState(true);
 
-  const markAllAsRead = () => {
-    setNotifications(notifications.map(n => ({ ...n, isRead: true })));
+  // ---------------- FETCH NOTIFICATIONS ----------------
+  useEffect(() => {
+    if (!token) return;
+
+    const fetchNotifications = async () => {
+      try {
+        const res = await axios.get(`${API_URL}/notifications`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        setNotifications(res.data.notifications || []);
+      } catch (err) {
+        console.error("Error fetching notifications:", err);
+        setNotifications([]);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchNotifications();
+  }, [token]);
+
+  // ---------------- MARK AS READ ----------------
+  const markAsRead = async (id) => {
+    if (!token) return;
+    try {
+      await axios.post(`${API_URL}/notifications/${id}/read`, {}, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      setNotifications(prev =>
+        prev.map(n => n.id === id ? { ...n, read: true } : n)
+      );
+    } catch (err) {
+      console.error("Error marking as read:", err);
+    }
   };
 
-  const markAsRead = (id) => {
-    setNotifications(notifications.map(n => (n.id === id ? { ...n, isRead: true } : n)));
+  // ---------------- DELETE NOTIFICATION ----------------
+  const deleteNotification = async (id) => {
+    if (!token) return;
+    try {
+      await axios.delete(`${API_URL}/notifications/${id}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      setNotifications(prev => prev.filter(n => n.id !== id));
+    } catch (err) {
+      console.error("Error deleting notification:", err);
+    }
   };
 
-  const handleDeleteNotification = (e, id) => {
-    e.stopPropagation(); 
-    
-    setNotifications(notifications.filter(n => n.id !== id));
+  // ---------------- MARK ALL AS READ ----------------
+  const markAllAsRead = async () => {
+    if (!token) return;
+    try {
+      await axios.post(`${API_URL}/notifications/read_all`, {}, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      setNotifications(prev => prev.map(n => ({ ...n, read: true })));
+    } catch (err) {
+      console.error("Error marking all as read:", err);
+    }
   };
 
-  const filteredNotifications = notifications.filter(n => {
-    if (activeFilter === 'All') return true;
-    if (activeFilter === 'Reports' && (n.type === 'Status Update' || n.type === 'Complete')) return true; 
-    if (activeFilter === 'Community' && n.type === 'Likes') return true;
-    return false;
-  });
-
-  const unreadCount = notifications.filter(n => !n.isRead).length;
-
-  const handleNotificationClick = (id, reportId) => {
-    markAsRead(id);
-    console.log(`Navigating to report ${reportId}`);
+  // ---------------- RENDER ICON ----------------
+  const renderIcon = (type) => {
+    switch (type) {
+      case "Complete": return <FaCheckCircle className="icon complete" />;
+      case "Alert": return <FaExclamationCircle className="icon alert" />;
+      case "Like": return <FaThumbsUp className="icon like" />;
+      default: return <FaRegBell className="icon default" />;
+    }
   };
 
-  const filters = ['All', 'Reports', 'Community'];
+  const filteredNotifications = notifications.filter(n =>
+    activeFilter === 'All' || n.type === activeFilter
+  );
+
+  // Check if all notifications in current filter are read
+  const allRead = filteredNotifications.length > 0 && filteredNotifications.every(n => n.read);
+
+  if (loading) return <p className="loading-text">Loading notifications...</p>;
 
   return (
     <div className="notifications-page">
       <div className="notifications-header">
-        <h2>Notifications ({unreadCount})</h2>
-        {unreadCount > 0 && (
-          <button className="mark-read-btn" onClick={markAllAsRead}>
-            Mark All as Read
-          </button>
-        )}
+        <h2>Notifications</h2>
+        <button
+          className={`mark-read-btn ${allRead ? 'disabled' : ''}`}
+          onClick={markAllAsRead}
+          disabled={allRead} // disable button if all read
+        >
+          Mark all as read
+        </button>
       </div>
-      
+
       <div className="notifications-filters">
-        {filters.map(filter => (
+        {['All', 'Complete', 'Alert', 'Like'].map(filter => (
           <button
             key={filter}
             className={`filter-btn ${activeFilter === filter ? 'active' : ''}`}
@@ -118,58 +117,32 @@ function Notifications() {
         ))}
       </div>
 
-      <div className="notifications-list">
-        {filteredNotifications.length > 0 ? (
-          filteredNotifications.map((notif, index) => ( // Added 'index' for stagger
-            <div
-              key={notif.id}
-              className={`notification-item ${notif.isRead ? 'read' : 'unread'}`}
-              onClick={() => handleNotificationClick(notif.id, notif.reportId)}
-              style={{ animationDelay: `${index * 0.05}s` }} // Staggered delay
-            >
-              <div className="notif-icon-container">
-                {notif.icon}
-              </div>
-              <div className="notif-details">
-                <p className="notif-message" dangerouslySetInnerHTML={{ __html: notif.message }} />
-                <p className="notif-time">{formatTime(notif.time)}</p>
-              </div>
-                
-              <div className="notification-actions">
-                <button 
-                    className="delete-notif-btn" 
-                    onClick={(e) => handleDeleteNotification(e, notif.id)}
-                    title="Delete Notification"
-                >
-                    <FaTrashAlt />
-                </button>
-              </div>
-
-              {!notif.isRead && <span className="unread-dot" />}
+      {/* ---------------- NO NOTIFICATIONS MESSAGE ---------------- */}
+      {notifications.length === 0 ? (
+        <p className="no-notifications">No notifications yet.</p>
+      ) : filteredNotifications.length === 0 ? (
+        <p className="no-notifications">No notifications for this filter.</p>
+      ) : (
+        filteredNotifications.map(notif => (
+          <div key={notif.id} className={`notification-item ${notif.read ? "read" : "unread"}`}>
+            <div className="notif-icon-container">{renderIcon(notif.type)}</div>
+            <div className="notif-details">
+              <h4>{notif.title}</h4>
+              <p className="notif-message">{notif.message}</p>
+              <small className="notif-time">{new Date(notif.created_at).toLocaleString()}</small>
             </div>
-          ))
-        ) : (
-          <p className="no-notifications">You're all caught up! No notifications in this category.</p>
-        )}
-      </div>
+            {!notif.read && <span className="unread-dot" />}
+            <div className="notification-actions">
+              {!notif.read && <button onClick={() => markAsRead(notif.id)}>Mark as read</button>}
+              <button className="delete-notif-btn" onClick={() => deleteNotification(notif.id)}>
+                <FaTrashAlt />
+              </button>
+            </div>
+          </div>
+        ))
+      )}
     </div>
   );
 }
-
-// Dynamic top-right notifications
-export function notify(message, type = "success", duration = 4000) {
-  const notif = document.createElement("div");
-  notif.className = `notif notif-${type}`;
-  notif.textContent = message;
-
-  document.body.appendChild(notif);
-
-  setTimeout(() => {
-    notif.style.opacity = "0";
-    notif.style.transform = "translateX(50px)";
-    setTimeout(() => document.body.removeChild(notif), 300);
-  }, duration);
-}
-
 
 export default Notifications;

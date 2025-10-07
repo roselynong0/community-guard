@@ -476,7 +476,6 @@ def reset_password():
         print("Reset password exception:", e, traceback.format_exc())
         return jsonify({"status": "error", "message": str(e)}), 500
 
-
 # ----------------- EMAIL SENDER -----------------
 def send_reset_code_email(to_email, code):
     data = {
@@ -986,6 +985,76 @@ def get_report_categories():
     except Exception as e:
         print("get_report_categories error:", e)
         return jsonify({"status": "error", "message": str(e), "data": [{"name": "No Data", "value": 1}]}), 500
+
+# ----------------- REPORT STATS -----------------
+@app.route("/api/stats/user", methods=["GET"])
+@token_required
+def get_user_stats():
+    try:
+        user_id = request.user_id
+        reports_resp = supabase.table("reports").select("status").eq("user_id", user_id).is_("deleted_at", None).execute()
+        reports = getattr(reports_resp, "data", []) or []
+
+        stats = {
+            "totalReports": len(reports),
+            "pending": 0,
+            "ongoing": 0,
+            "resolved": 0
+        }
+
+        for report in reports:
+            status = (report.get("status") or "").lower()
+            if status == "pending":
+                stats["pending"] += 1
+            elif status == "ongoing":
+                stats["ongoing"] += 1
+            elif status == "resolved":
+                stats["resolved"] += 1
+
+        return jsonify({"status": "success", **stats}), 200
+
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e), "totalReports": 0, "pending": 0, "ongoing": 0, "resolved": 0}), 500
+
+# ----------------- NOTIF -----------------
+# Fetch notifications
+@app.route("/api/notifications", methods=["GET"])
+@token_required
+def get_notifications():
+    user_id = request.user_id
+    try:
+        resp = supabase.table("notifications").select("*").eq("user_id", user_id).order("created_at", desc=True).execute()
+        notifications = getattr(resp, "data", []) or []
+    except Exception as e:
+        print("Error fetching notifications:", e)
+        notifications = []
+    return jsonify({"status": "success", "notifications": notifications}), 200
+
+# Mark notification as read
+@app.route("/api/notifications/<int:notif_id>/read", methods=["POST"])
+@token_required
+def mark_notification_read(notif_id):
+    user_id = request.user_id
+    supabase.table("notifications").update({"is_read": True}).eq("id", notif_id).eq("user_id", user_id).execute()
+    return jsonify({"status": "success"}), 200
+
+# Delete notification
+@app.route("/api/notifications/<int:notif_id>", methods=["DELETE"])
+@token_required
+def delete_notification(notif_id):
+    user_id = request.user_id
+    supabase.table("notifications").delete().eq("id", notif_id).eq("user_id", user_id).execute()
+    return jsonify({"status": "success"}), 200
+
+# Mark all notifications as read
+@app.route("/api/notifications/read_all", methods=["POST"])
+@token_required
+def mark_all_notifications_read():
+    user_id = request.user_id
+    supabase.table("notifications").update({"is_read": True}).eq("user_id", user_id).execute()
+    return jsonify({"status": "success"}), 200
+
+
 
 # ----------------- SERVE UPLOADED FILES -----------------
 UPLOAD_FOLDER = os.path.join(os.getcwd(), "uploads")

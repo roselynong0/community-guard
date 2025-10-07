@@ -102,7 +102,7 @@ function VerificationForm() {
 
       <div className="wrapper">
         <div className="top-section">
-          <h1>GapoTravels</h1>
+          <h1>Community Guard</h1>
           <p>Verify your email address</p>
         </div>
 

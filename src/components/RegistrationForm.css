@@ -21,7 +21,9 @@ html, body {
   max-width: 420px;
   margin: auto;
   padding: 1rem;
-  animation: fadeUp 0.8s ease-out 0.5s both; 
+  animation: fadeUp 0.8s ease-out 0.5s both;
+  position: relative; /* ok */
+  z-index: 1; /* keep below notif */
 }
 
 .top-section {
