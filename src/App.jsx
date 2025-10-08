@@ -3,7 +3,7 @@ import { useState, useEffect } from "react";
 import RegistrationForm from "./components/RegistrationForm";
 import LoginForm from "./components/LoginForm";
 import ForgotPassword from "./components/ForgotPassword";
-import ResetPassword from "./components/ResetPassword"; // ✅ new import
+import ResetPassword from "./components/ResetPassword";
 import Layout from "./components/Layout";
 import Home from "./components/Home";
 import Reports from "./components/Reports";
