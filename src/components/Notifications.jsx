@@ -83,14 +83,12 @@ function Notifications({ token }) {
     }
   };
 
-  const filteredNotifications = notifications.filter(n =>
+  const filteredNotifications = (notifications || []).filter(n =>
     activeFilter === 'All' || n.type === activeFilter
   );
 
   // Check if all notifications in current filter are read
   const allRead = filteredNotifications.length > 0 && filteredNotifications.every(n => n.read);
-
-  if (loading) return <p className="loading-text">Loading notifications...</p>;
 
   return (
     <div className="notifications-page">
@@ -99,7 +97,7 @@ function Notifications({ token }) {
         <button
           className={`mark-read-btn ${allRead ? 'disabled' : ''}`}
           onClick={markAllAsRead}
-          disabled={allRead} // disable button if all read
+          disabled={allRead}
         >
           Mark all as read
         </button>
@@ -117,30 +115,33 @@ function Notifications({ token }) {
         ))}
       </div>
 
-      {/* ---------------- NO NOTIFICATIONS MESSAGE ---------------- */}
-      {notifications.length === 0 ? (
-        <p className="no-notifications">No notifications yet.</p>
-      ) : filteredNotifications.length === 0 ? (
-        <p className="no-notifications">No notifications for this filter.</p>
-      ) : (
-        filteredNotifications.map(notif => (
-          <div key={notif.id} className={`notification-item ${notif.read ? "read" : "unread"}`}>
-            <div className="notif-icon-container">{renderIcon(notif.type)}</div>
-            <div className="notif-details">
-              <h4>{notif.title}</h4>
-              <p className="notif-message">{notif.message}</p>
-              <small className="notif-time">{new Date(notif.created_at).toLocaleString()}</small>
+      <div className="notifications-list">
+        {loading ? (
+          <p className="loading-text">Loading notifications...</p>
+        ) : notifications.length === 0 ? (
+          <p className="no-notifications">No notifications yet.</p>
+        ) : filteredNotifications.length === 0 ? (
+          <p className="no-notifications">No notifications for this filter.</p>
+        ) : (
+          filteredNotifications.map(notif => (
+            <div key={notif.id} className={`notification-item ${notif.read ? "read" : "unread"}`}>
+              <div className="notif-icon-container">{renderIcon(notif.type)}</div>
+              <div className="notif-details">
+                <h4>{notif.title}</h4>
+                <p className="notif-message">{notif.message}</p>
+                <small className="notif-time">{new Date(notif.created_at).toLocaleString()}</small>
+              </div>
+              {!notif.read && <span className="unread-dot" />}
+              <div className="notification-actions">
+                {!notif.read && <button onClick={() => markAsRead(notif.id)}>Mark as read</button>}
+                <button className="delete-notif-btn" onClick={() => deleteNotification(notif.id)}>
+                  <FaTrashAlt />
+                </button>
+              </div>
             </div>
-            {!notif.read && <span className="unread-dot" />}
-            <div className="notification-actions">
-              {!notif.read && <button onClick={() => markAsRead(notif.id)}>Mark as read</button>}
-              <button className="delete-notif-btn" onClick={() => deleteNotification(notif.id)}>
-                <FaTrashAlt />
-              </button>
-            </div>
-          </div>
-        ))
-      )}
+          ))
+        )}
+      </div>
     </div>
   );
 }

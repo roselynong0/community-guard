@@ -42,11 +42,11 @@ def token_required(f):
     def decorated(*args, **kwargs):
         auth_header = request.headers.get("Authorization", "")
         if not auth_header:
-            return jsonify({"status": "unauthorized"}), 401
+            return jsonify({"status": "unauthorized", "message": "Missing Authorization header"}), 401
 
         parts = auth_header.split(" ")
         if len(parts) != 2 or parts[0] != "Bearer":
-            return jsonify({"status": "unauthorized"}), 401
+            return jsonify({"status": "unauthorized", "message": "Invalid Authorization format"}), 401
 
         token = parts[1]
 
@@ -54,15 +54,37 @@ def token_required(f):
         session_resp = supabase.table("sessions").select("*").eq("token", token).execute()
         sessions = getattr(session_resp, "data", []) or []
         if not sessions:
-            return jsonify({"status": "invalid_token"}), 401
+            return jsonify({"status": "invalid_token", "message": "Session not found"}), 401
 
         session = sessions[0]
-
-        # Check expiry
         now = datetime.now(timezone.utc)
-        if now > datetime.fromisoformat(session["expires_at"]):
-            print(f"⚠️ Expired session detected for user_id={session['user_id']}, token={token[:8]}...")  
-            return jsonify({"status": "expired_token"}), 401
+        expires_at = datetime.fromisoformat(session["expires_at"])
+
+        # ------------------ Check expiry ------------------
+        if now > expires_at:
+            print(f"⚠️ Expired session detected for user_id={session['user_id']}, token={token[:8]}...")
+
+            # Delete expired session
+            try:
+                supabase.table("sessions").delete().eq("token", token).execute()
+            except Exception as e:
+                print(f"Failed to clean up expired session: {e}")
+
+            return jsonify({
+                "status": "expired_token",
+                "message": "Your session has expired. Please log in again."
+            }), 401
+
+        # ------------------ Auto-refresh (optional) ------------------
+        remaining_time = (expires_at - now).total_seconds()
+        if remaining_time < 900:  # <15 minutes left
+            new_expiry = now + timedelta(hours=1)
+            try:
+                supabase.table("sessions").update({"expires_at": new_expiry.isoformat()}).eq("token", token).execute()
+                print(f"🔄 Session refreshed for user_id={session['user_id']} (new expiry: {new_expiry})")
+                session["expires_at"] = new_expiry.isoformat()
+            except Exception as e:
+                print(f"Failed to auto-refresh session: {e}")
 
         # Attach user_id and session
         request.user_id = session["user_id"]
@@ -72,11 +94,15 @@ def token_required(f):
     return decorated
 
 # ----------------- LIST USER SESSIONS -----------------
+# ----------------- LIST USER SESSIONS -----------------
 @app.route("/api/sessions", methods=["GET"])
 @token_required
 def list_sessions():
     user_id = request.user_id
+    now = datetime.now(timezone.utc)
+
     try:
+        # Get all sessions
         resp = (
             supabase.table("sessions")
             .select("id, token, expires_at, created_at")
@@ -85,11 +111,29 @@ def list_sessions():
             .execute()
         )
 
-        sessions = resp.data if resp.data else []
+        all_sessions = resp.data or []
 
-        return jsonify({"status": "success", "sessions": sessions}), 200
+        # Filter out expired sessions
+        active_sessions = []
+        for s in all_sessions:
+            if datetime.fromisoformat(s["expires_at"]) < now:
+                # Auto-delete expired sessions
+                supabase.table("sessions").delete().eq("id", s["id"]).execute()
+                print(f"🧹 Removed expired session {s['id']} for user {user_id}")
+            else:
+                active_sessions.append(s)
+
+        return jsonify({
+            "status": "success",
+            "sessions": active_sessions
+        }), 200
+
     except Exception as e:
-        return jsonify({"status": "error", "message": str(e), "sessions": []}), 500
+        return jsonify({
+            "status": "error",
+            "message": str(e),
+            "sessions": []
+        }), 500
 
 # ----------------- REVOKE SINGLE SESSION -----------------
 @app.route("/api/sessions/<session_id>", methods=["DELETE"])
@@ -97,38 +141,24 @@ def list_sessions():
 def revoke_session(session_id):
     user_id = request.user_id
     try:
-        # Only delete session if it belongs to this user
         supabase.table("sessions").delete().eq("id", session_id).eq("user_id", user_id).execute()
         return jsonify({"status": "success", "message": "Session revoked"}), 200
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
 
+
 # ----------------- REVOKE ALL SESSIONS -----------------
 @app.route("/api/sessions/revoke_all", methods=["DELETE"])
 @token_required
 def revoke_all_sessions():
+    user_id = request.user_id
     try:
-        user_id = request.user_id
-
-        # Delete all sessions for this user
         supabase.table("sessions").delete().eq("user_id", user_id).execute()
-
-        # Fetch updated session list (should be empty after delete)
-        resp = (
-            supabase.table("sessions")
-            .select("id, token, expires_at, created_at")
-            .eq("user_id", user_id)
-            .order("created_at", desc=True)
-            .execute()
-        )
-        sessions = resp.data if resp.data else []
-
         return jsonify({
             "status": "success",
             "message": "All sessions revoked",
-            "sessions": sessions
+            "sessions": []
         }), 200
-
     except Exception as e:
         return jsonify({
             "status": "error",
