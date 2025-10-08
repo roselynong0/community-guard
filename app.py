@@ -18,6 +18,8 @@ from mailjet_rest import Client
 import random
 import traceback
 from werkzeug.exceptions import HTTPException
+from flask_caching import Cache
+from flask_compress import Compress
 
 # ----------------- LOAD ENV -----------------
 load_dotenv()
@@ -35,6 +37,19 @@ supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 # ----------------- APP -----------------
 app = Flask(__name__)
 CORS(app, supports_credentials=True)
+cache = Cache(app, config={'CACHE_TYPE': 'SimpleCache', 'CACHE_DEFAULT_TIMEOUT': 300})
+Compress(app)
+
+@app.route("/api/data")
+def get_data():
+    try:
+        response = supabase.table("destinations").select("*").execute()
+        data = getattr(response, "data", []) or []
+        return jsonify(data)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+cache = Cache(app, config={'CACHE_TYPE': 'SimpleCache', 'CACHE_DEFAULT_TIMEOUT': 300})
 
 # ----------------- SESSION -----------------
 def token_required(f):
