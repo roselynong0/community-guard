@@ -26,6 +26,23 @@ h2 {
 }
 
 /* --- TOP CONTROLS STYLING --- */
+.search-bar-container {
+  position: relative;
+  display: flex;
+  align-items: center; 
+}
+
+.search-bar-container .search-icon {
+  position: absolute;
+  right: 15px;
+  color: #888; 
+  font-size: 1.1em;
+}
+
+.search-bar-container .real-time-search-input {
+  padding-left: 35px; 
+  flex-grow: 1; 
+}
 
 .top-controls {
     display: flex;
@@ -35,59 +52,55 @@ h2 {
     flex-wrap: wrap; 
 }
 
-/* NEW: Container for the search input and buttons */
+/* Container for the search input and buttons */
 .search-group {
     display: flex;
     align-items: center;
-    flex: 1; /* Allows the group to grow and take space */
-    min-width: 250px; /* Ensure a decent minimum width */
-    position: relative; /* **Key for positioning the icons** */
+    flex: 1; 
+    min-width: 250px; 
+    position: relative;
 }
 
 /* Style for the search input inside the new group */
 .top-controls .search-input {
     flex-grow: 1; 
     min-width: 150px; 
-    /* The crucial padding to make space for the two icons */
     padding-right: 70px; 
-    padding: 8px 70px 8px 12px; /* Adjusted: top/bottom 8px, right 70px (35*2=70 for two icons), left 12px */
+    padding: 8px 70px 8px 12px; 
     border: 1px solid #ccc; 
     border-radius: 20px;
 }
 
 /* Styles for the icon buttons (Search and Reset) */
 .search-group .filter-icon-btn {
-    position: absolute; /* **Key for positioning the icons** */
+    position: absolute;
     z-index: 2; 
     top: 50%;
-    transform: translateY(-50%); /* Vertically center the buttons */
-    
-    /* General button appearance */
+    transform: translateY(-50%); 
     background: none; 
     border: none; 
     cursor: pointer;
-    color: #555; /* Icon color */
+    color: #555; 
     padding: 6px;
     transition: color 0.2s;
 }
 
 .search-group .filter-icon-btn:hover {
-    color: #007bff; /* Highlight color on hover */
+    color: #007bff; 
 }
 
-/* Position the Search button (FaSearch) */
+/* Position Search button (FaSearch) */
 .search-group .search-btn {
     right: 35px;
     width: auto;
 }
 
-/* Position the Reset button (FaRedo) */
+/* Position Reset button (FaRedo) */
 .search-group .reset-btn {
     right: 5px; 
     width: auto;
 }
 
-/* Reuse your existing animation */
 .animate-up {
 animation: slideUp 0.6s ease-out forwards;
 opacity: 0;
@@ -98,7 +111,7 @@ from { transform: translateY(8px); opacity: 0; }
 to { transform: translateY(0); opacity: 1; }
 }
 
-/* Shared loading overlay */
+/* Loading overlay */
 .loading-overlay {
 display: flex;
 flex-direction: column;
@@ -110,7 +123,6 @@ background: #f4f4f4;
 color: #2d2d73;
 }
 
-/* Spinner reused */
 .spinner {
 width: 30px;
 height: 30px;
@@ -178,18 +190,18 @@ opacity: 0.9;
     border-radius: 12px;
     width: 500px;
     max-width: 90%;
-    max-height: 80vh; /* limit height */
+    max-height: 80vh; 
     padding: 20px;
     box-shadow: 0 8px 20px rgba(0, 0, 0, 0.25);
     display: flex;
     flex-direction: column;
-    overflow: hidden; /* contain inner scroll */
+    overflow: hidden; 
 }
 
 .modal-scrollable {
-    overflow-y: auto; /* vertical scroll if content exceeds */
-    padding-right: 5px; /* prevent horizontal overflow */
-    max-height: 70vh; /* scrollable area */
+    overflow-y: auto; 
+    padding-right: 5px; 
+    max-height: 70vh; 
 }
 
 /* Scrollbar styles for modal */
@@ -207,7 +219,6 @@ opacity: 0.9;
     border-radius: 3px;
 }
 
-/* Keep modal buttons consistent with colors */
 .modal-buttons button {
     border-radius: 25px;
     padding: 8px 18px;
@@ -452,23 +463,21 @@ opacity: 0.9;
     padding: 5px;
     border-radius: 50%;
     transition: background-color 0.2s, color 0.2s, box-shadow 0.2s;
-    color: #2d2d73;      /* default icon color */
+    color: #2d2d73;
 }
 
-/* Hover state with subtle colored background like filter buttons */
 .edit-btn:hover {
-    color: #29ce29; /* green icon */
-    background-color: rgba(41, 206, 41, 0.15); /* light green background */
-    box-shadow: 0 0 6px rgba(41, 206, 41, 0.3); /* optional glow effect */
+    color: #29ce29; 
+    background-color: rgba(41, 206, 41, 0.15);
+    box-shadow: 0 0 6px rgba(41, 206, 41, 0.3); 
 }
 
 .delete-btn:hover {
-    color: #e5231d; /* red icon */
-    background-color: rgba(229, 35, 29, 0.15); /* light red background */
-    box-shadow: 0 0 6px rgba(229, 35, 29, 0.3); /* optional glow effect */
+    color: #e5231d; 
+    background-color: rgba(229, 35, 29, 0.15); 
+    box-shadow: 0 0 6px rgba(229, 35, 29, 0.3); 
 }
 
-/* Remove focus outline/shadow to avoid default highlights */
 .icon-btn:focus,
 .edit-btn:focus,
 .delete-btn:focus {
@@ -486,7 +495,6 @@ opacity: 0.9;
 }
 
 
-/* Remove active background on click */
 .icon-btn:active,
 .edit-btn:active,
 .delete-btn:active {
@@ -497,14 +505,7 @@ opacity: 0.9;
 /* New wrapper for filter icons */
 .filter-btns {
     display: flex;
-    gap: 8px; /* spacing between buttons */
-    flex-shrink: 0;
-}
-
-/* New wrapper for filter icons */
-.filter-btns {
-    display: flex;
-    gap: 8px; /* spacing between buttons */
+    gap: 8px; 
     flex-shrink: 0;
 }
 
@@ -526,14 +527,14 @@ opacity: 0.9;
 }
 
 .filter-icon-btn:focus {
-    outline: none; /* remove default browser outline */
-    box-shadow: none; /* remove any shadow */
+    outline: none;
+    box-shadow: none; 
 }
 
 /* Ensure wrapper stays horizontal on mobile */
 @media (max-width: 768px) {
     .filter-btns {
-        flex-direction: row; /* force horizontal layout */
+        flex-direction: row; 
         justify-content: flex-start;
         margin-top: 5px;
     }
@@ -549,11 +550,11 @@ opacity: 0.9;
 }
 
 .user-verified-badge.verified {
-  background-color: #28a745; /* green */
+  background-color: #28a745; 
 }
 
 .user-verified-badge.unverified {
-  background-color: #dc3545; /* red */
+  background-color: #dc3545; 
 }
 
 .report-caption strong {
@@ -597,12 +598,12 @@ p.report-description-text {
 /* Dynamic grid based on number of images */
 .report-images.images-1 {
     grid-template-columns: 1fr;
-    grid-auto-rows: 350vh; /* full-width image height consistent */
+    grid-auto-rows: 350vh; 
 }
 
 .report-images.images-2 {
     grid-template-columns: 1fr 1fr;
-    grid-auto-rows: 350vh; /* both images equal height */
+    grid-auto-rows: 350vh; 
 }
 
 .report-images.images-3 {
@@ -611,27 +612,27 @@ p.report-description-text {
 }
 
 .report-images.images-3 img:last-child {
-    grid-column: 1 / span 2; /* last image spans full width */
+    grid-column: 1 / span 2; 
 }
 
 .report-images.images-4 {
     grid-template-columns: 1fr 1fr;
-    grid-auto-rows: 350vh; /* 2x2 grid */
+    grid-auto-rows: 350vh; 
 }
 
 .report-images.images-5,
 .report-images.images-6 {
     grid-template-columns: repeat(auto-fill, minmax(0, 1fr));
-    grid-auto-rows: 350vh; /* consistent height for all images */
+    grid-auto-rows: 350vh; 
 }
 
 /* Apply to all images */
 .report-images > img {
     width: 100%;
-    height: 100%;          /* fill grid cell height */
-    max-height: 500vh;     /* enforce maximum height */
+    height: 100%;        
+    max-height: 500vh;    
     min-height: 30vh;
-    object-fit: cover;     /* crop if necessary to fill cell */
+    object-fit: cover;    
     object-position: center;
     cursor: pointer;
     transition: transform 0.3s;
@@ -640,7 +641,6 @@ p.report-description-text {
 .report-images > img:hover {
     transform: scale(1.05);
 }
-
 
 .like-btn {
     width: 60px;

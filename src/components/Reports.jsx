@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import axios from "axios";
 import { FaEdit, FaTrashAlt, FaSearch, FaRedo } from "react-icons/fa";
 import { MapContainer, TileLayer, Marker, useMapEvents } from "react-leaflet";
@@ -34,12 +34,12 @@ function LocationPicker({ setLocation }) {
 
 function Reports({ session }) {
   const [reports, setReports] = useState([]);
-  const [loading, setLoading] = useState(false); // ✅ added loading state
+  const [loading, setLoading] = useState(false);
   const [search, setSearch] = useState("");
   const [category, setCategory] = useState("All");
   const [barangay, setBarangay] = useState("All");
   const [sort, setSort] = useState("latest");
-  const [showHistory, setShowHistory] = useState(false); 
+  const [showHistory, setShowHistory] = useState(false);
   const [previewImage, setPreviewImage] = useState(null);
 
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -58,23 +58,52 @@ function Reports({ session }) {
   const [expandedPosts, setExpandedPosts] = useState([]);
   const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState(null);
+  // ⭐ NEW STATE FOR NOTIFICATION
+  const [notification, setNotification] = useState(null); // { message: string, type: 'success' | 'error' | 'caution' }
+
+  // ⭐ NEW REFS FOR KEYBOARD NAVIGATION
+  const modalRef = useRef(null);
+  const focusableElementsRef = useRef([]);
 
   const barangays = [
-    "All", "Barretto", "East Bajac-Bajac", "East Tapinac", "Gordon Heights",
-    "Kalaklan", "Mabayuan", "New Asinan", "New Banicain", "New Cabalan",
-    "New Ilalim", "New Kababae", "New Kalalake", "Old Cabalan", "Pag-Asa",
-    "Santa Rita", "West Bajac-Bajac", "West Tapinac",
+    "All",
+    "Barretto",
+    "East Bajac-Bajac",
+    "East Tapinac",
+    "Gordon Heights",
+    "Kalaklan",
+    "Mabayuan",
+    "New Asinan",
+    "New Banicain",
+    "New Cabalan",
+    "New Ilalim",
+    "New Kababae",
+    "New Kalalake",
+    "Old Cabalan",
+    "Pag-Asa",
+    "Santa Rita",
+    "West Bajac-Bajac",
+    "West Tapinac",
   ];
 
+  // The 'applied' states will now track the current filter values directly (real-time).
   const [appliedSearch, setAppliedSearch] = useState("");
   const [appliedCategory, setAppliedCategory] = useState("All");
   const [appliedBarangay, setAppliedBarangay] = useState("All");
   const token = session?.token;
 
+  // ⭐ NOTIFICATION HANDLER FUNCTION
+  const showNotification = (message, type = "success") => {
+    setNotification({ message, type });
+    setTimeout(() => {
+      setNotification(null);
+    }, 3000); // Notification disappears after 3 seconds
+  };
+
   // ✅ Fetch reports
   const fetchReports = useCallback(async () => {
     if (!token) return;
-    setLoading(true); // start loading
+    setLoading(true);
     try {
       const res = await axios.get(
         `${API_URL}/reports?sort=${sort === "latest" ? "desc" : "asc"}`,
@@ -86,7 +115,7 @@ function Reports({ session }) {
     } catch (err) {
       console.error(err);
     } finally {
-      setLoading(false); // end loading
+      setLoading(false);
     }
   }, [token, sort]);
 
@@ -95,8 +124,74 @@ function Reports({ session }) {
     fetchReports();
   }, [fetchReports]);
 
+  // ⭐ KEYBOARD NAVIGATION EFFECT
+  useEffect(() => {
+    if (isModalOpen && modalRef.current) {
+      // Get all focusable elements in the modal
+      const focusableElements = modalRef.current.querySelectorAll(
+        'input:not([type="file"]), textarea, select, button:not([type="button"]), [tabindex]:not([tabindex="-1"])'
+      );
+      
+      focusableElementsRef.current = Array.from(focusableElements);
+      
+      // Set focus to first element when modal opens
+      if (focusableElementsRef.current.length > 0) {
+        focusableElementsRef.current[0].focus();
+      }
+
+      const handleKeyDown = (e) => {
+        if (e.key === 'Escape') {
+          setIsModalOpen(false);
+          return;
+        }
+
+        // Only handle arrow keys when modal is open
+        if (!isModalOpen) return;
+
+        const currentIndex = focusableElementsRef.current.indexOf(document.activeElement);
+        
+        if (e.key === 'ArrowDown') {
+          e.preventDefault();
+          const nextIndex = (currentIndex + 1) % focusableElementsRef.current.length;
+          focusableElementsRef.current[nextIndex]?.focus();
+        } else if (e.key === 'ArrowUp') {
+          e.preventDefault();
+          const prevIndex = currentIndex > 0 ? currentIndex - 1 : focusableElementsRef.current.length - 1;
+          focusableElementsRef.current[prevIndex]?.focus();
+        } else if (e.key === 'Tab') {
+          // Enhance default tab behavior with cycling
+          if (!e.shiftKey && currentIndex === focusableElementsRef.current.length - 1) {
+            e.preventDefault();
+            focusableElementsRef.current[0]?.focus();
+          } else if (e.shiftKey && currentIndex === 0) {
+            e.preventDefault();
+            focusableElementsRef.current[focusableElementsRef.current.length - 1]?.focus();
+          }
+        }
+      };
+
+      document.addEventListener('keydown', handleKeyDown);
+      return () => {
+        document.removeEventListener('keydown', handleKeyDown);
+      };
+    }
+  }, [isModalOpen]);
+
   // Add or update report
   const handleAddOrUpdateReport = async () => {
+    if (
+      !newReport.title ||
+      !newReport.description ||
+      !newReport.barangay ||
+      newReport.barangay === "All"
+    ) {
+      showNotification(
+        "Please fill in the Title, Description, and select a Barangay.",
+        "caution"
+      );
+      return;
+    }
+
     try {
       const formData = new FormData();
       formData.append("title", newReport.title);
@@ -112,12 +207,20 @@ function Reports({ session }) {
 
       if (editReportId) {
         await axios.put(`${API_URL}/reports/${editReportId}`, formData, {
-          headers: { Authorization: `Bearer ${token}`, "Content-Type": "multipart/form-data" },
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "multipart/form-data",
+          },
         });
+        showNotification("Report updated successfully!", "success");
       } else {
         await axios.post(`${API_URL}/reports`, formData, {
-          headers: { Authorization: `Bearer ${token}`, "Content-Type": "multipart/form-data" },
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "multipart/form-data",
+          },
         });
+        showNotification("Report submitted successfully!", "success");
       }
 
       resetNewReport();
@@ -125,7 +228,11 @@ function Reports({ session }) {
       setEditReportId(null);
       fetchReports();
     } catch (err) {
-      console.error(err);
+      console.error("Add/Update Error:", err);
+      showNotification(
+        "Failed to save report. Please check your connection and data.",
+        "error"
+      );
     }
   };
 
@@ -135,7 +242,7 @@ function Reports({ session }) {
       title: report.title || "",
       description: report.description || "",
       category: report.category || "Concern",
-      barangay: report.barangay || "All",
+      barangay: report.address_barangay || "All", // Use address_barangay from the report object
       addressStreet: report.address_street || "",
       images: [],
       lat: report.latitude || null,
@@ -148,15 +255,18 @@ function Reports({ session }) {
   const handleDelete = async () => {
     if (!deleteTarget) return;
     try {
-      await axios.patch(`${API_URL}/reports/${deleteTarget.id}`,
+      await axios.patch(
+        `${API_URL}/reports/${deleteTarget.id}`,
         { deleted: true },
         { headers: { Authorization: `Bearer ${token}` } }
       );
+      showNotification("Report deleted successfully!", "success");
       setIsDeleteConfirmOpen(false);
       setDeleteTarget(null);
       fetchReports();
     } catch (err) {
-      console.error(err);
+      console.error("Delete Error:", err);
+      showNotification("Failed to delete report. Please try again.", "error");
     }
   };
 
@@ -171,7 +281,7 @@ function Reports({ session }) {
       title: "",
       description: "",
       category: "Concern",
-      barangay: "All",
+      barangay: "Barretto", // Set a default barangay other than "All" for form
       addressStreet: "",
       images: [],
       lat: null,
@@ -180,47 +290,93 @@ function Reports({ session }) {
     });
   };
 
-// Correct toggle logic
-const filteredReports = reports
-    .filter(r => showHistory
-    ? String(r.user_id) === String(session?.user?.id) // My Reports
-    : true                                            // All Reports
+  // Correct toggle logic
+  const filteredReports = reports
+    .filter((r) => r.deleted !== true) 
+    .filter((r) =>
+      showHistory
+        ? String(r.user_id) === String(session?.user?.id) // My Reports
+        : true // All Reports
     )
-    .filter(r => appliedCategory === "All" || r.category === appliedCategory)
-    .filter(r => appliedBarangay === "All" || r.address_barangay === appliedBarangay)
-    .filter(r => {
-    if (!appliedSearch) return true;
-    const searchLower = appliedSearch.toLowerCase();
-    return (r.title || "").toLowerCase().includes(searchLower);
+    .filter((r) => appliedCategory === "All" || r.category === appliedCategory)
+    .filter(
+      (r) => appliedBarangay === "All" || r.address_barangay === appliedBarangay
+    )
+    .filter((r) => {
+      if (!appliedSearch) return true;
+      const searchLower = appliedSearch.toLowerCase();
+      return (
+        (r.title || "").toLowerCase().includes(searchLower)
+      );
     });
 
-      
+  // 👇 NEW HANDLER TO UPDATE ALL APPLIED FILTERS
+  const handleApplyFilters = () => {
+    setAppliedSearch(search);
+    setAppliedCategory(category);
+    setAppliedBarangay(barangay);
+  };
+
+  // 👇 NEW HANDLER TO RESET ALL FILTERS
+  const handleResetFilters = () => {
+    setSearch("");
+    setCategory("All");
+    setBarangay("All");
+    setAppliedSearch("");
+    setAppliedCategory("All");
+    setAppliedBarangay("All");
+    setSort("latest");
+  };
+
+  useEffect(() => {
+    setAppliedSearch(search);
+  }, [search]);
+
+  useEffect(() => {
+    setAppliedCategory(category);
+  }, [category]);
+
+  useEffect(() => {
+    setAppliedBarangay(barangay);
+  }, [barangay]);
+
   return (
     <div className="reports-container">
+      {/* ⭐ NOTIFICATION DISPLAY (using provided CSS classes) */}
+      {notification && (
+        <div className={`notif notif-${notification.type}`}>
+          {notification.message}
+        </div>
+      )}
+
       {/* Header */}
       <div className="header-row">
         <h2>Community Reports</h2>
         <button className="history-btn" onClick={() => setShowHistory(!showHistory)}>
-          {showHistory ? "My Reports" : "All Reports"}
+          {showHistory ? "All Reports" : "My Reports"}
         </button>
       </div>
 
-
       {/* Filters */}
       <div className="top-controls">
-        <input
-          type="text"
-          placeholder="Search reports..."
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          className="search-input"
-        />
-        {/* Category filter - applies immediately */}
+        <div className="search-bar-container">
+          <FaSearch className="search-icon" /> {/* Visual Search Icon */}
+          <input
+            type="text"
+            placeholder="Search reports..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)} // State update triggers useEffect to update appliedSearch
+            className="search-input real-time-search-input" // Add a class for styling the input part
+          />
+        </div>
+        {/* 👆 END OF NEW SEARCH INPUT STRUCTURE */}
+
+        {/* Category filter - Now uses useEffect for real-time application */}
         <select
           value={category}
           onChange={(e) => {
             setCategory(e.target.value);
-            setAppliedCategory(e.target.value); // apply immediately
+            // setAppliedCategory(e.target.value); // REMOVED: Now handled by useEffect
           }}
         >
           <option value="All">All Categories</option>
@@ -230,9 +386,18 @@ const filteredReports = reports
           <option value="Lost&Found">Lost & Found</option>
           <option value="Others">Others</option>
         </select>
-        <select value={barangay} onChange={(e) => setBarangay(e.target.value)}>
+        {/* Barangay filter - Now uses useEffect for real-time application */}
+        <select
+          value={barangay}
+          onChange={(e) => {
+            setBarangay(e.target.value);
+            // setAppliedBarangay(e.target.value); // REMOVED: Now handled by useEffect
+          }}
+        >
           {barangays.map((b) => (
-            <option key={b} value={b}>{b}</option>
+            <option key={b} value={b}>
+              {b}
+            </option>
           ))}
         </select>
 
@@ -241,30 +406,12 @@ const filteredReports = reports
           <option value="oldest">Oldest → Latest</option>
         </select>
 
-        {/* Buttons Group */}
+        {/* Buttons Group - REMOVED FaSearch button as it's now real-time */}
         <div className="filter-btns">
           <button
             className="filter-icon-btn"
-            title="Search"
-            onClick={() => {
-              setAppliedSearch(search);
-              setAppliedCategory(category);
-              setAppliedBarangay(barangay);
-            }}
-          >
-            <FaSearch />
-          </button>
-          <button
-            className="filter-icon-btn"
             title="Reset"
-            onClick={() => {
-              setSearch("");
-              setCategory("All");
-              setBarangay("All");
-              setAppliedSearch("");
-              setAppliedCategory("All");
-              setAppliedBarangay("All");
-            }}
+            onClick={handleResetFilters}
           >
             <FaRedo />
           </button>
@@ -285,9 +432,12 @@ const filteredReports = reports
 
       {/* ✅ Loading Indicator */}
       {loading && (
-      <div className="loading-overlay loading-compact"> <div className="spinner" /> <p>Loading reports...</p> </div>
+        <div className="loading-overlay loading-compact">
+          {" "}
+          <div className="spinner" /> <p>Loading reports...</p>{" "}
+        </div>
       )}
-      
+
       {/* Reports List */}
       <div className="reports-list">
         {!loading && filteredReports.length > 0 ? (
@@ -295,7 +445,9 @@ const filteredReports = reports
             const isExpanded = expandedPosts.includes(report.id);
             const displayDescription = isExpanded
               ? report.description
-              : `${(report.description || "").slice(0, 130)}${(report.description?.length || 0) > 130 ? "..." : ""}`;
+              : `${(report.description || "").slice(0, 130)}${
+                  (report.description?.length || 0) > 130 ? "..." : ""
+                }`;
 
             return (
               <div key={report.id} className="report-card">
@@ -303,7 +455,9 @@ const filteredReports = reports
                 <div className="report-header">
                   <div className="report-header-left">
                     <img
-                      src={report.reporter?.avatar_url || "/src/assets/profile.png"}
+                      src={
+                        report.reporter?.avatar_url || "/src/assets/profile.png"
+                      }
                       alt="profile"
                       className="profile-pic"
                     />
@@ -311,56 +465,74 @@ const filteredReports = reports
                       <p className="report-user">
                         {report.reporter ? (
                           <>
-                            {`${report.reporter.firstname || ""} ${report.reporter.lastname || ""}`.trim()}
+                            {`${report.reporter.firstname || ""} ${
+                              report.reporter.lastname || ""
+                            }`.trim()}
                             <span
                               className={`user-verified-badge ${
-                                report.reporter.isverified ? "verified" : "unverified"
+                                report.reporter.isverified
+                                  ? "verified"
+                                  : "unverified"
                               }`}
                             >
-                              {report.reporter.isverified ? "Verified" : "Unverified"}
+                              {report.reporter.isverified
+                                ? "Verified"
+                                : "Unverified"}
                             </span>
                           </>
                         ) : (
                           <>
                             Unknown User
-                            <span className="user-verified-badge unverified">Unverified</span>
+                            <span className="user-verified-badge unverified">
+                              Unverified
+                            </span>
                           </>
                         )}
                       </p>
                       <p className="report-subinfo">
-                        {report.created_at ? new Date(report.created_at).toLocaleString() : ""} ·{" "}
-                        {report.category || "N/A"}
+                        {report.created_at
+                          ? new Date(report.created_at).toLocaleString()
+                          : ""}{" "}
+                        · {report.category || "N/A"}
                       </p>
                       <p className="report-address-info">
-                        {(report.address_street || "")}, {(report.address_barangay || "")}, Olongapo City
+                        {(report.address_street || "")},{" "}
+                        {(report.address_barangay || "")}, Olongapo City
                       </p>
                     </div>
                   </div>
 
                   <div className="report-header-actions">
-                    <span className={`status-badge status-${(report.status || "pending").toLowerCase()}`}>
+                    <span
+                      className={`status-badge status-${(
+                        report.status || "pending"
+                      ).toLowerCase()}`}
+                    >
                       {report.status || "Pending"}
                     </span>
 
-                  {session?.user && String(report.user_id) === String(session.user.id) && (
-                    <>
-                      <button className="icon-btn edit-btn" onClick={() => handleEdit(report)}>
-                        <FaEdit />
-                      </button>
-                      <button
-                        className="icon-btn delete-btn"
-                        onClick={() => {
-                          setDeleteTarget(report);
-                          setIsDeleteConfirmOpen(true);
-                        }}
-                      >
-                        <FaTrashAlt />
-                      </button>
-                    </>
-                  )}
+                    {session?.user &&
+                      String(report.user_id) === String(session.user.id) && (
+                        <>
+                          <button
+                            className="icon-btn edit-btn"
+                            onClick={() => handleEdit(report)}
+                          >
+                            <FaEdit />
+                          </button>
+                          <button
+                            className="icon-btn delete-btn"
+                            onClick={() => {
+                              setDeleteTarget(report);
+                              setIsDeleteConfirmOpen(true);
+                            }}
+                          >
+                            <FaTrashAlt />
+                          </button>
+                        </>
+                      )}
+                  </div>
                 </div>
-              </div> 
-
 
                 {/* Caption */}
                 <div className="report-caption">
@@ -368,7 +540,10 @@ const filteredReports = reports
                   <p className="report-description-text">
                     {displayDescription}
                     {report.description?.length > 130 && (
-                      <span className="more-link" onClick={() => toggleExpand(report.id)}>
+                      <span
+                        className="more-link"
+                        onClick={() => toggleExpand(report.id)}
+                      >
                         {isExpanded ? " Show less" : " ...more"}
                       </span>
                     )}
@@ -388,7 +563,6 @@ const filteredReports = reports
                       />
                     ))}
                   </div>
-
                 )}
               </div>
             );
@@ -398,11 +572,14 @@ const filteredReports = reports
         )}
       </div>
 
-
       {/* Add/Edit Modal */}
       {isModalOpen && (
         <div className="modal-overlay" onClick={() => setIsModalOpen(false)}>
-          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+          <div 
+            className="modal-content" 
+            onClick={(e) => e.stopPropagation()}
+            ref={modalRef}
+          >
             <div className="modal-scrollable">
               <h3>{editReportId ? "Edit Report" : "Add New Report"}</h3>
 
@@ -411,14 +588,20 @@ const filteredReports = reports
                 type="text"
                 placeholder="Title"
                 value={newReport.title}
-                onChange={(e) => setNewReport({ ...newReport, title: e.target.value })}
+                onChange={(e) =>
+                  setNewReport({ ...newReport, title: e.target.value })
+                }
+                tabIndex="0"
               />
 
               <label>Description:</label>
               <textarea
                 placeholder="Description"
                 value={newReport.description}
-                onChange={(e) => setNewReport({ ...newReport, description: e.target.value })}
+                onChange={(e) =>
+                  setNewReport({ ...newReport, description: e.target.value })
+                }
+                tabIndex="0"
               />
 
               <div className="address-fields">
@@ -427,13 +610,20 @@ const filteredReports = reports
                   type="text"
                   placeholder="e.g. 45 Rizal Avenue"
                   value={newReport.addressStreet}
-                  onChange={(e) => setNewReport({ ...newReport, addressStreet: e.target.value })}
+                  onChange={(e) =>
+                    setNewReport({ ...newReport, addressStreet: e.target.value })
+                  }
+                  tabIndex="0"
                 />
                 <label>Barangay:</label>
                 <select
                   value={newReport.barangay}
-                  onChange={(e) => setNewReport({ ...newReport, barangay: e.target.value })}
+                  onChange={(e) =>
+                    setNewReport({ ...newReport, barangay: e.target.value })
+                  }
+                  tabIndex="0"
                 >
+                  {/* Filter "All" out of the form dropdown */}
                   {barangays.filter((b) => b !== "All").map((b) => (
                     <option key={b} value={b}>
                       {b}
@@ -445,7 +635,10 @@ const filteredReports = reports
               <label>Category:</label>
               <select
                 value={newReport.category}
-                onChange={(e) => setNewReport({ ...newReport, category: e.target.value })}
+                onChange={(e) =>
+                  setNewReport({ ...newReport, category: e.target.value })
+                }
+                tabIndex="0"
               >
                 <option value="Concern">Concern</option>
                 <option value="Crime">Crime</option>
@@ -457,22 +650,33 @@ const filteredReports = reports
               <div className="map-field">
                 <label>Pick Location on Map:</label>
                 <MapContainer
-                  center={[14.8477, 120.2879]}
-                  zoom={13}
+                  // Use the report's current location if editing, otherwise default to Olongapo
+                  center={[
+                    newReport.lat || 14.8477,
+                    newReport.lng || 120.2879,
+                  ]}
+                  zoom={newReport.lat ? 16 : 13}
                   style={{ height: 250, width: "100%", marginBottom: 10 }}
                 >
                   <TileLayer
                     url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
                     attribution="&copy; OpenStreetMap contributors"
                   />
+                  {/* Marker will show if location is picked/exists */}
+                  {newReport.lat && newReport.lng && (
+                    <Marker position={[newReport.lat, newReport.lng]} />
+                  )}
                   <LocationPicker
                     setLocation={(latlng) =>
-                      setNewReport({ ...newReport, lat: latlng.lat, lng: latlng.lng })
+                      setNewReport({
+                        ...newReport,
+                        lat: latlng.lat,
+                        lng: latlng.lng,
+                      })
                     }
                   />
                 </MapContainer>
               </div>
-
 
               <label className="upload-btn">
                 Upload Image(s)
@@ -481,6 +685,7 @@ const filteredReports = reports
                   accept="image/*"
                   multiple
                   onChange={(e) => {
+                    // Limit to 5 images
                     const files = Array.from(e.target.files).slice(0, 5);
                     setNewReport((prev) => ({ ...prev, images: files }));
                   }}
@@ -489,11 +694,17 @@ const filteredReports = reports
               </label>
 
               {newReport.images && newReport.images.length > 0 && (
-                <div className={`report-images images-${newReport.images.length}`}>
+                <div
+                  className={`report-images images-${newReport.images.length}`}
+                >
                   {newReport.images.map((file, idx) => (
                     <img
                       key={idx}
-                      src={typeof file === "string" ? file : URL.createObjectURL(file)}
+                      src={
+                        typeof file === "string"
+                          ? file
+                          : URL.createObjectURL(file)
+                      }
                       alt={`preview-${idx}`}
                       className="report-collage-img"
                     />
@@ -507,11 +718,18 @@ const filteredReports = reports
                 onClick={() => {
                   setIsModalOpen(false);
                   setEditReportId(null);
+                  resetNewReport(); // Reset fields on cancel
                 }}
+                tabIndex="0"
               >
                 Cancel
               </button>
-              <button onClick={handleAddOrUpdateReport}>{editReportId ? "Update" : "Submit"}</button>
+              <button 
+                onClick={handleAddOrUpdateReport}
+                tabIndex="0"
+              >
+                {editReportId ? "Update" : "Submit"}
+              </button>
             </div>
           </div>
         </div>
@@ -522,10 +740,14 @@ const filteredReports = reports
         <div className="modal-overlay">
           <div className="modal">
             <h3>Delete Report</h3>
-            <p>Are you sure you want to delete "{deleteTarget?.title}"?</p>
+            <p>
+              Are you sure you want to delete "{deleteTarget?.title}"?
+            </p>
             <div className="delete-actions">
               <button onClick={handleDelete}>Yes, Delete</button>
-              <button onClick={() => setIsDeleteConfirmOpen(false)}>Cancel</button>
+              <button onClick={() => setIsDeleteConfirmOpen(false)}>
+                Cancel
+              </button>
             </div>
           </div>
         </div>
@@ -534,7 +756,11 @@ const filteredReports = reports
       {/* Fullscreen Image Preview */}
       {previewImage && (
         <div className="fullscreen-modal" onClick={() => setPreviewImage(null)}>
-          <img src={previewImage} alt="Full screen" className="fullscreen-image" />
+          <img
+            src={previewImage}
+            alt="Full screen"
+            className="fullscreen-image"
+          />
         </div>
       )}
     </div>
