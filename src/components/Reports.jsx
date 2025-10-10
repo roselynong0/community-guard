@@ -369,7 +369,6 @@ function Reports({ session }) {
             className="search-input real-time-search-input" // Add a class for styling the input part
           />
         </div>
-        {/* 👆 END OF NEW SEARCH INPUT STRUCTURE */}
 
         {/* Category filter - Now uses useEffect for real-time application */}
         <select
