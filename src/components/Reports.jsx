@@ -66,7 +66,7 @@ function Reports({ session }) {
   const focusableElementsRef = useRef([]);
 
   const barangays = [
-    "All",
+    "All Barangays",
     "Barretto",
     "East Bajac-Bajac",
     "East Tapinac",
@@ -212,7 +212,7 @@ function Reports({ session }) {
             "Content-Type": "multipart/form-data",
           },
         });
-        showNotification("Report updated successfully!", "success");
+        showNotification("✓ Report updated successfully!", "success");
       } else {
         await axios.post(`${API_URL}/reports`, formData, {
           headers: {
@@ -220,7 +220,7 @@ function Reports({ session }) {
             "Content-Type": "multipart/form-data",
           },
         });
-        showNotification("Report submitted successfully!", "success");
+        showNotification("✓ Report submitted successfully!", "success");
       }
 
       resetNewReport();
@@ -260,7 +260,7 @@ function Reports({ session }) {
         { deleted: true },
         { headers: { Authorization: `Bearer ${token}` } }
       );
-      showNotification("Report deleted successfully!", "success");
+      showNotification("🗑️ Report deleted successfully!", "success");
       setIsDeleteConfirmOpen(false);
       setDeleteTarget(null);
       fetchReports();
@@ -335,7 +335,6 @@ function Reports({ session }) {
 
   return (
     <div className="reports-container">
-      {/* ⭐ NOTIFICATION DISPLAY (using provided CSS classes) */}
       {notification && (
         <div className={`notif notif-${notification.type}`}>
           {notification.message}
@@ -401,31 +400,33 @@ function Reports({ session }) {
           <option value="oldest">Oldest → Latest</option>
         </select>
 
-        {/* Buttons Group - REMOVED FaSearch button as it's now real-time */}
-        <div className="filter-btns">
-          <button
-            className="filter-icon-btn"
-            title="Reset"
-            onClick={handleResetFilters}
-          >
-            <FaRedo />
-          </button>
+        {/* Buttons Group for Flex Layout */}
+        <div className="action-buttons-group">
+          <div className="filter-btns">
+            <button
+              className="filter-icon-btn"
+              title="Reset"
+              onClick={handleResetFilters}
+            >
+              <FaRedo />
+            </button>
+          </div>
+
+          {/* Add Report Button */}
+          <button
+            className="add-btn"
+            onClick={() => {
+              resetNewReport();
+              setEditReportId(null);
+              setIsModalOpen(true);
+            }}
+          >
+            + Add Report
+          </button>
         </div>
+      </div>
 
-        {/* Add Report Button */}
-        <button
-          className="add-btn"
-          onClick={() => {
-            resetNewReport();
-            setEditReportId(null);
-            setIsModalOpen(true);
-          }}
-        >
-          + Add Report
-        </button>
-      </div>
-
-      {/* ✅ Loading Indicator */}
+      {/* Loading Indicator */}
       {loading && (
         <div className="loading-overlay loading-compact">
           {" "}

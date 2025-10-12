@@ -246,8 +246,8 @@
   background: linear-gradient(135deg, #2d2d73, #1b1f5a);
   color: #fff;
   border-radius: 50%;
-  width: 52px;
-  height: 52px;
+  width: 48px;
+  height: 48px;
   box-shadow: 0 4px 15px rgba(45, 45, 115, 0.4);
   font-size: 1.3rem;
   align-items: center;
@@ -316,5 +316,8 @@
   }
   .date-time {
     font-size: 0.75rem;
+  }
+  .modal-actions {
+    flex-direction: row;
   }
 }

@@ -76,7 +76,7 @@ function LoginForm({ setSession, setNotification }) {
           const redirectPath = userRole === "Admin" ? "/admin/dashboard" : "/home";
           
           if (userRole === "Admin") {
-            setNotification({ message: "Admin access granted! Redirecting to admin dashboard... 🛡️", type: "success" });
+            setNotification({ message: "Admin access granted!", type: "success" });
           } else {
             setNotification({ message: "Login successful! 🎉", type: "success" });
           }

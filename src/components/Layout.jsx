@@ -97,7 +97,7 @@ function Layout({ session, setSession, setNotification }) { // ✅ add setNotifi
           <div className="logo">
             <img src={logo} alt="Community Guard Logo" className="logo-img" />
             <h2>Community Guard</h2>
-          </div>
+          
           
           {/* User Profile Section */}
           {!loading && user && (
@@ -191,6 +191,7 @@ function Layout({ session, setSession, setNotification }) { // ✅ add setNotifi
               </button>
             </div>
           )}
+          </div>
           <nav>
             <NavLink to="/home"><FaHome /> Home</NavLink>
             <NavLink to="/maps"><FaMap /> Map</NavLink>
