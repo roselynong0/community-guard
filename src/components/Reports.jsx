@@ -39,7 +39,7 @@ function Reports({ session }) {
   const [category, setCategory] = useState("All");
   const [barangay, setBarangay] = useState("All");
   const [sort, setSort] = useState("latest");
-  const [showHistory, setShowHistory] = useState(false);
+  const [showMyReports, setShowMyReports] = useState(false);
   const [previewImage, setPreviewImage] = useState(null);
 
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -294,7 +294,7 @@ function Reports({ session }) {
   const filteredReports = reports
     .filter((r) => r.deleted !== true) 
     .filter((r) =>
-      showHistory
+      showMyReports
         ? String(r.user_id) === String(session?.user?.id) // My Reports
         : true // All Reports
     )
@@ -309,13 +309,6 @@ function Reports({ session }) {
         (r.title || "").toLowerCase().includes(searchLower)
       );
     });
-
-  // 👇 NEW HANDLER TO UPDATE ALL APPLIED FILTERS
-  const handleApplyFilters = () => {
-    setAppliedSearch(search);
-    setAppliedCategory(category);
-    setAppliedBarangay(barangay);
-  };
 
   // 👇 NEW HANDLER TO RESET ALL FILTERS
   const handleResetFilters = () => {
@@ -352,8 +345,11 @@ function Reports({ session }) {
       {/* Header */}
       <div className="header-row">
         <h2>Community Reports</h2>
-        <button className="history-btn" onClick={() => setShowHistory(!showHistory)}>
-          {showHistory ? "All Reports" : "My Reports"}
+        <button
+          className="history-btn"
+          onClick={() => setShowMyReports(!showMyReports)}
+        >
+          {showMyReports ? "My Reports" : "All Reports"}
         </button>
       </div>
 

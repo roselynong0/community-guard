@@ -200,29 +200,92 @@
   bottom: 4.1rem;
   right: 1.5rem;
   z-index: 1100;
-  background: #2d2d73;
+  background: linear-gradient(135deg, #2d2d73, #1b1f5a);
   color: #fff;
   border-radius: 50%;
-  width: 48px;
-  height: 48px;
-  box-shadow: 0 4px 10px rgba(0,0,0,0.13);
-  font-size: 1.25rem;
+  width: 52px;
+  height: 52px;
+  box-shadow: 0 4px 15px rgba(45, 45, 115, 0.4);
+  font-size: 1.3rem;
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  opacity: 0.85;
-  transition: all 0.18s;
-  border: none;
+  opacity: 0.9;
+  transition: all 0.3s ease;
+  border: 2px solid rgba(255,255,255,0.2);
+  animation: pulse 2s infinite;
 }
+
 .mobile-logout-btn:hover,
 .mobile-logout-btn:active {
   opacity: 1;
-  background: #d9534f;
+  background: linear-gradient(135deg, #d9534f, #c9302c);
   color: #fff;
-  box-shadow: 0 6px 16px rgba(217,83,79,0.32);
+  box-shadow: 0 6px 20px rgba(217,83,79,0.6);
+  transform: scale(1.05);
 }
+
+@keyframes pulse {
+  0% {
+    box-shadow: 0 4px 15px rgba(45, 45, 115, 0.4), 0 0 0 0 rgba(45, 45, 115, 0.4);
+  }
+  70% {
+    box-shadow: 0 4px 15px rgba(45, 45, 115, 0.4), 0 0 0 10px rgba(45, 45, 115, 0);
+  }
+  100% {
+    box-shadow: 0 4px 15px rgba(45, 45, 115, 0.4), 0 0 0 0 rgba(45, 45, 115, 0);
+  }
+}
+/* Admin mobile logout bubble */
+.mobile-logout-bubble {
+  display: none;
+  position: fixed;
+  bottom: 4.1rem;
+  right: 1.5rem;
+  z-index: 1100;
+  background: linear-gradient(135deg, #2d2d73, #1b1f5a);
+  color: #fff;
+  border-radius: 50%;
+  width: 52px;
+  height: 52px;
+  box-shadow: 0 4px 15px rgba(45, 45, 115, 0.4);
+  font-size: 1.3rem;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  opacity: 0.9;
+  transition: all 0.3s ease;
+  border: 2px solid rgba(255,255,255,0.2);
+  animation: pulse 2s infinite;
+}
+
+.mobile-logout-bubble:hover,
+.mobile-logout-bubble:active {
+  opacity: 1;
+  background: linear-gradient(135deg, #d9534f, #c9302c);
+  color: #fff;
+  box-shadow: 0 6px 20px rgba(217,83,79,0.6);
+  transform: scale(1.05);
+}
+
+@keyframes pulse {
+  0% {
+    box-shadow: 0 4px 15px rgba(217,83,79,0.4), 0 0 0 0 rgba(217,83,79,0.4);
+  }
+  70% {
+    box-shadow: 0 4px 15px rgba(217,83,79,0.4), 0 0 0 10px rgba(217,83,79,0);
+  }
+  100% {
+    box-shadow: 0 4px 15px rgba(217,83,79,0.4), 0 0 0 0 rgba(217,83,79,0);
+  }
+}
+
 @media (max-width: 768px) {
   .mobile-logout-btn {
+    display: flex;
+  }
+  
+  .mobile-logout-bubble {
     display: flex;
   }
 }

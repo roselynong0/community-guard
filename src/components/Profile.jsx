@@ -186,19 +186,46 @@ function Profile({ token }) {
 
 // ------------------- UPDATE PROFILE -------------------
 const handleProfileUpdate = async () => {
-  const updateFields = {
-    firstname: editProfileData.firstname,
-    lastname: editProfileData.lastname,
-    bio: editProfileData.bio,
-    phone: editProfileData.phone,
-    address_street: editProfileData.address_street,
-    address_barangay: editProfileData.address_barangay,
-    email: editProfileData.email,
-    birthdate: editProfileData.birthdate || null,
-  };
+  if (!user) return;
+
+  let updateFields = {};
+
+  // ---------------- HEADER MODAL ----------------
+  if (showModal === "header") {
+    const { firstname, lastname, address_barangay } = editProfileData;
+    if (firstname !== user.firstname) updateFields.firstname = firstname;
+    if (lastname !== user.lastname) updateFields.lastname = lastname;
+    if (address_barangay !== user.address_barangay)
+      updateFields.address_barangay = address_barangay;
+
+    // Optional: fixed city, send only if it differs
+    if ((editProfileData.address_city || "Olongapo City") !== (user.address_city || "Olongapo City"))
+      updateFields.address_city = editProfileData.address_city || "Olongapo City";
+  }
+
+  // ---------------- ABOUT MODAL ----------------
+  else if (showModal === "about") {
+    if (editProfileData.bio !== user.bio) updateFields.bio = editProfileData.bio;
+  }
+
+  // ---------------- PERSONAL MODAL ----------------
+  else if (showModal === "personal") {
+    const { email, phone, address_street, birthdate } = editProfileData;
+    if (email !== user.email) updateFields.email = email;
+    if (phone !== user.phone) updateFields.phone = phone;
+    if (address_street !== user.address_street) updateFields.address_street = address_street;
+    if (birthdate !== user.birthdate) updateFields.birthdate = birthdate;
+  }
+
+  // ---------------- NO CHANGES ----------------
+  if (Object.keys(updateFields).length === 0) {
+    addNotification("No changes detected.", "info");
+    setShowModal(null);
+    return;
+  }
 
   try {
-    const res = await fetch("http://localhost:5000/api/profile", {
+    const res = await fetch(`${API_URL}/profile`, {
       method: "PUT",
       headers: {
         "Content-Type": "application/json",
@@ -206,22 +233,44 @@ const handleProfileUpdate = async () => {
       },
       body: JSON.stringify(updateFields),
     });
+
     const data = await res.json();
 
     if (data.status === "success") {
-      setUser(data.profile); // always update from backend
-      setEditProfileData(data.profile); 
+      setUser((prev) => ({
+        ...prev,
+        ...data.profile,
+        avatar_url: data.profile.avatar_url || prev.avatar_url,
+        role: prev?.role || "Resident",
+        phone: data.profile.phone ?? prev.phone ?? "",      // main contact field
+        address_street: data.profile.address_street ?? prev.address_street ?? "",
+        address_barangay: data.profile.address_barangay ?? prev.address_barangay ?? "",
+        birthdate: data.profile.birthdate ?? prev.birthdate ?? "",
+        email: data.profile.email ?? prev.email ?? "",
+      }));
+
+      setEditProfileData((prev) => ({
+        ...prev,
+        ...data.profile,
+        phone: data.profile.phone ?? prev.phone ?? "",
+        address_street: data.profile.address_street ?? prev.address_street ?? "",
+        address_barangay: data.profile.address_barangay ?? prev.address_barangay ?? "",
+        birthdate: data.profile.birthdate ?? prev.birthdate ?? "",
+        email: data.profile.email ?? prev.email ?? "",
+      }));
+
       setShowModal(null);
       addNotification("Profile updated successfully!", "success");
-    } else {
-      addNotification("Failed to update profile.", "error");
-      console.error(data);
     }
-  } catch (err) {
-    addNotification("Server error.", "error");
-    console.error(err);
-  }
-};
+    else {
+          addNotification("Failed to update profile.", "error");
+          console.error(data);
+        }
+      } catch (err) {
+        addNotification("Server error.", "error");
+        console.error(err);
+      }
+    };
 
 // Filter reports for the logged-in user
 if (isLoading) return <p className="loading-message">Loading profile...</p>;
@@ -246,15 +295,15 @@ return (
             className="profile-avatar"
           />
           <div className="profile-name">
-            <h2>
-              {displayField(user.firstname, "No Name")} {displayField(user.lastname, "")}
-              <FaEdit className="edit-icon" onClick={() => setShowModal("header")} />
-            </h2>
-            <p>
-              {displayField(user.address_barangay, "No barangay selected")}, Olongapo City
-            </p>
-            <span className="role-badge">{user.role}</span>
-          </div>
+          <h2>
+            {displayField(user.firstname, "No Name")} {displayField(user.lastname, "")}
+            <FaEdit className="edit-icon" onClick={() => setShowModal("header")} />
+          </h2>
+          <p>
+            {displayField(user.address_barangay, "No barangay selected")}, Olongapo City
+          </p>
+          <span className="role-badge">{user.role}</span>
+        </div>
         </div>
 
         <div className="profile-header-actions">

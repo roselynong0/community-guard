@@ -20,6 +20,7 @@ import traceback
 from werkzeug.exceptions import HTTPException
 from flask_caching import Cache
 from flask_compress import Compress
+import base64
 
 # ----------------- LOAD ENV -----------------
 load_dotenv()
@@ -40,6 +41,39 @@ CORS(app, supports_credentials=True)
 cache = Cache(app, config={'CACHE_TYPE': 'SimpleCache', 'CACHE_DEFAULT_TIMEOUT': 300})
 Compress(app)
 
+# ----------------- RETRY UTILITY -----------------
+import time
+import httpx
+
+def supabase_retry(func, max_retries=3, delay=0.5):
+    """
+    Retry wrapper for Supabase operations to handle network issues
+    """
+    for attempt in range(max_retries):
+        try:
+            return func()
+        except (httpx.ReadError, httpx.ConnectError, httpx.TimeoutException, Exception) as e:
+            error_str = str(e).lower()
+            # Check if it's a network-related error that we should retry
+            if any(keyword in error_str for keyword in [
+                'non-blocking socket operation', 'connection', 'timeout', 
+                'read error', 'network', 'winerror 10035'
+            ]):
+                if attempt < max_retries - 1:
+                    print(f"🔄 Supabase operation failed (attempt {attempt + 1}/{max_retries}): {e}")
+                    print(f"   Retrying in {delay}s...")
+                    time.sleep(delay)
+                    delay *= 2  # Exponential backoff
+                    continue
+                else:
+                    print(f"❌ Supabase operation failed after {max_retries} attempts: {e}")
+                    raise e
+            else:
+                # Non-network error, don't retry
+                raise e
+    
+    return None  # Should never reach here
+
 @app.route("/api/data")
 def get_data():
     try:
@@ -52,6 +86,42 @@ def get_data():
 cache = Cache(app, config={'CACHE_TYPE': 'SimpleCache', 'CACHE_DEFAULT_TIMEOUT': 300})
 
 # ----------------- SESSION -----------------
+def verification_token_required(f):
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        token = request.headers.get("Authorization") or request.headers.get("X-Verification-Token")
+        if token and token.startswith("Bearer "):
+            token = token[7:]  # Remove "Bearer " prefix
+        
+        if not token:
+            return jsonify({"status": "error", "message": "Verification token required"}), 401
+
+        try:
+            # Check verification session
+            now = datetime.now(timezone.utc)
+            resp = (
+                supabase.table("verification_sessions")
+                .select("*")
+                .eq("token", token)
+                .gt("expires_at", now.isoformat())
+                .execute()
+            )
+            sessions = getattr(resp, "data", []) or []
+            
+            if not sessions:
+                return jsonify({"status": "error", "message": "Invalid or expired verification token"}), 401
+            
+            session = sessions[0]
+            request.user_id = session["user_id"]
+            request.verification_session = session
+            
+            return f(*args, **kwargs)
+        except Exception as e:
+            print("Verification token validation error:", e)
+            return jsonify({"status": "error", "message": "Invalid verification token"}), 401
+    
+    return decorated
+
 def token_required(f):
     @wraps(f)
     def decorated(*args, **kwargs):
@@ -65,11 +135,18 @@ def token_required(f):
 
         token = parts[1]
 
-        # Look up session in Supabase
-        session_resp = supabase.table("sessions").select("*").eq("token", token).execute()
-        sessions = getattr(session_resp, "data", []) or []
-        if not sessions:
-            return jsonify({"status": "invalid_token", "message": "Session not found"}), 401
+        try:
+            # Look up session in Supabase with retry mechanism
+            def fetch_session():
+                return supabase.table("sessions").select("*").eq("token", token).execute()
+            
+            session_resp = supabase_retry(fetch_session)
+            sessions = getattr(session_resp, "data", []) or []
+            if not sessions:
+                return jsonify({"status": "invalid_token", "message": "Session not found"}), 401
+        except Exception as e:
+            print(f"Session lookup failed: {e}")
+            return jsonify({"status": "error", "message": "Database connection error"}), 500
 
         session = sessions[0]
         now = datetime.now(timezone.utc)
@@ -109,7 +186,6 @@ def token_required(f):
     return decorated
 
 # ----------------- LIST USER SESSIONS -----------------
-# ----------------- LIST USER SESSIONS -----------------
 @app.route("/api/sessions", methods=["GET"])
 @token_required
 def list_sessions():
@@ -117,6 +193,17 @@ def list_sessions():
     now = datetime.now(timezone.utc)
 
     try:
+        # Get user data first for the current session
+        user_resp = supabase.table("users").select("*").eq("id", user_id).is_("deleted_at", None).single().execute()
+        user_data = user_resp.data if user_resp.data else None
+
+        if not user_data:
+            return jsonify({
+                "status": "error",
+                "message": "User not found",
+                "sessions": []
+            }), 404
+
         # Get all sessions
         resp = (
             supabase.table("sessions")
@@ -128,7 +215,7 @@ def list_sessions():
 
         all_sessions = resp.data or []
 
-        # Filter out expired sessions
+        # Filter out expired sessions and enhance with user data
         active_sessions = []
         for s in all_sessions:
             if datetime.fromisoformat(s["expires_at"]) < now:
@@ -136,7 +223,20 @@ def list_sessions():
                 supabase.table("sessions").delete().eq("id", s["id"]).execute()
                 print(f"🧹 Removed expired session {s['id']} for user {user_id}")
             else:
-                active_sessions.append(s)
+                # Add user data to each session for frontend compatibility
+                enhanced_session = {
+                    **s,
+                    "user": {
+                        "id": user_data["id"],
+                        "firstname": user_data["firstname"],
+                        "lastname": user_data["lastname"],
+                        "email": user_data["email"],
+                        "role": user_data.get("role", "Resident"),
+                        "isverified": user_data.get("isverified", False),
+                        "avatar_url": user_data.get("avatar_url", "/default-avatar.png"),
+                    }
+                }
+                active_sessions.append(enhanced_session)
 
         return jsonify({
             "status": "success",
@@ -189,6 +289,7 @@ def register():
     firstname = data.get("firstname")
     lastname = data.get("lastname")
     password = data.get("password")
+    role = data.get("role", "Resident")  # Default to Resident if not specified
     address_barangay = data.get("address_barangay") or None
     address_city = data.get("address_city") or "Olongapo"
 
@@ -211,6 +312,7 @@ def register():
             "lastname": lastname,
             "email": email,
             "password": hashed_pw,
+            "role": role,
             "isverified": False,
             "avatar_url": "/default-avatar.png",
         }).execute()
@@ -352,6 +454,66 @@ def send_email_code():
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
 
+# ----------------- VERIFY ACCESS -----------------
+@app.route("/api/verification/validate-access", methods=["POST"])
+def validate_verification_access():
+    """Validate if user can access verification form"""
+    data = request.json or {}
+    verification_token = data.get("verification_token")
+    user_id = data.get("user_id")
+    email = data.get("email")
+    
+    if not verification_token and not (user_id and email):
+        return jsonify({"status": "error", "message": "Verification token or user credentials required"}), 400
+    
+    try:
+        now = datetime.now(timezone.utc)
+        
+        if verification_token:
+            # Validate verification session token
+            resp = (
+                supabase.table("verification_sessions")
+                .select("*")
+                .eq("token", verification_token)
+                .gt("expires_at", now.isoformat())
+                .execute()
+            )
+            sessions = getattr(resp, "data", []) or []
+            
+            if sessions:
+                session = sessions[0]
+                return jsonify({
+                    "status": "success",
+                    "user_id": session["user_id"],
+                    "email": session["email"]
+                }), 200
+        
+        # Fallback: check if user has active verification codes
+        if user_id and email:
+            verification_resp = (
+                supabase.table("email_verifications")
+                .select("*")
+                .eq("user_id", user_id)
+                .eq("email", email)
+                .eq("is_used", False)
+                .gt("expires_at", now.isoformat())
+                .execute()
+            )
+            active_codes = getattr(verification_resp, "data", []) or []
+            
+            if active_codes:
+                return jsonify({
+                    "status": "success",
+                    "user_id": user_id,
+                    "email": email
+                }), 200
+        
+        return jsonify({"status": "error", "message": "No valid verification access found"}), 403
+        
+    except Exception as e:
+        print("Validate verification access error:", e)
+        return jsonify({"status": "error", "message": "Server error"}), 500
+
 # ----------------- VERIFY CODE -----------------
 @app.route("/api/email/verify-code", methods=["POST"])
 def verify_email_code():
@@ -419,6 +581,13 @@ def verify_email_code():
         # 5) Mark user verified
         uupd = supabase.table("users").update({"isverified": True}).eq("id", user_id).execute()
         print("[verify] user updated result:", getattr(uupd, "data", None))
+
+        # 6) Clean up verification session if exists
+        try:
+            supabase.table("verification_sessions").delete().eq("user_id", user_id).execute()
+            print("[verify] cleaned up verification session")
+        except Exception as cleanup_err:
+            print("[verify] cleanup error (non-critical):", cleanup_err)
 
         print(f"[verify] SUCCESS for user_id={user_id}")
         return jsonify({"status": "success", "message": "Email verified!"}), 200
@@ -544,12 +713,26 @@ def send_reset_code_email(to_email, code):
         print("Error sending reset code email:", e)
         return False
 
+# ----------------- DATABASE TABLE REQUIREMENTS -----------------
+# Make sure to create this table in Supabase:
+# CREATE TABLE verification_sessions (
+#     id SERIAL PRIMARY KEY,
+#     user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+#     token VARCHAR(255) UNIQUE NOT NULL,
+#     email VARCHAR(255) NOT NULL,
+#     expires_at TIMESTAMP NOT NULL,
+#     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+# );
+# CREATE UNIQUE INDEX idx_verification_sessions_user_id ON verification_sessions(user_id);
+# CREATE INDEX idx_verification_sessions_token ON verification_sessions(token);
+
 # ----------------- LOGIN -----------------
 @app.route("/api/login", methods=["POST"])
 def login():
     data = request.json
     email = data.get("email")
     password = data.get("password")
+    requested_role = data.get("role", "Resident")  # Default to Resident if not specified
 
     # Find user
     resp = supabase.table("users").select("*").eq("email", email).is_("deleted_at", None).execute()
@@ -561,7 +744,22 @@ def login():
     if not checkpw(password.encode(), user["password"].encode()):
         return jsonify({"status": "invalid_credentials"}), 401
 
-    # 1. Look for existing valid session
+    # Check role-based authentication first
+    user_role = user.get("role", "Resident")
+    if requested_role == "Admin" and user_role != "Admin":
+        return jsonify({
+            "status": "role_mismatch", 
+            "message": "This account is not authorized for admin access. Please use the Resident login tab.",
+            "suggested_role": "Resident"
+        }), 403
+    elif requested_role == "Resident" and user_role == "Admin":
+        return jsonify({
+            "status": "role_mismatch", 
+            "message": "Admin accounts must use the Admin login tab. Please switch to Admin login.",
+            "suggested_role": "Admin"
+        }), 403
+
+    # Check for existing valid session
     now = datetime.now(timezone.utc)
     session_resp = (
         supabase.table("sessions")
@@ -573,6 +771,50 @@ def login():
         .execute()
     )
     existing_sessions = getattr(session_resp, "data", []) or []
+
+    # Check if account is verified and handle different scenarios
+    if not user.get("isverified", False):
+        # Check for active verification codes in email_verifications table
+        verification_resp = (
+            supabase.table("email_verifications")
+            .select("*")
+            .eq("user_id", user["id"])
+            .eq("is_used", False)
+            .gt("expires_at", now.isoformat())  # still valid
+            .order("created_at", desc=True)
+            .limit(1)
+            .execute()
+        )
+        active_verification_codes = getattr(verification_resp, "data", []) or []
+        
+        if active_verification_codes:
+            # Active verification code exists - create temporary verification session and redirect
+            verification_token = secrets.token_urlsafe(32)
+            verification_expires = (now + timedelta(minutes=30)).isoformat()  # 30 min temp session
+            
+            # Store temporary verification session
+            supabase.table("verification_sessions").upsert({
+                "user_id": user["id"],
+                "token": verification_token,
+                "expires_at": verification_expires,
+                "email": user["email"]
+            }, on_conflict="user_id").execute()
+            
+            return jsonify({
+                "status": "verification_redirect_required",
+                "message": "Your email is not verified. We've detected an active verification code. Please check your email and complete verification.",
+                "email": user["email"],
+                "user_id": user["id"],
+                "verification_token": verification_token
+            }), 403
+        else:
+            # No active verification code - show renewal modal
+            return jsonify({
+                "status": "verification_renewal_required",
+                "message": "Your account is not verified and no active verification code found. Please renew your verification.",
+                "email": user["email"],
+                "user_id": user["id"]
+            }), 403
 
     if existing_sessions:
         session = existing_sessions[0]
@@ -595,6 +837,7 @@ def login():
             "firstname": user["firstname"],
             "lastname": user["lastname"],
             "email": user["email"],
+            "role": user.get("role", "Resident"),
             "isverified": user.get("isverified", False),
             "avatar_url": user.get("avatar_url", "/default-avatar.png"),
         },
@@ -664,6 +907,7 @@ def get_profile():
             "email": with_default(user.get("email"), "No email added yet"),
             "isverified": user.get("isverified", False),
             "label": "Verified" if user.get("isverified", False) else "Unverified",
+            "role": with_default(user.get("role"), "Resident"),
             "avatar_url": with_default(user.get("avatar_url"), "/default-avatar.png"),
             "bio": with_default(info.get("bio"), "No information added yet"),
             "phone": with_default(info.get("phone"), "No contact info yet"),
@@ -687,44 +931,74 @@ def update_profile():
     user_id = request.user_id
     data = request.json or {}
 
-    # Prepare updates
-    user_update = {k: data[k] for k in ["firstname", "lastname"] if k in data}
-    info_update = {
-        "user_id": user_id,
-        "bio": data.get("bio", ""),
-        "phone": data.get("phone", ""),
-        "address": data.get("address", ""),
-        "address_barangay": data.get("address_barangay", "Barretto"),
-        "address_province": data.get("address_province", "Zambales"),
-        "address_city": data.get("address_city", "Olongapo")
-    }
-
     try:
-        if user_update:
-            supabase.table("users").update(user_update).eq("id", user_id).execute()
+        updated_user = {}
+        updated_info = {}
 
-        supabase.table("info").upsert(info_update, on_conflict=["user_id"]).execute()
+        # ----------------- HEADER MODAL -----------------
+        # Only update firstname, lastname, and barangay (optional city)
+        if any(k in data for k in ["firstname", "lastname", "address_barangay", "address_city"]):
+            if "firstname" in data:
+                updated_user["firstname"] = data["firstname"]
+            if "lastname" in data:
+                updated_user["lastname"] = data["lastname"]
+            if "address_barangay" in data:
+                updated_info["address_barangay"] = data["address_barangay"]
+            if "address_city" in data:
+                updated_info["address_city"] = data["address_city"]
 
-        # Fetch updated data
+        # ----------------- ABOUT MODAL -----------------
+        # Only update bio
+        if "bio" in data:
+            updated_info["bio"] = data["bio"]
+
+        # ----------------- PERSONAL MODAL -----------------
+        # Only update email, phone, address_street, birthdate
+        if "email" in data:
+            updated_user["email"] = data["email"]
+        if "phone" in data:
+            phone = data["phone"]
+            updated_info["phone"] = phone if phone and phone.isdigit() and len(phone) == 11 else None
+        if "address_street" in data:
+            updated_info["address_street"] = data["address_street"]
+        if "birthdate" in data:
+            updated_info["birthdate"] = data["birthdate"]
+
+        # ----------------- EXECUTE UPDATES -----------------
+        if updated_user:
+            supabase.table("users").update(updated_user).eq("id", user_id).execute()
+        if updated_info:
+            # Upsert ensures a row exists in `info`
+            updated_info["user_id"] = user_id
+            supabase.table("info").upsert(updated_info, on_conflict=["user_id"]).execute()
+
+        # ----------------- FETCH UPDATED PROFILE -----------------
         user_resp = supabase.table("users").select("*").eq("id", user_id).execute()
         info_resp = supabase.table("info").select("*").eq("user_id", user_id).execute()
         user = user_resp.data[0] if user_resp.data else {}
         info = info_resp.data[0] if info_resp.data else {}
 
         profile = {
+            "id": user.get("id"),
+            "firstname": user.get("firstname") or "No name added yet",
+            "lastname": user.get("lastname") or "",
+            "email": user.get("email") or "No email added yet",
             "isverified": user.get("isverified", False),
-            "avatar_url": with_default(user.get("avatar_url"), "/default-avatar.png"),
-            "bio": with_default(info.get("bio"), "No information added yet"),
-            "phone": with_default(info.get("phone"), "No contact info yet"),
-            "address": with_default(info.get("address"), ""),
-            "address_barangay": with_default(info.get("address_barangay"), user.get("address_barangay") or "No barangay selected"),
-            "address_province": with_default(info.get("address_province"), user.get("address_province") or "Zambales"),
-            "address_city": with_default(info.get("address_city"), user.get("address_city") or "Olongapo")
+            "label": "Verified" if user.get("isverified", False) else "Unverified",
+            "avatar_url": user.get("avatar_url") or "/default-avatar.png",
+            "bio": info.get("bio") or "No information added yet",
+            "phone": info.get("phone") or "No contact info yet",
+            "address_street": info.get("address_street") or "No location",
+            "address_barangay": info.get("address_barangay") or user.get("address_barangay") or "No barangay selected",
+            "address_city": info.get("address_city") or user.get("address_city") or "Olongapo",
+            "address_province": info.get("address_province") or user.get("address_province") or "Zambales",
+            "birthdate": info.get("birthdate") or ""
         }
 
         return jsonify({"status": "success", "profile": profile}), 200
 
     except Exception as e:
+        print("update_profile error:", traceback.format_exc())
         return jsonify({"status": "error", "message": str(e)}), 500
 
 def with_default(value, default):
@@ -740,19 +1014,40 @@ def delete_profile():
         from datetime import datetime, timezone
         now = datetime.now(timezone.utc).isoformat()
 
-        # 1️⃣ Soft delete the user
+        # ----------------- Helper to create a notification -----------------
+        def create_notification(user_id, title, message, notif_type="Alert"):
+            try:
+                supabase.table("notifications").insert({
+                    "user_id": user_id,
+                    "title": title,
+                    "message": message,
+                    "type": notif_type,
+                    "is_read": False,
+                    "created_at": now
+                }).execute()
+            except Exception as e:
+                print("Failed to create notification:", e)
+
         supabase.table("users").update({"deleted_at": now}).eq("id", user_id).execute()
 
-        # 2️⃣ Permanently delete all posts of this user
         supabase.table("posts").delete().eq("user_id", user_id).execute()
 
-        return jsonify({"status": "success", "message": "Profile flagged as deleted and posts permanently removed"}), 200
+        create_notification(
+            user_id=user_id,
+            title="Profile Deleted",
+            message="Your profile has been flagged as deleted and all your posts have been removed.",
+            notif_type="Alert"
+        )
+
+        return jsonify({
+            "status": "success",
+            "message": "Profile flagged as deleted, posts permanently removed, and notification sent"
+        }), 200
 
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
 
 # ----------------- UPLOAD AVATAR -----------------
-# Example: upload avatar to Supabase Storage
 @app.route("/api/profile/upload-avatar", methods=["POST"])
 @token_required
 def upload_avatar():
@@ -766,21 +1061,17 @@ def upload_avatar():
         return jsonify({"status": "error", "message": "Invalid file type"}), 400
 
     try:
-        # Upload to Supabase Storage
-        filename = f"profile_{user_id}_{uuid.uuid4().hex}.jpg"
-        bucket_name = "avatars"  # make sure you have this bucket in Supabase
+        # Read file as bytes
         file_contents = file.read()
-
-        supabase.storage.from_(bucket_name).upload(filename, file_contents, {"content-type": file.mimetype})
-
-        # Get public URL
-        avatar_url = supabase.storage.from_(bucket_name).get_public_url(filename)["publicUrl"]
+        # Encode as Base64 string
+        encoded_string = f"data:{file.mimetype};base64," + base64.b64encode(file_contents).decode("utf-8")
 
         # Update users table
-        supabase.table("users").update({"avatar_url": avatar_url}).eq("id", user_id).execute()
+        supabase.table("users").update({"avatar_url": encoded_string}).eq("id", user_id).execute()
 
-        return jsonify({"status": "success", "url": avatar_url}), 200
+        return jsonify({"status": "success", "url": encoded_string}), 200
     except Exception as e:
+        print("upload_avatar error:", traceback.format_exc())
         return jsonify({"status": "error", "message": str(e)}), 500
 
 # ----------------- DASHBOARD / REPORTS -----------------
@@ -788,29 +1079,50 @@ DEFAULT_REPORTER = {"id": 0, "firstname": "Unknown", "lastname": "", "avatar_url
 
 def fetch_reports(limit=10, sort="desc", user_only=False, user_id=None):
     try:
-        query = supabase.table("reports").select("*").is_("deleted_at", None)
-        if user_only and user_id:
-            query = query.eq("user_id", user_id)
-        query = query.order("created_at", desc=(sort=="desc")).limit(limit)
-        resp = query.execute()
+        # Use retry mechanism for the main reports query
+        def fetch_main_reports():
+            query = supabase.table("reports").select("*").is_("deleted_at", None)
+            if user_only and user_id:
+                query = query.eq("user_id", user_id)
+            query = query.order("created_at", desc=(sort=="desc")).limit(limit)
+            return query.execute()
+        
+        resp = supabase_retry(fetch_main_reports)
         reports = getattr(resp, "data", []) or []
 
         print("Fetched reports:", reports)  # <<< Add this
 
-        # Attach reporter info and images
+        # Attach reporter info and images with retry mechanism
         for report in reports:
             author_id = report.get("user_id")
-            user_resp = supabase.table("users").select("id, firstname, lastname, avatar_url, email").eq("id", author_id).execute()
-            reporter = getattr(user_resp, "data", [None])[0] or DEFAULT_REPORTER
+            
+            # Retry for user data
+            def fetch_reporter():
+                return supabase.table("users").select("id, firstname, lastname, avatar_url, email").eq("id", author_id).execute()
+            
+            try:
+                user_resp = supabase_retry(fetch_reporter)
+                reporter = getattr(user_resp, "data", [None])[0] or DEFAULT_REPORTER
+            except Exception as e:
+                print(f"Failed to fetch reporter for report {report.get('id')}: {e}")
+                reporter = DEFAULT_REPORTER
+            
             report["reporter"] = reporter
             report["user_email"] = reporter.get("email")
 
             # Force barangay to string
             report["barangay"] = str(report.get("address_barangay") or "All")
 
-            # Ensure images list exists
-            images_resp = supabase.table("report_images").select("image_url").eq("report_id", report["id"]).execute()
-            report["images"] = [{"url": img["image_url"]} for img in getattr(images_resp, "data", [])] if images_resp.data else []
+            # Retry for images data
+            def fetch_images():
+                return supabase.table("report_images").select("image_url").eq("report_id", report["id"]).execute()
+            
+            try:
+                images_resp = supabase_retry(fetch_images)
+                report["images"] = [{"url": img["image_url"]} for img in getattr(images_resp, "data", [])] if images_resp.data else []
+            except Exception as e:
+                print(f"Failed to fetch images for report {report.get('id')}: {e}")
+                report["images"] = []
 
         return reports
     except Exception as e:
@@ -918,11 +1230,14 @@ def update_report(report_id):
     try:
         data = request.form if request.form else request.json
 
-        # Only allow the owner to update
-        report_resp = supabase.table("reports").select("user_id").eq("id", report_id).execute()
+        # Fetch current report status before updating
+        report_resp = supabase.table("reports").select("user_id, status, title").eq("id", report_id).execute()
         report = getattr(report_resp, "data", [None])[0]
         if not report or report["user_id"] != request.user_id:
             return jsonify({"status": "error", "message": "Not authorized"}), 403
+
+        old_status = report.get("status")
+        report_title = report.get("title")
 
         # Update report data
         update_data = {
@@ -933,9 +1248,14 @@ def update_report(report_id):
             "address_barangay": data.get("barangay"),
             "latitude": float(data.get("lat")) if data.get("lat") else None,
             "longitude": float(data.get("lng")) if data.get("lng") else None,
+            "status": data.get("status")  # <-- include status
         }
-
         supabase.table("reports").update(update_data).eq("id", report_id).execute()
+
+        # Only create notification if status changed
+        new_status = data.get("status")
+        if new_status and new_status != old_status:
+            create_report_notification(request.user_id, report_id, report_title, new_status)
 
         # Handle image replacement
         if "images" in request.files:
@@ -991,7 +1311,11 @@ def soft_delete_report(report_id):
 @token_required
 def get_stats():
     try:
-        reports_resp = supabase.table("reports").select("status").is_("deleted_at", None).execute()
+        # Use retry mechanism for stats query
+        def fetch_stats():
+            return supabase.table("reports").select("status").is_("deleted_at", None).execute()
+        
+        reports_resp = supabase_retry(fetch_stats)
         reports = getattr(reports_resp, "data", []) or []
 
         stats = {"totalReports": len(reports), "pending": 0, "ongoing": 0, "resolved": 0}
@@ -1015,7 +1339,11 @@ def get_stats():
 @token_required
 def get_report_categories():
     try:
-        resp = supabase.table("reports").select("category").is_("deleted_at", None).execute()
+        # Use retry mechanism for Supabase query
+        def fetch_categories():
+            return supabase.table("reports").select("category").is_("deleted_at", None).execute()
+        
+        resp = supabase_retry(fetch_categories)
         reports = getattr(resp, "data", []) or []
 
         category_counts = {}
@@ -1061,6 +1389,351 @@ def get_user_stats():
     except Exception as e:
         return jsonify({"status": "error", "message": str(e), "totalReports": 0, "pending": 0, "ongoing": 0, "resolved": 0}), 500
 
+# ----------------- ADMIN USER MANAGEMENT -----------------
+@app.route("/api/users", methods=["GET"])
+@token_required
+def get_all_users():
+    """
+    Admin endpoint to get all users with their verification status
+    """
+    try:
+        # Check if user is an admin
+        user_resp = supabase.table("users").select("role").eq("id", request.user_id).execute()
+        user = getattr(user_resp, "data", [None])[0]
+        if not user or user.get("role") != "Admin":
+            return jsonify({"status": "error", "message": "Admin access required"}), 403
+
+        # Fetch all users (excluding deleted ones)
+        users_resp = supabase.table("users").select("*").is_("deleted_at", None).order("created_at", desc=True).execute()
+        users = getattr(users_resp, "data", []) or []
+
+        # Remove password from response for security
+        safe_users = []
+        for user in users:
+            safe_user = {k: v for k, v in user.items() if k != "password"}
+            safe_users.append(safe_user)
+
+        return jsonify({
+            "status": "success", 
+            "users": safe_users
+        }), 200
+
+    except Exception as e:
+        print(f"Error fetching users: {e}")
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+@app.route("/api/users/<user_id>/verification", methods=["PUT"])
+@token_required
+def update_user_verification(user_id):
+    """
+    Admin endpoint to update user verification status
+    """
+    try:
+        # Check if user is an admin
+        admin_resp = supabase.table("users").select("role").eq("id", request.user_id).execute()
+        admin = getattr(admin_resp, "data", [None])[0]
+        if not admin or admin.get("role") != "Admin":
+            return jsonify({"status": "error", "message": "Admin access required"}), 403
+
+        data = request.json
+        isverified = data.get("isverified")
+        
+        if isverified is None:
+            return jsonify({"status": "error", "message": "Verification status is required"}), 400
+
+        # Get user info for notification
+        user_resp = supabase.table("users").select("firstname, lastname, email, role").eq("id", user_id).is_("deleted_at", None).execute()
+        user = getattr(user_resp, "data", [None])[0]
+        if not user:
+            return jsonify({"status": "error", "message": "User not found"}), 404
+
+        # Don't allow verification changes on admin users
+        if user.get("role") == "Admin":
+            return jsonify({"status": "error", "message": "Cannot modify admin user verification"}), 400
+
+        # Update user verification status
+        supabase.table("users").update({
+            "isverified": isverified,
+            "updated_at": datetime.now(timezone.utc).isoformat()
+        }).eq("id", user_id).execute()
+
+        # Create notification for the user
+        status_message = "verified" if isverified else "unverified"
+        notification_message = f"Your account has been {status_message} by the administration."
+        
+        try:
+            supabase.table("notifications").insert({
+                "user_id": user_id,
+                "type": "Account Status",
+                "title": f"Account {status_message.capitalize()}",
+                "message": notification_message,
+                "is_read": False,
+                "created_at": datetime.utcnow().isoformat()
+            }).execute()
+        except Exception as e:
+            print("Failed to create verification notification:", e)
+
+        return jsonify({
+            "status": "success", 
+            "message": f"User {status_message} successfully"
+        }), 200
+
+    except Exception as e:
+        print(f"Error updating user verification: {e}")
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+# ----------------- ADMIN USER VERIFICATION MANAGEMENT -----------------
+@app.route("/api/users/verification", methods=["GET"])
+@token_required
+def get_users_for_verification():
+    """
+    Get all users with verification status for admin verification management
+    """
+    try:
+        # Get user data first to check if admin
+        user_id = request.user_id
+        current_user_resp = supabase.table("users").select("role").eq("id", user_id).single().execute()
+        current_user = current_user_resp.data if current_user_resp.data else {}
+        
+        if current_user.get("role") != "Admin":
+            return jsonify({"status": "error", "message": "Admin access required"}), 403
+
+        # Get all users with their basic info
+        users_response = supabase.table("users").select(
+            "id, firstname, lastname, email, role, isverified, "
+            "avatar_url, created_at"
+        ).is_("deleted_at", None).order("created_at", desc=True).execute()
+        
+        users = getattr(users_response, "data", []) or []
+        
+        # For each user, get their extended info to check full verification status
+        enhanced_users = []
+        for user in users:
+            # Get user's info record to check full verification
+            info_response = supabase.table("info").select("verified, address_barangay").eq("user_id", user["id"]).execute()
+            info_data = getattr(info_response, "data", [])
+            info = info_data[0] if info_data else {}
+            
+            # Add full verification status and address info
+            enhanced_user = {
+                **user,
+                "verified": info.get("verified", False),  # Use "verified" for frontend consistency
+                "fully_verified": info.get("verified", False),  # Keep both for compatibility
+                "address_barangay": info.get("address_barangay")
+            }
+            enhanced_users.append(enhanced_user)
+        
+        return jsonify({
+            "status": "success",
+            "users": enhanced_users
+        }), 200
+
+    except Exception as e:
+        print(f"Error fetching users for verification: {e}")
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+@app.route("/api/users/<user_id>/info", methods=["GET"])
+@token_required
+def get_user_extended_info(user_id):
+    """
+    Get extended user information for verification review
+    """
+    try:
+        # Get current user data to check if admin
+        current_user_id = request.user_id
+        current_user_resp = supabase.table("users").select("role").eq("id", current_user_id).single().execute()
+        current_user = current_user_resp.data if current_user_resp.data else {}
+        
+        if current_user.get("role") != "Admin":
+            return jsonify({"status": "error", "message": "Admin access required"}), 403
+
+        # Get user's extended info from info table
+        response = supabase.table("info").select(
+            "birthdate, phone, address_barangay, address_street, "
+            "address_city, address_province, bio"
+        ).eq("user_id", user_id).execute()
+        
+        info_data = getattr(response, "data", [])
+        info = info_data[0] if info_data else None
+        
+        return jsonify({
+            "status": "success",
+            "info": info
+        }), 200
+
+    except Exception as e:
+        print(f"Error fetching user extended info: {e}")
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+@app.route("/api/users/<user_id>/full-verification", methods=["PUT"])
+@token_required
+def update_full_verification(user_id):
+    """
+    Update user's full verification status
+    """
+    try:
+        # Get current user data to check if admin
+        current_user_id = request.user_id
+        current_user_resp = supabase.table("users").select("role").eq("id", current_user_id).single().execute()
+        current_user = current_user_resp.data if current_user_resp.data else {}
+        
+        if current_user.get("role") != "Admin":
+            return jsonify({"status": "error", "message": "Admin access required"}), 403
+
+        data = request.get_json()
+        # Accept both field names for compatibility
+        fully_verified = data.get("fully_verified", data.get("verified", False))
+
+        # Get user info for notification
+        user_resp = supabase.table("users").select(
+            "firstname, lastname, email, role"
+        ).eq("id", user_id).is_("deleted_at", None).execute()
+        
+        user = getattr(user_resp, "data", [None])[0]
+        if not user:
+            return jsonify({"status": "error", "message": "User not found"}), 404
+
+        # Don't allow verification changes on admin users
+        if user.get("role") == "Admin":
+            return jsonify({"status": "error", "message": "Cannot modify admin user verification"}), 400
+
+        # Update full verification status in the info table (not users table)
+        supabase.table("info").update({
+            "verified": fully_verified,
+            "updated_at": datetime.now(timezone.utc).isoformat()
+        }).eq("user_id", user_id).execute()
+
+        # Create notification for the user
+        status_message = "fully verified" if fully_verified else "verification revoked"
+        notification_message = f"Your account has been {status_message} by the administration after review of your complete information."
+        
+        try:
+            supabase.table("notifications").insert({
+                "user_id": user_id,
+                "type": "Account Verification",
+                "title": f"Account {status_message.title()}",
+                "message": notification_message,
+                "is_read": False,
+                "created_at": datetime.utcnow().isoformat()
+            }).execute()
+        except Exception as e:
+            print("Failed to create full verification notification:", e)
+
+        return jsonify({
+            "status": "success", 
+            "message": f"User {status_message} successfully"
+        }), 200
+
+    except Exception as e:
+        print(f"Error updating user full verification: {e}")
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+# ----------------- ADMIN STATUS UPDATE -----------------
+@app.route("/api/reports/<report_id>/status", methods=["PUT"])
+@token_required
+def admin_update_report_status(report_id):
+    """
+    Admin endpoint to update report status and notify the user
+    """
+    try:
+        # Check if user is an admin
+        user_resp = supabase.table("users").select("role").eq("id", request.user_id).execute()
+        user = getattr(user_resp, "data", [None])[0]
+        if not user or user.get("role") != "admin":
+            return jsonify({"status": "error", "message": "Admin access required"}), 403
+
+        data = request.json
+        new_status = data.get("status")
+        
+        if not new_status:
+            return jsonify({"status": "error", "message": "Status is required"}), 400
+
+        # Validate status value
+        valid_statuses = ["Pending", "Ongoing", "Resolved"]
+        if new_status not in valid_statuses:
+            return jsonify({"status": "error", "message": f"Invalid status. Must be one of: {valid_statuses}"}), 400
+
+        # Fetch current report to get user_id and title
+        report_resp = supabase.table("reports").select("user_id, title, status").eq("id", report_id).is_("deleted_at", None).execute()
+        report = getattr(report_resp, "data", [None])[0]
+        if not report:
+            return jsonify({"status": "error", "message": "Report not found"}), 404
+
+        old_status = report.get("status")
+        user_id = report.get("user_id")
+        report_title = report.get("title")
+
+        # Update report status
+        supabase.table("reports").update({
+            "status": new_status,
+            "updated_at": datetime.now(timezone.utc).isoformat()
+        }).eq("id", report_id).execute()
+
+        # Create notification for the user if status changed
+        if new_status != old_status and user_id:
+            create_report_notification(user_id, report_id, report_title, new_status)
+
+        return jsonify({
+            "status": "success", 
+            "message": f"Report status updated to {new_status}",
+            "new_status": new_status
+        }), 200
+
+    except Exception as e:
+        print(f"Error updating report status: {e}")
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+@app.route("/api/reports/<report_id>", methods=["DELETE"])
+@token_required
+def admin_delete_report(report_id):
+    """
+    Admin endpoint to delete report and notify the user
+    """
+    try:
+        # Check if user is an admin
+        user_resp = supabase.table("users").select("role").eq("id", request.user_id).execute()
+        user = getattr(user_resp, "data", [None])[0]
+        if not user or user.get("role") != "admin":
+            return jsonify({"status": "error", "message": "Admin access required"}), 403
+
+        # Fetch current report to get user_id and title
+        report_resp = supabase.table("reports").select("user_id, title").eq("id", report_id).is_("deleted_at", None).execute()
+        report = getattr(report_resp, "data", [None])[0]
+        if not report:
+            return jsonify({"status": "error", "message": "Report not found"}), 404
+
+        user_id = report.get("user_id")
+        report_title = report.get("title")
+
+        # Soft delete by setting deleted_at
+        supabase.table("reports").update({
+            "deleted_at": datetime.now(timezone.utc).isoformat()
+        }).eq("id", report_id).execute()
+
+        # Create notification for the user
+        if user_id:
+            try:
+                supabase.table("notifications").insert({
+                    "user_id": user_id,
+                    "report_id": report_id,
+                    "type": "Report Deleted",
+                    "title": "Report Removed",
+                    "message": f'Your report "{report_title}" has been removed by the administration.',
+                    "is_read": False,
+                    "created_at": datetime.utcnow().isoformat()
+                }).execute()
+            except Exception as e:
+                print("Failed to create deletion notification:", e)
+
+        return jsonify({
+            "status": "success", 
+            "message": "Report deleted successfully"
+        }), 200
+
+    except Exception as e:
+        print(f"Error deleting report: {e}")
+        return jsonify({"status": "error", "message": str(e)}), 500
+
 # ----------------- NOTIF -----------------
 # Fetch notifications
 @app.route("/api/notifications", methods=["GET"])
@@ -1074,6 +1747,32 @@ def get_notifications():
         print("Error fetching notifications:", e)
         notifications = []
     return jsonify({"status": "success", "notifications": notifications}), 200
+
+def create_report_notification(user_id, report_id, report_title, new_status):
+    """
+    Create a notification for a report status change.
+    """
+    status_messages = {
+        "pending": f'Your report "{report_title}" is now PENDING.',
+        "ongoing": f'Your report "{report_title}" is now ONGOING.',
+        "resolved": f'Your report "{report_title}" has been RESOLVED by the authorities.',
+    }
+
+    message = status_messages.get(new_status.lower(), f'Your report "{report_title}" was updated.')
+
+    try:
+        supabase.table("notifications").insert({
+            "user_id": user_id,
+            "report_id": report_id,
+            "type": "Status Update",
+            "title": f'Report Status: {new_status.capitalize()}',
+            "message": message,
+            "is_read": False,
+            "created_at": datetime.utcnow().isoformat()
+        }).execute()
+    except Exception as e:
+        print("Failed to create report notification:", e)
+
 
 # Mark notification as read
 @app.route("/api/notifications/<int:notif_id>/read", methods=["POST"])

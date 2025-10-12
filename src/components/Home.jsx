@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import {
   FaExclamationTriangle,
   FaCheckCircle,
@@ -16,25 +16,51 @@ import {
 import MapView from "../components/Mapview"; 
 import "./Home.css";
 
+// ----------------- CONSTANTS -----------------
+const CATEGORY_COLORS = {
+  "Concern": "#4a76b9",      
+  "Crime": "#d9534f",        
+  "Hazard": "#f0ad4e",       
+  "Lost&Found": "#5cb85c",  
+  "Others": "#777777",
+  default: "#2d2d73", 
+};
+
 // ----------------- FETCH UTILITY -----------------
-async function fetchWithToken(url, token) {
+async function fetchWithToken(url, token, retries = 3) {
   if (!token) throw new Error("Token is required");
-  const res = await fetch(url, {
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${token}`,
-    },
-  });
+  
+  for (let attempt = 1; attempt <= retries; attempt++) {
+    try {
+      const res = await fetch(url, {
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+      });
 
-  if (!res.ok) {
-    const errData = await res.json().catch(() => ({}));
-    throw new Error(errData.message || "Failed to fetch");
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(errData.message || "Failed to fetch");
+      }
+
+      return res.json();
+    } catch (error) {
+      console.log(`Fetch attempt ${attempt}/${retries} failed:`, error.message);
+      
+      if (attempt === retries) {
+        throw error; // Last attempt failed, throw the error
+      }
+      
+      // Wait before retrying (exponential backoff)
+      const delay = Math.min(1000 * Math.pow(2, attempt - 1), 5000);
+      console.log(`Retrying in ${delay}ms...`);
+      await new Promise(resolve => setTimeout(resolve, delay));
+    }
   }
-
-  return res.json();
 }
 
-function Home({ token }) {
+function Home({ token, session }) {
   const [stats, setStats] = useState([
     { title: "Total Reports", value: 0, icon: <FaExclamationTriangle />, color: "#2d2d73" },
     { title: "Ongoing Cases", value: 0, icon: <FaSyncAlt />, color: "#f40014ff" },
@@ -46,19 +72,9 @@ function Home({ token }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  // Map your category names to colors
-  const CATEGORY_COLORS = {
-    "Concern": "#4a76b9",      
-    "Crime": "#d9534f",        
-    "Hazard": "#f0ad4e",       
-    "Lost&Found": "#5cb85c",  
-    "Others": "#777777",
-    default: "#2d2d73", 
-  };
-
-  const getCategoryColor = (categoryName) => {
+  const getCategoryColor = useCallback((categoryName) => {
     return CATEGORY_COLORS[categoryName] || CATEGORY_COLORS.default;
-  };
+  }, []);
 
 
   useEffect(() => {
@@ -68,12 +84,15 @@ function Home({ token }) {
       setLoading(true);
       setError(null);
       try {
-        // 1. Fetch dashboard stats
-        const statsRes = await fetchWithToken("http://localhost:5000/api/stats", token);
+        // 1. Fetch dashboard stats - different endpoints for admin vs resident
+        const isAdmin = session?.user?.role === "Admin";
+        const statsEndpoint = isAdmin ? "http://localhost:5000/api/stats" : "http://localhost:5000/api/stats/user";
+        const statsRes = await fetchWithToken(statsEndpoint, token);
         if (statsRes.status === "success") {
-          // Update stats cards
+          // Update stats cards with different titles for admin vs resident
+          const statsTitle = isAdmin ? "Total Reports" : "My Reports";
           setStats([
-            { title: "Total Reports", value: statsRes.totalReports || 0, icon: <FaExclamationTriangle />, color: "#2d2d73" },
+            { title: statsTitle, value: statsRes.totalReports || 0, icon: <FaExclamationTriangle />, color: "#2d2d73" },
             { title: "Ongoing Cases", value: statsRes.ongoing || 0, icon: <FaSyncAlt />, color: "#f40014ff" },
             { title: "Resolved Cases", value: statsRes.resolved || 0, icon: <FaCheckCircle />, color: "#2a9d62ff" },
             { title: "Pending Reports", value: statsRes.pending || 0, icon: <FaClock />, color: "#f4b761ff" },
@@ -94,9 +113,10 @@ function Home({ token }) {
             setCategoryData([{ name: "No Data", value: 1, color: "#ccc" }]);
         }
 
-        // 3. Fetch recent reports
+        // 3. Fetch recent reports - different queries for admin vs resident
+        const reportsFilter = isAdmin ? "all" : "my";
         const recentRes = await fetchWithToken(
-          "http://localhost:5000/api/reports?limit=5&sort=desc",
+          `http://localhost:5000/api/reports?limit=5&sort=desc&filter=${reportsFilter}`,
           token
         );
         setRecentReports(recentRes.status === "success" ? recentRes.reports : []);
@@ -121,7 +141,7 @@ function Home({ token }) {
     };
 
     fetchData();
-  }, [token]);
+  }, [token, session?.user?.role, getCategoryColor]);
 
   if (loading) {
     return (
@@ -141,12 +161,14 @@ function Home({ token }) {
           <div
             key={i}
             className="stat-card animate-up"
-            style={{ borderLeft: `6px solid ${stat.color}`, animationDelay: `${i * 0.1}s` }}
+            style={{ borderLeft: `4px solid ${stat.color}`, animationDelay: `${i * 0.1}s` }}
           >
-            <div className="stat-icon" style={{ color: stat.color }}>{stat.icon}</div>
-            <div>
-              <h4>{stat.title}</h4>
-              <p>{stat.value}</p>
+            <div className="stat-content">
+              <div className="stat-icon" style={{ color: stat.color }}>{stat.icon}</div>
+              <div className="stat-text">
+                <h4>{stat.title}</h4>
+                <p>{stat.value}</p>
+              </div>
             </div>
           </div>
         ))}

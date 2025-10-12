@@ -53,11 +53,13 @@ html, body {
   border-radius: 20px;
   margin-top: -2rem;
   box-shadow: 0 5px 20px rgba(0, 0, 0, 0.1);
+  position: relative; /* allow tab strip to overlap */
+  overflow: visible;
 }
 
 .form-card h2 {
   margin-top: 0;
-  margin-bottom: 14px;
+  margin-bottom: 16px;
   color: #2d2d73;
   font-size: 1.5rem;
   text-align: center;
@@ -85,7 +87,7 @@ html, body {
 input[type="text"],
 input[type="email"],
 input[type="password"] {
-  width: 92%;
+  width: 100%;
   padding: 0.75rem;
   margin-bottom: 1rem;
   border: 1px solid #ccc;
@@ -93,6 +95,60 @@ input[type="password"] {
   font-size: 0.95rem;
   outline: none;
   transition: 0.3s;
+  box-sizing: border-box;
+}
+
+/* Allow browser password visibility toggle */
+input[type="password"]::-ms-reveal,
+input[type="password"]::-ms-clear {
+  display: block;
+}
+
+input[type="password"]::-webkit-credentials-auto-fill-button {
+  display: block !important;
+}
+
+/* Password field container for custom eye icon */
+.password-field-container {
+  position: relative;
+  display: inline-block;
+  width: 100%;
+}
+
+.password-field-container input[type="password"],
+.password-field-container input[type="text"] {
+  width: 100%;
+  padding-right: 2.5rem;
+  box-sizing: border-box;
+}
+
+.password-toggle-btn {
+  position: absolute;
+  right: 0.75rem;
+  top: 50%;
+  transform: translateY(-50%);
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: #999;
+  font-size: 1rem;
+  padding: 0;
+  width: 1.5rem;
+  height: 1.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  z-index: 2;
+  transition: all 0.2s ease;
+  margin-top: -0.25rem;
+}
+
+.password-toggle-btn:hover {
+  color: #2d2d73;
+  background: rgba(45, 45, 115, 0.05);
+  transform: translateY(-50%) scale(1.1);
+  margin-top: -0.25rem;
 }
 
 input[type="text"]:focus,
@@ -176,8 +232,14 @@ button {
   transition: background 0.3s ease;
 }
 
-button:hover {
+button:hover:not(:disabled) {
   background: #778EA0;
+}
+
+button:disabled {
+  background: #ccc;
+  cursor: not-allowed;
+  opacity: 0.7;
 }
 
 /* Back link */
@@ -199,9 +261,72 @@ button:hover {
   display: block;
   text-align: right;
   font-size: 12px;
-  margin-top: 0.5rem;
-  margin-bottom: 1rem;
+  margin-top: 0.75rem;
+  margin-bottom: 1.25rem;
+  padding-right: 0; /* align with button's right edge */
   text-decoration: none;
+}
+
+/* small style for Resident/Admin tabs */
+.tab-group {
+  display:flex;
+  gap:8px;
+  justify-content:center;
+}
+
+.tab-btn {
+  padding: 6px 12px;
+  border-radius: 18px;
+  border: 1px solid rgba(0,0,0,0.08);
+  background: rgba(255,255,255,0.9);
+  color: #000; /* unselected text black */
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.tab-btn:hover {
+  box-shadow: 0 2px 6px rgba(0,0,0,0.06);
+}
+
+.tab-btn.active {
+  background: linear-gradient(90deg,#2d2d73,#5a6aa8);
+  color: #fff; /* selected tab text white */
+  border-color: rgba(0,0,0,0.08);
+}
+
+/* full width strip inside the modal */
+.tab-strip {
+  display: flex;
+  justify-content: center;
+  padding: 8px 16px 12px 16px;
+  margin: -1.5rem -1.5rem 0.75rem -1.5rem; /* extend to modal edges, reduced bottom margin */
+  background: linear-gradient(135deg, rgba(0,0,0,0.03), rgba(0,0,0,0.01));
+  border-radius: 20px 20px 0 0;
+  border-bottom: 1px solid rgba(0,0,0,0.06);
+  gap: 8px;
+}
+
+.tab-strip .tab-btn {
+  flex: 1 1 0;
+  margin: 0;
+  padding: 8px 16px;
+  border-radius: 14px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  letter-spacing: 0.3px;
+  transition: all 0.25s ease;
+  border: 1px solid rgba(0,0,0,0.08);
+  box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+}
+
+.tab-strip .tab-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 3px 8px rgba(0,0,0,0.08);
+}
+
+.tab-strip .tab-btn.active {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(45,45,115,0.15);
 }
 
 @keyframes bgSlide {

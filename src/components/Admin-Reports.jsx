@@ -1,18 +1,21 @@
-import React, { useState, useEffect } from "react";
-import { FaEdit, FaTrashAlt, FaSearch } from "react-icons/fa";
-import "./Reports.css"; 
+import React, { useState, useEffect, useCallback } from "react";
+import { FaEdit, FaTrashAlt, FaSearch, FaRedo } from "react-icons/fa";
+import "./Reports.css";
+import "./admin-report.css"; 
 
+const API_URL = "http://localhost:5000/api";
 const REPORT_STATUSES = ["Pending", "Ongoing", "Resolved"];
 
-function AdminReports() {
+function AdminReports({ token }) {
   const [reports, setReports] = useState([]);
-  const [loading, setLoading] = useState(true); // <-- new loading state
+  const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [category, setCategory] = useState("All");
   const [barangay, setBarangay] = useState("All");
   const [statusFilter, setStatusFilter] = useState("All"); 
   const [sort, setSort] = useState("latest");
   const [previewImage, setPreviewImage] = useState(null);
+  const [notification, setNotification] = useState(null);
 
   // States for the Status Update Modal
   const [isStatusModalOpen, setIsStatusModalOpen] = useState(false);
@@ -30,55 +33,65 @@ function AdminReports() {
     "Santa Rita", "West Bajac-Bajac", "West Tapinac",
   ];
 
-  useEffect(() => {
-    // Simulate fetching reports
-    setTimeout(() => {
-      const sampleReports = [
-        {
-          id: 1,
-          user: "Juan Dela Cruz",
-          user_verified: true,
-          date: new Date().toISOString(),
-          category: "Crime",
-          addressStreet: "123 Rizal St",
-          barangay: "Barretto",
-          title: "Robbery at Night",
-          description: "There was a robbery incident near the corner of Rizal St. Be careful when passing by the area at night.",
-          status: "Pending",
-          images: ["/src/assets/sample.jpg", "/src/assets/sample.jpg"],
-        },
-        {
-          id: 2,
-          user: "Maria Clara",
-          user_verified: false,
-          date: new Date().toISOString(),
-          category: "Hazard",
-          addressStreet: "456 Mabini St",
-          barangay: "New Banicain",
-          title: "Fallen Tree Blocking Road",
-          description: "A big tree fell and is blocking the road near Mabini St. Vehicles cannot pass. Request immediate cleanup.",
-          status: "Ongoing",
-          images: ["/src/assets/sample.jpg"],
-        },
-        {
-          id: 3,
-          user: "Jose Rizal",
-          user_verified: true,
-          date: new Date().toISOString(),
-          category: "Concern",
-          addressStreet: "789 Magsaysay Ave",
-          barangay: "Gordon Heights",
-          title: "Street Light Not Working",
-          description: "The street light near Magsaysay Ave is not functioning for over a week. This poses a safety risk for pedestrians.",
-          status: "Resolved",
-          images: ["/src/assets/sample.jpg", "/src/assets/sample.jpg", "/src/assets/sample.jpg", "/src/assets/sample.jpg"],
-        },
-      ];
-
-      setReports(sampleReports);
-      setLoading(false); // stop loading
-    }, 1500); // simulate 1.5s loading
+  // Notification handler
+  const showNotification = useCallback((message, type = "success") => {
+    setNotification({ message, type });
+    setTimeout(() => setNotification(null), 4000);
   }, []);
+
+  // Fetch reports from API
+  const fetchReports = useCallback(async () => {
+    if (!token) {
+      setLoading(false);
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const response = await fetch(`${API_URL}/reports?limit=50&sort=${sort}`, {
+        headers: { 
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to fetch reports');
+      }
+
+      const data = await response.json();
+      if (data.status === "success") {
+        // Transform the data to match our component structure
+        const transformedReports = data.reports.map(report => ({
+          id: report.id,
+          user: `${report.reporter?.firstname || 'Unknown'} ${report.reporter?.lastname || ''}`.trim(),
+          user_verified: report.reporter?.isverified || false,
+          user_id: report.user_id,
+          date: report.created_at,
+          category: report.category,
+          addressStreet: report.address_street || '',
+          barangay: report.address_barangay || 'Unknown',
+          title: report.title,
+          description: report.description,
+          status: report.status,
+          images: report.images?.map(img => img.url) || []
+        }));
+        setReports(transformedReports);
+      } else {
+        throw new Error(data.message || 'Failed to fetch reports');
+      }
+    } catch (error) {
+      console.error('Error fetching reports:', error);
+      showNotification('Failed to load reports. Please try again.', 'error');
+      setReports([]);
+    } finally {
+      setLoading(false);
+    }
+  }, [token, sort, showNotification]);
+
+  useEffect(() => {
+    fetchReports();
+  }, [fetchReports]);
 
   const toggleExpand = (id) => {
     setExpandedPosts((prev) =>
@@ -92,21 +105,90 @@ function AdminReports() {
     setIsStatusModalOpen(true);
   };
 
-  const handleUpdateStatus = () => {
-    if (!selectedReport || !newStatus) return;
-    setReports(reports.map(r =>
-      r.id === selectedReport.id ? { ...r, status: newStatus } : r
-    ));
-    setIsStatusModalOpen(false);
-    setSelectedReport(null);
-    setNewStatus("");
+  const handleUpdateStatus = async () => {
+    if (!selectedReport || !newStatus || !token) return;
+
+    try {
+      const response = await fetch(`${API_URL}/reports/${selectedReport.id}/status`, {
+        method: 'PUT',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ 
+          status: newStatus
+        })
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Failed to update status');
+      }
+
+      const data = await response.json();
+      if (data.status === "success") {
+        // Update local state
+        setReports(prevReports =>
+          prevReports.map(r =>
+            r.id === selectedReport.id ? { ...r, status: newStatus } : r
+          )
+        );
+        
+        showNotification(`Report status updated to ${newStatus}`, 'success');
+        
+        // Close modal
+        setIsStatusModalOpen(false);
+        setSelectedReport(null);
+        setNewStatus("");
+        
+        // Backend handles sending notification to the user
+      } else {
+        throw new Error(data.message || 'Failed to update status');
+      }
+    } catch (error) {
+      console.error('Error updating report status:', error);
+      showNotification(`Failed to update status: ${error.message}`, 'error');
+    }
   };
 
-  const handleDelete = () => {
-    if (!deleteTarget) return;
-    setReports(reports.filter(r => r.id !== deleteTarget.id));
-    setIsDeleteConfirmOpen(false);
-    setDeleteTarget(null);
+  const handleDelete = async () => {
+    if (!deleteTarget || !token) return;
+
+    try {
+      const response = await fetch(`${API_URL}/reports/${deleteTarget.id}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Failed to delete report');
+      }
+
+      const data = await response.json();
+      if (data.status === "success") {
+        // Update local state
+        setReports(prevReports => 
+          prevReports.filter(r => r.id !== deleteTarget.id)
+        );
+        
+        showNotification('Report deleted successfully', 'success');
+        
+        // Close modal
+        setIsDeleteConfirmOpen(false);
+        setDeleteTarget(null);
+        
+        // Backend handles sending notification to the user about deletion
+      } else {
+        throw new Error(data.message || 'Failed to delete report');
+      }
+    } catch (error) {
+      console.error('Error deleting report:', error);
+      showNotification(`Failed to delete report: ${error.message}`, 'error');
+    }
   };
 
   // Filtered reports
@@ -121,23 +203,27 @@ function AdminReports() {
     );
 
   return (
-    <div className="reports-container">
-      <div className="header-row">
+    <div className="admin-container">
+      <div className="admin-header-row">
         <h2>All Community Reports</h2>
       </div>
 
-      <div className="top-controls">
-        <div className="search-bar-container">
-            <FaSearch className="search-icon" /> 
-            <input
-              type="text"
-              placeholder="Search reports..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)} 
-              className="search-input real-time-search-input" 
-            />
-          </div>
-        <select value={category} onChange={(e) => setCategory(e.target.value)}>
+      <div className="admin-top-controls">
+        <div className="admin-search-container">
+          <input
+            type="text"
+            placeholder="Search reports..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)} 
+            className="admin-search-input" 
+          />
+          <FaSearch className="admin-search-icon" />
+        </div>
+        <select 
+          value={category} 
+          onChange={(e) => setCategory(e.target.value)}
+          className="admin-filter-select"
+        >
           <option value="All">All Categories</option>
           <option value="Concern">Concern</option>
           <option value="Crime">Crime</option>
@@ -145,18 +231,30 @@ function AdminReports() {
           <option value="Lost&Found">Lost & Found</option>
           <option value="Others">Others</option>
         </select>
-        <select value={barangay} onChange={(e) => setBarangay(e.target.value)}>
+        <select 
+          value={barangay} 
+          onChange={(e) => setBarangay(e.target.value)}
+          className="admin-filter-select"
+        >
           {barangays.map((b) => (
             <option key={b} value={b}>{b}</option>
           ))}
         </select>
-        <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
+        <select 
+          value={statusFilter} 
+          onChange={(e) => setStatusFilter(e.target.value)}
+          className="admin-filter-select"
+        >
           <option value="All">All Statuses</option>
           {REPORT_STATUSES.map(status => (
             <option key={status} value={status}>{status}</option>
           ))}
         </select>
-        <select value={sort} onChange={(e) => setSort(e.target.value)}>
+        <select 
+          value={sort} 
+          onChange={(e) => setSort(e.target.value)}
+          className="admin-filter-select"
+        >
           <option value="latest">Latest → Oldest</option>
           <option value="oldest">Oldest → Latest</option>
         </select>
@@ -171,11 +269,6 @@ function AdminReports() {
         ) : filteredReports.length > 0 ? (
           filteredReports.map((report, index) => {
             const isExpanded = expandedPosts.includes(report.id);
-            const displayDescription = isExpanded
-              ? report.description
-              : `${report.description.slice(0, 130)}${
-                  report.description.length > 130 ? "..." : ""
-                }`;
 
             return (
               <div
@@ -302,6 +395,13 @@ function AdminReports() {
       {previewImage && (
         <div className="fullscreen-modal" onClick={() => setPreviewImage(null)}>
           <img src={previewImage} alt="Full screen" className="fullscreen-image" />
+        </div>
+      )}
+
+      {/* Notification */}
+      {notification && (
+        <div className={`notification ${notification.type}`}>
+          {notification.message}
         </div>
       )}
     </div>

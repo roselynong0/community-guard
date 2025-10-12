@@ -1,11 +1,22 @@
 import React, { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
+import { FaEye, FaEyeSlash } from "react-icons/fa";
 import TermsModal from "./TermsModal";
 import "./RegistrationForm.css";
 import "./Notification.css";
 
 function RegistrationForm() {
   const navigate = useNavigate();
+
+  // registerMode: 'Resident' | 'Admin' - check URL params for admin mode
+  const [registerMode, setRegisterMode] = useState(() => {
+    const params = new URLSearchParams(window.location.search);
+    const role = params.get("role") || params.get("admin");
+    if (role && role.toLowerCase() === "admin") return "Admin";
+    return "Resident";
+  });
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
   const [formData, setFormData] = useState({
     firstname: "",
@@ -93,6 +104,14 @@ function RegistrationForm() {
 
   const notify = (msg, type) => setNotification({ message: msg, type });
 
+  // Handle tab switching
+  const switchMode = (mode) => {
+    setRegisterMode(mode);
+    // Update welcome text based on mode
+    const top = document.querySelector('.top-section p');
+    if (top) top.textContent = mode === 'Admin' ? 'Create a secure account to manage reports.' : 'Sign up and help your community stay safe.';
+  };
+
   // Handle form submit
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -113,6 +132,8 @@ function RegistrationForm() {
           lastname: formData.lastname,
           email: formData.email,
           password: formData.password,
+          // include role when registering as admin
+          role: registerMode === "Admin" ? "Admin" : "Resident",
         }),
       });
 
@@ -144,10 +165,15 @@ function RegistrationForm() {
           uppercase: false,
         });
 
-        // Redirect immediately to VerificationForm
+        // Redirect to VerificationForm with proper state
         setTimeout(() => {
-          navigate("/verify-email", {
-            state: { email: result.email, user_id: result.user_id },
+          navigate("/verify", {
+            state: { 
+              email: result.email, 
+              user_id: result.user_id,
+              // Include role info for post-verification redirect
+              userRole: registerMode
+            },
           });
         }, 1000);
       } else if (result.status === "duplicate") {
@@ -168,13 +194,21 @@ function RegistrationForm() {
         </div>
       )}
 
-      <div className="wrapper">
+        <div className="wrapper">
         <div className="top-section">
           <h1>Community Guard</h1>
-          <p>Sign up and help keep your community safe.</p>
+          <p>{registerMode === 'Admin' ? 'Create a secure account to manage reports.' : 'Sign up and help your community stay safe.'}</p>
         </div>
 
         <div className="form-card">
+          <div className="tab-strip">
+            <button type="button" onClick={() => switchMode('Resident')} className={`tab-btn ${registerMode==='Resident' ? 'active' : ''}`}>
+              Resident
+            </button>
+            <button type="button" onClick={() => switchMode('Admin')} className={`tab-btn ${registerMode==='Admin' ? 'active' : ''}`}>
+              Admin
+            </button>
+          </div>
           <h2>Create an Account</h2>
 
           <form onSubmit={handleSubmit}>
@@ -208,22 +242,40 @@ function RegistrationForm() {
             />
             {errors.email && <p className="error">{errors.email}</p>}
 
-            <input
-              type="password"
-              name="password"
-              placeholder="Password"
-              value={formData.password}
-              onChange={handleChange}
-            />
+            <div className="password-field-container">
+              <input
+                type={showPassword ? "text" : "password"}
+                name="password"
+                placeholder="Password"
+                value={formData.password}
+                onChange={handleChange}
+              />
+              <button
+                type="button"
+                className="password-toggle-btn"
+                onClick={() => setShowPassword(!showPassword)}
+              >
+                {showPassword ? <FaEyeSlash /> : <FaEye />}
+              </button>
+            </div>
             {errors.password && <p className="error">{errors.password}</p>}
 
-            <input
-              type="password"
-              name="confirmPassword"
-              placeholder="Confirm Password"
-              value={formData.confirmPassword}
-              onChange={handleChange}
-            />
+            <div className="password-field-container">
+              <input
+                type={showConfirmPassword ? "text" : "password"}
+                name="confirmPassword"
+                placeholder="Confirm Password"
+                value={formData.confirmPassword}
+                onChange={handleChange}
+              />
+              <button
+                type="button"
+                className="password-toggle-btn"
+                onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+              >
+                {showConfirmPassword ? <FaEyeSlash /> : <FaEye />}
+              </button>
+            </div>
             {errors.confirmPassword && (
               <p className="error">{errors.confirmPassword}</p>
             )}
@@ -267,7 +319,10 @@ function RegistrationForm() {
             {errors.agree && <p className="error">{errors.agree}</p>}
 
             <button type="submit">Sign Up</button>
-            <Link to="/login?force=true" className="back-link">
+            <Link 
+              to={registerMode === "Admin" ? "/login?role=admin" : "/login"} 
+              className="back-link"
+            >
               Go to Login
             </Link>
           </form>

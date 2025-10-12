@@ -98,6 +98,99 @@ function Layout({ session, setSession, setNotification }) { // ✅ add setNotifi
             <img src={logo} alt="Community Guard Logo" className="logo-img" />
             <h2>Community Guard</h2>
           </div>
+          
+          {/* User Profile Section */}
+          {!loading && user && (
+            <div className="user-profile" style={{
+              padding: '1rem',
+              borderBottom: '1px solid rgba(255,255,255,0.1)',
+              marginBottom: '1rem',
+              textAlign: 'center'
+            }}>
+              <img 
+                src={user.avatar_url || "/src/assets/profile.png"} 
+                alt="User Profile" 
+                style={{
+                  width: '50px',
+                  height: '50px',
+                  borderRadius: '50%',
+                  objectFit: 'cover',
+                  marginBottom: '0.5rem',
+                  border: '2px solid rgba(255,255,255,0.2)'
+                }}
+              />
+              <h4 style={{ 
+                margin: 0, 
+                fontSize: '0.9rem', 
+                color: 'white',
+                fontWeight: '500'
+              }}>
+                {user.firstname} {user.lastname}
+              </h4>
+              <p style={{ 
+                margin: 0, 
+                fontSize: '0.75rem', 
+                color: 'rgba(255,255,255,0.7)',
+                fontStyle: 'italic'
+              }}>
+                {user.role || 'Resident'}
+              </p>
+            </div>
+          )}
+          
+          {/* Sign In Prompt for Guest Users */}
+          {!loading && !user && (
+            <div className="guest-profile" style={{
+              padding: '1rem',
+              borderBottom: '1px solid rgba(255,255,255,0.1)',
+              marginBottom: '1rem',
+              textAlign: 'center'
+            }}>
+              <div style={{
+                width: '50px',
+                height: '50px',
+                borderRadius: '50%',
+                backgroundColor: 'rgba(255,255,255,0.1)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                margin: '0 auto 0.5rem',
+                border: '2px solid rgba(255,255,255,0.2)'
+              }}>
+                <FaUser style={{ color: 'rgba(255,255,255,0.5)', fontSize: '1.5rem' }} />
+              </div>
+              <h4 style={{ 
+                margin: 0, 
+                fontSize: '0.9rem', 
+                color: 'white',
+                fontWeight: '500'
+              }}>
+                Guest User
+              </h4>
+              <button 
+                onClick={() => navigate('/login')}
+                style={{ 
+                  margin: '0.5rem 0 0 0', 
+                  fontSize: '0.7rem', 
+                  color: '#ffffff',
+                  background: 'rgba(255,255,255,0.1)',
+                  border: '1px solid rgba(255,255,255,0.3)',
+                  borderRadius: '15px',
+                  padding: '0.3rem 0.8rem',
+                  cursor: 'pointer',
+                  transition: 'all 0.2s ease'
+                }}
+                onMouseOver={(e) => {
+                  e.target.style.background = 'rgba(255,255,255,0.2)';
+                }}
+                onMouseOut={(e) => {
+                  e.target.style.background = 'rgba(255,255,255,0.1)';
+                }}
+              >
+                Sign In
+              </button>
+            </div>
+          )}
           <nav>
             <NavLink to="/home"><FaHome /> Home</NavLink>
             <NavLink to="/maps"><FaMap /> Map</NavLink>

@@ -6,25 +6,56 @@ import "./Notification.css";
 function VerificationForm() {
   const location = useLocation();
   const navigate = useNavigate();
-  const { email, user_id } = location.state || {};
+  const [userEmail, setUserEmail] = useState(location.state?.email || "");
+  const [userId, setUserId] = useState(location.state?.user_id || "");
 
   console.log("VerificationForm mounted");
   console.log("location.state:", location.state);
-  console.log("email:", email, "user_id:", user_id);
+  console.log("email:", userEmail, "user_id:", userId);
 
   const [code, setCode] = useState("");
   const [errors, setErrors] = useState({});
   const [notification, setNotification] = useState({ message: "", type: "" });
 
-  // Redirect if state is missing
+  // Validate access on mount
   useEffect(() => {
-    if (!email || !user_id) {
+    const validateAccess = async () => {
+      // First try with route state
+      if (userEmail && userId) {
+        return;
+      }
+      
+      // Then try with verification token
+      const verificationToken = localStorage.getItem("verification_token");
+      if (verificationToken) {
+        try {
+          const response = await fetch("http://localhost:5000/api/verification/validate-access", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ verification_token: verificationToken })
+          });
+          
+          const result = await response.json();
+          if (response.ok && result.status === "success") {
+            // Update state with validated user data
+            setUserEmail(result.email);
+            setUserId(result.user_id);
+            return;
+          }
+        } catch (error) {
+          console.log("Verification token validation failed:", error);
+        }
+      }
+      
+      // If all validation fails, redirect to login
       navigate("/login", {
         replace: true,
-        state: { notification: "Verification link expired or invalid. Please log in and try again." }
+        state: { notification: "Verification access expired or invalid. Please log in and try again." }
       });
-    }
-  }, [email, user_id, navigate]);
+    };
+    
+    validateAccess();
+  }, [userEmail, userId, navigate]);
   
   // ----------------- CLEAR NOTIFICATIONS -----------------
   useEffect(() => {
@@ -63,12 +94,12 @@ function VerificationForm() {
     }
     try {
       // Add this console log to see what's being sent
-      console.log("Submitting verify:", { email, code, user_id });
+      console.log("Submitting verify:", { email: userEmail, code, user_id: userId });
       
       const res = await fetch("http://localhost:5000/api/email/verify-code", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, code, user_id })
+        body: JSON.stringify({ email: userEmail, code, user_id: userId })
       });
 
       const result = await res.json();
@@ -76,7 +107,10 @@ function VerificationForm() {
 
       if (res.ok && result.status === "success") {
         setNotification({ message: "Email verified successfully! 🎉", type: "success" });
-        setTimeout(() => navigate("/login"), 1000);
+        // Check if user registered as admin and redirect to admin login
+        const userRole = location.state?.userRole;
+        const loginPath = userRole === "Admin" ? "/login?role=admin" : "/login";
+        setTimeout(() => navigate(loginPath), 1000);
       } else if (result.status === "invalid_code") {
         setNotification({ message: "Invalid verification code.", type: "error" });
         const el = document.querySelector(`input[name="code"]`);
@@ -129,7 +163,7 @@ function VerificationForm() {
                   const res = await fetch("http://localhost:5000/api/email/send-code", {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ email, user_id }),
+                    body: JSON.stringify({ email: userEmail, user_id: userId }),
                   });
                   if (res.ok) {
                     setNotification({ message: "Verification code resent!", type: "success" });
