@@ -1077,13 +1077,30 @@ def upload_avatar():
 # ----------------- DASHBOARD / REPORTS -----------------
 DEFAULT_REPORTER = {"id": 0, "firstname": "Unknown", "lastname": "", "avatar_url": "/default-avatar.png"}
 
-def fetch_reports(limit=10, sort="desc", user_only=False, user_id=None):
+def fetch_reports(limit=10, sort="desc", user_only=False, barangay_filter=False, barangay_param=None, user_id=None):
     try:
         # Use retry mechanism for the main reports query
         def fetch_main_reports():
             query = supabase.table("reports").select("*").is_("deleted_at", None)
+            
             if user_only and user_id:
                 query = query.eq("user_id", user_id)
+            elif barangay_filter and user_id:
+                # Get user's barangay first
+                def get_user_barangay():
+                    return supabase.table("info").select("address_barangay").eq("user_id", user_id).execute()
+                
+                user_info_resp = supabase_retry(get_user_barangay)
+                user_info = getattr(user_info_resp, "data", [])
+                
+                if user_info and user_info[0].get("address_barangay"):
+                    user_barangay = user_info[0]["address_barangay"]
+                    # Filter reports by same barangay
+                    query = query.eq("address_barangay", user_barangay)
+            elif barangay_param and barangay_param != "all":
+                # Direct barangay filtering for admin
+                query = query.eq("address_barangay", barangay_param)
+                    
             query = query.order("created_at", desc=(sort=="desc")).limit(limit)
             return query.execute()
         
@@ -1136,18 +1153,22 @@ def get_reports():
     try:
         limit = int(request.args.get("limit", 10))
         sort = request.args.get("sort", "desc").lower()
-        filter_type = request.args.get("filter", "all").lower() # 'all' or 'my'
+        filter_type = request.args.get("filter", "all").lower() # 'all', 'my', or 'barangay'
+        barangay_filter_param = request.args.get("barangay")
         
-        # Determine if we should filter by the logged-in user
-        user_only_filter = filter_type == "my" # <--- New: This is the boolean flag
-        user_id_to_filter = request.user_id if user_only_filter else None # <--- New: This is the ID
+        # Determine filtering options
+        user_only_filter = filter_type == "my"
+        barangay_filter = filter_type == "barangay"
+        user_id_to_filter = request.user_id if user_only_filter else None
 
-        # IMPORTANT: Pass the new user_only_filter and user_id_to_filter arguments correctly
+        # Pass the filtering options to fetch_reports
         reports = fetch_reports(
             limit=limit, 
             sort=sort, 
-            user_only=user_only_filter, # <--- Correctly pass the boolean
-            user_id=user_id_to_filter   # <--- Correctly pass the user ID
+            user_only=user_only_filter,
+            barangay_filter=barangay_filter,
+            barangay_param=barangay_filter_param,
+            user_id=user_id_to_filter
         ) 
         
         return jsonify({"status": "success", "reports": reports}), 200
@@ -1311,9 +1332,14 @@ def soft_delete_report(report_id):
 @token_required
 def get_stats():
     try:
+        barangay_filter = request.args.get("barangay")
+        
         # Use retry mechanism for stats query
         def fetch_stats():
-            return supabase.table("reports").select("status").is_("deleted_at", None).execute()
+            query = supabase.table("reports").select("status").is_("deleted_at", None)
+            if barangay_filter and barangay_filter != "all":
+                query = query.eq("address_barangay", barangay_filter)
+            return query.execute()
         
         reports_resp = supabase_retry(fetch_stats)
         reports = getattr(reports_resp, "data", []) or []
@@ -1339,9 +1365,44 @@ def get_stats():
 @token_required
 def get_report_categories():
     try:
+        user_id = request.user_id
+        barangay_filter = request.args.get("barangay")
+        filter_type = request.args.get("filter", "user")  # "all" or "user"
+        
+        # Check if user is admin
+        def get_user_role():
+            return supabase.table("users").select("role").eq("id", user_id).execute()
+        
+        user_resp = supabase_retry(get_user_role)
+        user_data = getattr(user_resp, "data", [])
+        is_admin = user_data and user_data[0].get("role") == "Admin"
+        
         # Use retry mechanism for Supabase query
         def fetch_categories():
-            return supabase.table("reports").select("category").is_("deleted_at", None).execute()
+            query = supabase.table("reports").select("category").is_("deleted_at", None)
+            
+            # Apply filtering logic
+            if filter_type == "all":
+                # Show all reports - used for regular users and admin "all" view
+                if is_admin and barangay_filter and barangay_filter != "all":
+                    # Admin with specific barangay filter
+                    query = query.eq("address_barangay", barangay_filter)
+                # else: show all reports (no additional filtering)
+            else:
+                # Legacy user filtering (not used anymore but kept for compatibility)
+                if not is_admin:
+                    # Get user's barangay for filtering
+                    def get_user_barangay():
+                        return supabase.table("info").select("address_barangay").eq("user_id", user_id).execute()
+                    
+                    user_info_resp = supabase_retry(get_user_barangay)
+                    user_info = getattr(user_info_resp, "data", [])
+                    
+                    if user_info and user_info[0].get("address_barangay"):
+                        user_barangay = user_info[0]["address_barangay"]
+                        query = query.eq("address_barangay", user_barangay)
+                        
+            return query.execute()
         
         resp = supabase_retry(fetch_categories)
         reports = getattr(resp, "data", []) or []
@@ -1359,13 +1420,55 @@ def get_report_categories():
         print("get_report_categories error:", e)
         return jsonify({"status": "error", "message": str(e), "data": [{"name": "No Data", "value": 1}]}), 500
 
+# ----------------- BARANGAYS ENDPOINT -----------------
+@app.route("/api/barangays", methods=["GET"])
+@token_required
+def get_barangays():
+    try:
+        # Get distinct barangays from reports
+        def fetch_barangays():
+            return supabase.table("reports").select("address_barangay").is_("deleted_at", None).execute()
+        
+        resp = supabase_retry(fetch_barangays)
+        reports = getattr(resp, "data", []) or []
+        
+        # Get unique barangays
+        barangays = set()
+        for report in reports:
+            barangay = report.get("address_barangay")
+            if barangay:
+                barangays.add(barangay)
+        
+        # Format for dropdown
+        barangay_options = [{"value": barangay, "label": barangay} for barangay in sorted(barangays)]
+        
+        return jsonify({"status": "success", "barangays": barangay_options}), 200
+    except Exception as e:
+        print("get_barangays error:", e)
+        return jsonify({"status": "error", "message": str(e), "barangays": []}), 500
+
 # ----------------- REPORT STATS -----------------
 @app.route("/api/stats/user", methods=["GET"])
 @token_required
 def get_user_stats():
     try:
         user_id = request.user_id
-        reports_resp = supabase.table("reports").select("status").eq("user_id", user_id).is_("deleted_at", None).execute()
+        
+        # Get user's barangay first
+        def get_user_barangay():
+            return supabase.table("info").select("address_barangay").eq("user_id", user_id).execute()
+        
+        user_info_resp = supabase_retry(get_user_barangay)
+        user_info = getattr(user_info_resp, "data", [])
+        
+        if user_info and user_info[0].get("address_barangay"):
+            user_barangay = user_info[0]["address_barangay"]
+            # Get all reports from same barangay
+            reports_resp = supabase.table("reports").select("status").eq("address_barangay", user_barangay).is_("deleted_at", None).execute()
+        else:
+            # Fallback to user-only reports if no barangay info
+            reports_resp = supabase.table("reports").select("status").eq("user_id", user_id).is_("deleted_at", None).execute()
+            
         reports = getattr(reports_resp, "data", []) or []
 
         stats = {

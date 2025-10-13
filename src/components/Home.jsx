@@ -71,6 +71,8 @@ function Home({ token, session }) {
   const [categoryData, setCategoryData] = useState([{ name: "No Data", value: 1, color: "#ccc" }]); 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  // const [selectedBarangay, setSelectedBarangay] = useState("all");
+  // const [barangayOptions, setBarangayOptions] = useState([]);
 
   const getCategoryColor = useCallback((categoryName) => {
     return CATEGORY_COLORS[categoryName] || CATEGORY_COLORS.default;
@@ -84,23 +86,37 @@ function Home({ token, session }) {
       setLoading(true);
       setError(null);
       try {
-        // 1. Fetch dashboard stats - different endpoints for admin vs resident
+        // 1. Fetch dashboard stats
         const isAdmin = session?.user?.role === "Admin";
-        const statsEndpoint = isAdmin ? "http://localhost:5000/api/stats" : "http://localhost:5000/api/stats/user";
+        // Barangay filtering temporarily disabled
+        const statsEndpoint = "http://localhost:5000/api/stats";
         const statsRes = await fetchWithToken(statsEndpoint, token);
         if (statsRes.status === "success") {
-          // Update stats cards with different titles for admin vs resident
-          const statsTitle = isAdmin ? "Total Reports" : "My Reports";
+          // Both admin and users show "Community Reports"
           setStats([
-            { title: statsTitle, value: statsRes.totalReports || 0, icon: <FaExclamationTriangle />, color: "#2d2d73" },
+            { title: "Community Reports", value: statsRes.totalReports || 0, icon: <FaExclamationTriangle />, color: "#2d2d73" },
             { title: "Ongoing Cases", value: statsRes.ongoing || 0, icon: <FaSyncAlt />, color: "#f40014ff" },
             { title: "Resolved Cases", value: statsRes.resolved || 0, icon: <FaCheckCircle />, color: "#2a9d62ff" },
             { title: "Pending Reports", value: statsRes.pending || 0, icon: <FaClock />, color: "#f4b761ff" },
           ]);
         }
 
-        // 2. Fetch reports by category data
-        const categoryRes = await fetchWithToken("http://localhost:5000/api/reports/categories", token);
+        // 2. Fetch barangay options for admin - Currently disabled
+        /* if (isAdmin) {
+          try {
+            const barangayRes = await fetchWithToken("http://localhost:5000/api/barangays", token);
+            if (barangayRes.status === "success") {
+              setBarangayOptions([{ value: "all", label: "All Barangays" }, ...barangayRes.barangays]);
+            }
+          } catch (err) {
+            console.error("Failed to fetch barangays:", err);
+          }
+        } */
+
+        // 3. Fetch reports by category data
+        // For users and admins: get all categories (barangay filtering disabled)
+        const categoryEndpoint = "http://localhost:5000/api/reports/categories?filter=all";
+        const categoryRes = await fetchWithToken(categoryEndpoint, token);
         if (categoryRes.status === "success" && categoryRes.data && categoryRes.data.length > 0) {
           // Map data to include colors
           const formattedCategoryData = categoryRes.data.map(item => ({
@@ -113,12 +129,9 @@ function Home({ token, session }) {
             setCategoryData([{ name: "No Data", value: 1, color: "#ccc" }]);
         }
 
-        // 3. Fetch recent reports - different queries for admin vs resident
-        const reportsFilter = isAdmin ? "all" : "my";
-        const recentRes = await fetchWithToken(
-          `http://localhost:5000/api/reports?limit=5&sort=desc&filter=${reportsFilter}`,
-          token
-        );
+        // 4. Fetch recent reports - all reports for everyone (barangay filtering disabled)
+        const reportsEndpoint = `http://localhost:5000/api/reports?limit=5&sort=desc&filter=all`;
+        const recentRes = await fetchWithToken(reportsEndpoint, token);
         setRecentReports(recentRes.status === "success" ? recentRes.reports : []);
         
       } catch (err) {
@@ -152,9 +165,50 @@ function Home({ token, session }) {
     );
   }
 
+  const handleReportClick = (reportId) => {
+    // Navigate based on user role
+    const isAdmin = session?.user?.role === "Admin";
+    
+    if (isAdmin) {
+      // Admin goes to admin reports page with report modal opened
+      window.location.href = `/admin/reports?openModal=${reportId}`;
+    } else {
+      // Regular users go to reports page with report modal opened
+      window.location.href = `/reports?openModal=${reportId}`;
+    }
+  };
+
   return (
     <div className="dashboard">
       {error && <p className="error">{error}</p>}
+
+      {/* Barangay Filter for Admin - Currently Hidden 
+      {session?.user?.role === "Admin" && (
+        <div className="barangay-filter" style={{ marginBottom: "1rem" }}>
+          <label htmlFor="barangay-select" style={{ marginRight: "0.5rem", fontWeight: "500" }}>
+            Filter by Barangay:
+          </label>
+          <select
+            id="barangay-select"
+            value={selectedBarangay}
+            onChange={(e) => setSelectedBarangay(e.target.value)}
+            style={{
+              padding: "0.5rem",
+              borderRadius: "6px",
+              border: "1px solid #ddd",
+              backgroundColor: "white",
+              minWidth: "200px"
+            }}
+          >
+            {barangayOptions.map(option => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
+      */}
 
       <div className="stats-grid">
         {stats.map((stat, i) => (
@@ -180,14 +234,34 @@ function Home({ token, session }) {
           <ul>
             {recentReports.length ? (
               recentReports.map(report => (
-                <li key={report.id}>
+                <li 
+                  key={report.id} 
+                  onClick={() => handleReportClick(report.id)}
+                  style={{ cursor: "pointer" }}
+                  className="clickable-report"
+                >
                   <div className="report-header">
                     <strong>{report.title}</strong>
-                    <span className="report-date">
-                      {report.created_at ? new Date(report.created_at).toLocaleString() : "N/A"}
-                    </span>
+                    <div className="report-meta">
+                      <span className="report-date">
+                        {report.created_at ? new Date(report.created_at).toLocaleString() : "N/A"}
+                      </span>
+                      <span className="report-barangay" style={{ 
+                        marginLeft: "1rem", 
+                        padding: "0.2rem 0.5rem", 
+                        backgroundColor: "#e9e9ff", 
+                        color: "#2d2d73", 
+                        borderRadius: "12px", 
+                        fontSize: "0.8rem",
+                        fontWeight: "500"
+                      }}>
+                        📍 {report.address_barangay || "Unknown"}
+                      </span>
+                    </div>
                   </div>
-                  <div className="report-category">{report.category || "Uncategorized"}</div>
+                  <div className="report-details">
+                    <span className="report-category">{report.category || "Uncategorized"}</span>
+                  </div>
                 </li>
               ))
             ) : (

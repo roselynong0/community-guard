@@ -122,6 +122,47 @@
   color: #444;
 }
 
+.clickable-report {
+  transition: all 0.2s ease;
+}
+
+.clickable-report:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(45, 45, 115, 0.15) !important;
+  background: #f8f9ff !important;
+}
+
+.report-details {
+  display: flex;
+  align-items: center;
+  margin-top: 0.5rem;
+}
+
+.report-barangay-row {
+  margin-top: 0.3rem;
+  padding-left: 0; /* Align with category, not indented from date */
+}
+
+.report-barangay {
+  padding: 0.2rem 0.5rem;
+  background-color: #e9e9ff;
+  color: #2d2d73;
+  border-radius: 12px;
+  font-size: 0.8rem;
+  font-weight: 500;
+  display: inline-block;
+}
+
+.barangay-filter {
+  display: flex;
+  align-items: center;
+  background: #fff;
+  padding: 1rem;
+  border-radius: 10px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+  border: 1px solid #f1f5f9;
+}
+
 .reports-chart {
   background: #fff;
   border-radius: 12px;

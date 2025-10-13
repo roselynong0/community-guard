@@ -16,6 +16,7 @@ function AdminReports({ token }) {
   const [sort, setSort] = useState("latest");
   const [previewImage, setPreviewImage] = useState(null);
   const [notification, setNotification] = useState(null);
+  const [highlightedReportId, setHighlightedReportId] = useState(null);
 
   // States for the Status Update Modal
   const [isStatusModalOpen, setIsStatusModalOpen] = useState(false);
@@ -25,6 +26,8 @@ function AdminReports({ token }) {
   const [expandedPosts, setExpandedPosts] = useState([]);
   const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState(null);
+  const [isUserModalOpen, setIsUserModalOpen] = useState(false);
+  const [selectedUser, setSelectedUser] = useState(null);
   
   const barangays = [
     "All Barangay", "Barretto", "East Bajac-Bajac", "East Tapinac", "Gordon Heights",
@@ -92,6 +95,28 @@ function AdminReports({ token }) {
   useEffect(() => {
     fetchReports();
   }, [fetchReports]);
+
+  // Handle highlight parameter from URL
+  useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const highlightId = urlParams.get('highlight');
+    if (highlightId) {
+      setHighlightedReportId(parseInt(highlightId));
+      // Scroll to the highlighted report after a short delay
+      setTimeout(() => {
+        const reportElement = document.getElementById(`report-${highlightId}`);
+        if (reportElement) {
+          reportElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          // Remove highlight after 3 seconds
+          setTimeout(() => {
+            setHighlightedReportId(null);
+            // Clean up URL
+            window.history.replaceState({}, document.title, window.location.pathname);
+          }, 3000);
+        }
+      }, 500);
+    }
+  }, [reports]); // Depend on reports so it runs after reports are loaded
 
   const toggleExpand = (id) => {
     setExpandedPosts((prev) =>
@@ -273,7 +298,8 @@ function AdminReports({ token }) {
             return (
               <div
                 key={report.id}
-                className="report-card fade-in"
+                id={`report-${report.id}`}
+                className={`report-card fade-in ${highlightedReportId === report.id ? 'highlighted-report' : ''}`}
                 style={{ animationDelay: `${index * 0.1}s` }} 
               >
                 <div className="report-header">

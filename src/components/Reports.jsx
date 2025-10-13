@@ -60,6 +60,7 @@ function Reports({ session }) {
   const [deleteTarget, setDeleteTarget] = useState(null);
   // ⭐ NEW STATE FOR NOTIFICATION
   const [notification, setNotification] = useState(null); // { message: string, type: 'success' | 'error' | 'caution' }
+  const [highlightedReportId, setHighlightedReportId] = useState(null);
 
   // ⭐ NEW REFS FOR KEYBOARD NAVIGATION
   const modalRef = useRef(null);
@@ -333,6 +334,28 @@ function Reports({ session }) {
     setAppliedBarangay(barangay);
   }, [barangay]);
 
+  // Handle highlight parameter from URL
+  useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const highlightId = urlParams.get('highlight');
+    if (highlightId) {
+      setHighlightedReportId(parseInt(highlightId));
+      // Scroll to the highlighted report after a short delay
+      setTimeout(() => {
+        const reportElement = document.getElementById(`report-${highlightId}`);
+        if (reportElement) {
+          reportElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          // Remove highlight after 3 seconds
+          setTimeout(() => {
+            setHighlightedReportId(null);
+            // Clean up URL
+            window.history.replaceState({}, document.title, window.location.pathname);
+          }, 3000);
+        }
+      }, 500);
+    }
+  }, [reports]); // Depend on reports so it runs after reports are loaded
+
   return (
     <div className="reports-container">
       {notification && (
@@ -446,7 +469,11 @@ function Reports({ session }) {
                 }`;
 
             return (
-              <div key={report.id} className="report-card">
+              <div 
+                key={report.id} 
+                id={`report-${report.id}`}
+                className={`report-card ${highlightedReportId === report.id ? 'highlighted-report' : ''}`}
+              >
                 {/* Header */}
                 <div className="report-header">
                   <div className="report-header-left">
