@@ -87,7 +87,6 @@ function Home({ token, session }) {
       setError(null);
       try {
         // 1. Fetch dashboard stats
-        const isAdmin = session?.user?.role === "Admin";
         // Barangay filtering temporarily disabled
         const statsEndpoint = "http://localhost:5000/api/stats";
         const statsRes = await fetchWithToken(statsEndpoint, token);
@@ -170,11 +169,11 @@ function Home({ token, session }) {
     const isAdmin = session?.user?.role === "Admin";
     
     if (isAdmin) {
-      // Admin goes to admin reports page with report modal opened
-      window.location.href = `/admin/reports?openModal=${reportId}`;
+      // Admin goes to admin reports page with report highlighted
+      window.location.href = `/admin/reports?highlight=${reportId}`;
     } else {
-      // Regular users go to reports page with report modal opened
-      window.location.href = `/reports?openModal=${reportId}`;
+      // Regular users go to reports page with report highlighted
+      window.location.href = `/reports?highlight=${reportId}`;
     }
   };
 

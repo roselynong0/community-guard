@@ -138,21 +138,6 @@
   margin-top: 0.5rem;
 }
 
-.report-barangay-row {
-  margin-top: 0.3rem;
-  padding-left: 0; /* Align with category, not indented from date */
-}
-
-.report-barangay {
-  padding: 0.2rem 0.5rem;
-  background-color: #e9e9ff;
-  color: #2d2d73;
-  border-radius: 12px;
-  font-size: 0.8rem;
-  font-weight: 500;
-  display: inline-block;
-}
-
 .barangay-filter {
   display: flex;
   align-items: center;

@@ -26,8 +26,6 @@ function AdminReports({ token }) {
   const [expandedPosts, setExpandedPosts] = useState([]);
   const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState(null);
-  const [isUserModalOpen, setIsUserModalOpen] = useState(false);
-  const [selectedUser, setSelectedUser] = useState(null);
   
   const barangays = [
     "All Barangay", "Barretto", "East Bajac-Bajac", "East Tapinac", "Gordon Heights",

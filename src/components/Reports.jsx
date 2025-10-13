@@ -37,7 +37,7 @@ function Reports({ session }) {
   const [loading, setLoading] = useState(false);
   const [search, setSearch] = useState("");
   const [category, setCategory] = useState("All");
-  const [barangay, setBarangay] = useState("All");
+  const [barangay, setBarangay] = useState("All Barangays");
   const [sort, setSort] = useState("latest");
   const [showMyReports, setShowMyReports] = useState(false);
   const [previewImage, setPreviewImage] = useState(null);
@@ -90,7 +90,7 @@ function Reports({ session }) {
   // The 'applied' states will now track the current filter values directly (real-time).
   const [appliedSearch, setAppliedSearch] = useState("");
   const [appliedCategory, setAppliedCategory] = useState("All");
-  const [appliedBarangay, setAppliedBarangay] = useState("All");
+  const [appliedBarangay, setAppliedBarangay] = useState("All Barangays");
   const token = session?.token;
 
   // ⭐ NOTIFICATION HANDLER FUNCTION
@@ -301,7 +301,7 @@ function Reports({ session }) {
     )
     .filter((r) => appliedCategory === "All" || r.category === appliedCategory)
     .filter(
-      (r) => appliedBarangay === "All" || r.address_barangay === appliedBarangay
+      (r) => appliedBarangay === "All Barangays" || r.address_barangay === appliedBarangay
     )
     .filter((r) => {
       if (!appliedSearch) return true;
@@ -315,10 +315,10 @@ function Reports({ session }) {
   const handleResetFilters = () => {
     setSearch("");
     setCategory("All");
-    setBarangay("All");
+    setBarangay("All Barangays");
     setAppliedSearch("");
     setAppliedCategory("All");
-    setAppliedBarangay("All");
+    setAppliedBarangay("All Barangays");
     setSort("latest");
   };
 
@@ -338,8 +338,9 @@ function Reports({ session }) {
   useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search);
     const highlightId = urlParams.get('highlight');
-    if (highlightId) {
-      setHighlightedReportId(parseInt(highlightId));
+    if (highlightId && reports.length > 0) {
+      // Use string comparison since IDs might be UUIDs
+      setHighlightedReportId(highlightId);
       // Scroll to the highlighted report after a short delay
       setTimeout(() => {
         const reportElement = document.getElementById(`report-${highlightId}`);
@@ -425,29 +426,29 @@ function Reports({ session }) {
 
         {/* Buttons Group for Flex Layout */}
         <div className="action-buttons-group">
-          <div className="filter-btns">
-            <button
-              className="filter-icon-btn"
-              title="Reset"
-              onClick={handleResetFilters}
-            >
-              <FaRedo />
-            </button>
-          </div>
+          <div className="filter-btns">
+           <button
+              className="filter-icon-btn"
+              title="Reset"
+             onClick={handleResetFilters}
+            >
+            <FaRedo />
+            </button>
+          </div>
 
-          {/* Add Report Button */}
-          <button
-            className="add-btn"
-            onClick={() => {
-              resetNewReport();
-              setEditReportId(null);
-              setIsModalOpen(true);
-            }}
-          >
-            + Add Report
-          </button>
+          {/* Add Report Button */}
+          <button
+            className="add-btn"
+            onClick={() => {
+              resetNewReport();
+              setEditReportId(null);
+              setIsModalOpen(true);
+            }}
+          >
+            + Add Report
+          </button>
         </div>
-      </div>
+      </div>
 
       {/* Loading Indicator */}
       {loading && (
@@ -472,7 +473,7 @@ function Reports({ session }) {
               <div 
                 key={report.id} 
                 id={`report-${report.id}`}
-                className={`report-card ${highlightedReportId === report.id ? 'highlighted-report' : ''}`}
+                className={`report-card ${highlightedReportId === String(report.id) ? 'highlighted-report' : ''}`}
               >
                 {/* Header */}
                 <div className="report-header">
@@ -646,8 +647,8 @@ function Reports({ session }) {
                   }
                   tabIndex="0"
                 >
-                  {/* Filter "All" out of the form dropdown */}
-                  {barangays.filter((b) => b !== "All").map((b) => (
+                  {/* Filter "All Barangays" out of the form dropdown */}
+                  {barangays.filter((b) => b !== "All Barangays").map((b) => (
                     <option key={b} value={b}>
                       {b}
                     </option>
