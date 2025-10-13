@@ -7,7 +7,7 @@
 /* === HIGHLIGHTED REPORT === */
 .highlighted-report {
     border: 3px solid #2d2d73 !important;
-    box-shadow: 0 0 20px rgba(45, 45, 115, 0.3) !important;
+    box-shadow: 0 0 20px rgba(17, 22, 62, 0.3) !important;
     background: linear-gradient(135deg, #f8f9ff 0%, #e9e9ff 100%) !important;
     animation: highlightPulse 2s ease-in-out;
 }
