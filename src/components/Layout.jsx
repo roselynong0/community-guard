@@ -192,7 +192,10 @@ function Layout({ session, setSession, setNotification }) { // ✅ add setNotifi
             </div>
           )}
           </div>
-          <nav>
+          <nav  style={{
+              borderBottom: '1px solid rgba(255,255,255,0.1)',
+              textAlign: 'center'
+            }}>
             <NavLink to="/home"><FaHome /> Home</NavLink>
             <NavLink to="/maps"><FaMap /> Map</NavLink>
             <NavLink to="/reports"><FaPlusCircle /> Reports</NavLink>

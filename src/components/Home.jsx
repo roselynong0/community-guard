@@ -245,7 +245,11 @@ function Home({ token, session }) {
                       <span className="report-date">
                         {report.created_at ? new Date(report.created_at).toLocaleString() : "N/A"}
                       </span>
-                      <span className="report-barangay" style={{ 
+                    </div>
+                  </div>
+                  <div className="report-details">
+                    <span className="report-category">{report.category || "Uncategorized"}</span>
+                    <span className="report-barangay" style={{ 
                         marginLeft: "1rem", 
                         padding: "0.2rem 0.5rem", 
                         backgroundColor: "#e9e9ff", 
@@ -256,10 +260,6 @@ function Home({ token, session }) {
                       }}>
                         📍 {report.address_barangay || "Unknown"}
                       </span>
-                    </div>
-                  </div>
-                  <div className="report-details">
-                    <span className="report-category">{report.category || "Uncategorized"}</span>
                   </div>
                 </li>
               ))

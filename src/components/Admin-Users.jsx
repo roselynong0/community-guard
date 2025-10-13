@@ -5,7 +5,7 @@ import {
   FaTimesCircle, 
   FaSearch, 
   FaUserCheck, 
-  FaUserTimes,
+  FaUserTimes, 
   FaEdit,
   FaPhone,
   FaCalendarAlt,
@@ -338,11 +338,13 @@ function AdminUsers({ token }) {
       );
   }, [users, statusFilter, roleFilter, debouncedSearch]);
 
-  // Memoized stats to prevent unnecessary recalculation
+  // Memoized stats to calculate the 5 required stats
   const stats = useMemo(() => ({
     totalUsers: users.length,
     fullyVerifiedUsers: users.filter(u => u.isverified && u.verified).length,
-    emailVerifiedUsers: users.filter(u => u.isverified && !u.verified).length,
+    // Renamed from pendingVerificationUsers to emailVerifiedUsers
+    emailVerifiedUsers: users.filter(u => u.isverified && !u.verified).length, 
+    unverifiedUsers: users.filter(u => !u.isverified).length, // Not even email verified
     adminUsers: users.filter(u => u.role === "Admin").length
   }), [users]);
 
@@ -352,8 +354,9 @@ function AdminUsers({ token }) {
         <h2>User Management</h2>
       </div>
 
-      {/* Stats Cards */}
+      {/* Stats Cards - FIVE Cards */}
       <div className="admin-stats-grid">
+        {/* 1. Total Users */}
         <div className="admin-stat-card">
           <div className="admin-stat-content">
             <FaUser className="admin-stat-icon" style={{ color: '#2d2d73' }} />
@@ -364,9 +367,10 @@ function AdminUsers({ token }) {
           </div>
         </div>
 
+        {/* 2. Fully Verified */}
         <div className="admin-stat-card verified">
           <div className="admin-stat-content">
-            <FaUserCheck className="admin-stat-icon" style={{ color: '#10b981' }} />
+            <FaCheckCircle className="admin-stat-icon" style={{ color: '#10b981' }} />
             <div className="admin-stat-text">
               <h4>Fully Verified</h4>
               <p>{stats.fullyVerifiedUsers}</p>
@@ -374,6 +378,7 @@ function AdminUsers({ token }) {
           </div>
         </div>
 
+        {/* 3. Email Verified (Renamed from Pending Full Verification) */}
         <div className="admin-stat-card email-verified">
           <div className="admin-stat-content">
             <FaUserCheck className="admin-stat-icon" style={{ color: '#f59e0b' }} />
@@ -383,7 +388,19 @@ function AdminUsers({ token }) {
             </div>
           </div>
         </div>
+        
+        {/* 4. Unverified Users */}
+        <div className="admin-stat-card unverified">
+          <div className="admin-stat-content">
+            <FaUserTimes className="admin-stat-icon" style={{ color: '#ef4444' }} />
+            <div className="admin-stat-text">
+              <h4>Unverified Users</h4>
+              <p>{stats.unverifiedUsers}</p>
+            </div>
+          </div>
+        </div>
 
+        {/* 5. Admins */}
         <div className="admin-stat-card admin">
           <div className="admin-stat-content">
             <FaUser className="admin-stat-icon" style={{ color: '#8b5cf6' }} />
@@ -535,10 +552,9 @@ function AdminUsers({ token }) {
               justifyContent: 'space-between',
               alignItems: 'center',
               padding: '24px 24px 0 24px',
-              borderBottom: '1px solid #e2e8f0',
-              marginBottom: '24px'
+              borderBottom: '1px solid #e2e8f0'
             }}>
-              <h3 style={{ margin: 0, color: '#1e293b', fontSize: '20px', fontWeight: 600 }}>
+              <h3 style={{ margin: 0, marginBottom: 10, color: '#fff', fontSize: '20px', fontWeight: 600 }}>
                 User Verification Review
               </h3>
               <button 
@@ -548,15 +564,16 @@ function AdminUsers({ token }) {
                   background: 'none',
                   border: 'none',
                   fontSize: '24px',
-                  color: '#64748b',
+                  color: '#fff',
                   cursor: 'pointer',
                   padding: '4px',
+                  marginBottom:'10px',
                   borderRadius: '4px'
                 }}
               >×</button>
             </div>
 
-            <div className="modal-content" style={{ padding: '0 24px 24px 24px' }}>
+            <div className="modal-content" style={{ maxWidth: '100%', margin: '0 auto', padding: '24px 24px' }}>
               {/* User Basic Info */}
               <div className="user-profile-section" style={{
                 display: 'flex',
@@ -968,6 +985,7 @@ function AdminUsers({ token }) {
                         className="remind-btn" 
                         onClick={sendVerificationReminder}
                         style={{
+                          width: 'auto',
                           padding: '12px 24px',
                           borderRadius: '8px',
                           fontSize: '14px',

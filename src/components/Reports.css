@@ -118,7 +118,7 @@ h2 {
   outline: none;
   border-color: #2d2d73;
   background-color: #fff;
-  box-shadow: 0 0 0 3px rgba(45, 45, 115, 0.1), 0 4px 8px rgba(0, 0, 0, 0.08);
+  box-shadow: 0 0 0 3px rgba(56, 123, 200, 0.1), 0 4px 8px rgba(0, 0, 0, 0.08);
 }
 
 .reports-filter-select:hover {
@@ -218,6 +218,11 @@ h2 {
 
 .search-group .filter-icon-btn:hover {
     color: #007bff; 
+}
+
+.filter-icon-btn:focus {
+  border: 2px solid #2d2d73; 
+  background: linear-gradient(135deg, #ffffff 0%, #f8f9fa 100%);
 }
 
 /* Position Search button (FaSearch) */
@@ -603,6 +608,19 @@ opacity: 0.9;
     display: grid;
     gap: 8px;
     width: 100%;
+}
+
+.close-fullscreen-btn {
+  position: absolute;
+  width: auto;
+  top: 20px;      
+  right: 20px;    
+  background: transparent;
+  border: none;
+  color: #fff;   
+  font-size: 28px;
+  cursor: pointer;
+  z-index: 9999;
 }
 
 /* Single image - full width */

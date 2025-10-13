@@ -79,7 +79,7 @@
 }
 
 .admin-stat-card.unverified {
-    border-left-color: #f59e0b;
+    border-left-color: #f50b0b;
 }
 
 .admin-stat-card.admin {
@@ -225,6 +225,18 @@ input.admin-search-input {
     border-color: #3b82f6;
 }
 
+.sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border-width: 0;
+}
+
 /* === USERS GRID === */
 .admin-users-grid {
     display: grid;
@@ -275,6 +287,7 @@ input.admin-search-input {
 /* === USER CARD CONTENT === */
 .admin-user-header {
     display: flex;
+    flex-wrap: wrap;
     align-items: center;
     justify-content: space-between;
     margin-bottom: 1rem;
@@ -333,7 +346,8 @@ input.admin-search-input {
 }
 
 .admin-user-meta {
-    display: grid;
+    display: flex;
+    justify-content: space-between;
     grid-template-columns: 1fr 1fr;
     gap: 0.5rem;
     font-size: 0.85rem;
