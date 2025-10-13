@@ -110,24 +110,28 @@ to { transform: translateY(0); opacity: 1; }
 
 .profile-header-actions {
     display: flex;
-    justify-content: space-between;
+    justify-content: flex-start;
     align-items: center;
-    margin-top: 10px;
 }
 
 .upload-btn {
-    display: inline-block;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
     background: #e9e9ff;
     color: #2d2d73;
-    padding: 6px 12px;
+    padding: 8px 12px;
     border-radius: 6px;
     font-size: 13px;
     cursor: pointer;
+    height: 36px;
+    box-sizing: border-box;
+    align-self: center; /* Ensures vertical alignment with adjacent elements */
 }
 
 .upload-btn.flex-grow {
-  flex: 1 1 auto;
-  min-width: 0;
+    flex: 1 1 auto;
+    min-width: 0;
 }
 
 .profile-content {
@@ -733,6 +737,7 @@ label {
   transition: background 0.2s;
   color: #e74c3c;
   font-size: 1.2em;
+  align-self: center; /* Ensures vertical alignment with adjacent elements */
 }
 
 .trash-btn:hover,
@@ -849,4 +854,73 @@ label {
     .logout-btn-mobile:hover {
         background: #c0392b;
     }
+}
+
+/* User Verification Badge Styles */
+.user-verified-badge {
+    display: inline-block;
+    padding: 4px 8px;
+    border-radius: 12px;
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.user-verified-badge.verified {
+    background-color: #4caf50;
+    color: white;
+}
+
+.user-verified-badge.unverified {
+    background-color: #f44336;
+    color: white;
+}
+
+/* Admin-style verification status badges */
+.admin-verification-status {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 4px 8px;
+    border-radius: 12px;
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.admin-verification-status.fully-verified {
+    background-color: #10b981;
+    color: white;
+}
+
+.admin-verification-status.email-verified {
+    background-color: #f59e0b;
+    color: white;
+}
+
+.admin-verification-status.unverified {
+    background-color: #ef4444;
+    color: white;
+}
+
+/* Admin-style role badge */
+.admin-role-badge {
+    padding: 0.25rem 0.75rem;
+    border-radius: 20px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.admin-role-badge.admin {
+    background: rgba(139, 92, 246, 0.1);
+    color: #8b5cf6;
+}
+
+.admin-role-badge.resident {
+    background: rgba(59, 130, 246, 0.1);
+    color: #3b82f6;
 }

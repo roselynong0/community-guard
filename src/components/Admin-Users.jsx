@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useMemo } from "react";
 import { 
   FaUser, 
   FaCheckCircle, 
@@ -15,7 +15,8 @@ import {
   FaBell
 } from "react-icons/fa";
 import "./Admin-report.css";
-import "./Notification.css"; 
+import "./Notification.css";
+import "./Admin-Users-Performance.css"; 
 
 const API_URL = "http://localhost:5000/api";
 
@@ -23,9 +24,18 @@ function AdminUsers({ token }) {
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("All"); 
   const [roleFilter, setRoleFilter] = useState("All");
   const [notification, setNotification] = useState(null);
+  
+  // Prevent multiple simultaneous fetches
+  const [isFetching, setIsFetching] = useState(false);
+  
+  // Cache and real-time update states
+  const [lastFetchTime, setLastFetchTime] = useState(null);
+  const [initialLoadComplete, setInitialLoadComplete] = useState(false);
+  const CACHE_DURATION = 30000; // 30 seconds cache
   
   // Modal states for verification
   const [selectedUser, setSelectedUser] = useState(null);
@@ -40,15 +50,31 @@ function AdminUsers({ token }) {
     setTimeout(() => setNotification(null), 4000);
   }, []);
 
-  // Fetch users from API
-  const fetchUsers = useCallback(async () => {
-    if (!token) {
+  // Optimized fetch with caching and incremental loading
+  const fetchUsers = useCallback(async (force = false) => {
+    // Check cache validity
+    const now = Date.now();
+    if (!force && lastFetchTime && (now - lastFetchTime) < CACHE_DURATION && initialLoadComplete) {
+      console.log('📋 Using cached user data');
+      return;
+    }
+
+    if (!token || isFetching) {
       setLoading(false);
       return;
     }
 
-    setLoading(true);
+    // Only show loading spinner on initial load or forced refresh
+    if (!initialLoadComplete) {
+      setLoading(true);
+    }
+    setIsFetching(true);
+    
+    console.log('🔄 Fetching users at:', new Date().toLocaleTimeString());
+    
     try {
+      const startTime = performance.now();
+      
       const response = await fetch(`${API_URL}/users/verification`, {
         headers: { 
           'Authorization': `Bearer ${token}`,
@@ -62,19 +88,61 @@ function AdminUsers({ token }) {
 
       const data = await response.json();
       if (data.status === "success") {
-        console.log('📥 Fetched users data:', data.users?.slice(0, 2)); // Log first 2 users for debugging
         setUsers(data.users || []);
+        setLastFetchTime(now);
+        
+        if (!initialLoadComplete) {
+          setInitialLoadComplete(true);
+        }
+        
+        const loadTime = Math.round(performance.now() - startTime);
+        console.log(`✅ Users loaded in ${loadTime}ms`);
       } else {
         throw new Error(data.message || 'Failed to fetch users');
       }
     } catch (error) {
       console.error('Error fetching users:', error);
-      showNotification('Failed to load users. Please try again.', 'error');
+      // Show error notification without causing re-render
+      setNotification({ message: 'Failed to load users. Please try again.', type: 'error' });
+      setTimeout(() => setNotification(null), 4000);
       setUsers([]);
     } finally {
       setLoading(false);
+      setIsFetching(false);
     }
-  }, [token, showNotification]);
+  }, [token, isFetching, lastFetchTime, initialLoadComplete, CACHE_DURATION]);
+
+  // Debounce search input to prevent excessive filtering
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearch(search);
+    }, 300); // 300ms delay
+
+    return () => clearTimeout(timer);
+  }, [search]);
+
+  // Real-time update function for individual user changes
+  const updateUserInState = useCallback((updatedUser) => {
+    setUsers(prevUsers => 
+      prevUsers.map(user => 
+        user.id === updatedUser.id ? { ...user, ...updatedUser } : user
+      )
+    );
+  }, []);
+
+
+
+  // Auto-refresh timer for real-time updates
+  useEffect(() => {
+    if (!initialLoadComplete) return;
+
+    const interval = setInterval(() => {
+      console.log('⏰ Auto-refreshing user data...');
+      fetchUsers(false); // Soft refresh (respects cache)
+    }, 60000); // Refresh every minute
+
+    return () => clearInterval(interval);
+  }, [fetchUsers, initialLoadComplete]);
 
   useEffect(() => {
     fetchUsers();
@@ -163,22 +231,19 @@ function AdminUsers({ token }) {
       if (data.status === "success") {
         console.log('✅ Verification successful, updating local state for user:', selectedUser.id);
         
-        // Update local state to reflect full verification
-        setUsers(prevUsers => {
-          const updatedUsers = prevUsers.map(user =>
-            user.id === selectedUser.id 
-              ? { ...user, verified: true, fully_verified: true } 
-              : user
-          );
-          console.log('🔄 Local state updated, user now verified:', updatedUsers.find(u => u.id === selectedUser.id));
-          return updatedUsers;
-        });
+        // Real-time update: immediately update the user in state
+        const updatedUser = { 
+          ...selectedUser, 
+          verified: true, 
+          fully_verified: true 
+        };
+        updateUserInState(updatedUser);
+        console.log('🔄 Local state updated, user now verified:', updatedUser);
         
         showNotification(`✅ ${selectedUser.firstname} ${selectedUser.lastname} successfully verified!`, 'success');
         closeVerificationModal();
         
-        // Refresh users list to get updated data from server
-        fetchUsers();
+        // Real-time update complete - no need to fetch from server
       } else {
         throw new Error(data.message || 'Failed to verify user');
       }
@@ -260,23 +325,26 @@ function AdminUsers({ token }) {
     }
   };
 
-  // Filtered users
-  const filteredUsers = users
-    .filter((u) => (statusFilter === "All" ? true : 
-      statusFilter === "Verified" ? u.isverified : !u.isverified))
-    .filter((u) => (roleFilter === "All" ? true : u.role === roleFilter))
-    .filter(
-      (u) =>
-        `${u.firstname} ${u.lastname}`.toLowerCase().includes(search.toLowerCase()) ||
-        u.email.toLowerCase().includes(search.toLowerCase())
-    );
+  // Memoized filtered users to prevent unnecessary re-renders
+  const filteredUsers = useMemo(() => {
+    return users
+      .filter((u) => (statusFilter === "All" ? true : 
+        statusFilter === "Verified" ? (u.isverified && u.verified) : !(u.isverified && u.verified)))
+      .filter((u) => (roleFilter === "All" ? true : u.role === roleFilter))
+      .filter(
+        (u) =>
+          `${u.firstname} ${u.lastname}`.toLowerCase().includes(debouncedSearch.toLowerCase()) ||
+          u.email.toLowerCase().includes(debouncedSearch.toLowerCase())
+      );
+  }, [users, statusFilter, roleFilter, debouncedSearch]);
 
-  // Stats - Updated to handle three verification states (using consistent field names)
-  const totalUsers = users.length;
-  const fullyVerifiedUsers = users.filter(u => u.isverified && u.verified).length; // Both email and full verification
-  const emailVerifiedUsers = users.filter(u => u.isverified && !u.verified).length; // Only email verified
-  const unverifiedUsers = users.filter(u => !u.isverified).length;
-  const adminUsers = users.filter(u => u.role === "Admin").length;
+  // Memoized stats to prevent unnecessary recalculation
+  const stats = useMemo(() => ({
+    totalUsers: users.length,
+    fullyVerifiedUsers: users.filter(u => u.isverified && u.verified).length,
+    emailVerifiedUsers: users.filter(u => u.isverified && !u.verified).length,
+    adminUsers: users.filter(u => u.role === "Admin").length
+  }), [users]);
 
   return (
     <div className="admin-container">
@@ -291,7 +359,7 @@ function AdminUsers({ token }) {
             <FaUser className="admin-stat-icon" style={{ color: '#2d2d73' }} />
             <div className="admin-stat-text">
               <h4>Total Users</h4>
-              <p>{totalUsers}</p>
+              <p>{stats.totalUsers}</p>
             </div>
           </div>
         </div>
@@ -301,7 +369,7 @@ function AdminUsers({ token }) {
             <FaUserCheck className="admin-stat-icon" style={{ color: '#10b981' }} />
             <div className="admin-stat-text">
               <h4>Fully Verified</h4>
-              <p>{fullyVerifiedUsers}</p>
+              <p>{stats.fullyVerifiedUsers}</p>
             </div>
           </div>
         </div>
@@ -311,17 +379,7 @@ function AdminUsers({ token }) {
             <FaUserCheck className="admin-stat-icon" style={{ color: '#f59e0b' }} />
             <div className="admin-stat-text">
               <h4>Email Verified</h4>
-              <p>{emailVerifiedUsers}</p>
-            </div>
-          </div>
-        </div>
-
-        <div className="admin-stat-card unverified">
-          <div className="admin-stat-content">
-            <FaUserTimes className="admin-stat-icon" style={{ color: '#ef4444' }} />
-            <div className="admin-stat-text">
-              <h4>Unverified</h4>
-              <p>{unverifiedUsers}</p>
+              <p>{stats.emailVerifiedUsers}</p>
             </div>
           </div>
         </div>
@@ -331,7 +389,7 @@ function AdminUsers({ token }) {
             <FaUser className="admin-stat-icon" style={{ color: '#8b5cf6' }} />
             <div className="admin-stat-text">
               <h4>Admins</h4>
-              <p>{adminUsers}</p>
+              <p>{stats.adminUsers}</p>
             </div>
           </div>
         </div>

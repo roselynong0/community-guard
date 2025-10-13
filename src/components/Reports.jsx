@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import axios from "axios";
-import { FaEdit, FaTrashAlt, FaSearch, FaRedo } from "react-icons/fa";
+import { FaEdit, FaTrashAlt, FaSearch, FaRedo, FaCheckCircle, FaTimesCircle } from "react-icons/fa";
 import { MapContainer, TileLayer, Marker, useMapEvents } from "react-leaflet";
 import "leaflet/dist/leaflet.css";
 import L from "leaflet";
@@ -50,6 +50,7 @@ function Reports({ session }) {
     barangay: "All",
     addressStreet: "",
     images: [],
+    existingImages: [],
     lat: null,
     lng: null,
     date: new Date(),
@@ -110,11 +111,16 @@ function Reports({ session }) {
         `${API_URL}/reports?sort=${sort === "latest" ? "desc" : "asc"}`,
         { headers: { Authorization: `Bearer ${token}` } }
       );
-      if (res.data.status === "success") {
-        setReports(res.data.reports || []);
+      if (res.data.status === "success" && Array.isArray(res.data.reports)) {
+        setReports(res.data.reports);
+      } else {
+        console.warn("Unexpected response format:", res.data);
+        setReports([]);
       }
     } catch (err) {
-      console.error(err);
+      console.error("Error fetching reports:", err);
+      // On error, preserve existing reports to prevent blank page
+      // Only set empty array if there are no existing reports
     } finally {
       setLoading(false);
     }
@@ -207,27 +213,54 @@ function Reports({ session }) {
       newReport.images.forEach((file) => formData.append("images", file));
 
       if (editReportId) {
-        await axios.put(`${API_URL}/reports/${editReportId}`, formData, {
+        const response = await axios.put(`${API_URL}/reports/${editReportId}`, formData, {
           headers: {
             Authorization: `Bearer ${token}`,
             "Content-Type": "multipart/form-data",
           },
         });
+        
+        // Real-time update: Update the specific report in the list with complete data
+        if (response.data.status === "success" && response.data.report) {
+          console.log("Update Response:", response.data.report); // Debug log
+          
+          const updatedReport = response.data.report;
+          setReports(prevReports => 
+            prevReports.map(report => 
+              report.id === editReportId 
+                ? { 
+                    ...report, 
+                    ...updatedReport,
+                    // Preserve reporter info to avoid badge rendering issues
+                    reporter: report.reporter || updatedReport.reporter,
+                    // Ensure all updated fields are properly set
+                    images: updatedReport.images || report.images || [],
+                    updated_at: updatedReport.updated_at || new Date().toISOString()
+                  }
+                : report
+            )
+          );
+        }
         showNotification("✓ Report updated successfully!", "success");
       } else {
-        await axios.post(`${API_URL}/reports`, formData, {
+        const response = await axios.post(`${API_URL}/reports`, formData, {
           headers: {
             Authorization: `Bearer ${token}`,
             "Content-Type": "multipart/form-data",
           },
         });
+        
+        // Real-time update: Add new report to the top of the list
+        if (response.data.status === "success") {
+          setReports(prevReports => [response.data.report, ...prevReports]);
+        }
         showNotification("✓ Report submitted successfully!", "success");
       }
 
       resetNewReport();
       setIsModalOpen(false);
       setEditReportId(null);
-      fetchReports();
+      // Remove fetchReports() call - no longer needed for real-time updates
     } catch (err) {
       console.error("Add/Update Error:", err);
       showNotification(
@@ -246,6 +279,7 @@ function Reports({ session }) {
       barangay: report.address_barangay || "All", // Use address_barangay from the report object
       addressStreet: report.address_street || "",
       images: [],
+      existingImages: report.images || [], // Store existing images separately
       lat: report.latitude || null,
       lng: report.longitude || null,
       date: report.created_at ? new Date(report.created_at) : new Date(),
@@ -261,10 +295,16 @@ function Reports({ session }) {
         { deleted: true },
         { headers: { Authorization: `Bearer ${token}` } }
       );
+      
+      // Real-time update: Remove the deleted report from the list
+      setReports(prevReports => 
+        prevReports.filter(report => report.id !== deleteTarget.id)
+      );
+      
       showNotification("🗑️ Report deleted successfully!", "success");
       setIsDeleteConfirmOpen(false);
       setDeleteTarget(null);
-      fetchReports();
+      // Remove fetchReports() call - no longer needed for real-time updates
     } catch (err) {
       console.error("Delete Error:", err);
       showNotification("Failed to delete report. Please try again.", "error");
@@ -285,6 +325,7 @@ function Reports({ session }) {
       barangay: "Barretto", // Set a default barangay other than "All" for form
       addressStreet: "",
       images: [],
+      existingImages: [],
       lat: null,
       lng: null,
       date: new Date(),
@@ -493,22 +534,22 @@ function Reports({ session }) {
                               report.reporter.lastname || ""
                             }`.trim()}
                             <span
-                              className={`user-verified-badge ${
-                                report.reporter.isverified
-                                  ? "verified"
-                                  : "unverified"
+                              className={`admin-verification-status ${
+                                report.reporter.verified ? "fully-verified" : "unverified"
                               }`}
                             >
-                              {report.reporter.isverified
-                                ? "Verified"
-                                : "Unverified"}
+                              {report.reporter.verified ? (
+                                <><FaCheckCircle />Verified</>
+                              ) : (
+                                <><FaTimesCircle />Unverified</>
+                              )}
                             </span>
                           </>
                         ) : (
                           <>
                             Unknown User
-                            <span className="user-verified-badge unverified">
-                              Unverified
+                            <span className="admin-verification-status unverified">
+                              <FaTimesCircle />Unverified
                             </span>
                           </>
                         )}
@@ -703,13 +744,13 @@ function Reports({ session }) {
               </div>
 
               <label className="upload-btn">
-                Upload Image(s)
+                {editReportId ? "Replace Image(s)" : "Upload Image(s)"}
                 <input
                   type="file"
                   accept="image/*"
                   multiple
                   onChange={(e) => {
-                    // Limit to 5 images
+                    // Limit to 5 images total
                     const files = Array.from(e.target.files).slice(0, 5);
                     setNewReport((prev) => ({ ...prev, images: files }));
                   }}
@@ -717,22 +758,55 @@ function Reports({ session }) {
                 />
               </label>
 
+              {/* Show existing images when editing */}
+              {editReportId && newReport.images.length === 0 && (
+                <div>
+                  {newReport.existingImages && newReport.existingImages.length > 0 ? (
+                    <>
+                      <p style={{ fontSize: '12px', color: '#666', margin: '5px 0' }}>Current Images:</p>
+                      <div
+                        className={`report-images images-${newReport.existingImages.length}`}
+                      >
+                        {newReport.existingImages.map((imgObj, idx) => (
+                          <img
+                            key={`existing-${idx}`}
+                            src={`${API_URL}${imgObj.url}`}
+                            alt={`existing-${idx}`}
+                            className="report-collage-img"
+                          />
+                        ))}
+                      </div>
+                    </>
+                  ) : (
+                    <p style={{ fontSize: '12px', color: '#999', margin: '5px 0', fontStyle: 'italic' }}>
+                      No images currently attached to this report.
+                    </p>
+                  )}
+                </div>
+              )}
+
+              {/* Show new images when files are selected */}
               {newReport.images && newReport.images.length > 0 && (
-                <div
-                  className={`report-images images-${newReport.images.length}`}
-                >
-                  {newReport.images.map((file, idx) => (
-                    <img
-                      key={idx}
-                      src={
-                        typeof file === "string"
-                          ? file
-                          : URL.createObjectURL(file)
-                      }
-                      alt={`preview-${idx}`}
-                      className="report-collage-img"
-                    />
-                  ))}
+                <div>
+                  <p style={{ fontSize: '12px', color: '#666', margin: '5px 0' }}>
+                    {editReportId ? "New Images (will replace current):" : "Selected Images:"}
+                  </p>
+                  <div
+                    className={`report-images images-${newReport.images.length}`}
+                  >
+                    {newReport.images.map((file, idx) => (
+                      <img
+                        key={`new-${idx}`}
+                        src={
+                          typeof file === "string"
+                            ? file
+                            : URL.createObjectURL(file)
+                        }
+                        alt={`preview-${idx}`}
+                        className="report-collage-img"
+                      />
+                    ))}
+                  </div>
                 </div>
               )}
             </div>

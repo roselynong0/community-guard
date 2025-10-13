@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useCallback } from "react";
-import { FaEdit, FaTrashAlt, FaSearch, FaRedo } from "react-icons/fa";
-import "./Reports.css";
-import "./admin-report.css"; 
+import { FaEdit, FaTrashAlt, FaSearch, FaRedo, FaCheckCircle, FaTimesCircle } from "react-icons/fa";
+import "./Reports.css"; 
 
 const API_URL = "http://localhost:5000/api";
 const REPORT_STATUSES = ["Pending", "Ongoing", "Resolved"];
@@ -49,7 +48,8 @@ function AdminReports({ token }) {
 
     setLoading(true);
     try {
-      const response = await fetch(`${API_URL}/reports?limit=50&sort=${sort}`, {
+      const sortParam = sort === "latest" ? "desc" : "asc";
+      const response = await fetch(`${API_URL}/reports?limit=50&sort=${sortParam}`, {
         headers: { 
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
@@ -62,33 +62,48 @@ function AdminReports({ token }) {
 
       const data = await response.json();
       if (data.status === "success") {
+        // Ensure data.reports is an array
+        const reports = Array.isArray(data.reports) ? data.reports : [];
+        
         // Transform the data to match our component structure
-        const transformedReports = data.reports.map(report => ({
-          id: report.id,
-          user: `${report.reporter?.firstname || 'Unknown'} ${report.reporter?.lastname || ''}`.trim(),
-          user_verified: report.reporter?.isverified || false,
-          user_id: report.user_id,
-          date: report.created_at,
-          category: report.category,
-          addressStreet: report.address_street || '',
-          barangay: report.address_barangay || 'Unknown',
-          title: report.title,
-          description: report.description,
-          status: report.status,
-          images: report.images?.map(img => img.url) || []
-        }));
+        const transformedReports = reports.map(report => {
+          // Create a fallback reporter if none exists
+          const fallbackReporter = {
+            id: 0,
+            firstname: "Unknown",
+            lastname: "User",
+            verified: false,
+            isverified: false,
+            avatar_url: null
+          };
+          
+          return {
+            id: report.id,
+            reporter: report.reporter || fallbackReporter,
+            user_id: report.user_id,
+            date: report.created_at,
+            created_at: report.created_at,
+            category: report.category || 'N/A',
+            addressStreet: report.address_street || 'No address',
+            barangay: report.address_barangay || 'Unknown',
+            address_barangay: report.address_barangay || 'Unknown',
+            title: report.title || 'Untitled Report',
+            description: report.description || 'No description provided',
+            status: report.status || 'Pending',
+            images: report.images?.map(img => img.url) || []
+          };
+        });
         setReports(transformedReports);
       } else {
         throw new Error(data.message || 'Failed to fetch reports');
       }
     } catch (error) {
-      console.error('Error fetching reports:', error);
-      showNotification('Failed to load reports. Please try again.', 'error');
+      console.error('Error fetching reports:', error);  
       setReports([]);
     } finally {
       setLoading(false);
     }
-  }, [token, sort, showNotification]);
+  }, [token, sort]);
 
   useEffect(() => {
     fetchReports();
@@ -131,7 +146,16 @@ function AdminReports({ token }) {
   const handleUpdateStatus = async () => {
     if (!selectedReport || !newStatus || !token) return;
 
+    // Prevent updating if status hasn't changed
+    if (newStatus === selectedReport.status) {
+      showNotification('Status is already set to ' + newStatus, 'info');
+      setIsStatusModalOpen(false);
+      return;
+    }
+
     try {
+      console.log(`Updating report ${selectedReport.id} status: ${selectedReport.status} → ${newStatus}`);
+      
       const response = await fetch(`${API_URL}/reports/${selectedReport.id}/status`, {
         method: 'PUT',
         headers: {
@@ -150,27 +174,30 @@ function AdminReports({ token }) {
 
       const data = await response.json();
       if (data.status === "success") {
-        // Update local state
+        // Real-time update: Update the specific report status in the list
         setReports(prevReports =>
           prevReports.map(r =>
             r.id === selectedReport.id ? { ...r, status: newStatus } : r
           )
         );
         
-        showNotification(`Report status updated to ${newStatus}`, 'success');
+        showNotification(
+          `✅ Report status updated: ${selectedReport.status} → ${newStatus}. User has been notified.`, 
+          'success'
+        );
         
         // Close modal
         setIsStatusModalOpen(false);
         setSelectedReport(null);
         setNewStatus("");
         
-        // Backend handles sending notification to the user
+        console.log('Status update successful:', data);
       } else {
         throw new Error(data.message || 'Failed to update status');
       }
     } catch (error) {
       console.error('Error updating report status:', error);
-      showNotification(`Failed to update status: ${error.message}`, 'error');
+      showNotification(`❌ Failed to update status: ${error.message}`, 'error');
     }
   };
 
@@ -193,7 +220,7 @@ function AdminReports({ token }) {
 
       const data = await response.json();
       if (data.status === "success") {
-        // Update local state
+        // Real-time update: Remove the deleted report from the list
         setReports(prevReports => 
           prevReports.filter(r => r.id !== deleteTarget.id)
         );
@@ -206,7 +233,7 @@ function AdminReports({ token }) {
         
         // Backend handles sending notification to the user about deletion
       } else {
-        throw new Error(data.message || 'Failed to delete report');
+        throw new Error(data.message || 'Failed for delete report');
       }
     } catch (error) {
       console.error('Error deleting report:', error);
@@ -220,9 +247,13 @@ function AdminReports({ token }) {
     .filter((r) => (barangay === "All" ? true : r.barangay === barangay))
     .filter((r) => (statusFilter === "All" ? true : r.status === statusFilter))
     .filter(
-      (r) =>
-        r.title.toLowerCase().includes(search.toLowerCase()) ||
-        r.user.toLowerCase().includes(search.toLowerCase())
+      (r) => {
+        const reporterName = r.reporter 
+          ? `${r.reporter.firstname || ""} ${r.reporter.lastname || ""}`.trim()
+          : "Unknown User";
+        return r.title.toLowerCase().includes(search.toLowerCase()) ||
+               reporterName.toLowerCase().includes(search.toLowerCase());
+      }
     );
 
   return (
@@ -289,6 +320,13 @@ function AdminReports({ token }) {
             <div className="spinner"></div>
             <p>Loading reports...</p>
           </div>
+        ) : reports.length === 0 ? (
+          <div style={{ padding: '20px', textAlign: 'center' }}>
+            <p>No reports found.</p>
+            <button onClick={fetchReports} style={{ marginTop: '10px' }}>
+              Retry Loading Reports
+            </button>
+          </div>
         ) : filteredReports.length > 0 ? (
           filteredReports.map((report, index) => {
             const isExpanded = expandedPosts.includes(report.id);
@@ -302,18 +340,47 @@ function AdminReports({ token }) {
               >
                 <div className="report-header">
                   <div className="report-header-left">
-                    <img src="/src/assets/profile.png" alt="profile" className="profile-pic" />
+                    <img 
+                      src={report.reporter?.avatar_url || "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%23ccc'%3E%3Cpath d='M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z'/%3E%3C/svg%3E"} 
+                      alt="profile" 
+                      className="profile-pic" 
+                      onError={(e) => {
+                        e.target.src = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%23ccc'%3E%3Cpath d='M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z'/%3E%3C/svg%3E";
+                      }}
+                    />
                     <div className="report-header-text">
                       <p className="report-user">
-                        {report.user}{" "}
-                        <span
-                          className={`user-verified-badge ${report.user_verified ? "verified" : "unverified"}`}
-                        >
-                          {report.user_verified ? "Verified" : "Unverified"}
-                        </span>
+                        {report.reporter ? (
+                          <>
+                            {`${report.reporter.firstname || ""} ${
+                              report.reporter.lastname || ""
+                            }`.trim()}{" "}
+                            <span
+                              className={`admin-verification-status ${
+                                report.reporter.verified ? "fully-verified" : "unverified"
+                              }`}
+                            >
+                              {report.reporter.verified ? (
+                                <><FaCheckCircle />Verified</>
+                              ) : (
+                                <><FaTimesCircle />Unverified</>
+                              )}
+                            </span>
+                          </>
+                        ) : (
+                          <>
+                            Unknown User{" "}
+                            <span className="admin-verification-status unverified">
+                              <FaTimesCircle />Unverified
+                            </span>
+                          </>
+                        )}
                       </p>
                       <p className="report-subinfo">
-                        {new Date(report.date).toLocaleDateString()} · {new Date(report.date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} · {report.category}
+                        {report.date
+                          ? new Date(report.date).toLocaleString()
+                          : ""}{" "}
+                        · {report.category}
                       </p>
                       <p className="report-address-info">
                         {report.addressStreet}, {report.barangay}, Olongapo City
@@ -372,7 +439,20 @@ function AdminReports({ token }) {
             );
           })
         ) : (
-          <p>No reports found matching your criteria.</p>
+          <div style={{ padding: '20px', textAlign: 'center' }}>
+            <p>No reports match your current filters.</p>
+            <button 
+              onClick={() => {
+                setSearch("");
+                setCategory("All");
+                setBarangay("All");
+                setStatusFilter("All");
+              }}
+              style={{ marginTop: '10px' }}
+            >
+              Clear All Filters
+            </button>
+          </div>
         )}
       </div>
 
@@ -380,22 +460,63 @@ function AdminReports({ token }) {
       {isStatusModalOpen && selectedReport && (
         <div className="modal-overlay" onClick={() => setIsStatusModalOpen(false)}>
           <div className="modal" onClick={(e) => e.stopPropagation()}>
-            <h3>Update Report Status</h3>
-            <p><strong>Report:</strong> {selectedReport.title}</p>
-            <p><strong>Current Status:</strong> 
-              <span className={`status-badge status-${selectedReport.status.toLowerCase()}`}>
-                {selectedReport.status}
-              </span>
-            </p>
-            <label>New Status:</label>
-            <select value={newStatus} onChange={(e) => setNewStatus(e.target.value)}>
-              {REPORT_STATUSES.map(status => (
-                <option key={status} value={status}>{status}</option>
-              ))}
-            </select>
+            <h3>📝 Update Report Status</h3>
+            <div style={{ marginBottom: '15px' }}>
+              <p><strong>Report:</strong> {selectedReport.title}</p>
+              <p><strong>Reporter:</strong> {
+                selectedReport.reporter 
+                  ? `${selectedReport.reporter.firstname || ""} ${selectedReport.reporter.lastname || ""}`.trim()
+                  : "Unknown User"
+              }</p>
+              <p><strong>Category:</strong> {selectedReport.category}</p>
+              <p><strong>Location:</strong> {selectedReport.addressStreet}, {selectedReport.barangay}</p>
+            </div>
+            
+            <div style={{ marginBottom: '20px' }}>
+              <p><strong>Current Status:</strong> 
+                <span className={`status-badge status-${selectedReport.status.toLowerCase()}`} style={{ marginLeft: '10px' }}>
+                  {selectedReport.status}
+                </span>
+              </p>
+            </div>
+            
+            <div style={{ marginBottom: '20px' }}>
+              <label style={{ display: 'block', marginBottom: '8px', fontWeight: 'bold' }}>
+                Select New Status:
+              </label>
+              <select 
+                value={newStatus} 
+                onChange={(e) => setNewStatus(e.target.value)}
+                style={{ width: '100%', padding: '8px', borderRadius: '4px', border: '1px solid #ccc' }}
+              >
+                {REPORT_STATUSES.map(status => (
+                  <option key={status} value={status}>
+                    {status} {status === selectedReport.status ? '(Current)' : ''}
+                  </option>
+                ))}
+              </select>
+            </div>
+            
+            {newStatus !== selectedReport.status && (
+              <div style={{ marginBottom: '15px', padding: '10px', backgroundColor: '#f0f8ff', borderRadius: '4px', fontSize: '0.9em' }}>
+                <p style={{ margin: 0, color: '#0066cc' }}>
+                  <strong>📧 Note:</strong> The user will receive a notification about this status change.
+                </p>
+              </div>
+            )}
+            
             <div className="modal-buttons edit-actions">
               <button onClick={() => setIsStatusModalOpen(false)}>Cancel</button>
-              <button onClick={handleUpdateStatus}>Update Status</button>
+              <button 
+                onClick={handleUpdateStatus}
+                disabled={newStatus === selectedReport.status}
+                style={{ 
+                  opacity: newStatus === selectedReport.status ? 0.6 : 1,
+                  cursor: newStatus === selectedReport.status ? 'not-allowed' : 'pointer'
+                }}
+              >
+                {newStatus === selectedReport.status ? 'No Change' : 'Update Status'}
+              </button>
             </div>
           </div>
         </div>
@@ -406,7 +527,11 @@ function AdminReports({ token }) {
         <div className="modal-overlay" onClick={() => setIsDeleteConfirmOpen(false)}>
           <div className="modal" onClick={(e) => e.stopPropagation()}>
             <h3>Delete Report</h3>
-            <p>Are you sure you want to delete report: "<strong>{deleteTarget?.title}</strong>" from user: {deleteTarget?.user}?</p>
+            <p>Are you sure you want to delete report: "<strong>{deleteTarget?.title}</strong>" from user: {
+              deleteTarget?.reporter 
+                ? `${deleteTarget.reporter.firstname || ""} ${deleteTarget.reporter.lastname || ""}`.trim()
+                : "Unknown User"
+            }?</p>
             <div className="delete-actions">
               <button onClick={handleDelete}>Yes, Delete Permanently</button>
               <button onClick={() => setIsDeleteConfirmOpen(false)}>Cancel</button>

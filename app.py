@@ -7,6 +7,7 @@ from dotenv import load_dotenv
 from datetime import datetime, timezone, timedelta
 import jwt
 from bcrypt import hashpw, gensalt, checkpw
+import time
 from functools import wraps
 from PIL import Image
 import io
@@ -354,18 +355,17 @@ def register():
             # Send email
             email_sent = send_verification_email(email, code)
 
-            # <<< ADD THIS FOR DEBUGGING >>>
             if email_sent:
-                print(f"Verification code [{code}] was sent to {email} (user_id: {new_user_id})")
+                print(f"📧 Verification email sent to {email}")
             else:
-                print(f"Failed to send verification code [{code}] to {email} (user_id: {new_user_id})")
+                print(f"❌ Email send failed for {email}")
 
         except Exception as e:
-            print("Failed to send verification email:", e)
+            print(f"❌ Email error: {e}")
 
 
         except Exception as e:
-            print("Failed to send verification email:", e)
+            print(f"❌ Email setup error: {e}")
 
         # ✅ Return success with user_id and email_sent flag
         return jsonify({
@@ -446,10 +446,10 @@ def send_email_code():
 
 
         if send_verification_email(email, code):
-            print(f"Resent verification code [{code}] to {email} (user_id: {user_id})")
+            print(f"📧 Verification code resent to {email}")
             return jsonify({"status": "success", "message": "Verification code sent!"}), 200
         else:
-            print(f"FAILED to resend verification code [{code}] to {email} (user_id: {user_id})")
+            print(f"❌ Resend failed for {email}")
             return jsonify({"status": "error", "message": "Failed to send email"}), 500
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
@@ -524,7 +524,7 @@ def verify_email_code():
 
     # 1) Validate inputs
     if not user_id or not code:
-        print("[verify] missing user_id or code:", data)
+        print("❌ Verification missing user_id or code")
         return jsonify({"status": "error", "message": "user_id and code required"}), 400
 
     try:
@@ -543,11 +543,10 @@ def verify_email_code():
         print("[verify] supabase resp:", records)
 
         if not records:
-            print("[verify] no matching unused record for user_id:", user_id, "code:", code)
+            print(f"❌ Invalid verification code for user {user_id}")
             return jsonify({"status": "invalid_code", "message": "Invalid or expired code"}), 400
 
         code_record = records[0]
-        print("[verify] code_record:", code_record)
 
         # 3) Parse expiry robustly (handle naive, 'Z', or offset-aware strings)
         raw_expires = code_record.get("expires_at")
@@ -571,25 +570,22 @@ def verify_email_code():
 
         now_utc = datetime.now(timezone.utc)
         if now_utc > expires_at:
-            print("[verify] code expired. now:", now_utc, "expires_at:", expires_at)
+            print("❌ Verification code expired")
             return jsonify({"status": "expired", "message": "Verification code expired"}), 400
 
         # 4) Mark code as used
-        upd = supabase.table("email_verifications").update({"is_used": True}).eq("id", code_record["id"]).execute()
-        print("[verify] marked used result:", getattr(upd, "data", None))
+        supabase.table("email_verifications").update({"is_used": True}).eq("id", code_record["id"]).execute()
 
         # 5) Mark user verified
-        uupd = supabase.table("users").update({"isverified": True}).eq("id", user_id).execute()
-        print("[verify] user updated result:", getattr(uupd, "data", None))
+        supabase.table("users").update({"isverified": True}).eq("id", user_id).execute()
 
         # 6) Clean up verification session if exists
         try:
             supabase.table("verification_sessions").delete().eq("user_id", user_id).execute()
-            print("[verify] cleaned up verification session")
         except Exception as cleanup_err:
-            print("[verify] cleanup error (non-critical):", cleanup_err)
+            pass  # Non-critical cleanup
 
-        print(f"[verify] SUCCESS for user_id={user_id}")
+        print(f"✅ Email verified for user {user_id}")
         return jsonify({"status": "success", "message": "Email verified!"}), 200
 
     except Exception as e:
@@ -635,8 +631,10 @@ def forgot_password():
 
         mail_sent = send_reset_code_email(email, reset_code)
         if mail_sent:
+            print(f"📧 Password reset code sent to {email}")
             return jsonify({"status": "success", "message": "Reset code sent!"}), 200
         else:
+            print(f"❌ Password reset email failed for {email}")
             return jsonify({"status": "error", "message": "Failed to send email"}), 500
 
     except Exception as e:
@@ -906,6 +904,7 @@ def get_profile():
             "lastname": with_default(user.get("lastname"), ""),
             "email": with_default(user.get("email"), "No email added yet"),
             "isverified": user.get("isverified", False),
+            "verified": info.get("verified", False),  # Add verified field from info table
             "label": "Verified" if user.get("isverified", False) else "Unverified",
             "role": with_default(user.get("role"), "Resident"),
             "avatar_url": with_default(user.get("avatar_url"), "/default-avatar.png"),
@@ -1075,9 +1074,10 @@ def upload_avatar():
         return jsonify({"status": "error", "message": str(e)}), 500
 
 # ----------------- DASHBOARD / REPORTS -----------------
-DEFAULT_REPORTER = {"id": 0, "firstname": "Unknown", "lastname": "", "avatar_url": "/default-avatar.png"}
+DEFAULT_REPORTER = {"id": 0, "firstname": "Unknown", "lastname": "User", "avatar_url": None, "isverified": False, "verified": False}
 
 def fetch_reports(limit=10, sort="desc", user_only=False, barangay_filter=False, barangay_param=None, user_id=None):
+    start_time = time.time()
     try:
         # Use retry mechanism for the main reports query
         def fetch_main_reports():
@@ -1107,22 +1107,42 @@ def fetch_reports(limit=10, sort="desc", user_only=False, barangay_filter=False,
         resp = supabase_retry(fetch_main_reports)
         reports = getattr(resp, "data", []) or []
 
-        print("Fetched reports:", reports)  # <<< Add this
+        if not reports:
+            print("📊 No reports found")
+            return []
 
-        # Attach reporter info and images with retry mechanism
+        # Batch fetch all reporter data for better performance
+        user_ids = list(set([report.get("user_id") for report in reports if report.get("user_id")]))
+        
+        # Batch queries for optimal performance
+        users_data = {}
+        info_data = {}
+        
+        if user_ids:
+            # Fetch all users in one query
+            users_resp = supabase.table("users").select("id, firstname, lastname, avatar_url, email, isverified").in_("id", user_ids).execute()
+            users_list = getattr(users_resp, "data", []) or []
+            users_data = {user["id"]: user for user in users_list}
+            
+            # Fetch all info data in one query
+            info_resp = supabase.table("info").select("user_id, verified").in_("user_id", user_ids).execute()
+            info_list = getattr(info_resp, "data", []) or []
+            info_data = {info["user_id"]: info for info in info_list}
+
+        print(f"📊 Loaded {len(reports)} reports with {len(users_data)} users")
+
+        # Attach reporter info to each report
         for report in reports:
             author_id = report.get("user_id")
             
-            # Retry for user data
-            def fetch_reporter():
-                return supabase.table("users").select("id, firstname, lastname, avatar_url, email").eq("id", author_id).execute()
-            
-            try:
-                user_resp = supabase_retry(fetch_reporter)
-                reporter = getattr(user_resp, "data", [None])[0] or DEFAULT_REPORTER
-            except Exception as e:
-                print(f"Failed to fetch reporter for report {report.get('id')}: {e}")
-                reporter = DEFAULT_REPORTER
+            # Get reporter data from batch-fetched data
+            reporter = users_data.get(author_id, DEFAULT_REPORTER.copy())
+            if reporter != DEFAULT_REPORTER:
+                # Add verification info from batch-fetched info data
+                user_info = info_data.get(author_id, {})
+                reporter["verified"] = user_info.get("verified", False)
+            else:
+                reporter["verified"] = False
             
             report["reporter"] = reporter
             report["user_email"] = reporter.get("email")
@@ -1130,17 +1150,31 @@ def fetch_reports(limit=10, sort="desc", user_only=False, barangay_filter=False,
             # Force barangay to string
             report["barangay"] = str(report.get("address_barangay") or "All")
 
-            # Retry for images data
-            def fetch_images():
-                return supabase.table("report_images").select("image_url").eq("report_id", report["id"]).execute()
-            
+        # Batch fetch all images for all reports in one query
+        report_ids = [report["id"] for report in reports]
+        images_data = {}
+        
+        if report_ids:
             try:
-                images_resp = supabase_retry(fetch_images)
-                report["images"] = [{"url": img["image_url"]} for img in getattr(images_resp, "data", [])] if images_resp.data else []
+                images_resp = supabase.table("report_images").select("report_id, image_url").in_("report_id", report_ids).execute()
+                images_list = getattr(images_resp, "data", []) or []
+                
+                # Group images by report_id
+                for img in images_list:
+                    report_id = img["report_id"]
+                    if report_id not in images_data:
+                        images_data[report_id] = []
+                    images_data[report_id].append({"url": img["image_url"]})
             except Exception as e:
-                print(f"Failed to fetch images for report {report.get('id')}: {e}")
-                report["images"] = []
+                print(f"⚠️ Failed to batch fetch images: {e}")
 
+        # Attach images to each report
+        for report in reports:
+            report["images"] = images_data.get(report["id"], [])
+
+        total_time = round((time.time() - start_time) * 1000, 1)
+        print(f"✅ Reports processed in {total_time}ms total")
+        
         return reports
     except Exception as e:
         print("fetch_reports error:", e)
@@ -1155,6 +1189,8 @@ def get_reports():
         sort = request.args.get("sort", "desc").lower()
         filter_type = request.args.get("filter", "all").lower() # 'all', 'my', or 'barangay'
         barangay_filter_param = request.args.get("barangay")
+        
+        print(f"📊 Fetching reports: filter={filter_type}, limit={limit}")
         
         # Determine filtering options
         user_only_filter = filter_type == "my"
@@ -1171,9 +1207,10 @@ def get_reports():
             user_id=user_id_to_filter
         ) 
         
+        print(f"✅ Sent {len(reports)} reports to client")
         return jsonify({"status": "success", "reports": reports}), 200
     except Exception as e:
-        # NOTE: Make sure DEFAULT_REPORTER is defined globally
+        print(f"❌ Reports fetch failed: {str(e)}")
         return jsonify({"status": "error", "message": str(e), "reports": []}), 500
 
 @app.route("/api/reports", methods=["POST"])
@@ -1595,44 +1632,120 @@ def get_users_for_verification():
     try:
         # Get user data first to check if admin
         user_id = request.user_id
+        print(f"[DEBUG] GET /api/users/verification - Admin User: {user_id}")
+        
         current_user_resp = supabase.table("users").select("role").eq("id", user_id).single().execute()
         current_user = current_user_resp.data if current_user_resp.data else {}
         
         if current_user.get("role") != "Admin":
+            print(f"[ERROR] Non-admin user {user_id} attempted to access user verification")
             return jsonify({"status": "error", "message": "Admin access required"}), 403
 
-        # Get all users with their basic info
+        # Get pagination parameters
+        page = int(request.args.get('page', 1))
+        limit = int(request.args.get('limit', 50))  # Default 50 users per page
+        offset = (page - 1) * limit
+        
+        start_time = time.time()
+        print(f"🔍 Admin fetching users: page={page}, limit={limit}")
+        
+        # Use optimized PostgreSQL function for maximum performance
+        try:
+            users_response = supabase.rpc('get_users_with_verification', {
+                'limit_count': limit,
+                'offset_count': offset
+            }).execute()
+            
+            users = getattr(users_response, "data", []) or []
+            
+            if users:
+                load_time = round((time.time() - start_time) * 1000, 1)
+                print(f"✅ PostgreSQL RPC: {len(users)} users in {load_time}ms")
+                
+                # Transform data to match expected format
+                enhanced_users = []
+                for user in users:
+                    enhanced_user = {
+                        "id": user["id"],
+                        "firstname": user["firstname"],
+                        "lastname": user["lastname"],
+                        "email": user["email"],
+                        "role": user["role"],
+                        "isverified": user["isverified"],
+                        "avatar_url": user["avatar_url"],
+                        "created_at": user["created_at"],
+                        "verified": user["verified"],
+                        "fully_verified": user["fully_verified"],
+                        "address_barangay": user["address_barangay"]
+                    }
+                    enhanced_users.append(enhanced_user)
+                
+                return jsonify({
+                    "status": "success",
+                    "users": enhanced_users,
+                    "page": page,
+                    "total_count": len(enhanced_users),
+                    "performance": {
+                        "load_time_ms": load_time,
+                        "method": "postgresql_rpc",
+                        "optimized": True
+                    }
+                }), 200
+            
+        except Exception as rpc_error:
+            print(f"❌ RPC function failed: {rpc_error}")
+            print("⚠️ Falling back to standard queries...")
+        
+        # Fallback: Use optimized batch queries (slower but compatible)
+        fallback_start = time.time()
+        print("🔄 Using optimized fallback queries...")
+        
+        # Fetch users with pagination
         users_response = supabase.table("users").select(
             "id, firstname, lastname, email, role, isverified, "
             "avatar_url, created_at"
-        ).is_("deleted_at", None).order("created_at", desc=True).execute()
+        ).is_("is_deleted", None).order("created_at", desc=True).limit(limit).offset(offset).execute()
         
         users = getattr(users_response, "data", []) or []
         
-        # For each user, get their extended info to check full verification status
+        # Batch fetch info data for optimal performance
         enhanced_users = []
-        for user in users:
-            # Get user's info record to check full verification
-            info_response = supabase.table("info").select("verified, address_barangay").eq("user_id", user["id"]).execute()
-            info_data = getattr(info_response, "data", [])
-            info = info_data[0] if info_data else {}
+        if users:
+            user_ids = [user["id"] for user in users]
+            info_response = supabase.table("info").select("user_id, verified, address_barangay").in_("user_id", user_ids).execute()
+            info_data = getattr(info_response, "data", []) or []
             
-            # Add full verification status and address info
-            enhanced_user = {
-                **user,
-                "verified": info.get("verified", False),  # Use "verified" for frontend consistency
-                "fully_verified": info.get("verified", False),  # Keep both for compatibility
-                "address_barangay": info.get("address_barangay")
-            }
-            enhanced_users.append(enhanced_user)
+            # Create lookup dict for O(1) access
+            info_lookup = {info["user_id"]: info for info in info_data}
+            
+            # Enhance users with verification info
+            for user in users:
+                info = info_lookup.get(user["id"], {})
+                enhanced_user = {
+                    **user,
+                    "verified": info.get("verified", False),
+                    "fully_verified": user.get("isverified", False) and info.get("verified", False),
+                    "address_barangay": info.get("address_barangay")
+                }
+                enhanced_users.append(enhanced_user)
         
+        fallback_time = round((time.time() - fallback_start) * 1000, 1)
+        print(f"⚠️ Fallback method: {len(enhanced_users)} users in {fallback_time}ms")
+            
         return jsonify({
             "status": "success",
-            "users": enhanced_users
+            "users": enhanced_users,
+            "page": page,
+            "total_count": len(enhanced_users),
+            "performance": {
+                "load_time_ms": fallback_time,
+                "method": "batch_queries",
+                "optimized": False
+            }
         }), 200
 
     except Exception as e:
-        print(f"Error fetching users for verification: {e}")
+        print(f"❌ Admin users fetch failed: {str(e)}")
         return jsonify({"status": "error", "message": str(e)}), 500
 
 @app.route("/api/users/<user_id>/info", methods=["GET"])
@@ -1644,10 +1757,13 @@ def get_user_extended_info(user_id):
     try:
         # Get current user data to check if admin
         current_user_id = request.user_id
+        print(f"🔍 Admin viewing user info: {user_id}")
+        
         current_user_resp = supabase.table("users").select("role").eq("id", current_user_id).single().execute()
         current_user = current_user_resp.data if current_user_resp.data else {}
         
         if current_user.get("role") != "Admin":
+            print(f"❌ Unauthorized access attempt by user {current_user_id}")
             return jsonify({"status": "error", "message": "Admin access required"}), 403
 
         # Get user's extended info from info table
@@ -1659,13 +1775,18 @@ def get_user_extended_info(user_id):
         info_data = getattr(response, "data", [])
         info = info_data[0] if info_data else None
         
+        if info:
+            print(f"✅ User info found: {len([k for k, v in info.items() if v])} fields")
+        else:
+            print(f"⚠️ No extended info for user {user_id}")
+        
         return jsonify({
             "status": "success",
-            "info": info
+            "info": info or {}
         }), 200
 
     except Exception as e:
-        print(f"Error fetching user extended info: {e}")
+        print(f"❌ User info fetch failed: {str(e)}")
         return jsonify({"status": "error", "message": str(e)}), 500
 
 @app.route("/api/users/<user_id>/full-verification", methods=["PUT"])
@@ -1737,12 +1858,17 @@ def update_full_verification(user_id):
 def admin_update_report_status(report_id):
     """
     Admin endpoint to update report status and notify the user
+    Allows admin users to change report status between: Pending, Ongoing, Resolved
+    Automatically sends notifications to report owners when status changes
     """
     try:
+        print(f"🔄 Admin status update request for report {report_id}")
+        
         # Check if user is an admin
         user_resp = supabase.table("users").select("role").eq("id", request.user_id).execute()
         user = getattr(user_resp, "data", [None])[0]
-        if not user or user.get("role") != "admin":
+        if not user or user.get("role") != "Admin":
+            print(f"❌ Non-admin user {request.user_id} attempted status update")
             return jsonify({"status": "error", "message": "Admin access required"}), 403
 
         data = request.json
@@ -1760,26 +1886,34 @@ def admin_update_report_status(report_id):
         report_resp = supabase.table("reports").select("user_id, title, status").eq("id", report_id).is_("deleted_at", None).execute()
         report = getattr(report_resp, "data", [None])[0]
         if not report:
+            print(f"❌ Report {report_id} not found")
             return jsonify({"status": "error", "message": "Report not found"}), 404
 
         old_status = report.get("status")
         user_id = report.get("user_id")
         report_title = report.get("title")
 
+        print(f"📝 Updating report '{report_title}': {old_status} → {new_status}")
+
         # Update report status
-        supabase.table("reports").update({
+        update_resp = supabase.table("reports").update({
             "status": new_status,
             "updated_at": datetime.now(timezone.utc).isoformat()
         }).eq("id", report_id).execute()
 
         # Create notification for the user if status changed
         if new_status != old_status and user_id:
+            print(f"📧 Creating notification for user {user_id}")
             create_report_notification(user_id, report_id, report_title, new_status)
+        else:
+            print(f"⚠️ No notification sent - Status unchanged or no user_id")
 
+        print(f"✅ Report status successfully updated to {new_status}")
         return jsonify({
             "status": "success", 
             "message": f"Report status updated to {new_status}",
-            "new_status": new_status
+            "new_status": new_status,
+            "old_status": old_status
         }), 200
 
     except Exception as e:
@@ -1796,7 +1930,7 @@ def admin_delete_report(report_id):
         # Check if user is an admin
         user_resp = supabase.table("users").select("role").eq("id", request.user_id).execute()
         user = getattr(user_resp, "data", [None])[0]
-        if not user or user.get("role") != "admin":
+        if not user or user.get("role") != "Admin":
             return jsonify({"status": "error", "message": "Admin access required"}), 403
 
         # Fetch current report to get user_id and title
@@ -1856,25 +1990,27 @@ def create_report_notification(user_id, report_id, report_title, new_status):
     Create a notification for a report status change.
     """
     status_messages = {
-        "pending": f'Your report "{report_title}" is now PENDING.',
-        "ongoing": f'Your report "{report_title}" is now ONGOING.',
+        "pending": f'Your report "{report_title}" is now PENDING review.',
+        "ongoing": f'Your report "{report_title}" is now ONGOING - authorities are taking action.',
         "resolved": f'Your report "{report_title}" has been RESOLVED by the authorities.',
     }
 
-    message = status_messages.get(new_status.lower(), f'Your report "{report_title}" was updated.')
+    message = status_messages.get(new_status.lower(), f'Your report "{report_title}" status was updated to {new_status}.')
 
     try:
-        supabase.table("notifications").insert({
+        print(f"📧 Creating notification: {message}")
+        result = supabase.table("notifications").insert({
             "user_id": user_id,
             "report_id": report_id,
             "type": "Status Update",
-            "title": f'Report Status: {new_status.capitalize()}',
+            "title": f'Report Status: {new_status}',
             "message": message,
             "is_read": False,
-            "created_at": datetime.utcnow().isoformat()
+            "created_at": datetime.now(timezone.utc).isoformat()
         }).execute()
+        print(f"✅ Notification created successfully")
     except Exception as e:
-        print("Failed to create report notification:", e)
+        print(f"❌ Failed to create report notification: {e}")
 
 
 # Mark notification as read

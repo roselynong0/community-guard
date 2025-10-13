@@ -79,7 +79,7 @@
 }
 
 .admin-stat-card.unverified {
-    border-left-color: #ef4444;
+    border-left-color: #f59e0b;
 }
 
 .admin-stat-card.admin {
@@ -264,7 +264,7 @@ input.admin-search-input {
 }
 
 .admin-user-card.unverified::before {
-    background: linear-gradient(90deg, #ef4444, #dc2626);
+    background: linear-gradient(90deg, #f59e0b, #d97706);
 }
 
 .admin-user-card:hover {
@@ -374,7 +374,7 @@ input.admin-search-input {
 }
 
 .admin-verification-status.unverified {
-    color: #dc2626;
+    color: #d97706;
 }
 
 .admin-user-actions {

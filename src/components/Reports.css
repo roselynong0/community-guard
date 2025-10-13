@@ -325,14 +325,15 @@ opacity: 0.9;
 .modal-content {
     background-color: #fff;
     border-radius: 12px;
-    width: 500px;
-    max-width: 90%;
-    max-height: 80vh; 
-    padding: 20px;
-    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.25);
+    width: 520px;
+    max-width: 95%;
+    max-height: 85vh; 
+    padding: 0;
+    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.15);
     display: flex;
     flex-direction: column;
-    overflow: hidden; 
+    overflow: hidden;
+    position: relative;
 }
 
 .modal-content .modal-scrollable input {
@@ -341,45 +342,251 @@ opacity: 0.9;
 
 .modal-scrollable {
     overflow-y: auto; 
-    padding-right: 10px; 
-    max-height: 70vh; 
+    overflow-x: hidden; /* Disable horizontal scrolling */
+    padding: 20px;
+    padding-right: 28px; /* Account for custom scrollbar */
+    max-height: calc(85vh - 80px); /* Account for button area */
+    flex: 1;
 }
 
-/* Scrollbar styles for modal */
+/* When scrollbar is not needed, reduce padding */
+.modal-scrollable:not(.has-scroll) {
+    padding-right: 20px;
+}
+
+/* Custom scrollbar styles for modal */
 .modal-scrollable::-webkit-scrollbar {
-    width: 6px;
+    width: 8px;
 }
 
 .modal-scrollable::-webkit-scrollbar-thumb {
-    background-color: #2d2d73;
-    border-radius: 3px;
+    background: linear-gradient(135deg, #2d2d73, #4a4a9f);
+    border-radius: 4px;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.modal-scrollable::-webkit-scrollbar-thumb:hover {
+    background: linear-gradient(135deg, #1e1e5a, #3b3b8a);
 }
 
 .modal-scrollable::-webkit-scrollbar-track {
-    background: #f0f0f0;
-    border-radius: 3px;
+    background: #f8f9fa;
+    border-radius: 4px;
+    margin: 4px 0;
 }
 
-.modal-buttons button {
-    border-radius: 25px;
-    padding: 8px 18px;
+.modal-scrollable::-webkit-scrollbar-corner {
+    background: transparent;
+}
+
+/* Firefox scrollbar */
+.modal-scrollable {
+    scrollbar-width: thin;
+    scrollbar-color: #2d2d73 #f8f9fa;
+}
+
+/* Textarea specific styling - vertical resize only */
+.modal textarea {
+    resize: vertical !important;
+    min-height: 80px;
+    max-height: 200px;
+    width: 100% !important;
+    max-width: 100% !important;
+    min-width: 100% !important;
+    line-height: 1.5;
+    font-family: inherit;
+    overflow-x: hidden !important; /* Prevent horizontal scrolling */
+    word-wrap: break-word; /* Break long words */
+    white-space: pre-wrap; /* Preserve line breaks */
+    box-sizing: border-box !important;
+    position: relative;
+}
+
+.modal textarea:focus {
+    min-height: 120px;
+    resize: vertical !important; /* Ensure it stays vertical even on focus */
+    width: 100% !important;
+    max-width: 100% !important;
+    min-width: 100% !important;
+}
+
+/* Additional constraint to prevent textarea from exceeding parent container */
+.modal textarea::-webkit-resizer {
+    display: none; /* Hide the resize handle corner to prevent confusion */
+}
+
+.modal textarea {
+    /* Force textarea to respect container boundaries */
+    contain: layout style size;
+}
+
+/* Labels styling */
+.modal label {
+    display: block;
+    margin-bottom: 8px;
+    font-weight: 600;
+    color: #374151;
     font-size: 14px;
+    text-align: left;
+    line-height: 1.4;
+    letter-spacing: 0.01em;
+}
+
+/* Upload button styling */
+.upload-btn {
+    display: inline-block;
+    background: linear-gradient(135deg, #f3f4f6, #e5e7eb);
+    border: 2px dashed #d1d5db;
+    color: #374151;
+    padding: 16px 20px;
+    border-radius: 8px;
     cursor: pointer;
-    transition: background-color 0.2s;
+    text-align: center;
+    font-weight: 600;
+    transition: all 0.3s ease;
+    margin-bottom: 15px;
+    width: 100%;
+    box-sizing: border-box;
+}
+
+.upload-btn:hover {
+    background: linear-gradient(135deg, #e5e7eb, #d1d5db);
+    border-color: #2d2d73;
+    color: #2d2d73;
+    transform: translateY(-1px);
+}
+
+/* Map field styling */
+.map-field {
+    margin-bottom: 20px;
+}
+
+.map-field label {
+    margin-bottom: 10px;
+}
+
+/* Modal buttons container - fixed at bottom */
+.modal-buttons {
+    padding: 15px 20px;
+    border-top: 1px solid #e2e8f0;
+    background: #fff;
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+    flex-shrink: 0;
+    margin-right: 8px; /* Account for scrollbar space */
+    box-sizing: border-box;
+}
+
+/* Ensure buttons don't extend beyond content area */
+.modal-buttons button {
+    max-width: calc(50% - 5px); /* Ensure two buttons don't exceed container */
+    word-wrap: break-word;
+}
+
+/* Modern select dropdown styling - Enhanced specificity for desktop */
+.modal-content .modal-scrollable select,
+.modal select {
+    appearance: none !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    min-width: 100% !important;
+    box-sizing: border-box !important;
+    background: linear-gradient(135deg, #ffffff 0%, #f8f9fa 100%) !important;
+    background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23374151' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6,9 12,15 18,9'%3e%3c/polyline%3e%3c/svg%3e");
+    background-repeat: no-repeat;
+    background-position: right 16px center;
+    background-size: 18px;
+    padding: 14px 45px 14px 18px !important;
+    cursor: pointer;
+    font-weight: 500;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+    transition: all 0.3s ease;
+    border-width: 2px;
+    border-radius: 10px !important;
+    border: 2px solid #e2e8f0 !important;
+    font-size: 14px !important;
+    color: #374151 !important;
+    line-height: 1.5;
+    margin-bottom: 18px !important;
+    display: block !important;
+}
+
+.modal-content .modal-scrollable select:hover,
+.modal select:hover {
+    border-color: #cbd5e1 !important;
+    background: linear-gradient(135deg, #f8f9fa 0%, #e5e7eb 100%) !important;
+    background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23374151' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6,9 12,15 18,9'%3e%3c/polyline%3e%3c/svg%3e");
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
+}
+
+.modal-content .modal-scrollable select:focus,
+.modal select:focus {
+    outline: none !important;
+    border-color: #2d2d73 !important;
+    background: linear-gradient(135deg, #ffffff 0%, #f8f9fa 100%) !important;
+    background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%232d2d73' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6,9 12,15 18,9'%3e%3c/polyline%3e%3c/svg%3e");
+    transform: translateY(0);
+    box-shadow: 0 0 0 3px rgba(45, 45, 115, 0.1), 0 6px 16px rgba(0, 0, 0, 0.15);
+}
+
+.modal select option {
+    padding: 12px 16px;
+    background: #fff;
+    color: #374151;
+    border: none;
+    font-weight: 500;
+    line-height: 1.5;
+    font-size: 14px;
+    min-height: 40px;
+}
+
+.modal select option:hover {
+    background: #f1f5f9;
+    color: #2d2d73;
+}
+
+.modal select option:checked,
+.modal select option:selected {
+    background: linear-gradient(135deg, #2d2d73, #4a4a9f);
+    color: #fff;
+    font-weight: 600;
+}
+
+/* Modal buttons styling */
+.modal-buttons button {
+    border-radius: 8px;
+    padding: 12px 24px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    border: none;
+    min-width: 80px;
 }
 
 .modal-buttons button:first-child {
-    background-color: #ccc;
-    color: #333;
+    background-color: #f3f4f6;
+    color: #374151;
+    border: 1px solid #d1d5db;
+}
+
+.modal-buttons button:first-child:hover {
+    background-color: #e5e7eb;
+    transform: translateY(-1px);
 }
 
 .modal-buttons button:last-child {
-    background-color: #2d2d73;
+    background: linear-gradient(135deg, #2d2d73, #4a4a9f);
     color: #fff;
+    box-shadow: 0 2px 8px rgba(45, 45, 115, 0.3);
 }
 
 .modal-buttons button:last-child:hover {
-    background-color: #3b3b9f;
+    background: linear-gradient(135deg, #1e1e5a, #3b3b8a);
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(45, 45, 115, 0.4);
 }
 
 /* Map container responsiveness */
@@ -390,17 +597,45 @@ opacity: 0.9;
     height: 250px;
 }
 
-/* Image previews inside modal */
+/* Image previews inside modal - Full width display */
 .modal-scrollable .report-images {
-    margin-bottom: 10px;
+    margin-bottom: 15px;
+    display: grid;
+    gap: 8px;
+    width: 100%;
+}
+
+/* Single image - full width */
+.modal-scrollable .report-images.images-1 {
+    grid-template-columns: 1fr;
+}
+
+/* Two images - side by side */
+.modal-scrollable .report-images.images-2 {
+    grid-template-columns: 1fr 1fr;
+}
+
+/* Three or more images - responsive grid */
+.modal-scrollable .report-images.images-3,
+.modal-scrollable .report-images.images-4,
+.modal-scrollable .report-images.images-5,
+.modal-scrollable .report-images.images-6 {
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
 }
 
 .modal-scrollable .report-collage-img {
-    max-width: 80px;
-    max-height: 80px;
-    margin: 4px;
-    border-radius: 6px;
+    width: 100%;
+    height: 120px;
+    border-radius: 8px;
     object-fit: cover;
+    cursor: pointer;
+    transition: transform 0.2s ease;
+    border: 2px solid #e0e0e0;
+}
+
+.modal-scrollable .report-collage-img:hover {
+    transform: scale(1.02);
+    border-color: #2d2d73;
 }
 
 .modal-overlay {
@@ -440,18 +675,109 @@ opacity: 0.9;
 }
 
 .modal input,
-.modal textarea,
-.modal select {
+.modal textarea {
     display: block;
-    width: 100%;
-    box-sizing: border-box; 
-    border-radius: 8px;
-    margin-bottom: 10px;
-    padding: 10px;
-    border: 1px solid #ccc;
-    background-color: #f9f9f9 !important;
-    color: #000 !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    min-width: 100% !important;
+    box-sizing: border-box !important; 
+    border-radius: 10px;
+    margin-bottom: 18px;
+    padding: 14px 18px;
+    border: 2px solid #e2e8f0;
+    background: linear-gradient(135deg, #ffffff 0%, #f8f9fa 100%) !important;
+    color: #374151 !important;
     font-size: 14px;
+    font-weight: 500;
+    transition: all 0.3s ease;
+    font-family: inherit;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+}
+
+/* Separate rule for select elements to avoid conflicts */
+.modal-content .modal-scrollable select {
+    display: block !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    min-width: 100% !important;
+    box-sizing: border-box !important; 
+    font-family: inherit;
+}
+
+.modal input:hover,
+.modal textarea:hover {
+    border-color: #cbd5e1;
+    background: linear-gradient(135deg, #f8f9fa 0%, #e5e7eb 100%) !important;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+}
+
+.modal input:focus,
+.modal textarea:focus,
+.modal select:focus {
+    outline: none;
+    border-color: #2d2d73;
+    background: linear-gradient(135deg, #ffffff 0%, #f8f9fa 100%) !important;
+    transform: translateY(0);
+    box-shadow: 0 0 0 3px rgba(45, 45, 115, 0.1), 0 6px 16px rgba(0, 0, 0, 0.12);
+}
+
+/* Address fields container for better layout */
+.address-fields {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 15px;
+    margin-bottom: 20px;
+}
+
+.address-fields label {
+    margin-bottom: 8px;
+    font-weight: 600;
+    color: #374151;
+    font-size: 14px;
+    text-align: left;
+    display: block;
+}
+
+.address-fields input,
+.address-fields select {
+    margin-bottom: 0;
+    width: 100% !important;
+    max-width: 100% !important;
+    min-width: 100% !important;
+    box-sizing: border-box !important;
+}
+
+/* Responsive address fields for larger screens */
+@media (min-width: 480px) {
+    .address-fields {
+        grid-template-columns: 2fr 1fr;
+        grid-template-areas: 
+            "street-label barangay-label"
+            "street-input barangay-input";
+        align-items: start;
+        gap: 20px;
+    }
+    
+    .address-fields label:first-of-type {
+        grid-area: street-label;
+        text-align: left;
+        margin-bottom: 8px;
+    }
+    
+    .address-fields input {
+        grid-area: street-input;
+    }
+    
+    .address-fields label:last-of-type {
+        grid-area: barangay-label;
+        text-align: left;
+        margin-bottom: 8px;
+    }
+    
+    .address-fields select {
+        grid-area: barangay-input;
+    }
 }
 
 .edit-actions,
@@ -698,6 +1024,35 @@ opacity: 0.9;
   background-color: #dc3545; 
 }
 
+/* Admin-style verification status badges */
+.admin-verification-status {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 4px 8px;
+    border-radius: 12px;
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-left: 8px;
+}
+
+.admin-verification-status.fully-verified {
+    background-color: #10b981;
+    color: white;
+}
+
+.admin-verification-status.email-verified {
+    background-color: #f59e0b;
+    color: white;
+}
+
+.admin-verification-status.unverified {
+    background-color: #ef4444;
+    color: white;
+}
+
 .report-caption strong {
     display: block;
     font-size: 18px;
@@ -886,6 +1241,51 @@ p.report-description-text {
         grid-column: unset;
         height: auto;
         max-height: 250px;
+    }
+
+    /* Mobile modal adjustments */
+    .modal-content {
+        width: 95%;
+        max-height: 90vh;
+        margin: 10px;
+    }
+
+    .modal-scrollable {
+        max-height: calc(90vh - 80px);
+        padding: 15px;
+    }
+
+    .address-fields {
+        grid-template-columns: 1fr !important;
+        grid-template-areas: none !important;
+    }
+
+    .modal-buttons {
+        padding: 12px 15px;
+        flex-direction: row;
+        justify-content: flex-end;
+        gap: 10px;
+        margin-right: 0;
+    }
+
+    .modal-buttons button {
+        flex: 0 0 auto;
+        min-width: 80px;
+        max-width: calc(50% - 5px);
+        margin-bottom: 0;
+    }
+
+    /* Mobile image previews in modal */
+    .modal-scrollable .report-images.images-2,
+    .modal-scrollable .report-images.images-3,
+    .modal-scrollable .report-images.images-4,
+    .modal-scrollable .report-images.images-5,
+    .modal-scrollable .report-images.images-6 {
+        grid-template-columns: 1fr 1fr;
+    }
+
+    .modal-scrollable .report-collage-img {
+        height: 100px;
     }
 }
 
