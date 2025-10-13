@@ -338,13 +338,11 @@ function AdminUsers({ token }) {
       );
   }, [users, statusFilter, roleFilter, debouncedSearch]);
 
-  // Memoized stats to calculate the 5 required stats
+  // Memoized stats to calculate the 4 required stats (removed unverified)
   const stats = useMemo(() => ({
     totalUsers: users.length,
     fullyVerifiedUsers: users.filter(u => u.isverified && u.verified).length,
-    // Renamed from pendingVerificationUsers to emailVerifiedUsers
-    emailVerifiedUsers: users.filter(u => u.isverified && !u.verified).length, 
-    unverifiedUsers: users.filter(u => !u.isverified).length, // Not even email verified
+    emailVerifiedUsers: users.filter(u => u.isverified && !u.verified).length,
     adminUsers: users.filter(u => u.role === "Admin").length
   }), [users]);
 
@@ -354,7 +352,7 @@ function AdminUsers({ token }) {
         <h2>User Management</h2>
       </div>
 
-      {/* Stats Cards - FIVE Cards */}
+      {/* Stats Cards */}
       <div className="admin-stats-grid">
         {/* 1. Total Users */}
         <div className="admin-stat-card">
@@ -378,7 +376,7 @@ function AdminUsers({ token }) {
           </div>
         </div>
 
-        {/* 3. Email Verified (Renamed from Pending Full Verification) */}
+        {/* 3. Email Verified */}
         <div className="admin-stat-card email-verified">
           <div className="admin-stat-content">
             <FaUserCheck className="admin-stat-icon" style={{ color: '#f59e0b' }} />
@@ -388,19 +386,8 @@ function AdminUsers({ token }) {
             </div>
           </div>
         </div>
-        
-        {/* 4. Unverified Users */}
-        <div className="admin-stat-card unverified">
-          <div className="admin-stat-content">
-            <FaUserTimes className="admin-stat-icon" style={{ color: '#ef4444' }} />
-            <div className="admin-stat-text">
-              <h4>Unverified Users</h4>
-              <p>{stats.unverifiedUsers}</p>
-            </div>
-          </div>
-        </div>
 
-        {/* 5. Admins */}
+        {/* 4. Admins */}
         <div className="admin-stat-card admin">
           <div className="admin-stat-content">
             <FaUser className="admin-stat-icon" style={{ color: '#8b5cf6' }} />
@@ -526,64 +513,19 @@ function AdminUsers({ token }) {
 
       {/* Verification Modal */}
       {isVerificationModalOpen && selectedUser && (
-        <div className="modal-overlay" onClick={closeVerificationModal} style={{
-          position: 'fixed',
-          top: 0,
-          left: 0,
-          right: 0,
-          bottom: 0,
-          background: 'rgba(0, 0, 0, 0.6)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          zIndex: 1000,
-          padding: '20px'
-        }}>
-          <div className="verification-modal" onClick={(e) => e.stopPropagation()} style={{
-            background: 'white',
-            borderRadius: '16px',
-            maxWidth: '600px',
-            width: '100%',
-            maxHeight: '90vh',
-            overflowY: 'auto'
-          }}>
-            <div className="modal-header" style={{
-              display: 'flex',
-              justifyContent: 'space-between',
-              alignItems: 'center',
-              padding: '24px 24px 0 24px',
-              borderBottom: '1px solid #e2e8f0'
-            }}>
-              <h3 style={{ margin: 0, marginBottom: 10, color: '#fff', fontSize: '20px', fontWeight: 600 }}>
-                User Verification Review
-              </h3>
+        <div className="modal-overlay" onClick={closeVerificationModal}>
+          <div className="admin-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="admin-modal-header">
+              <h3>User Verification Review</h3>
               <button 
-                className="modal-close" 
+                className="admin-modal-close" 
                 onClick={closeVerificationModal}
-                style={{
-                  background: 'none',
-                  border: 'none',
-                  fontSize: '24px',
-                  color: '#fff',
-                  cursor: 'pointer',
-                  padding: '4px',
-                  marginBottom:'10px',
-                  borderRadius: '4px'
-                }}
               >×</button>
             </div>
 
-            <div className="modal-content" style={{ maxWidth: '100%', margin: '0 auto', padding: '24px 24px' }}>
+            <div className="admin-modal-content">
               {/* User Basic Info */}
-              <div className="user-profile-section" style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '16px',
-                marginBottom: '32px',
-                padding: '20px',
-                background: '#f8fafc',
-                borderRadius: '12px'
-              }}>
+              <div className="user-profile-section">
                 <img 
                   src={selectedUser.avatar_url || "/src/assets/profile.png"} 
                   alt="profile" 
@@ -596,25 +538,19 @@ function AdminUsers({ token }) {
                   }}
                 />
                 <div className="modal-user-info">
-                  <h4 style={{ margin: '0 0 4px 0', color: '#1e293b', fontSize: '20px', fontWeight: 600 }}>
-                    {selectedUser.firstname} {selectedUser.lastname}
-                  </h4>
-                  <p style={{ margin: '0 0 8px 0', color: '#64748b', fontSize: '14px' }}>
-                    {selectedUser.email}
-                  </p>
-                  <span className={`role-badge ${selectedUser.role.toLowerCase()}`} style={{
-                    display: 'inline-block',
-                    padding: '2px 8px',
-                    borderRadius: '6px',
-                    fontSize: '12px',
-                    fontWeight: 500,
-                    textTransform: 'uppercase',
-                    letterSpacing: '0.5px',
-                    background: selectedUser.role === 'Admin' ? 'rgba(147, 51, 234, 0.1)' : 'rgba(59, 130, 246, 0.1)',
-                    color: selectedUser.role === 'Admin' ? '#7c3aed' : '#3b82f6'
-                  }}>
-                    {selectedUser.role}
-                  </span>
+                  <div className="modal-user-header">
+                    <div className="modal-user-details">
+                      <h4 style={{ margin: '0 0 4px 0', color: '#1e293b', fontSize: '20px', fontWeight: 600 }}>
+                        {selectedUser.firstname} {selectedUser.lastname}
+                      </h4>
+                      <p style={{ margin: '0', color: '#64748b', fontSize: '14px' }}>
+                        {selectedUser.email}
+                      </p>
+                    </div>
+                    <span className={`modal-role-badge admin-role-badge ${selectedUser.role.toLowerCase()}`}>
+                      {selectedUser.role}
+                    </span>
+                  </div>
                   <div className="current-verification-status" style={{ marginTop: '12px' }}>
                     {(selectedUser.isverified && selectedUser.verified) ? (
                       <span style={{
@@ -863,14 +799,7 @@ function AdminUsers({ token }) {
               </div>
             </div>
 
-            <div className="modal-actions" style={{
-              display: 'flex',
-              justifyContent: 'space-between',
-              alignItems: 'center',
-              gap: '12px',
-              padding: '24px',
-              borderTop: '1px solid #e2e8f0'
-            }}>
+            <div className="admin-modal-actions">
               {/* Left side - Check Fields button */}
               <div style={{ display: 'flex', gap: '8px' }}>
                 {userInfo && (
@@ -1032,65 +961,7 @@ function AdminUsers({ token }) {
         </div>
       )}
 
-      {/* Responsive styles */}
-      <style jsx>{`
-        @media (max-width: 768px) {
-          .users-grid {
-            grid-template-columns: 1fr !important;
-            gap: 1rem !important;
-          }
-          
-          .stats-grid {
-            grid-template-columns: repeat(2, 1fr) !important;
-            gap: 0.8rem !important;
-          }
-          
-          .top-controls {
-            flex-direction: column !important;
-            align-items: stretch !important;
-          }
-          
-          .search-bar-container {
-            min-width: auto !important;
-            margin-bottom: 0.5rem;
-          }
-          
-          .verification-modal {
-            margin: 10px !important;
-            max-height: 95vh !important;
-          }
-          
-          .modal-actions {
-            flex-direction: column !important;
-            gap: 8px !important;
-          }
-          
-          .modal-actions > div {
-            width: 100%;
-            justify-content: center !important;
-          }
-          
-          .notif {
-            left: 10px !important;
-            right: 10px !important;
-            max-width: none !important;
-          }
-        }
-        
-        @media (max-width: 480px) {
-          .stats-grid {
-            grid-template-columns: 1fr !important;
-          }
-          
-          .user-card {
-            padding: 0.8rem !important;
-          }
-          
-          .info-grid {
-            grid-template-columns: 1fr !important;
-          }
-        }
-      `}</style>
+
     </div>
   );
 }

@@ -384,10 +384,12 @@ opacity: 0.9;
     background: transparent;
 }
 
-/* Firefox scrollbar */
-.modal-scrollable {
-    scrollbar-width: thin;
-    scrollbar-color: #2d2d73 #f8f9fa;
+/* Firefox scrollbar fallback with better support detection */
+@supports (scrollbar-width: thin) {
+    .modal-scrollable {
+        scrollbar-width: thin;
+        scrollbar-color: #2d2d73 #f8f9fa;
+    }
 }
 
 /* Textarea specific styling - vertical resize only */

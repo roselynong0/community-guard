@@ -115,9 +115,9 @@ to { transform: translateY(0); opacity: 1; }
 }
 
 .upload-btn {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
     background: #e9e9ff;
     color: #2d2d73;
     padding: 8px 12px;
@@ -126,7 +126,8 @@ to { transform: translateY(0); opacity: 1; }
     cursor: pointer;
     height: 36px;
     box-sizing: border-box;
-    align-self: center; /* Ensures vertical alignment with adjacent elements */
+    align-self: center !important; /* Ensures vertical alignment with adjacent elements */
+    transform: translateY(2.5px); /* Move down to align with trash button */
 }
 
 .upload-btn.flex-grow {
@@ -726,18 +727,20 @@ label {
 .trash-btn {
   width: 36px;
   height: 36px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
   background: none;
   border: none;
-  padding: 0;
-  margin: 0;
+  padding: 0 !important;
+  margin: 0; /* Reset margin */
   border-radius: 50%;
   transition: background 0.2s;
   color: #e74c3c;
   font-size: 1.2em;
-  align-self: center; /* Ensures vertical alignment with adjacent elements */
+  transform: translateY(-6px); /* Move upward more to align with Change Photo button */
+  align-self: center !important; /* Ensures vertical alignment with adjacent elements */
+  vertical-align: middle !important; /* Ensures proper baseline alignment */
 }
 
 .trash-btn:hover,
