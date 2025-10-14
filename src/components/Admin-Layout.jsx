@@ -121,7 +121,7 @@ function AdminLayout({ session, setSession, setNotification }) {
       setSession(null);
       setUser(null);
       setNotification({ 
-        message: `Admin ${user?.firstname || 'user'} logged out successfully`, 
+        message: `${user?.firstname || 'user'} logged out successfully`, 
         type: "success" 
       });
       navigate("/login");

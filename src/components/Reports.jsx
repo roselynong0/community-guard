@@ -1,3 +1,4 @@
+/* eslint-disable no-irregular-whitespace */
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import axios from "axios";
 import { FaEdit, FaTrashAlt, FaSearch, FaRedo, FaCheckCircle, FaTimesCircle } from "react-icons/fa";
@@ -5,11 +6,39 @@ import { MapContainer, TileLayer, Marker, useMapEvents } from "react-leaflet";
 import "leaflet/dist/leaflet.css";
 import L from "leaflet";
 import "./Reports.css";
+import RealtimeStatus from "./RealtimeStatus";
 import markerIcon2x from "leaflet/dist/images/marker-icon-2x.png";
 import markerIcon from "leaflet/dist/images/marker-icon.png";
 import markerShadow from "leaflet/dist/images/marker-shadow.png";
 
 const API_URL = "http://localhost:5000/api";
+
+// Image error handling utility
+const handleImageError = (e, imgUrl) => {
+  console.error(`❌ Failed to load image: ${imgUrl}`);
+  e.target.style.display = 'none'; // Hide broken images
+};
+
+const handleImageLoad = (imgUrl) => {
+  console.log(`✅ Image loaded: ${imgUrl}`);
+};
+
+// Enhanced optimistic update utility - show images immediately with error handling
+const createOptimisticImageUrl = (file) => {
+  try {
+    if (!file || !(file instanceof File)) {
+      console.warn('⚠️ Invalid file passed to createOptimisticImageUrl:', file);
+      return null;
+    }
+    
+    const url = URL.createObjectURL(file);
+    console.log(`✨ Created optimistic URL for ${file.name}: ${url}`);
+    return url;
+  } catch (error) {
+    console.error('❌ Error creating optimistic URL:', error);
+    return null;
+  }
+};
 
 // Fix Leaflet marker icon issue
 delete L.Icon.Default.prototype._getIconUrl;
@@ -188,12 +217,97 @@ function Reports({ session }) {
     }
   }, [token, sort]);
 
-  // ✅ Run on mount & whenever token/sort changes
-  useEffect(() => {
-    fetchReports();
-  }, [fetchReports]);
+  // ✅ Run on mount & whenever token/sort changes
+  useEffect(() => {
+    fetchReports();
+  }, [fetchReports]);
 
-  // ⭐ ORIGINAL KEYBOARD NAVIGATION EFFECT (FOR MODAL)
+  // 🔄 SMART REAL-TIME UPDATES - Only fetch when needed
+  const [lastUpdateTime, setLastUpdateTime] = useState(null);
+  const [isConnected, setIsConnected] = useState(true);
+  const [changeType, setChangeType] = useState(null);
+
+  // ✅ SORTING VALIDATION: Ensure reports maintain correct created_at order
+  const validateReportSorting = useCallback((reports, currentSort) => {
+    if (reports.length < 2) return true;
+    
+    for (let i = 0; i < reports.length - 1; i++) {
+      const current = new Date(reports[i].created_at);
+      const next = new Date(reports[i + 1].created_at);
+      
+      if (currentSort === "latest") {
+        // For "latest", newer reports should come first (DESC order)
+        if (current < next) {
+          console.warn("⚠️ Sort validation failed: Reports not in DESC order");
+          return false;
+        }
+      } else {
+        // For "oldest", older reports should come first (ASC order)  
+        if (current > next) {
+          console.warn("⚠️ Sort validation failed: Reports not in ASC order");
+          return false;
+        }
+      }
+    }
+    return true;
+  }, []);
+
+  useEffect(() => {
+    if (!token) return;
+
+    let pollInterval;
+    
+    // Smart polling - only fetch if we haven't made recent changes
+    const smartPoll = async () => {
+      const now = Date.now();
+      
+      // Skip polling if we just made a change (within last 10 seconds)
+      if (lastUpdateTime && (now - lastUpdateTime) < 10000) {
+        console.log("⏭️ Skipping poll - recent update detected");
+        return;
+      }
+
+      try {
+        console.log(`🔄 Smart polling for updates... (sort: ${sort} → ${sort === "latest" ? "desc" : "asc"})`);
+        const response = await axios.get(`${API_URL}/reports?sort=${sort === "latest" ? "desc" : "asc"}`, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+
+        if (response.data?.reports) {
+          const newReports = response.data.reports;
+          
+          // Only update if there are actual changes
+          setReports(prevReports => {
+            const hasChanges = JSON.stringify(prevReports) !== JSON.stringify(newReports);
+            if (hasChanges) {
+              console.log("� Updates detected - applying changes");
+              return newReports;
+            }
+            // ✅ ADD SORTING VALIDATION
+            const isSortingCorrect = validateReportSorting(newReports, sort);
+            if (hasChanges && !isSortingCorrect) {
+              console.warn(`❌ Sorting validation failed - keeping current state (${sort})`);
+              return prevReports;
+            }
+            
+            return prevReports; // No changes, keep existing state
+          });
+        }
+        setIsConnected(true);
+      } catch (error) {
+        console.error("❌ Smart poll error:", error);
+        setIsConnected(false);
+      }
+    };
+
+    // Start smart polling every 8 seconds
+    pollInterval = setInterval(smartPoll, 8000);
+
+    return () => {
+      clearInterval(pollInterval);
+      console.log("🛑 Smart polling stopped");
+    };
+  }, [token, sort, lastUpdateTime, validateReportSorting]);  // ⭐ ORIGINAL KEYBOARD NAVIGATION EFFECT (FOR MODAL)
   useEffect(() => {
     if (isModalOpen && modalRef.current) {
       // Get all focusable elements in the modal
@@ -292,24 +406,27 @@ function Reports({ session }) {
                 : report
             )
           );
-        }
-        showNotification("✓ Report updated successfully!", "success");
-      } else {
-        const response = await axios.post(`${API_URL}/reports`, formData, {
-          headers: {
-            Authorization: `Bearer ${token}`,
-            "Content-Type": "multipart/form-data",
-          },
-        });
-        
-        // Real-time update: Add new report to the top of the list
-        if (response.data.status === "success") {
-          setReports(prevReports => [response.data.report, ...prevReports]);
-        }
-        showNotification("✓ Report submitted successfully!", "success");
-      }
-
-      resetNewReport();
+        }
+        setLastUpdateTime(Date.now()); // Mark that we made a change
+        setChangeType('update'); // Set the change type for status indicator
+        showNotification("✓ Report updated successfully!", "success");
+      } else {
+        const response = await axios.post(`${API_URL}/reports`, formData, {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "multipart/form-data",
+          },
+        });
+        
+        // Real-time update: Add new report to the top of the list
+        if (response.data.status === "success") {
+          console.log("📝 New report added:", response.data.report.title);
+          setReports(prevReports => [response.data.report, ...prevReports]);
+          setLastUpdateTime(Date.now()); // Mark that we made a change
+          setChangeType('add'); // Set the change type for status indicator
+        }
+        showNotification("✓ Report submitted successfully!", "success");
+      }      resetNewReport();
       setIsModalOpen(false);
       setEditReportId(null);
       // Remove fetchReports() call - no longer needed for real-time updates
@@ -369,22 +486,36 @@ function Reports({ session }) {
     );
   };
 
-  const resetNewReport = () => {
-    setNewReport({
-      title: "",
-      description: "",
-      category: "Concern",
-      barangay: "Barretto", // Set a default barangay other than "All" for form
-      addressStreet: "",
-      images: [],
-      existingImages: [],
-      lat: null,
-      lng: null,
-      date: new Date(),
-    });
-  };
+  // Enhanced function to clean up optimistic URLs and reset form
+  const cleanupOptimisticUrls = () => {
+    // Clean up any existing blob URLs to prevent memory leaks
+    if (newReport.images && newReport.images.length > 0) {
+      newReport.images.forEach(file => {
+        if (typeof file !== "string" && file instanceof File) {
+          const url = URL.createObjectURL(file);
+          URL.revokeObjectURL(url);
+        }
+      });
+    }
+  };
 
-  // Correct toggle logic
+  const resetNewReport = () => {
+    // Clean up optimistic URLs before resetting
+    cleanupOptimisticUrls();
+    
+    setNewReport({
+      title: "",
+      description: "",
+      category: "Concern",
+      barangay: "Barretto", // Set a default barangay other than "All" for form
+      addressStreet: "",
+      images: [],
+      existingImages: [],
+      lat: null,
+      lng: null,
+      date: new Date(),
+    });
+  };  // Correct toggle logic
   const filteredReports = reports
     .filter((r) => r.deleted !== true) 
     .filter((r) =>
@@ -837,16 +968,87 @@ function Reports({ session }) {
                   onChange={(e) => {
                     // Limit to 5 images total
                     const files = Array.from(e.target.files).slice(0, 5);
-                    setNewReport((prev) => ({ ...prev, images: files }));
+                    console.log(`📸 User selected ${files.length} new images for ${editReportId ? 'editing' : 'new report'}`);
+                    
+                    // Validate file types and sizes
+                    const validFiles = files.filter(file => {
+                      const isValidType = file.type.startsWith('image/');
+                      const isValidSize = file.size <= 10 * 1024 * 1024; // 10MB limit
+                      
+                      if (!isValidType) {
+                        console.warn(`⚠️ Invalid file type: ${file.name}`);
+                      }
+                      if (!isValidSize) {
+                        console.warn(`⚠️ File too large: ${file.name}`);
+                      }
+                      
+                      return isValidType && isValidSize;
+                    });
+                    
+                    // Immediately update state to show preview
+                    setNewReport((prev) => ({ ...prev, images: validFiles }));
+                    
+                    // Show immediate feedback notification
+                    if (validFiles.length > 0) {
+                      showNotification(
+                        `📸 ${validFiles.length} image(s) selected - preview ready!`, 
+                        "success"
+                      );
+                    }
+                    
+                    if (validFiles.length !== files.length) {
+                      showNotification(
+                        `⚠️ ${files.length - validFiles.length} file(s) skipped (invalid type or too large)`, 
+                        "caution"
+                      );
+                    }
                   }}
                   hidden
                 />
               </label>
 
-              {/* Show existing images when editing */}
-              {editReportId && newReport.images.length === 0 && (
+              {/* Enhanced Image Preview - Show immediate preview of changes */}
+              {(editReportId || newReport.images.length > 0) && (
                 <div>
-                  {newReport.existingImages && newReport.existingImages.length > 0 ? (
+                  {newReport.images && newReport.images.length > 0 ? (
+                    <>
+                      <p style={{ fontSize: '12px', color: '#666', margin: '5px 0' }}>
+                        {editReportId ? "📸 Preview (New Images):" : "Selected Images:"}
+                      </p>
+                      <div
+                        className={`report-images images-${newReport.images.length}`}
+                      >
+                        {newReport.images.map((file, idx) => (
+                          <img
+                            key={`preview-${idx}`}
+                            src={
+                              typeof file === "string"
+                                ? file
+                                : createOptimisticImageUrl(file)
+                            }
+                            alt={`preview-${idx}`}
+                            className="report-collage-img"
+                            onClick={() => setPreviewImage(
+                              typeof file === "string" 
+                                ? file 
+                                : createOptimisticImageUrl(file)
+                            )}
+                            style={{ cursor: 'pointer' }}
+                            onLoad={() => handleImageLoad(
+                              typeof file === "string" 
+                                ? file 
+                                : 'preview-image'
+                            )}
+                            onError={(e) => handleImageError(e, 
+                              typeof file === "string" 
+                                ? file 
+                                : 'preview-image'
+                            )}
+                          />
+                        ))}
+                      </div>
+                    </>
+                  ) : editReportId && newReport.existingImages && newReport.existingImages.length > 0 ? (
                     <>
                       <p style={{ fontSize: '12px', color: '#666', margin: '5px 0' }}>Current Images:</p>
                       <div
@@ -858,40 +1060,19 @@ function Reports({ session }) {
                             src={`${API_URL}${imgObj.url}`}
                             alt={`existing-${idx}`}
                             className="report-collage-img"
+                            onClick={() => setPreviewImage(`${API_URL}${imgObj.url}`)}
+                            style={{ cursor: 'pointer' }}
+                            onLoad={() => handleImageLoad(`${API_URL}${imgObj.url}`)}
+                            onError={(e) => handleImageError(e, `${API_URL}${imgObj.url}`)}
                           />
                         ))}
                       </div>
                     </>
-                  ) : (
+                  ) : editReportId ? (
                     <p style={{ fontSize: '12px', color: '#999', margin: '5px 0', fontStyle: 'italic' }}>
                       No images currently attached to this report.
                     </p>
-                  )}
-                </div>
-              )}
-
-              {/* Show new images when files are selected */}
-              {newReport.images && newReport.images.length > 0 && (
-                <div>
-                  <p style={{ fontSize: '12px', color: '#666', margin: '5px 0' }}>
-                    {editReportId ? "New Images (will replace current):" : "Selected Images:"}
-                  </p>
-                  <div
-                    className={`report-images images-${newReport.images.length}`}
-                  >
-                    {newReport.images.map((file, idx) => (
-                      <img
-                        key={`new-${idx}`}
-                        src={
-                          typeof file === "string"
-                            ? file
-                            : URL.createObjectURL(file)
-                        }
-                        alt={`preview-${idx}`}
-                        className="report-collage-img"
-                      />
-                    ))}
-                  </div>
+                  ) : null}
                 </div>
               )}
             </div>
@@ -969,10 +1150,15 @@ function Reports({ session }) {
             >
                 &times;
             </button>
-        </div>
-      )}
-    </div>
-  );
-}
+        </div>
+      )}
 
-export default Reports;
+      {/* Real-time Status Indicator */}
+      <RealtimeStatus 
+        isConnected={isConnected}
+        lastUpdate={lastUpdateTime}
+        changeType={changeType}
+      />
+    </div>
+  );
+}export default Reports;

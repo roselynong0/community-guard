@@ -1170,7 +1170,10 @@ def fetch_reports(limit=10, sort="desc", user_only=False, barangay_filter=False,
 
         # Attach images to each report
         for report in reports:
-            report["images"] = images_data.get(report["id"], [])
+            report_images = images_data.get(report["id"], [])
+            report["images"] = report_images
+            if report_images:
+                print(f"📷 Report {report['id'][:8]} has {len(report_images)} images")
 
         total_time = round((time.time() - start_time) * 1000, 1)
         print(f"✅ Reports processed in {total_time}ms total")
@@ -1242,17 +1245,30 @@ def add_report():
         if "images" in request.files:
             files = request.files.getlist("images")
             os.makedirs("uploads", exist_ok=True)
+            print(f"📸 Processing {len(files)} images for report {report_id}")
+            
             for file in files:
-                filename = f"report_{user_id}_{uuid.uuid4().hex}_{file.filename}"
-                save_path = os.path.join("uploads", filename)
-                file.save(save_path)
-                image_url = f"/uploads/{filename}"
-                images_urls.append(image_url)
-                supabase.table("report_images").insert({
-                    "report_id": report_id,
-                    "image_url": image_url,
-                    "created_at": datetime.now(timezone.utc).isoformat()
-                }).execute()
+                if file and file.filename:
+                    # Generate a secure filename
+                    file_extension = os.path.splitext(file.filename)[1].lower()
+                    safe_filename = f"report_{report_id}_{uuid.uuid4().hex}{file_extension}"
+                    save_path = os.path.join("uploads", safe_filename)
+                    
+                    # Save the file
+                    file.save(save_path)
+                    image_url = f"/uploads/{safe_filename}"
+                    images_urls.append(image_url)
+                    
+                    # Save to database
+                    supabase.table("report_images").insert({
+                        "report_id": report_id,
+                        "image_url": image_url,
+                        "created_at": datetime.now(timezone.utc).isoformat()
+                    }).execute()
+                    
+                    print(f"✅ Saved image: {safe_filename}")
+            
+            print(f"📊 Total images saved: {len(images_urls)}")
 
         user_resp = supabase.table("users").select("id, firstname, lastname, avatar_url").eq("id", user_id).execute()
         reporter = getattr(user_resp, "data", [None])[0] or DEFAULT_REPORTER
@@ -2044,7 +2060,21 @@ UPLOAD_FOLDER = os.path.join(os.getcwd(), "uploads")
 
 @app.route("/api/uploads/<filename>")
 def uploaded_file(filename):
-    return send_from_directory(UPLOAD_FOLDER, filename)
+    try:
+        # Ensure uploads folder exists
+        os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+        
+        # Check if file exists
+        file_path = os.path.join(UPLOAD_FOLDER, filename)
+        if not os.path.exists(file_path):
+            print(f"❌ File not found: {file_path}")
+            return jsonify({"error": "File not found"}), 404
+            
+        print(f"✅ Serving file: {filename}")
+        return send_from_directory(UPLOAD_FOLDER, filename)
+    except Exception as e:
+        print(f"❌ Error serving file {filename}: {e}")
+        return jsonify({"error": "File serving error"}), 500
 
 # ----------------- RUN APP -----------------
 if __name__ == "__main__":
