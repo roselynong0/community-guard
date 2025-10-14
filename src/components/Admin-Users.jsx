@@ -890,6 +890,7 @@ function AdminUsers({ token }) {
                         onClick={verifyUserFully}
                         title="Mark user as fully verified - all required fields are complete"
                         style={{
+                          width: 'auto',
                           padding: '12px 24px',
                           borderRadius: '8px',
                           fontSize: '14px',
