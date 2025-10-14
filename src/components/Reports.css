@@ -1122,12 +1122,10 @@ p.report-description-text {
 
 .report-images.images-2 {
     grid-template-columns: 1fr 1fr;
-    grid-auto-rows: 350vh; 
 }
 
 .report-images.images-3 {
     grid-template-columns: 1fr 1fr;
-    grid-auto-rows: 350vh;
 }
 
 .report-images.images-3 img:last-child {
@@ -1136,13 +1134,11 @@ p.report-description-text {
 
 .report-images.images-4 {
     grid-template-columns: 1fr 1fr;
-    grid-auto-rows: 350vh; 
 }
 
 .report-images.images-5,
 .report-images.images-6 {
     grid-template-columns: repeat(auto-fill, minmax(0, 1fr));
-    grid-auto-rows: 350vh; 
 }
 
 /* Apply to all images */

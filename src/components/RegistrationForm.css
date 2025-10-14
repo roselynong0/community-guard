@@ -60,7 +60,7 @@ html, body {
 .form-card h2 {
   margin-top: 0;
   margin-bottom: 16px;
-  color: #2d2d73;
+  color: #11163e;
   font-size: 1.5rem;
   text-align: center;
 }
@@ -224,7 +224,7 @@ button {
   padding: 0.75rem;
   border: none;
   border-radius: 30px;
-  background: #2d2d73;
+  background: #1d256a;
   color: white;
   font-weight: bold;
   font-size: 1rem;
@@ -289,7 +289,7 @@ button:disabled {
 }
 
 .tab-btn.active {
-  background: linear-gradient(90deg,#2d2d73,#5a6aa8);
+  background: linear-gradient(90deg,#11163e,#5a6aa8);
   color: #fff; /* selected tab text white */
   border-color: rgba(0,0,0,0.08);
 }
