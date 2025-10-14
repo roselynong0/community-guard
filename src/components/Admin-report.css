@@ -250,7 +250,6 @@ input.admin-search-input {
     border-radius: 12px;
     padding: 1.25rem;
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
-    border: 2px solid transparent;
     transition: all 0.3s ease;
     position: relative;
     overflow: hidden;

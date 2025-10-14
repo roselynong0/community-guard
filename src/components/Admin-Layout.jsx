@@ -186,7 +186,10 @@ function AdminLayout({ session, setSession, setNotification }) {
               </p>
             </div>
           )}
-          <nav>
+          <nav style={{
+              borderBottom: '1px solid rgba(255,255,255,0.1)',
+              textAlign: 'center'
+            }}>
             <NavLink to="/admin/dashboard"><FaHome /> Dashboard</NavLink>
             <NavLink to="/admin/reports"><FaFileAlt /> Reports</NavLink>
             <NavLink to="/admin/users"><FaUsers /> Users</NavLink>
