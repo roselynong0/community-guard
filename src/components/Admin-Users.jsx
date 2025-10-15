@@ -35,6 +35,7 @@ function AdminUsers({ token }) {
   // Cache and real-time update states
   const [lastFetchTime, setLastFetchTime] = useState(null);
   const [initialLoadComplete, setInitialLoadComplete] = useState(false);
+  const [showInitialLoader, setShowInitialLoader] = useState(true); // New state for initial loading screen
   const CACHE_DURATION = 30000; // 30 seconds cache
   
   // Modal states for verification
@@ -109,6 +110,7 @@ function AdminUsers({ token }) {
     } finally {
       setLoading(false);
       setIsFetching(false);
+      setShowInitialLoader(false);
     }
   }, [token, isFetching, lastFetchTime, initialLoadComplete, CACHE_DURATION]);
 
@@ -432,7 +434,7 @@ function AdminUsers({ token }) {
       </div>
 
       {/* Users List */}
-      {loading ? ( // 1. Show loader if currently fetching (initial or manual)
+      {loading ? (
         <div className="admin-loading-container">
           <div className="admin-spinner"></div>
           <p className="admin-loading-text">Loading users...</p>

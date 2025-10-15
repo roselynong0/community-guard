@@ -135,6 +135,7 @@ function AdminReports({ token }) {
     const [isStatusModalOpen, setIsStatusModalOpen] = useState(false);
     const [selectedReport, setSelectedReport] = useState(null);
     const [newStatus, setNewStatus] = useState("");
+    const [isUpdatingStatus, setIsUpdatingStatus] = useState(false); // Prevent double submissions
 
     const [expandedPosts, setExpandedPosts] = useState([]);
     const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false);
@@ -162,10 +163,13 @@ function AdminReports({ token }) {
 
     // --- Modal Control Functions for Accessibility ---
     const closeStatusModal = useCallback(() => {
-        setIsStatusModalOpen(false);
-        setSelectedReport(null);
-        setNewStatus("");
-    }, []);
+        if (!isUpdatingStatus) { // Only allow closing if not updating
+            setIsStatusModalOpen(false);
+            setSelectedReport(null);
+            setNewStatus("");
+            setIsUpdatingStatus(false); // Reset state
+        }
+    }, [isUpdatingStatus]);
 
     const openStatusModal = (report) => {
         setSelectedReport(report);
@@ -425,11 +429,19 @@ function AdminReports({ token }) {
     const handleUpdateStatus = async () => {
         if (!selectedReport || !newStatus || !token) return;
 
+        // Prevent double submissions
+        if (isUpdatingStatus) {
+            console.log("⚠️ Already updating status, ignoring duplicate request");
+            return;
+        }
+
         if (newStatus === selectedReport.status) {
             showNotification(`Status is already set to ${newStatus}.`, 'info');
             closeStatusModal();
             return;
         }
+
+        setIsUpdatingStatus(true);
 
         try {
             const response = await fetch(`${API_URL}/reports/${selectedReport.id}/status`, {
@@ -469,7 +481,7 @@ function AdminReports({ token }) {
                 setChangeType('status'); // Set the change type for status indicator
                 
                 showNotification(
-                    `Report status updated to ${newStatus}.`, 
+                    `✅ Report status updated: ${selectedReport.status} → ${newStatus}. User has been notified.`, 
                     'success'
                 );
                 
@@ -479,7 +491,7 @@ function AdminReports({ token }) {
             }
         } catch (error) {
             console.error('Error updating report status:', error);
-            showNotification(`Update failed: ${error.message}`, 'error');
+            showNotification(`❌ Failed to update status: ${error.message}`, 'error');
         }
     };
 
@@ -800,7 +812,11 @@ function AdminReports({ token }) {
             {isStatusModalOpen && selectedReport && (
                 <div 
                     className="modal-overlay" 
-                    onClick={closeStatusModal}
+                    onClick={() => {
+                        if (!isUpdatingStatus) {
+                            closeStatusModal();
+                        }
+                    }}
                     role="dialog" 
                     aria-modal="true" 
                     aria-labelledby="status-modal-title"
@@ -858,16 +874,21 @@ function AdminReports({ token }) {
                         )}
                         
                         <div className="modal-buttons edit-actions">
-                            <button onClick={closeStatusModal}>Cancel</button>
+                            <button 
+                                onClick={closeStatusModal}
+                                disabled={isUpdatingStatus}
+                            >
+                                Cancel
+                            </button>
                             <button 
                                 onClick={handleUpdateStatus}
-                                disabled={newStatus === selectedReport.status}
+                                disabled={newStatus === selectedReport.status || isUpdatingStatus}
                                 style={{ 
-                                    opacity: newStatus === selectedReport.status ? 0.6 : 1,
-                                    cursor: newStatus === selectedReport.status ? 'not-allowed' : 'pointer'
+                                    opacity: (newStatus === selectedReport.status || isUpdatingStatus) ? 0.6 : 1,
+                                    cursor: (newStatus === selectedReport.status || isUpdatingStatus) ? 'not-allowed' : 'pointer'
                                 }}
                             >
-                                {newStatus === selectedReport.status ? 'No Change' : 'Update Status'}
+                                {isUpdatingStatus ? 'Updating...' : (newStatus === selectedReport.status ? 'No Change' : 'Update Status')}
                             </button>
                         </div>
                     </div>

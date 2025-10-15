@@ -1223,16 +1223,62 @@ def add_report():
     try:
         data = request.json if request.is_json else request.form
 
-        report = {
-            "user_id": user_id,
+        # ✅ VALIDATION: Check required fields
+        required_fields = {
             "title": data.get("title"),
             "description": data.get("description"),
-            "category": data.get("category", "Uncategorized"),
+            "category": data.get("category"),
+            "addressStreet": data.get("addressStreet"),
+            "barangay": data.get("barangay")
+        }
+        
+        # Check for missing required fields
+        missing_fields = [field for field, value in required_fields.items() if not value or (isinstance(value, str) and value.strip() == "")]
+        
+        if missing_fields:
+            print(f"❌ Missing required fields: {missing_fields}")
+            return jsonify({
+                "status": "error", 
+                "message": f"Missing required fields: {', '.join(missing_fields)}"
+            }), 400
+        
+        # ✅ VALIDATION: Check if barangay is not "All" (must select a specific barangay)
+        if data.get("barangay") == "All":
+            print("❌ Invalid barangay selection")
+            return jsonify({
+                "status": "error", 
+                "message": "Please select a specific barangay"
+            }), 400
+        
+        # ✅ VALIDATION: Check if at least one image is provided
+        if "images" not in request.files or not request.files.getlist("images"):
+            print("❌ No images provided")
+            return jsonify({
+                "status": "error", 
+                "message": "At least one image is required to submit a report"
+            }), 400
+        
+        # Validate uploaded images
+        files = request.files.getlist("images")
+        if not files or all(not file.filename for file in files):
+            print("❌ No valid images provided")
+            return jsonify({
+                "status": "error", 
+                "message": "At least one valid image is required to submit a report"
+            }), 400
+
+        print(f"✅ Report validation passed - all required fields present and {len(files)} images provided")
+
+        report = {
+            "user_id": user_id,
+            "title": data.get("title").strip(),
+            "description": data.get("description").strip(),
+            "category": data.get("category"),
             "status": data.get("status", "Pending"),
             "created_at": datetime.now(timezone.utc).isoformat(),
             "deleted_at": None,
-            "address_street": data.get("addressStreet", ""),
-            "address_barangay": data.get("barangay", "All"),
+            "address_street": data.get("addressStreet").strip(),
+            "address_barangay": data.get("barangay"),
             "latitude": float(data.get("lat")) if data.get("lat") else None,
             "longitude": float(data.get("lng")) if data.get("lng") else None
         }
@@ -1240,41 +1286,38 @@ def add_report():
         resp = supabase.table("reports").insert(report).execute()
         report_id = resp.data[0]["id"]
 
-        # Save images if any
-        images_urls = []
+        # Save images if any - store as base64 in database
+        images_data = []
         if "images" in request.files:
             files = request.files.getlist("images")
             os.makedirs("uploads", exist_ok=True)
-            print(f"📸 Processing {len(files)} images for report {report_id}")
-            
             for file in files:
-                if file and file.filename:
-                    # Generate a secure filename
-                    file_extension = os.path.splitext(file.filename)[1].lower()
-                    safe_filename = f"report_{report_id}_{uuid.uuid4().hex}{file_extension}"
-                    save_path = os.path.join("uploads", safe_filename)
-                    
-                    # Save the file
-                    file.save(save_path)
-                    image_url = f"/uploads/{safe_filename}"
-                    images_urls.append(image_url)
-                    
-                    # Save to database
-                    supabase.table("report_images").insert({
-                        "report_id": report_id,
-                        "image_url": image_url,
-                        "created_at": datetime.now(timezone.utc).isoformat()
-                    }).execute()
-                    
-                    print(f"✅ Saved image: {safe_filename}")
-            
-            print(f"📊 Total images saved: {len(images_urls)}")
+                filename = f"report_{user_id}_{uuid.uuid4().hex}_{file.filename}"
+                save_path = os.path.join("uploads", filename)
+                file.save(save_path)
+                image_url = f"/uploads/{filename}"
+                images_urls.append(image_url)
+                supabase.table("report_images").insert({
+                    "report_id": report_id,
+                    "image_url": image_url,
+                    "created_at": datetime.now(timezone.utc).isoformat()
+                }).execute()
 
-        user_resp = supabase.table("users").select("id, firstname, lastname, avatar_url").eq("id", user_id).execute()
+        # Fetch user info with proper verification status
+        user_resp = supabase.table("users").select("id, firstname, lastname, avatar_url, isverified").eq("id", user_id).execute()
         reporter = getattr(user_resp, "data", [None])[0] or DEFAULT_REPORTER
+        
+        # Fetch verification status from info table for full verification
+        info_resp = supabase.table("info").select("verified").eq("user_id", user_id).execute()
+        info_data = getattr(info_resp, "data", [None])[0]
+        reporter["verified"] = info_data.get("verified", False) if info_data else False
 
-        report["images"] = [{"url": url} for url in images_urls]
+        report["images"] = images_data
         report["reporter"] = reporter
+        
+        print(f"✅ Report created successfully by user {user_id}")
+        print(f"📊 New report with {len(images_data)} images")
+        print(f"👤 Reporter verification: email={reporter.get('isverified', False)}, full={reporter.get('verified', False)}")
 
         return jsonify({"status": "success", "report": report}), 201
     except Exception as e:
@@ -1302,7 +1345,40 @@ def upload_report_file(report_id):
 @token_required
 def update_report(report_id):
     try:
+        print(f"=== UPDATE REPORT CALLED ===")
+        print(f"Report ID: {report_id}")
+        print(f"User ID: {request.user_id}")
+        print(f"Request form data: {dict(request.form)}")
+        print(f"Request files: {list(request.files.keys())}")
+        
         data = request.form if request.form else request.json
+
+        # ✅ VALIDATION: Check required fields for updates
+        required_fields = {
+            "title": data.get("title"),
+            "description": data.get("description"),
+            "category": data.get("category"),
+            "addressStreet": data.get("addressStreet"),
+            "barangay": data.get("barangay")
+        }
+        
+        # Check for missing required fields
+        missing_fields = [field for field, value in required_fields.items() if not value or (isinstance(value, str) and value.strip() == "")]
+        
+        if missing_fields:
+            print(f"❌ Missing required fields in update: {missing_fields}")
+            return jsonify({
+                "status": "error", 
+                "message": f"Missing required fields: {', '.join(missing_fields)}"
+            }), 400
+        
+        # ✅ VALIDATION: Check if barangay is not "All"
+        if data.get("barangay") == "All":
+            print("❌ Invalid barangay selection in update")
+            return jsonify({
+                "status": "error", 
+                "message": "Please select a specific barangay"
+            }), 400
 
         # Fetch current report status before updating
         report_resp = supabase.table("reports").select("user_id, status, title").eq("id", report_id).execute()
@@ -1315,10 +1391,10 @@ def update_report(report_id):
 
         # Update report data
         update_data = {
-            "title": data.get("title"),
-            "description": data.get("description"),
+            "title": data.get("title").strip(),
+            "description": data.get("description").strip(),
             "category": data.get("category"),
-            "address_street": data.get("addressStreet"),
+            "address_street": data.get("addressStreet").strip(),
             "address_barangay": data.get("barangay"),
             "latitude": float(data.get("lat")) if data.get("lat") else None,
             "longitude": float(data.get("lng")) if data.get("lng") else None,
@@ -1331,36 +1407,61 @@ def update_report(report_id):
         if new_status and new_status != old_status:
             create_report_notification(request.user_id, report_id, report_title, new_status)
 
-        # Handle image replacement
+        # Handle image replacement - store as base64 in database
         if "images" in request.files:
-            # Delete existing images from backend DB
-            existing_images_resp = supabase.table("report_images").select("*").eq("report_id", report_id).execute()
-            existing_images = getattr(existing_images_resp, "data", [])
-            for img in existing_images:
-                # Delete file from filesystem
-                file_path = img.get("image_url").lstrip("/")  # adjust if needed
-                if os.path.exists(file_path):
-                    os.remove(file_path)
-                # Delete from DB
-                supabase.table("report_images").delete().eq("id", img["id"]).execute()
+            print(f"🖼️ Processing image updates for report {report_id}")
+            # Delete existing images from database
+            supabase.table("report_images").delete().eq("report_id", report_id).execute()
+            print(f"🗑️ Deleted existing images for report {report_id}")
 
-            # Upload new images
+            # Process new images and store as base64
             files = request.files.getlist("images")
-            os.makedirs("uploads", exist_ok=True)
+            print(f"📸 Processing {len(files)} new images")
             for file in files:
-                filename = f"report_{report_id}_{uuid.uuid4().hex}_{file.filename}"
-                save_path = os.path.join("uploads", filename)
-                file.save(save_path)
-                image_url = f"/uploads/{filename}"
+                # Read file content and convert to base64
+                file_content = file.read()
+                file_base64 = base64.b64encode(file_content).decode('utf-8')
+                
+                # Get file extension for proper MIME type
+                file_ext = file.filename.split('.')[-1].lower() if '.' in file.filename else 'jpg'
+                mime_type = f"image/{file_ext}" if file_ext in ['jpg', 'jpeg', 'png', 'gif', 'webp'] else "image/jpeg"
+                
+                # Create data URL format
+                image_data_url = f"data:{mime_type};base64,{file_base64}"
+                
+                # Store in database
                 supabase.table("report_images").insert({
                     "report_id": report_id,
-                    "image_url": image_url,
+                    "image_url": image_data_url,
                     "created_at": datetime.now(timezone.utc).isoformat()
                 }).execute()
 
-        return jsonify({"status": "success", "message": "Report updated"}), 200
+        # Fetch the updated report with all related data
+        updated_report_resp = supabase.table("reports").select("*").eq("id", report_id).execute()
+        updated_report = getattr(updated_report_resp, "data", [None])[0]
+        
+        if updated_report:
+            # Fetch reporter info
+            user_resp = supabase.table("users").select("id, firstname, lastname, avatar_url").eq("id", updated_report["user_id"]).execute()
+            reporter = getattr(user_resp, "data", [None])[0] or DEFAULT_REPORTER
+            
+            # Fetch verification status from info table
+            info_resp = supabase.table("info").select("verified").eq("user_id", updated_report["user_id"]).execute()
+            info_data = getattr(info_resp, "data", [None])[0]
+            reporter["verified"] = info_data.get("verified", False) if info_data else False
+            
+            # Fetch images for this report
+            images_resp = supabase.table("report_images").select("image_url").eq("report_id", report_id).execute()
+            images_list = getattr(images_resp, "data", []) or []
+            updated_report["images"] = [{"url": img["image_url"]} for img in images_list]
+            updated_report["reporter"] = reporter
+
+        print(f"✅ Report {report_id} updated successfully")
+        print(f"📊 Updated report with {len(updated_report.get('images', []))} images")
+        return jsonify({"status": "success", "message": "Report updated", "report": updated_report}), 200
 
     except Exception as e:
+        print(f"❌ Report update failed for {report_id}: {str(e)}")
         return jsonify({"status": "error", "message": str(e)}), 500
 
 @app.route("/api/reports/<report_id>", methods=["PATCH"])
@@ -1938,53 +2039,72 @@ def admin_update_report_status(report_id):
 
 @app.route("/api/reports/<report_id>", methods=["DELETE"])
 @token_required
-def admin_delete_report(report_id):
+def delete_report(report_id):
     """
-    Admin endpoint to delete report and notify the user
+    Delete report - allows both admins and report owners to delete reports
     """
     try:
-        # Check if user is an admin
+        print(f"=== DELETE REPORT CALLED ===")
+        print(f"Report ID: {report_id}")
+        print(f"User ID: {request.user_id}")
+        
+        # Get user role
         user_resp = supabase.table("users").select("role").eq("id", request.user_id).execute()
         user = getattr(user_resp, "data", [None])[0]
-        if not user or user.get("role") != "Admin":
-            return jsonify({"status": "error", "message": "Admin access required"}), 403
-
+        user_role = user.get("role") if user else "Resident"
+        
         # Fetch current report to get user_id and title
         report_resp = supabase.table("reports").select("user_id, title").eq("id", report_id).is_("deleted_at", None).execute()
         report = getattr(report_resp, "data", [None])[0]
         if not report:
+            print(f"❌ Report {report_id} not found")
             return jsonify({"status": "error", "message": "Report not found"}), 404
 
-        user_id = report.get("user_id")
+        report_owner_id = report.get("user_id")
         report_title = report.get("title")
+        
+        # Check authorization: either admin or report owner
+        if user_role != "Admin" and str(request.user_id) != str(report_owner_id):
+            print(f"❌ User {request.user_id} not authorized to delete report {report_id}")
+            return jsonify({"status": "error", "message": "Not authorized to delete this report"}), 403
 
-        # Soft delete by setting deleted_at
-        supabase.table("reports").update({
-            "deleted_at": datetime.now(timezone.utc).isoformat()
-        }).eq("id", report_id).execute()
-
-        # Create notification for the user
-        if user_id:
+        print(f"✅ User authorized to delete report '{report_title}'")
+        
+        # HARD DELETE: Actually remove the report from database
+        print(f"🗑️ Hard deleting report {report_id}")
+        
+        # First delete associated images
+        supabase.table("report_images").delete().eq("report_id", report_id).execute()
+        print(f"🖼️ Deleted images for report {report_id}")
+        
+        # Then delete the report itself
+        supabase.table("reports").delete().eq("id", report_id).execute()
+        print(f"📝 Deleted report {report_id}")
+        
+        # Create notification only if admin deleted someone else's report
+        if user_role == "Admin" and str(request.user_id) != str(report_owner_id):
             try:
                 supabase.table("notifications").insert({
-                    "user_id": user_id,
+                    "user_id": report_owner_id,
                     "report_id": report_id,
                     "type": "Report Deleted",
                     "title": "Report Removed",
                     "message": f'Your report "{report_title}" has been removed by the administration.',
                     "is_read": False,
-                    "created_at": datetime.utcnow().isoformat()
+                    "created_at": datetime.now(timezone.utc).isoformat()
                 }).execute()
+                print(f"📧 Notification sent to user {report_owner_id}")
             except Exception as e:
                 print("Failed to create deletion notification:", e)
 
+        print(f"✅ Report {report_id} deleted successfully")
         return jsonify({
             "status": "success", 
             "message": "Report deleted successfully"
         }), 200
 
     except Exception as e:
-        print(f"Error deleting report: {e}")
+        print(f"❌ Error deleting report {report_id}: {e}")
         return jsonify({"status": "error", "message": str(e)}), 500
 
 # ----------------- NOTIF -----------------
