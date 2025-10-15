@@ -718,7 +718,7 @@ function AdminReports({ token }) {
                                     </div>
 
                                     <div className="report-header-actions">
-                                        <span className={`status-badge status-${report.status.toLowerCase()}`}>
+                                        <span className={`status-badge status-${report.status?.toLowerCase() || 'pending'}`}>
                                             {report.status}
                                         </span>
                                         <button 
@@ -822,8 +822,11 @@ function AdminReports({ token }) {
                         
                         <div style={{ marginBottom: '20px' }}>
                             <p><strong>Current Status:</strong> 
-                                <span className={`status-badge status-${selectedReport.status.toLowerCase()}`} style={{ marginLeft: '10px' }}>
-                                    {selectedReport.status}
+                                <span 
+                                    className={`status-badge status-${selectedReport.status?.toLowerCase() || 'pending'}`} 
+                                    style={{ marginLeft: '10px' }}
+                                >
+                                    {selectedReport.status || 'Unknown'} 
                                 </span>
                             </p>
                         </div>
