@@ -139,6 +139,7 @@ function AdminReports({ token }) {
     const [expandedPosts, setExpandedPosts] = useState([]);
     const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false);
     const [deleteTarget, setDeleteTarget] = useState(null);
+    const [isDeleting, setIsDeleting] = useState(false);
     
     const barangays = [
         "All Barangay", "Barretto", "East Bajac-Bajac", "East Tapinac", "Gordon Heights",
@@ -177,9 +178,11 @@ function AdminReports({ token }) {
     };
 
     const closeDeleteConfirm = useCallback(() => {
-        setIsDeleteConfirmOpen(false);
-        setDeleteTarget(null);
-    }, []);
+        if (!isDeleting) { // Only allow closing if not deleting
+            setIsDeleteConfirmOpen(false);
+            setDeleteTarget(null);
+        }
+    }, [isDeleting]);
 
     const openDeleteConfirm = (report) => {
         setDeleteTarget(report);
@@ -345,6 +348,7 @@ function AdminReports({ token }) {
     const handleDelete = async () => {
         if (!deleteTarget || !token) return;
 
+        setIsDeleting(true);
         try {
             const response = await fetch(`${API_URL}/reports/${deleteTarget.id}`, {
                 method: 'DELETE',
@@ -374,6 +378,8 @@ function AdminReports({ token }) {
         } catch (error) {
             console.error('Error deleting report:', error);
             showNotification(`Failed to delete report: ${error.message}`, 'error');
+        } finally {
+            setIsDeleting(false);
         }
     };
 
@@ -711,7 +717,7 @@ function AdminReports({ token }) {
             {isDeleteConfirmOpen && (
                 <div 
                     className="modal-overlay" 
-                    onClick={closeDeleteConfirm}
+                    onClick={!isDeleting ? closeDeleteConfirm : undefined}
                     role="dialog" 
                     aria-modal="true" 
                     aria-labelledby="delete-modal-title"
@@ -725,9 +731,23 @@ function AdminReports({ token }) {
                                 ? `${deleteTarget.reporter.firstname || ""} ${deleteTarget.reporter.lastname || ""}`.trim()
                                 : "Unknown User"
                             }?</p>
-                        <div className="delete-actions">
-                            <button onClick={handleDelete}>Yes, Delete Permanently</button>
-                            <button onClick={closeDeleteConfirm}>Cancel</button>
+                        <div className="modal-actions">
+                            <button 
+                                className="cancel-btn" 
+                                onClick={closeDeleteConfirm}
+                                disabled={isDeleting}
+                                style={{ opacity: isDeleting ? 0.6 : 1 }}
+                            >
+                                Cancel
+                            </button>
+                            <button 
+                                className="confirm-btn" 
+                                onClick={handleDelete}
+                                disabled={isDeleting}
+                                style={{ opacity: isDeleting ? 0.6 : 1 }}
+                            >
+                                {isDeleting ? 'Deleting...' : 'Yes, Delete Permanently'}
+                            </button>
                         </div>
                     </div>
                 </div>

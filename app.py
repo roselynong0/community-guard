@@ -194,8 +194,11 @@ def list_sessions():
     now = datetime.now(timezone.utc)
 
     try:
-        # Get user data first for the current session
-        user_resp = supabase.table("users").select("*").eq("id", user_id).is_("deleted_at", None).single().execute()
+        # Get user data first for the current session with retry mechanism
+        def fetch_user():
+            return supabase.table("users").select("*").eq("id", user_id).is_("deleted_at", None).single().execute()
+        
+        user_resp = supabase_retry(fetch_user)
         user_data = user_resp.data if user_resp.data else None
 
         if not user_data:
@@ -205,14 +208,17 @@ def list_sessions():
                 "sessions": []
             }), 404
 
-        # Get all sessions
-        resp = (
-            supabase.table("sessions")
-            .select("id, token, expires_at, created_at")
-            .eq("user_id", user_id)
-            .order("created_at", desc=True)
-            .execute()
-        )
+        # Get all sessions with retry mechanism
+        def fetch_sessions():
+            return (
+                supabase.table("sessions")
+                .select("id, token, expires_at, created_at")
+                .eq("user_id", user_id)
+                .order("created_at", desc=True)
+                .execute()
+            )
+        
+        resp = supabase_retry(fetch_sessions)
 
         all_sessions = resp.data or []
 
@@ -245,9 +251,11 @@ def list_sessions():
         }), 200
 
     except Exception as e:
+        print(f"❌ Error in /api/sessions for user {user_id}: {e}")
+        print(f"Error type: {type(e).__name__}")
         return jsonify({
             "status": "error",
-            "message": str(e),
+            "message": "Failed to fetch sessions",
             "sessions": []
         }), 500
 
@@ -888,9 +896,15 @@ def logout():
 def get_profile():
     user_id = request.user_id
     try:
-        # ✅ Only fetch user if not soft deleted
-        user_resp = supabase.table("users").select("*").eq("id", user_id).is_("deleted_at", None).execute()
-        info_resp = supabase.table("info").select("*").eq("user_id", user_id).execute()
+        # ✅ Only fetch user if not soft deleted with retry mechanism
+        def fetch_user():
+            return supabase.table("users").select("*").eq("id", user_id).is_("deleted_at", None).execute()
+        
+        def fetch_info():
+            return supabase.table("info").select("*").eq("user_id", user_id).execute()
+        
+        user_resp = supabase_retry(fetch_user)
+        info_resp = supabase_retry(fetch_info)
 
         if not user_resp.data:
             return jsonify({"status": "not_found", "message": "User not found or deleted"}), 404
@@ -921,7 +935,9 @@ def get_profile():
         return jsonify({"status": "success", "profile": profile}), 200
 
     except Exception as e:
-        return jsonify({"status": "error", "message": str(e)}), 500
+        print(f"❌ Error in /api/profile for user {user_id}: {e}")
+        print(f"Error type: {type(e).__name__}")
+        return jsonify({"status": "error", "message": "Failed to fetch profile"}), 500
 
 # ----------------- UPDATE -----------------
 @app.route("/api/profile", methods=["PUT"])
@@ -963,17 +979,28 @@ def update_profile():
         if "birthdate" in data:
             updated_info["birthdate"] = data["birthdate"]
 
-        # ----------------- EXECUTE UPDATES -----------------
+        # ----------------- EXECUTE UPDATES WITH RETRY -----------------
         if updated_user:
-            supabase.table("users").update(updated_user).eq("id", user_id).execute()
+            def update_user():
+                return supabase.table("users").update(updated_user).eq("id", user_id).execute()
+            supabase_retry(update_user)
+            
         if updated_info:
             # Upsert ensures a row exists in `info`
             updated_info["user_id"] = user_id
-            supabase.table("info").upsert(updated_info, on_conflict=["user_id"]).execute()
+            def update_info():
+                return supabase.table("info").upsert(updated_info, on_conflict=["user_id"]).execute()
+            supabase_retry(update_info)
 
-        # ----------------- FETCH UPDATED PROFILE -----------------
-        user_resp = supabase.table("users").select("*").eq("id", user_id).execute()
-        info_resp = supabase.table("info").select("*").eq("user_id", user_id).execute()
+        # ----------------- FETCH UPDATED PROFILE WITH RETRY -----------------
+        def fetch_updated_user():
+            return supabase.table("users").select("*").eq("id", user_id).execute()
+        
+        def fetch_updated_info():
+            return supabase.table("info").select("*").eq("user_id", user_id).execute()
+        
+        user_resp = supabase_retry(fetch_updated_user)
+        info_resp = supabase_retry(fetch_updated_info)
         user = user_resp.data[0] if user_resp.data else {}
         info = info_resp.data[0] if info_resp.data else {}
 
@@ -1065,8 +1092,10 @@ def upload_avatar():
         # Encode as Base64 string
         encoded_string = f"data:{file.mimetype};base64," + base64.b64encode(file_contents).decode("utf-8")
 
-        # Update users table
-        supabase.table("users").update({"avatar_url": encoded_string}).eq("id", user_id).execute()
+        # Update users table with retry mechanism
+        def update_avatar():
+            return supabase.table("users").update({"avatar_url": encoded_string}).eq("id", user_id).execute()
+        supabase_retry(update_avatar)
 
         return jsonify({"status": "success", "url": encoded_string}), 200
     except Exception as e:
@@ -1119,15 +1148,25 @@ def fetch_reports(limit=10, sort="desc", user_only=False, barangay_filter=False,
         info_data = {}
         
         if user_ids:
-            # Fetch all users in one query
-            users_resp = supabase.table("users").select("id, firstname, lastname, avatar_url, email, isverified").in_("id", user_ids).execute()
-            users_list = getattr(users_resp, "data", []) or []
-            users_data = {user["id"]: user for user in users_list}
+            # Fetch all users in one query with retry mechanism
+            def fetch_users():
+                return supabase.table("users").select("id, firstname, lastname, avatar_url, email, isverified").in_("id", user_ids).execute()
             
-            # Fetch all info data in one query
-            info_resp = supabase.table("info").select("user_id, verified").in_("user_id", user_ids).execute()
-            info_list = getattr(info_resp, "data", []) or []
-            info_data = {info["user_id"]: info for info in info_list}
+            def fetch_info():
+                return supabase.table("info").select("user_id, verified").in_("user_id", user_ids).execute()
+            
+            try:
+                users_resp = supabase_retry(fetch_users)
+                users_list = getattr(users_resp, "data", []) or []
+                users_data = {user["id"]: user for user in users_list}
+                
+                # Fetch all info data in one query with retry mechanism
+                info_resp = supabase_retry(fetch_info)
+                info_list = getattr(info_resp, "data", []) or []
+                info_data = {info["user_id"]: info for info in info_list}
+            except Exception as e:
+                print(f"⚠️ Failed to fetch user data after retries: {e}")
+                # Continue with empty user data rather than failing
 
         print(f"📊 Loaded {len(reports)} reports with {len(users_data)} users")
 
@@ -1150,13 +1189,16 @@ def fetch_reports(limit=10, sort="desc", user_only=False, barangay_filter=False,
             # Force barangay to string
             report["barangay"] = str(report.get("address_barangay") or "All")
 
-        # Batch fetch all images for all reports in one query
+        # Batch fetch all images for all reports in one query with retry mechanism
         report_ids = [report["id"] for report in reports]
         images_data = {}
         
         if report_ids:
+            def fetch_images():
+                return supabase.table("report_images").select("report_id, image_url").in_("report_id", report_ids).execute()
+            
             try:
-                images_resp = supabase.table("report_images").select("report_id, image_url").in_("report_id", report_ids).execute()
+                images_resp = supabase_retry(fetch_images)
                 images_list = getattr(images_resp, "data", []) or []
                 
                 # Group images by report_id
@@ -1165,8 +1207,11 @@ def fetch_reports(limit=10, sort="desc", user_only=False, barangay_filter=False,
                     if report_id not in images_data:
                         images_data[report_id] = []
                     images_data[report_id].append({"url": img["image_url"]})
+                    
+                print(f"📸 Successfully loaded {len(images_list)} images for {len(report_ids)} reports")
             except Exception as e:
-                print(f"⚠️ Failed to batch fetch images: {e}")
+                print(f"⚠️ Failed to batch fetch images after retries: {e}")
+                # Continue without images rather than failing completely
 
         # Attach images to each report
         for report in reports:
@@ -1281,32 +1326,76 @@ def add_report():
         }
 
         resp = supabase.table("reports").insert(report).execute()
-        report_id = resp.data[0]["id"]
+        inserted_report = resp.data[0]
+        report_id = inserted_report["id"]
+        
+        # Update the report object with the ID and all fields returned from DB
+        report.update(inserted_report)
 
-        # Save images if any - store as base64 in database
+        # Save images if any - store as compressed base64 in database
         images_data = []
         if "images" in request.files:
             files = request.files.getlist("images")
             print(f"📸 Processing {len(files)} images for new report")
             for file in files:
-                # Read file content and convert to base64
-                file_content = file.read()
-                file_base64 = base64.b64encode(file_content).decode('utf-8')
-                
-                # Get file extension for proper MIME type
-                file_ext = file.filename.split('.')[-1].lower() if '.' in file.filename else 'jpg'
-                mime_type = f"image/{file_ext}" if file_ext in ['jpg', 'jpeg', 'png', 'gif', 'webp'] else "image/jpeg"
-                
-                # Create data URL format
-                image_data_url = f"data:{mime_type};base64,{file_base64}"
-                images_data.append({"url": image_data_url})
-                
-                # Store in database
-                supabase.table("report_images").insert({
-                    "report_id": report_id,
-                    "image_url": image_data_url,
-                    "created_at": datetime.now(timezone.utc).isoformat()
-                }).execute()
+                try:
+                    # Read file content
+                    file_content = file.read()
+                    
+                    # Compress and resize image using PIL
+                    from PIL import Image
+                    import io
+                    
+                    # Open image with PIL
+                    img = Image.open(io.BytesIO(file_content))
+                    
+                    # Convert to RGB if needed (handles RGBA, P, etc.)
+                    if img.mode != 'RGB':
+                        img = img.convert('RGB')
+                    
+                    # Resize if too large (max 1200x1200 to maintain quality but reduce size)
+                    max_size = (1200, 1200)
+                    img.thumbnail(max_size, Image.Resampling.LANCZOS)
+                    
+                    # Save to bytes with smart compression
+                    output = io.BytesIO()
+                    
+                    # Determine quality based on original size
+                    original_size = len(file_content)
+                    if original_size > 500000:  # 500KB
+                        quality = 70  # More aggressive compression for large files
+                    elif original_size > 200000:  # 200KB
+                        quality = 80
+                    else:
+                        quality = 85  # Light compression for smaller files
+                    
+                    img.save(output, format='JPEG', quality=quality, optimize=True)
+                    compressed_content = output.getvalue()
+                    
+                    # If compression made it larger, use original (rare case with small images)
+                    if len(compressed_content) > original_size:
+                        print(f"⚠️ Compression increased size, using original")
+                        compressed_content = file_content
+                    
+                    # Convert to base64
+                    file_base64 = base64.b64encode(compressed_content).decode('utf-8')
+                    
+                    # Create data URL format (always JPEG after compression)
+                    image_data_url = f"data:image/jpeg;base64,{file_base64}"
+                    images_data.append({"url": image_data_url})
+                    
+                    print(f"📸 Compressed image: {len(file_content)} bytes → {len(compressed_content)} bytes (quality: {quality})")
+                    
+                    # Store in database
+                    supabase.table("report_images").insert({
+                        "report_id": report_id,
+                        "image_url": image_data_url,
+                        "created_at": datetime.now(timezone.utc).isoformat()
+                    }).execute()
+                    
+                except Exception as img_error:
+                    print(f"❌ Failed to process image {file.filename}: {img_error}")
+                    continue
 
         # Fetch user info with proper verification status
         user_resp = supabase.table("users").select("id, firstname, lastname, avatar_url, isverified").eq("id", user_id).execute()
@@ -1323,6 +1412,11 @@ def add_report():
         print(f"✅ Report created successfully by user {user_id}")
         print(f"📊 New report with {len(images_data)} images")
         print(f"👤 Reporter verification: email={reporter.get('isverified', False)}, full={reporter.get('verified', False)}")
+        print(f"📋 Report structure being returned:")
+        print(f"  - ID: {report.get('id')} (type: {type(report.get('id'))})")
+        print(f"  - Title: {report.get('title')}")
+        print(f"  - User ID: {report.get('user_id')}")
+        print(f"  - All keys: {list(report.keys())}")
 
         return jsonify({"status": "success", "report": report}), 201
     except Exception as e:
@@ -1419,27 +1513,52 @@ def update_report(report_id):
             supabase.table("report_images").delete().eq("report_id", report_id).execute()
             print(f"🗑️ Deleted existing images for report {report_id}")
 
-            # Process new images and store as base64
+            # Process new images with compression and store as base64
             files = request.files.getlist("images")
             print(f"📸 Processing {len(files)} new images")
             for file in files:
-                # Read file content and convert to base64
-                file_content = file.read()
-                file_base64 = base64.b64encode(file_content).decode('utf-8')
-                
-                # Get file extension for proper MIME type
-                file_ext = file.filename.split('.')[-1].lower() if '.' in file.filename else 'jpg'
-                mime_type = f"image/{file_ext}" if file_ext in ['jpg', 'jpeg', 'png', 'gif', 'webp'] else "image/jpeg"
-                
-                # Create data URL format
-                image_data_url = f"data:{mime_type};base64,{file_base64}"
-                
-                # Store in database
-                supabase.table("report_images").insert({
-                    "report_id": report_id,
-                    "image_url": image_data_url,
-                    "created_at": datetime.now(timezone.utc).isoformat()
-                }).execute()
+                try:
+                    # Read file content
+                    file_content = file.read()
+                    
+                    # Compress and resize image using PIL
+                    from PIL import Image
+                    import io
+                    
+                    # Open image with PIL
+                    img = Image.open(io.BytesIO(file_content))
+                    
+                    # Convert to RGB if needed (handles RGBA, P, etc.)
+                    if img.mode != 'RGB':
+                        img = img.convert('RGB')
+                    
+                    # Resize if too large (max 1200x1200 to maintain quality but reduce size)
+                    max_size = (1200, 1200)
+                    img.thumbnail(max_size, Image.Resampling.LANCZOS)
+                    
+                    # Save to bytes with compression
+                    output = io.BytesIO()
+                    img.save(output, format='JPEG', quality=85, optimize=True)
+                    compressed_content = output.getvalue()
+                    
+                    # Convert to base64
+                    file_base64 = base64.b64encode(compressed_content).decode('utf-8')
+                    
+                    # Create data URL format (always JPEG after compression)
+                    image_data_url = f"data:image/jpeg;base64,{file_base64}"
+                    
+                    print(f"📸 Compressed image: {len(file_content)} bytes → {len(compressed_content)} bytes")
+                    
+                    # Store in database
+                    supabase.table("report_images").insert({
+                        "report_id": report_id,
+                        "image_url": image_data_url,
+                        "created_at": datetime.now(timezone.utc).isoformat()
+                    }).execute()
+                    
+                except Exception as img_error:
+                    print(f"❌ Failed to process image {file.filename}: {img_error}")
+                    continue
 
         # Fetch the updated report with all related data
         updated_report_resp = supabase.table("reports").select("*").eq("id", report_id).execute()

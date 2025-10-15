@@ -11,18 +11,22 @@ import markerShadow from "leaflet/dist/images/marker-shadow.png";
 
 const API_URL = "http://localhost:5000/api";
 
-// Helper function to construct proper image URLs
+// Helper function to construct proper image URLs with optimization
 const getImageUrl = (imgUrl) => {
   // If it's a data URL (base64), return as is
-  if (imgUrl.startsWith('data:')) {
+  if (imgUrl && imgUrl.startsWith('data:')) {
     return imgUrl;
   }
   // If it's an API path, construct full URL
-  if (imgUrl.startsWith('/api/')) {
+  if (imgUrl && imgUrl.startsWith('/api/')) {
     return `http://localhost:5000${imgUrl}`;
   }
   // Default case for relative paths
-  return `${API_URL}${imgUrl}`;
+  if (imgUrl) {
+    return `${API_URL}${imgUrl}`;
+  }
+  // Fallback for empty/null URLs
+  return "/src/assets/placeholder.png";
 };
 
 // Fix Leaflet marker icon issue
@@ -124,6 +128,7 @@ function Reports({ session }) {
   const [notification, setNotification] = useState(null); // { message: string, type: 'success' | 'error' | 'caution' }
   const [highlightedReportId, setHighlightedReportId] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false); // Prevent double submissions
+  const [isDeleting, setIsDeleting] = useState(false); // Delete loading state
 
   // ⭐ REFS for Modals (already existed)
   const modalRef = useRef(null);
@@ -178,16 +183,28 @@ function Reports({ session }) {
     try {
       const res = await axios.get(
         `${API_URL}/reports?sort=${sort === "latest" ? "desc" : "asc"}`,
-        { headers: { Authorization: `Bearer ${token}` } }
+        { 
+          headers: { Authorization: `Bearer ${token}` },
+          timeout: 30000 // 30 second timeout
+        }
       );
       if (res.data.status === "success" && Array.isArray(res.data.reports)) {
         setReports(res.data.reports);
+        console.log(`📊 Loaded ${res.data.reports.length} reports successfully`);
       } else {
         console.warn("Unexpected response format:", res.data);
         setReports([]);
+        showNotification("Failed to load reports - invalid format", "error");
       }
     } catch (err) {
       console.error("Error fetching reports:", err);
+      if (err.code === 'ECONNABORTED') {
+        showNotification("Request timed out - please try again", "error");
+      } else if (err.response?.status >= 500) {
+        showNotification("Server error - please try again later", "error");
+      } else {
+        showNotification("Failed to load reports", "error");
+      }
       // On error, preserve existing reports to prevent blank page
       // Only set empty array if there are no existing reports
     } finally {
@@ -372,6 +389,11 @@ function Reports({ session }) {
         // Real-time update: Add new report to the top of the list
         if (response.data.status === "success") {
           const newReport = response.data.report;
+          console.log("=== New report received from backend ===");
+          console.log("New report structure:", newReport);
+          console.log("New report ID:", newReport.id);
+          console.log("New report ID type:", typeof newReport.id);
+          
           // Ensure the new report has the correct verification status
           if (newReport.reporter) {
             // The backend should have already set the correct verification status
@@ -380,7 +402,11 @@ function Reports({ session }) {
               full: newReport.reporter.verified
             });
           }
-          setReports(prevReports => [newReport, ...prevReports]);
+          
+          setReports(prevReports => {
+            console.log("Adding new report to list. Current reports count:", prevReports.length);
+            return [newReport, ...prevReports];
+          });
         }
         showNotification("✓ Report submitted successfully!", "success");
       }
@@ -404,7 +430,16 @@ function Reports({ session }) {
   const handleEdit = (report) => {
     console.log("=== handleEdit called ===");
     console.log("Report to edit:", report);
+    console.log("Report has ID?", !!report.id);
+    console.log("Report ID value:", report.id);
+    console.log("Report ID type:", typeof report.id);
     console.log("Setting editReportId to:", report.id);
+    
+    if (!report.id) {
+      console.error("❌ Cannot edit report - missing ID!");
+      showNotification("Error: Cannot edit report - missing ID", "error");
+      return;
+    }
     
     setEditReportId(report.id);
     setNewReport({
@@ -425,22 +460,35 @@ function Reports({ session }) {
   };
 
   const handleDelete = async () => {
+    console.log("=== DELETE REPORT CALLED ===");
+    console.log("Delete target:", deleteTarget);
+    console.log("Delete target type:", typeof deleteTarget);
+    console.log("Delete target ID:", deleteTarget?.id);
+    console.log("Delete target ID type:", typeof deleteTarget?.id);
+    
     if (!deleteTarget || !deleteTarget.id) {
       console.error("❌ Delete target or ID is missing:", deleteTarget);
       showNotification("Error: Cannot delete report - invalid ID", "error");
       return;
     }
     
-    console.log("=== DELETE REPORT CALLED ===");
+    console.log("✅ Delete target validation passed");
     console.log("Report ID:", deleteTarget.id);
-    console.log("Delete target:", deleteTarget);
+    console.log("Report title:", deleteTarget.title);
+    
+    setIsDeleting(true);
     
     try {
+      const deleteUrl = `${API_URL}/reports/${deleteTarget.id}`;
+      console.log("🔗 Delete URL:", deleteUrl);
+      console.log("🔑 Token exists:", !!token);
+      
       // Use DELETE method for hard delete instead of PATCH for soft delete
-      await axios.delete(
-        `${API_URL}/reports/${deleteTarget.id}`,
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
+      const response = await axios.delete(deleteUrl, { 
+        headers: { Authorization: `Bearer ${token}` } 
+      });
+      
+      console.log("✅ Delete response:", response.status, response.data);
       
       // Real-time update: Remove the deleted report from the list
       setReports(prevReports => 
@@ -454,6 +502,8 @@ function Reports({ session }) {
     } catch (err) {
       console.error("Delete Error:", err);
       showNotification("Failed to delete report. Please try again.", "error");
+    } finally {
+      setIsDeleting(false);
     }
   };
 
@@ -749,7 +799,14 @@ function Reports({ session }) {
                         <>
                           <button
                             className="icon-btn edit-btn"
-                            onClick={() => handleEdit(report)}
+                            onClick={() => {
+                              console.log("=== Edit button clicked ===");
+                              console.log("Report to edit:", report);
+                              console.log("Report object keys:", Object.keys(report));
+                              console.log("Report ID:", report.id);
+                              console.log("Report ID type:", typeof report.id);
+                              handleEdit(report);
+                            }}
                              aria-label={`Edit report: ${report.title}`}
                              title="Edit Report"
                           >
@@ -760,7 +817,9 @@ function Reports({ session }) {
                             onClick={() => {
                               console.log("=== Delete button clicked ===");
                               console.log("Report to delete:", report);
+                              console.log("Report object keys:", Object.keys(report));
                               console.log("Report ID:", report.id);
+                              console.log("Report ID type:", typeof report.id);
                               console.log("Report title:", report.title);
                               setDeleteTarget(report);
                               setIsDeleteConfirmOpen(true);
@@ -804,10 +863,12 @@ function Reports({ session }) {
                         className="report-collage-img"
                         onClick={() => setPreviewImage(getImageUrl(imgObj.url))}
                         tabIndex="0"
+                        loading="lazy"
                         onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') setPreviewImage(getImageUrl(imgObj.url)); }}
                         onError={(e) => {
                           console.error(`Failed to load image: ${getImageUrl(imgObj.url)}`);
-                          e.target.style.display = 'none';
+                          e.target.style.opacity = '0.5';
+                          e.target.title = 'Failed to load image';
                         }}
                       />
                     ))}
@@ -1059,16 +1120,40 @@ function Reports({ session }) {
             role="dialog" 
             aria-modal="true" 
             aria-labelledby="delete-modal-title"
+            onClick={() => {
+              if (!isDeleting) {
+                setIsDeleteConfirmOpen(false);
+              }
+            }}
         >
-          <div className="modal">
+          <div className="modal" onClick={(e) => e.stopPropagation()}>
             <h3 id="delete-modal-title">Delete Report</h3>
             <p>
               Are you sure you want to delete "<strong>{deleteTarget?.title}</strong>"?
             </p>
-            <div className="delete-actions">
-              <button onClick={handleDelete} autoFocus>Yes, Delete</button>
-              <button onClick={() => setIsDeleteConfirmOpen(false)}>
+            <div className="modal-actions">
+              <button 
+                className="cancel-btn"
+                onClick={() => {
+                  if (!isDeleting) {
+                    setIsDeleteConfirmOpen(false);
+                  }
+                }}
+                disabled={isDeleting}
+              >
                 Cancel
+              </button>
+              <button 
+                className="confirm-btn"
+                onClick={handleDelete} 
+                autoFocus
+                disabled={isDeleting}
+                style={{ 
+                  opacity: isDeleting ? 0.6 : 1, 
+                  cursor: isDeleting ? 'not-allowed' : 'pointer' 
+                }}
+              >
+                {isDeleting ? 'Deleting...' : 'Yes, Delete'}
               </button>
             </div>
           </div>
