@@ -1170,10 +1170,7 @@ def fetch_reports(limit=10, sort="desc", user_only=False, barangay_filter=False,
 
         # Attach images to each report
         for report in reports:
-            report_images = images_data.get(report["id"], [])
-            report["images"] = report_images
-            if report_images:
-                print(f"📷 Report {report['id'][:8]} has {len(report_images)} images")
+            report["images"] = images_data.get(report["id"], [])
 
         total_time = round((time.time() - start_time) * 1000, 1)
         print(f"✅ Reports processed in {total_time}ms total")
@@ -1290,16 +1287,24 @@ def add_report():
         images_data = []
         if "images" in request.files:
             files = request.files.getlist("images")
-            os.makedirs("uploads", exist_ok=True)
+            print(f"📸 Processing {len(files)} images for new report")
             for file in files:
-                filename = f"report_{user_id}_{uuid.uuid4().hex}_{file.filename}"
-                save_path = os.path.join("uploads", filename)
-                file.save(save_path)
-                image_url = f"/uploads/{filename}"
-                images_urls.append(image_url)
+                # Read file content and convert to base64
+                file_content = file.read()
+                file_base64 = base64.b64encode(file_content).decode('utf-8')
+                
+                # Get file extension for proper MIME type
+                file_ext = file.filename.split('.')[-1].lower() if '.' in file.filename else 'jpg'
+                mime_type = f"image/{file_ext}" if file_ext in ['jpg', 'jpeg', 'png', 'gif', 'webp'] else "image/jpeg"
+                
+                # Create data URL format
+                image_data_url = f"data:{mime_type};base64,{file_base64}"
+                images_data.append({"url": image_data_url})
+                
+                # Store in database
                 supabase.table("report_images").insert({
                     "report_id": report_id,
-                    "image_url": image_url,
+                    "image_url": image_data_url,
                     "created_at": datetime.now(timezone.utc).isoformat()
                 }).execute()
 
@@ -2180,21 +2185,7 @@ UPLOAD_FOLDER = os.path.join(os.getcwd(), "uploads")
 
 @app.route("/api/uploads/<filename>")
 def uploaded_file(filename):
-    try:
-        # Ensure uploads folder exists
-        os.makedirs(UPLOAD_FOLDER, exist_ok=True)
-        
-        # Check if file exists
-        file_path = os.path.join(UPLOAD_FOLDER, filename)
-        if not os.path.exists(file_path):
-            print(f"❌ File not found: {file_path}")
-            return jsonify({"error": "File not found"}), 404
-            
-        print(f"✅ Serving file: {filename}")
-        return send_from_directory(UPLOAD_FOLDER, filename)
-    except Exception as e:
-        print(f"❌ Error serving file {filename}: {e}")
-        return jsonify({"error": "File serving error"}), 500
+    return send_from_directory(UPLOAD_FOLDER, filename)
 
 # ----------------- RUN APP -----------------
 if __name__ == "__main__":

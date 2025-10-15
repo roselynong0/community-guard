@@ -1,7 +1,6 @@
-import React, { useState, useEffect, useCallback, useRef, useMemo } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import { FaEdit, FaTrashAlt, FaSearch, FaRedo, FaCheckCircle, FaTimesCircle } from "react-icons/fa";
-import "./Reports.css";
-import RealtimeStatus from "./RealtimeStatus"; 
+import "./Reports.css"; 
 
 const API_URL = "http://localhost:5000/api";
 const REPORT_STATUSES = ["Pending", "Ongoing", "Resolved"];
@@ -240,7 +239,7 @@ function AdminReports({ token }) {
                         title: report.title || 'Untitled Report',
                         description: report.description || 'No description provided',
                         status: report.status || 'Pending',
-                        images: report.images || []
+                        images: report.images?.map(img => img.url) || []
                     };
                 });
                 setReports(transformedReports);
@@ -258,148 +257,6 @@ function AdminReports({ token }) {
     useEffect(() => {
         fetchReports();
     }, [fetchReports]);
-
-    // 🔄 SMART REAL-TIME UPDATES FOR ADMIN - Only fetch when needed
-    const [lastUpdateTime, setLastUpdateTime] = useState(null);
-    const [isConnected, setIsConnected] = useState(true);
-    const [changeType, setChangeType] = useState(null);
-
-    // ✅ SORTING VALIDATION: Ensure reports maintain correct created_at order
-    const validateReportSorting = useCallback((reports, currentSort) => {
-        // Add defensive checks
-        if (!reports || !Array.isArray(reports)) {
-            console.warn("⚠️ Admin validation: Invalid reports array", reports);
-            return false;
-        }
-        
-        if (reports.length < 2) return true;
-        
-        try {
-            for (let i = 0; i < reports.length - 1; i++) {
-                const currentReport = reports[i];
-                const nextReport = reports[i + 1];
-                
-                // Check if reports have valid created_at fields
-                if (!currentReport?.created_at || !nextReport?.created_at) {
-                    console.warn("⚠️ Admin validation: Reports missing created_at field", { currentReport, nextReport });
-                    // Allow the update if some reports don't have created_at (better to show data than blank page)
-                    continue;
-                }
-                
-                const current = new Date(currentReport.created_at);
-                const next = new Date(nextReport.created_at);
-                
-                // Check for invalid dates
-                if (isNaN(current.getTime()) || isNaN(next.getTime())) {
-                    console.warn("⚠️ Admin validation: Invalid date format", { 
-                        current: currentReport.created_at, 
-                        next: nextReport.created_at 
-                    });
-                    continue;
-                }
-                
-                if (currentSort === "latest") {
-                    // For "latest", newer reports should come first (DESC order)
-                    if (current < next) {
-                        console.warn("⚠️ Admin sort validation failed: Reports not in DESC order", {
-                            index: i,
-                            current: currentReport.created_at,
-                            next: nextReport.created_at
-                        });
-                        return false;
-                    }
-                } else {
-                    // For "oldest", older reports should come first (ASC order)  
-                    if (current > next) {
-                        console.warn("⚠️ Admin sort validation failed: Reports not in ASC order", {
-                            index: i,
-                            current: currentReport.created_at,
-                            next: nextReport.created_at
-                        });
-                        return false;
-                    }
-                }
-            }
-            return true;
-        } catch (error) {
-            console.error("❌ Admin sort validation error:", error);
-            // Return true to allow the update rather than causing a blank page
-            return true;
-        }
-    }, []);
-
-    useEffect(() => {
-        if (!token) return;
-
-        let pollInterval;
-        
-        // Smart polling - only fetch if we haven't made recent changes
-        const smartPoll = async () => {
-            const now = Date.now();
-            
-            // Skip polling if we just made a change (within last 10 seconds)
-            if (lastUpdateTime && (now - lastUpdateTime) < 10000) {
-                console.log("⏭️ Admin skipping poll - recent update detected");
-                return;
-            }
-
-            try {
-                console.log(`🔄 Admin smart polling for updates... (sort: ${sort} → ${sort === "latest" ? "desc" : "asc"})`);
-                const response = await fetch(`${API_URL}/reports?sort=${sort === "latest" ? "desc" : "asc"}`, {
-                    headers: { 'Authorization': `Bearer ${token}` }
-                });
-
-                if (response.ok) {
-                    const data = await response.json();
-                    if (data?.reports) {
-                        const newReports = data.reports;
-                        
-                        // ✅ UPDATE WITH DEFENSIVE VALIDATION - Prevent blank pages
-                        setReports(prevReports => {
-                            // Defensive checks
-                            if (!newReports || !Array.isArray(newReports)) {
-                                console.warn("❌ Admin: Invalid reports data received", newReports);
-                                return prevReports;
-                            }
-                            
-                            const hasChanges = JSON.stringify(prevReports) !== JSON.stringify(newReports);
-                            
-                            if (!hasChanges) {
-                                return prevReports; // No changes, keep existing state
-                            }
-                            
-                            // Only validate sorting if we have valid data
-                            const isSortingCorrect = validateReportSorting(newReports, sort);
-                            
-                            if (isSortingCorrect) {
-                                console.log(`✅ Admin updates detected - applying changes (${sort} order validated)`);
-                                return newReports;
-                            } else {
-                                // If sorting is incorrect but we have data, log warning but still update to prevent blank page
-                                console.warn(`⚠️ Admin: Sorting validation failed but applying update to prevent blank page (${sort})`);
-                                return newReports;
-                            }
-                        });
-                    }
-                    setIsConnected(true);
-                } else {
-                    console.error("❌ Admin poll failed:", response.status);
-                    setIsConnected(false);
-                }
-            } catch (error) {
-                console.error("❌ Admin smart poll error:", error);
-                setIsConnected(false);
-            }
-        };
-
-        // Start smart polling every 8 seconds
-        pollInterval = setInterval(smartPoll, 8000);
-
-        return () => {
-            clearInterval(pollInterval);
-            console.log("🛑 Admin smart polling stopped");
-        };
-    }, [token, sort, lastUpdateTime, validateReportSorting]);
 
     // Handle highlight parameter from URL (kept original logic)
     useEffect(() => {
@@ -436,7 +293,7 @@ function AdminReports({ token }) {
         }
 
         if (newStatus === selectedReport.status) {
-            showNotification(`Status is already set to ${newStatus}.`, 'info');
+            showNotification('Status is already set to ' + newStatus, 'info');
             closeStatusModal();
             return;
         }
@@ -462,26 +319,14 @@ function AdminReports({ token }) {
 
             const data = await response.json();
             if (data.status === "success") {
-                // ✅ DEFENSIVE STATUS UPDATE - Ensure we don't break the reports list
-                setReports(prevReports => {
-                    if (!prevReports || !Array.isArray(prevReports)) {
-                        console.error("❌ Admin: Invalid reports state during status update");
-                        return prevReports;
-                    }
-                    
-                    const updatedReports = prevReports.map(r =>
+                setReports(prevReports =>
+                    prevReports.map(r =>
                         r.id === selectedReport.id ? { ...r, status: newStatus } : r
-                    );
-                    
-                    console.log(`✅ Admin status update: Report ${selectedReport.id} status changed to ${newStatus}`);
-                    return updatedReports;
-                });
-                
-                setLastUpdateTime(Date.now()); // Mark that we made a change
-                setChangeType('status'); // Set the change type for status indicator
+                    )
+                );
                 
                 showNotification(
-                    `✅ Report status updated: ${selectedReport.status} → ${newStatus}. User has been notified.`, 
+                    `✅ Status updated to ${newStatus}. User notified.`, 
                     'success'
                 );
                 
@@ -492,6 +337,8 @@ function AdminReports({ token }) {
         } catch (error) {
             console.error('Error updating report status:', error);
             showNotification(`❌ Failed to update status: ${error.message}`, 'error');
+        } finally {
+            setIsUpdatingStatus(false);
         }
     };
 
@@ -517,10 +364,8 @@ function AdminReports({ token }) {
                 setReports(prevReports => 
                     prevReports.filter(r => r.id !== deleteTarget.id)
                 );
-                setLastUpdateTime(Date.now()); // Mark that we made a change
-                setChangeType('delete'); // Set the change type for status indicator
                 
-                showNotification('Report deleted successfully!', 'success');
+                showNotification('Report deleted successfully', 'success');
                 
                 closeDeleteConfirm();
             } else {
@@ -528,50 +373,24 @@ function AdminReports({ token }) {
             }
         } catch (error) {
             console.error('Error deleting report:', error);
-            showNotification(`Delete failed: ${error.message}`, 'error');
+            showNotification(`Failed to delete report: ${error.message}`, 'error');
         }
     };
 
-    // Filtered reports with defensive error handling
-    const filteredReports = useMemo(() => {
-        try {
-            if (!reports || !Array.isArray(reports)) {
-                console.warn("⚠️ Admin: Reports is not a valid array", reports);
-                return [];
+    // Filtered reports (kept original logic)
+    const filteredReports = reports
+        .filter((r) => (category === "All" ? true : r.category === category))
+        .filter((r) => (barangay === "All" ? true : r.barangay === barangay))
+        .filter((r) => (statusFilter === "All" ? true : r.status === statusFilter))
+        .filter(
+            (r) => {
+                const reporterName = r.reporter 
+                    ? `${r.reporter.firstname || ""} ${r.reporter.lastname || ""}`.trim()
+                    : "Unknown User";
+                return r.title.toLowerCase().includes(search.toLowerCase()) ||
+                        reporterName.toLowerCase().includes(search.toLowerCase());
             }
-            
-            const filtered = reports
-                .filter((r) => {
-                    // Defensive check for each report
-                    if (!r || typeof r !== 'object') {
-                        console.warn("⚠️ Admin: Invalid report object", r);
-                        return false;
-                    }
-                    return category === "All" ? true : r.category === category;
-                })
-                .filter((r) => (barangay === "All" ? true : r.barangay === barangay))
-                .filter((r) => (statusFilter === "All" ? true : r.status === statusFilter))
-                .filter((r) => {
-                    try {
-                        const reporterName = r.reporter 
-                            ? `${r.reporter.firstname || ""} ${r.reporter.lastname || ""}`.trim()
-                            : "Unknown User";
-                        const title = r.title || "";
-                        return title.toLowerCase().includes(search.toLowerCase()) ||
-                               reporterName.toLowerCase().includes(search.toLowerCase());
-                    } catch (error) {
-                        console.warn("⚠️ Admin: Error filtering report", r, error);
-                        return false;
-                    }
-                });
-                
-            console.log(`📊 Admin filtered reports: ${filtered.length} of ${reports.length} total`);
-            return filtered;
-        } catch (error) {
-            console.error("❌ Admin: Error filtering reports", error);
-            return [];
-        }
-    }, [reports, category, barangay, statusFilter, search]);
+        );
 
     return (
         <div className="admin-container">
@@ -651,10 +470,6 @@ function AdminReports({ token }) {
             </div>
 
             <div className="reports-list">
-                {(() => {
-                    console.log(`🔍 Admin render debug: loading=${loading}, reports.length=${reports?.length}, filteredReports.length=${filteredReports?.length}`);
-                    return null;
-                })()}
                 {loading ? (
                     <div className="loading-container" role="status" aria-live="polite">
                         <div className="spinner"></div>
@@ -730,7 +545,7 @@ function AdminReports({ token }) {
                                     </div>
 
                                     <div className="report-header-actions">
-                                        <span className={`status-badge status-${report.status?.toLowerCase() || 'pending'}`}>
+                                        <span className={`status-badge status-${report.status.toLowerCase()}`}>
                                             {report.status}
                                         </span>
                                         <button 
@@ -774,15 +589,15 @@ function AdminReports({ token }) {
 
                                 {report.images && report.images.length > 0 && (
                                     <div className={`report-images images-${report.images.length}`}>
-                                        {report.images.map((imgObj, idx) => (
+                                        {report.images.map((img, idx) => (
                                             <img
                                                 key={idx}
-                                                src={`${API_URL}${imgObj.url}`}
+                                                src={img}
                                                 alt={`Report evidence photo ${idx + 1}`}
                                                 className="report-collage-img"
-                                                onClick={() => setPreviewImage(`${API_URL}${imgObj.url}`)}
+                                                onClick={() => setPreviewImage(img)}
                                                 tabIndex="0"
-                                                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') setPreviewImage(`${API_URL}${imgObj.url}`); }}
+                                                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') setPreviewImage(img); }}
                                             />
                                         ))}
                                     </div>
@@ -838,11 +653,8 @@ function AdminReports({ token }) {
                         
                         <div style={{ marginBottom: '20px' }}>
                             <p><strong>Current Status:</strong> 
-                                <span 
-                                    className={`status-badge status-${selectedReport.status?.toLowerCase() || 'pending'}`} 
-                                    style={{ marginLeft: '10px' }}
-                                >
-                                    {selectedReport.status || 'Unknown'} 
+                                <span className={`status-badge status-${selectedReport.status.toLowerCase()}`} style={{ marginLeft: '10px' }}>
+                                    {selectedReport.status}
                                 </span>
                             </p>
                         </div>
@@ -958,13 +770,6 @@ function AdminReports({ token }) {
                     {notification.message}
                 </div>
             )}
-
-            {/* Real-time Status Indicator */}
-            <RealtimeStatus 
-                isConnected={isConnected}
-                lastUpdate={lastUpdateTime}
-                changeType={changeType}
-            />
         </div>
     );
 }

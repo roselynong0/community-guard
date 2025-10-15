@@ -1,4 +1,3 @@
-/* eslint-disable no-irregular-whitespace */
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import axios from "axios";
 import { FaEdit, FaTrashAlt, FaSearch, FaRedo, FaCheckCircle, FaTimesCircle } from "react-icons/fa";
@@ -6,12 +5,25 @@ import { MapContainer, TileLayer, Marker, useMapEvents } from "react-leaflet";
 import "leaflet/dist/leaflet.css";
 import L from "leaflet";
 import "./Reports.css";
-import RealtimeStatus from "./RealtimeStatus";
 import markerIcon2x from "leaflet/dist/images/marker-icon-2x.png";
 import markerIcon from "leaflet/dist/images/marker-icon.png";
 import markerShadow from "leaflet/dist/images/marker-shadow.png";
 
 const API_URL = "http://localhost:5000/api";
+
+// Helper function to construct proper image URLs
+const getImageUrl = (imgUrl) => {
+  // If it's a data URL (base64), return as is
+  if (imgUrl.startsWith('data:')) {
+    return imgUrl;
+  }
+  // If it's an API path, construct full URL
+  if (imgUrl.startsWith('/api/')) {
+    return `http://localhost:5000${imgUrl}`;
+  }
+  // Default case for relative paths
+  return `${API_URL}${imgUrl}`;
+};
 
 // Fix Leaflet marker icon issue
 delete L.Icon.Default.prototype._getIconUrl;
@@ -188,21 +200,21 @@ function Reports({ session }) {
     fetchReports();
   }, [fetchReports]);
 
-  // ⭐ ORIGINAL KEYBOARD NAVIGATION EFFECT (FOR MODAL)
-  useEffect(() => {
-    if (isModalOpen && modalRef.current) {
-      // Get all focusable elements in the modal
-      const focusableElements = modalRef.current.querySelectorAll(
-        // Selector includes input, textarea, select, button, and any element with tabIndex (like the upload label)
-        'input:not([type="file"]), textarea, select, button:not([type="button"]), [tabindex]:not([tabindex="-1"])'
-      );
-      
-      focusableElementsRef.current = Array.from(focusableElements);
-      
-      // Set focus to first element when modal opens
-      if (focusableElementsRef.current.length > 0) {
-        focusableElementsRef.current[0].focus();
-      }
+  // ⭐ ORIGINAL KEYBOARD NAVIGATION EFFECT (FOR MODAL)
+  useEffect(() => {
+    if (isModalOpen && modalRef.current) {
+      // Get all focusable elements in the modal
+      const focusableElements = modalRef.current.querySelectorAll(
+        // Selector includes input, textarea, select, button, and any element with tabIndex (like the upload label)
+        'input:not([type="file"]), textarea, select, button:not([type="button"]), [tabindex]:not([tabindex="-1"])'
+      );
+      
+      focusableElementsRef.current = Array.from(focusableElements);
+      
+      // Set focus to first element when modal opens
+      if (focusableElementsRef.current.length > 0) {
+        focusableElementsRef.current[0].focus();
+      }
 
       const handleKeyDown = (e) => {
         if (e.key === 'Escape') {
@@ -304,63 +316,90 @@ function Reports({ session }) {
       }
       newReport.images.forEach((file) => formData.append("images", file));
 
-      if (editReportId) {
-        const response = await axios.put(`${API_URL}/reports/${editReportId}`, formData, {
-          headers: {
-            Authorization: `Bearer ${token}`,
-            "Content-Type": "multipart/form-data",
-          },
-        });
-        
-        // Real-time update: Update the specific report in the list with complete data
-        if (response.data.status === "success" && response.data.report) {
-          console.log("Update Response:", response.data.report); // Debug log
-          
-          const updatedReport = response.data.report;
-          setReports(prevReports => 
-            prevReports.map(report => 
-              report.id === editReportId 
-                ? { 
-                    ...report, 
-                    ...updatedReport,
-                    // Preserve reporter info to avoid badge rendering issues
-                    reporter: report.reporter || updatedReport.reporter,
-                    // Ensure all updated fields are properly set
-                    images: updatedReport.images || report.images || [],
-                    updated_at: updatedReport.updated_at || new Date().toISOString()
-                  }
-                : report
-            )
-          );
-        }
-        showNotification("✓ Report updated successfully!", "success");
-      } else {
-        const response = await axios.post(`${API_URL}/reports`, formData, {
-          headers: {
-            Authorization: `Bearer ${token}`,
-            "Content-Type": "multipart/form-data",
-          },
-        });
-        
-        // Real-time update: Add new report to the top of the list
-        if (response.data.status === "success") {
-          setReports(prevReports => [response.data.report, ...prevReports]);
-        }
-        showNotification("✓ Report submitted successfully!", "success");
-      }
+      if (editReportId) {
+        console.log("🔄 UPDATING existing report with ID:", editReportId);
+        console.log("📝 FormData contents:");
+        for (let pair of formData.entries()) {
+          console.log(pair[0] + ': ' + pair[1]);
+        }
+        
+        const response = await axios.put(`${API_URL}/reports/${editReportId}`, formData, {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "multipart/form-data",
+          },
+        });
+        
+        // Real-time update: Update the specific report in the list with complete data
+        if (response.data.status === "success" && response.data.report) {
+          const updatedReport = response.data.report;
+          
+          // Log verification status for debugging
+          console.log("Updated report verification status:", {
+            email: updatedReport.reporter?.isverified,
+            full: updatedReport.reporter?.verified
+          });
+          
+          setReports(prevReports => 
+            prevReports.map(report => 
+              report.id === editReportId 
+                ? { 
+                    ...updatedReport, // Use the complete updated report from backend
+                    // Ensure reporter info is properly updated with current verification status
+                    reporter: updatedReport.reporter || report.reporter,
+                    images: updatedReport.images || [],
+                    updated_at: updatedReport.updated_at || new Date().toISOString()
+                  }
+                : report
+            )
+          );
+        }
+        showNotification("✓ Report updated successfully!", "success");
+      } else {
+        console.log("➕ CREATING new report");
+        console.log("📝 FormData contents:");
+        for (let pair of formData.entries()) {
+          console.log(pair[0] + ': ' + pair[1]);
+        }
+        
+        const response = await axios.post(`${API_URL}/reports`, formData, {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "multipart/form-data",
+          },
+        });
+        
+        // Real-time update: Add new report to the top of the list
+        if (response.data.status === "success") {
+          const newReport = response.data.report;
+          // Ensure the new report has the correct verification status
+          if (newReport.reporter) {
+            // The backend should have already set the correct verification status
+            console.log("New report verification status:", {
+              email: newReport.reporter.isverified,
+              full: newReport.reporter.verified
+            });
+          }
+          setReports(prevReports => [newReport, ...prevReports]);
+        }
+        showNotification("✓ Report submitted successfully!", "success");
+      }
 
-      resetNewReport();
-      setIsModalOpen(false);
-      setEditReportId(null);
-      // Remove fetchReports() call - no longer needed for real-time updates
-    } catch (err) {
-      console.error("Add/Update Error:", err);
-      showNotification(
-        "Failed to save report. Please check your connection and data.",
-        "error"
-      );
-    }
-  };
+      console.log("=== Success! Cleaning up state ===");
+      resetNewReport();
+      setIsModalOpen(false);
+      setEditReportId(null);
+      // Remove fetchReports() call - no longer needed for real-time updates
+    } catch (err) {
+      console.error("Add/Update Error:", err);
+      showNotification(
+        "Failed to save report. Please check your connection and data.",
+        "error"
+      );
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
 
   const handleEdit = (report) => {
     console.log("=== handleEdit called ===");
@@ -418,46 +457,46 @@ function Reports({ session }) {
     }
   };
 
-  const toggleExpand = (id) => {
-    setExpandedPosts((prev) =>
-      prev.includes(id) ? prev.filter((i) => i !== id) : [...prev, id]
-    );
-  };
+  const toggleExpand = (id) => {
+    setExpandedPosts((prev) =>
+      prev.includes(id) ? prev.filter((i) => i !== id) : [...prev, id]
+    );
+  };
 
-  const resetNewReport = () => {
-    setNewReport({
-      title: "",
-      description: "",
-      category: "Concern",
-      barangay: "Barretto", // Set a default barangay other than "All" for form
-      addressStreet: "",
-      images: [],
-      existingImages: [],
-      lat: null,
-      lng: null,
-      date: new Date(),
-    });
-  };
+  const resetNewReport = () => {
+    setNewReport({
+      title: "",
+      description: "",
+      category: "", // Start with empty selection to force user to choose
+      barangay: "", // Start with empty selection to force user to choose
+      addressStreet: "",
+      images: [],
+      existingImages: [],
+      lat: null,
+      lng: null,
+      date: new Date(),
+    });
+  };
 
-  // Correct toggle logic
-  const filteredReports = reports
-    .filter((r) => r.deleted !== true) 
-    .filter((r) =>
-      showMyReports
-        ? String(r.user_id) === String(session?.user?.id) // My Reports
-        : true // All Reports
-    )
-    .filter((r) => appliedCategory === "All" || r.category === appliedCategory)
-    .filter(
-      (r) => appliedBarangay === "All Barangays" || r.address_barangay === appliedBarangay
-    )
-    .filter((r) => {
-      if (!appliedSearch) return true;
-      const searchLower = appliedSearch.toLowerCase();
-      return (
-        (r.title || "").toLowerCase().includes(searchLower)
-      );
-    });
+  // Correct toggle logic
+  const filteredReports = reports
+    .filter((r) => r.deleted !== true) 
+    .filter((r) =>
+      showMyReports
+        ? String(r.user_id) === String(session?.user?.id) // My Reports
+        : true // All Reports
+    )
+    .filter((r) => appliedCategory === "All" || r.category === appliedCategory)
+    .filter(
+      (r) => appliedBarangay === "All Barangays" || r.address_barangay === appliedBarangay
+    )
+    .filter((r) => {
+      if (!appliedSearch) return true;
+      const searchLower = appliedSearch.toLowerCase();
+      return (
+        (r.title || "").toLowerCase().includes(searchLower)
+      );
+    });
 
   // 👇 NEW HANDLER TO RESET ALL FILTERS
   const handleResetFilters = () => {
@@ -920,40 +959,7 @@ function Reports({ session }) {
                   onChange={(e) => {
                     // Limit to 5 images total
                     const files = Array.from(e.target.files).slice(0, 5);
-                    console.log(`📸 User selected ${files.length} new images for ${editReportId ? 'editing' : 'new report'}`);
-                    
-                    // Validate file types and sizes
-                    const validFiles = files.filter(file => {
-                      const isValidType = file.type.startsWith('image/');
-                      const isValidSize = file.size <= 10 * 1024 * 1024; // 10MB limit
-                      
-                      if (!isValidType) {
-                        console.warn(`⚠️ Invalid file type: ${file.name}`);
-                      }
-                      if (!isValidSize) {
-                        console.warn(`⚠️ File too large: ${file.name}`);
-                      }
-                      
-                      return isValidType && isValidSize;
-                    });
-                    
-                    // Immediately update state to show preview
-                    setNewReport((prev) => ({ ...prev, images: validFiles }));
-                    
-                    // Show immediate feedback notification
-                    if (validFiles.length > 0) {
-                      showNotification(
-                        `📸 ${validFiles.length} image(s) selected - preview ready!`, 
-                        "success"
-                      );
-                    }
-                    
-                    if (validFiles.length !== files.length) {
-                      showNotification(
-                        `⚠️ ${files.length - validFiles.length} file(s) skipped (invalid type or too large)`, 
-                        "caution"
-                      );
-                    }
+                    setNewReport((prev) => ({ ...prev, images: files }));
                   }}
                   hidden
                   required={!editReportId}
@@ -965,48 +971,10 @@ function Reports({ session }) {
                 </p>
               )}
 
-              {/* Enhanced Image Preview - Show immediate preview of changes */}
-              {(editReportId || newReport.images.length > 0) && (
+              {/* Show existing images when editing */}
+              {editReportId && newReport.images.length === 0 && (
                 <div>
-                  {newReport.images && newReport.images.length > 0 ? (
-                    <>
-                      <p style={{ fontSize: '12px', color: '#666', margin: '5px 0' }}>
-                        {editReportId ? "📸 Preview (New Images):" : "Selected Images:"}
-                      </p>
-                      <div
-                        className={`report-images images-${newReport.images.length}`}
-                      >
-                        {newReport.images.map((file, idx) => (
-                          <img
-                            key={`preview-${idx}`}
-                            src={
-                              typeof file === "string"
-                                ? file
-                                : createOptimisticImageUrl(file)
-                            }
-                            alt={`preview-${idx}`}
-                            className="report-collage-img"
-                            onClick={() => setPreviewImage(
-                              typeof file === "string" 
-                                ? file 
-                                : createOptimisticImageUrl(file)
-                            )}
-                            style={{ cursor: 'pointer' }}
-                            onLoad={() => handleImageLoad(
-                              typeof file === "string" 
-                                ? file 
-                                : 'preview-image'
-                            )}
-                            onError={(e) => handleImageError(e, 
-                              typeof file === "string" 
-                                ? file 
-                                : 'preview-image'
-                            )}
-                          />
-                        ))}
-                      </div>
-                    </>
-                  ) : editReportId && newReport.existingImages && newReport.existingImages.length > 0 ? (
+                  {newReport.existingImages && newReport.existingImages.length > 0 ? (
                     <>
                       <p style={{ fontSize: '12px', color: '#666', margin: '5px 0' }}>Current Images:</p>
                       <div
@@ -1018,19 +986,40 @@ function Reports({ session }) {
                             src={getImageUrl(imgObj.url)}
                             alt={`existing-${idx}`}
                             className="report-collage-img"
-                            onClick={() => setPreviewImage(`${API_URL}${imgObj.url}`)}
-                            style={{ cursor: 'pointer' }}
-                            onLoad={() => handleImageLoad(`${API_URL}${imgObj.url}`)}
-                            onError={(e) => handleImageError(e, `${API_URL}${imgObj.url}`)}
                           />
                         ))}
                       </div>
                     </>
-                  ) : editReportId ? (
+                  ) : (
                     <p style={{ fontSize: '12px', color: '#999', margin: '5px 0', fontStyle: 'italic' }}>
                       No images currently attached to this report.
                     </p>
-                  ) : null}
+                  )}
+                </div>
+              )}
+
+              {/* Show new images when files are selected */}
+              {newReport.images && newReport.images.length > 0 && (
+                <div>
+                  <p style={{ fontSize: '12px', color: '#666', margin: '5px 0' }}>
+                    {editReportId ? "New Images (will replace current):" : "Selected Images:"}
+                  </p>
+                  <div
+                    className={`report-images images-${newReport.images.length}`}
+                  >
+                    {newReport.images.map((file, idx) => (
+                      <img
+                        key={`new-${idx}`}
+                        src={
+                          typeof file === "string"
+                            ? file
+                            : URL.createObjectURL(file)
+                        }
+                        alt={`preview-${idx}`}
+                        className="report-collage-img"
+                      />
+                    ))}
+                  </div>
                 </div>
               )}
             </div>
@@ -1114,10 +1103,10 @@ function Reports({ session }) {
             >
                 &times;
             </button>
-        </div>
-      )}
-    </div>
-  );
+        </div>
+      )}
+    </div>
+  );
 }
 
 export default Reports;

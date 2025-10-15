@@ -434,12 +434,12 @@ function AdminUsers({ token }) {
       </div>
 
       {/* Users List */}
-      {loading ? (
+      {(loading || showInitialLoader) ? (
         <div className="admin-loading-container">
           <div className="admin-spinner"></div>
           <p className="admin-loading-text">Loading users...</p>
         </div>
-      ) : filteredUsers.length > 0 ? ( // 2. Show results if loading is false and we have users
+      ) : filteredUsers.length > 0 ? (
         <div className="admin-users-grid">
             {filteredUsers.map((user) => (
               <div
@@ -506,16 +506,11 @@ function AdminUsers({ token }) {
               </div>
             ))}
           </div>
-        ) : initialLoadComplete ? ( // 3a. If loading is false, no users found, AND the initial fetch is complete
+        ) : (
           <div className="admin-no-users">
             <h3>No users found</h3>
             <p>No users match your current search criteria.</p>
           </div>
-        ) : ( // 3b. If loading is false, no users found, BUT initialLoadComplete is false (the flicker state). Show loader as fallback.
-             <div className="admin-loading-container">
-                <div className="admin-spinner"></div>
-                <p className="admin-loading-text">Loading users...</p>
-            </div>
         )}
 
       {/* Verification Modal */}
