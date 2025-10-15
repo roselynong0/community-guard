@@ -96,14 +96,19 @@ function LoginForm({ setSession, setNotification }) {
         const el = document.querySelector(`input[name="email"]`);
         if (el) el.classList.add("error-field");
       } else if (result.status === "role_mismatch") {
-        setNotification({ message: result.message, type: "error" });
+        // Create personalized short message
+        const userFirstname = result.user?.firstname || "User";
+        const suggestedTab = result.suggested_role || "correct";
+        const shortMessage = `${userFirstname} must use the ${suggestedTab} tab.`;
+        
+        setNotification({ message: shortMessage, type: "error" });
         // Auto-switch to suggested tab after a delay
         if (result.suggested_role && result.suggested_role !== loginMode) {
           setTimeout(() => {
             switchMode(result.suggested_role);
             setNotification({ 
               message: `Switched to ${result.suggested_role} login. Please try again.`, 
-              type: "info" 
+              type: "success" 
             });
           }, 2000);
         }
