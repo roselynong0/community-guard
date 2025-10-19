@@ -1616,21 +1616,20 @@ def get_map_reports():
         from supabase import create_client
 
         supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
-        
-        # ✅ Fetch only relevant fields from reports
+
+        # Fetch only relevant fields from reports
         response = supabase.table("reports").select(
             "id, title, address_barangay, address_street, latitude, longitude, user_id, created_at"
         ).execute()
 
         reports = response.data or []
+        print(f"📊 Total reports fetched from DB: {len(reports)}")
 
-        # ✅ Filter only valid geotagged reports
-        reports = [
-            r for r in reports
-            if r.get("latitude") and r.get("longitude")
-        ]
+        # Filter only valid geotagged reports
+        reports = [r for r in reports if r.get("latitude") and r.get("longitude")]
+        print(f"📍 Reports with valid coordinates: {len(reports)}")
 
-        # ✅ Fetch reporter info and map to React-friendly keys
+        # Fetch reporter info and map to React-friendly keys
         for r in reports:
             user = (
                 supabase.table("users")
@@ -1647,12 +1646,45 @@ def get_map_reports():
                 }
             else:
                 r["reporter"] = {"first_name": "Unknown", "last_name": "", "email": ""}
+        
+        print(f"✅ Reports with reporter info attached: {len(reports)}")
 
         return jsonify({"status": "success", "reports": reports}), 200
 
     except Exception as e:
-        print("Error fetching map reports:", e)
+        print("❌ Error fetching map reports:", e)
         return jsonify({"status": "error", "message": str(e)}), 500
+
+
+@app.route("/api/map_reports/counts", methods=["GET"])
+def get_map_report_counts():
+    """
+    Returns the number of reports per barangay for the map view.
+    """
+    try:
+        from supabase import create_client
+
+        supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
+
+        # Fetch all reports with barangay info
+        response = supabase.table("reports").select("address_barangay").execute()
+        reports = response.data or []
+        print(f"📊 Total reports fetched for counts: {len(reports)}")
+
+        # Count reports per barangay
+        counts = {}
+        for r in reports:
+            barangay = r.get("address_barangay", "Unknown")
+            if barangay:
+                counts[barangay] = counts.get(barangay, 0) + 1
+
+        print(f"✅ Report counts per barangay: {counts}")
+
+        return jsonify({"status": "success", "counts": counts}), 200
+
+    except Exception as e:
+        print("❌ Error fetching report counts:", e)
+        return jsonify({"status": "error", "message": str(e), "counts": {}}), 500
 
 # ----------------- REPORT STATS -----------------
 @app.route("/api/stats", methods=["GET"])

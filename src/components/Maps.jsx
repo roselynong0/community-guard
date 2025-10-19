@@ -34,26 +34,6 @@ const barangayColors = {
   "West Tapinac": "green",
 };
 
-const barangayLocations = [
-  { name: "Barretto", lat: 14.8641, lng: 120.2493 },
-  { name: "East Bajac-Bajac", lat: 14.8289, lng: 120.2836 },
-  { name: "East Tapinac", lat: 14.8338, lng: 120.2838 },
-  { name: "Gordon Heights", lat: 14.865, lng: 120.2904 },
-  { name: "Kalaklan", lat: 14.8319, lng: 120.2728 },
-  { name: "Mabayuan", lat: 14.8428, lng: 120.2799 },
-  { name: "New Asinan", lat: 14.8269, lng: 120.2834 },
-  { name: "New Banicain", lat: 14.8261, lng: 120.2895 },
-  { name: "New Cabalan", lat: 14.8399, lng: 120.2979 },
-  { name: "New Ilalim", lat: 14.8268, lng: 120.2823 },
-  { name: "New Kababae", lat: 14.8279, lng: 120.2831 },
-  { name: "New Kalalake", lat: 14.827, lng: 120.2838 },
-  { name: "Old Cabalan", lat: 14.8414, lng: 120.3038 },
-  { name: "Pag-Asa", lat: 14.8281, lng: 120.289 },
-  { name: "Santa Rita", lat: 14.8462, lng: 120.2904 },
-  { name: "West Bajac-Bajac", lat: 14.8262, lng: 120.2801 },
-  { name: "West Tapinac", lat: 14.8328, lng: 120.2771 },
-];
-
 const createColoredIcon = (color) =>
   new L.Icon({
     iconUrl: `https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-${color}.png`,
@@ -96,6 +76,13 @@ function Maps() {
     fetchMapReports();
   }, []);
 
+  // Group reports by barangay
+  const reportsByBarangay = reports.reduce((acc, r) => {
+    if (!acc[r.address_barangay]) acc[r.address_barangay] = [];
+    acc[r.address_barangay].push(r);
+    return acc;
+  }, {});
+
   return (
     <div className="maps-page">
       <h2>Olongapo City Barangay Map</h2>
@@ -112,35 +99,45 @@ function Maps() {
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
         />
 
-        {/* Small colored circles under each barangay */}
-        {barangayLocations.map((b, i) => (
-          <CircleMarker
-            key={`circle-${i}`}
-            center={[b.lat, b.lng]}
-            radius={10} // small radius
-            color={getColor(b.name)}
-            fillColor={getColor(b.name)}
-            fillOpacity={0.2}
-            weight={1}
-          />
-        ))}
+        {/* Barangay markers - one per barangay with reports */}
+        {Object.entries(reportsByBarangay).map(([barangay, reportsArray], i) => {
+          // Use the first report for marker position
+          const markerPosition = [
+            reportsArray[0].latitude,
+            reportsArray[0].longitude,
+          ];
 
-        {/* Barangay markers */}
-        {barangayLocations.map((b, i) => (
-          <Marker
-            key={`marker-${i}`}
-            position={[b.lat, b.lng]}
-            icon={createColoredIcon(getColor(b.name))}
-          >
-            <Popup>
-              <strong>{b.name}</strong>
-              <br />
-              Click a report to view details
-            </Popup>
-          </Marker>
-        ))}
+          return (
+            <Marker
+              key={`marker-${i}`}
+              position={markerPosition}
+              icon={createColoredIcon(getColor(barangay))}
+            >
+              <Popup>
+                <div style={{ fontWeight: "bold", fontSize: "14px", marginBottom: "4px" }}>
+                  {barangay}
+                </div>
+                <div style={{ fontSize: "13px", marginBottom: "4px" }}>
+                  📊 Total Reports: {reportsArray.length}
+                </div>
 
-        {/* Report markers */}
+                {reportsArray.map((r, idx) => (
+                  <div key={idx} style={{ fontSize: "13px", marginBottom: "6px" }}>
+                    <strong>{r.title}</strong>
+                    <br />
+                    📍 {r.address_street}
+                    <br />
+                    👤 {r.reporter?.first_name || "Unknown"} {r.reporter?.last_name || ""}
+                    <br />
+                    🌍 {r.latitude.toFixed(6)}, {r.longitude.toFixed(6)}
+                  </div>
+                ))}
+              </Popup>
+            </Marker>
+          );
+        })}
+
+        {/* Individual report markers */}
         {reports.map((r, idx) =>
           r.latitude && r.longitude ? (
             <CircleMarker
@@ -150,18 +147,7 @@ function Maps() {
               color={getColor(r.address_barangay)}
               fillColor={getColor(r.address_barangay)}
               fillOpacity={0.8}
-            >
-              <Popup>
-                <strong>{r.title}</strong>
-                <br />
-                📍 {r.address_barangay}, {r.address_street}
-                <br />
-                👤 {r.reporter?.first_name || "Unknown"}{" "}
-                {r.reporter?.last_name || ""}
-                <br />
-                🌍 {r.latitude.toFixed(6)}, {r.longitude.toFixed(6)}
-              </Popup>
-            </CircleMarker>
+            />
           ) : null
         )}
       </MapContainer>
