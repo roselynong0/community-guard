@@ -1605,6 +1605,55 @@ def soft_delete_report(report_id):
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
 
+# ----------------- MAP REPORTS -----------------
+@app.route("/api/map_reports", methods=["GET"])
+def get_map_reports():
+    """
+    Optimized endpoint for the map view:
+    Returns only reports with valid latitude/longitude and related reporter info.
+    """
+    try:
+        from supabase import create_client
+
+        supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
+        
+        # ✅ Fetch only relevant fields from reports
+        response = supabase.table("reports").select(
+            "id, title, address_barangay, address_street, latitude, longitude, user_id, created_at"
+        ).execute()
+
+        reports = response.data or []
+
+        # ✅ Filter only valid geotagged reports
+        reports = [
+            r for r in reports
+            if r.get("latitude") and r.get("longitude")
+        ]
+
+        # ✅ Fetch reporter info and map to React-friendly keys
+        for r in reports:
+            user = (
+                supabase.table("users")
+                .select("firstname, lastname, email")
+                .eq("id", r["user_id"])
+                .execute()
+                .data
+            )
+            if user:
+                r["reporter"] = {
+                    "first_name": user[0]["firstname"],
+                    "last_name": user[0]["lastname"],
+                    "email": user[0]["email"]
+                }
+            else:
+                r["reporter"] = {"first_name": "Unknown", "last_name": "", "email": ""}
+
+        return jsonify({"status": "success", "reports": reports}), 200
+
+    except Exception as e:
+        print("Error fetching map reports:", e)
+        return jsonify({"status": "error", "message": str(e)}), 500
+
 # ----------------- REPORT STATS -----------------
 @app.route("/api/stats", methods=["GET"])
 @token_required
@@ -2208,15 +2257,8 @@ def delete_report(report_id):
         # Create notification only if admin deleted someone else's report
         if user_role == "Admin" and str(request.user_id) != str(report_owner_id):
             try:
-                supabase.table("notifications").insert({
-                    "user_id": report_owner_id,
-                    "report_id": report_id,
-                    "type": "Report Deleted",
-                    "title": "Report Removed",
-                    "message": f'Your report "{report_title}" has been removed by the administration.',
-                    "is_read": False,
-                    "created_at": datetime.now(timezone.utc).isoformat()
-                }).execute()
+                # Use the reusable helper to create a consistent notification
+                create_report_notification(report_owner_id, report_id, report_title, "Deleted")
                 print(f"📧 Notification sent to user {report_owner_id}")
             except Exception as e:
                 print("Failed to create deletion notification:", e)
@@ -2240,37 +2282,64 @@ def get_notifications():
     try:
         resp = supabase.table("notifications").select("*").eq("user_id", user_id).order("created_at", desc=True).execute()
         notifications = getattr(resp, "data", []) or []
+
+        normalized = []
+        for n in notifications:
+            item = dict(n)
+            # Ensure consistent field names for React
+            item["read"] = bool(item.get("is_read") or item.get("read"))
+            ca = item.get("created_at")
+            if hasattr(ca, "isoformat"):
+                item["created_at"] = ca.isoformat()
+            elif ca is not None:
+                item["created_at"] = str(ca)
+            normalized.append(item)
+
+        notifications = normalized
     except Exception as e:
         print("Error fetching notifications:", e)
         notifications = []
-    return jsonify({"status": "success", "notifications": notifications}), 200
+
+    return jsonify({
+        "status": "success",
+        "notifications": notifications
+    }), 200
+
 
 def create_report_notification(user_id, report_id, report_title, new_status):
-    """
-    Create a notification for a report status change.
-    """
+    status_key = str(new_status).lower()
+    type_label = "Status Update"
+    title = f"Report Status: {new_status}"
+
     status_messages = {
         "pending": f'Your report "{report_title}" is now PENDING review.',
         "ongoing": f'Your report "{report_title}" is now ONGOING - authorities are taking action.',
         "resolved": f'Your report "{report_title}" has been RESOLVED by the authorities.',
+        "deleted": f'Your report "{report_title}" has been removed by the administration.'
     }
 
-    message = status_messages.get(new_status.lower(), f'Your report "{report_title}" status was updated to {new_status}.')
+    message = status_messages.get(status_key, f'Your report "{report_title}" status was updated to {new_status}.')
+
+    if status_key == "deleted":
+        type_label = "Report Deleted"
+        title = "Report Removed"
 
     try:
-        print(f"📧 Creating notification: {message}")
+        print(f"📧 Creating notification ({type_label}): {message}")
         result = supabase.table("notifications").insert({
             "user_id": user_id,
             "report_id": report_id,
-            "type": "Status Update",
-            "title": f'Report Status: {new_status}',
+            "type": type_label,
+            "title": title,  # ✅ Now valid
             "message": message,
             "is_read": False,
             "created_at": datetime.now(timezone.utc).isoformat()
         }).execute()
         print(f"✅ Notification created successfully")
+        return True
     except Exception as e:
         print(f"❌ Failed to create report notification: {e}")
+        return False
 
 
 # Mark notification as read

@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import axios from "axios";
 import { FaEdit, FaTrashAlt, FaSearch, FaRedo, FaCheckCircle, FaTimesCircle } from "react-icons/fa";
-import { MapContainer, TileLayer, Marker, useMapEvents } from "react-leaflet";
+import { MapContainer, TileLayer, Marker, useMap, useMapEvents } from "react-leaflet";
 import "leaflet/dist/leaflet.css";
 import L from "leaflet";
 import "./Reports.css";
@@ -37,17 +37,35 @@ L.Icon.Default.mergeOptions({
   shadowUrl: markerShadow,
 });
 
-function LocationPicker({ setLocation }) {
+function LocationPicker({ setLocation, currentLocation }) {
   const [position, setPosition] = useState(null);
 
   useMapEvents({
     click(e) {
+      // If the user clicks on the map, set manual marker location
       setPosition(e.latlng);
       setLocation(e.latlng);
     },
   });
 
+  // If the "Use My Location" button is pressed, clear manual picker marker
+  useEffect(() => {
+    if (currentLocation) {
+      setPosition(null); // remove manual marker when using GPS
+    }
+  }, [currentLocation]);
+
   return position ? <Marker position={position} /> : null;
+}
+// ✅ Helper Component: Recenters map when lat/lng changes
+function RecenterMap({ lat, lng }) {
+  const map = useMap();
+  useEffect(() => {
+    if (lat && lng) {
+      map.setView([lat, lng], 16);
+    }
+  }, [lat, lng, map]);
+  return null;
 }
 
 // --- NEW Hook for Arrow Key Navigation in Filter Controls ---
@@ -977,13 +995,52 @@ function Reports({ session }) {
               </select>
 
               <div className="map-field">
-                <label>Pick Location on Map: <span style={{ fontSize: '12px', color: '#999' }}>(Optional)</span></label>
+                <label>
+                  Pick Location on Map:{" "}
+                  <span style={{ fontSize: "12px", color: "#999" }}>(Optional)</span>
+                </label>
+
+                {/* === Button to Get User Location === */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (navigator.geolocation) {
+                      navigator.geolocation.getCurrentPosition(
+                        (position) => {
+                          const { latitude, longitude } = position.coords;
+                          // ✅ Replace manual picker with user's location
+                          setNewReport({
+                            ...newReport,
+                            lat: latitude,
+                            lng: longitude,
+                          });
+                        },
+                        (error) => {
+                          console.error("Geolocation error:", error);
+                          alert("Unable to get your location. Please allow location access.");
+                        }
+                      );
+                    } else {
+                      alert("Geolocation is not supported by your browser.");
+                    }
+                  }}
+                  style={{
+                    backgroundColor: "#1976d2",
+                    color: "#fff",
+                    border: "none",
+                    padding: "6px 12px",
+                    borderRadius: "8px",
+                    cursor: "pointer",
+                    fontSize: "13px",
+                    marginBottom: "10px",
+                  }}
+                >
+                  📍 Use My Current Location
+                </button>
+
+                {/* === Map Container === */}
                 <MapContainer
-                  // Use the report's current location if editing, otherwise default to Olongapo
-                  center={[
-                    newReport.lat || 14.8477,
-                    newReport.lng || 120.2879,
-                  ]}
+                  center={[newReport.lat || 14.8477, newReport.lng || 120.2879]}
                   zoom={newReport.lat ? 16 : 13}
                   style={{ height: 250, width: "100%", marginBottom: 10 }}
                 >
@@ -991,10 +1048,15 @@ function Reports({ session }) {
                     url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
                     attribution="&copy; OpenStreetMap contributors"
                   />
-                  {/* Marker will show if location is picked/exists */}
+
+                  {/* ✅ Show a single marker (either GPS or manual pick) */}
                   {newReport.lat && newReport.lng && (
                     <Marker position={[newReport.lat, newReport.lng]} />
                   )}
+
+                  <RecenterMap lat={newReport.lat} lng={newReport.lng} />
+
+                  {/* ✅ Manual picker resets when GPS is used */}
                   <LocationPicker
                     setLocation={(latlng) =>
                       setNewReport({
@@ -1002,6 +1064,11 @@ function Reports({ session }) {
                         lat: latlng.lat,
                         lng: latlng.lng,
                       })
+                    }
+                    currentLocation={
+                      newReport.lat && newReport.lng
+                        ? { lat: newReport.lat, lng: newReport.lng }
+                        : null
                     }
                   />
                 </MapContainer>
