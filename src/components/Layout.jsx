@@ -14,7 +14,7 @@ import { logout } from "../utils/session";
 import "./Layout.css";
 import logo from "../assets/logo.png";
 
-function Layout({ session, setSession, setNotification }) { // ✅ add setNotification
+function Layout({ session, setSession, setNotification }) {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [dateTime, setDateTime] = useState(new Date());
   const [showAuthModal, setShowAuthModal] = useState(false);
@@ -24,7 +24,7 @@ function Layout({ session, setSession, setNotification }) { // ✅ add setNotifi
 
   const navigate = useNavigate();
 
-  // 🔹 Fetch profile if session exists
+  // 🔹 Fetch user profile
   useEffect(() => {
     const loadProfile = async () => {
       if (!session?.token) {
@@ -57,7 +57,7 @@ function Layout({ session, setSession, setNotification }) { // ✅ add setNotifi
     loadProfile();
   }, [session, setSession]);
 
-  // 🔹 Update date/time every second
+  // 🔹 Update date/time
   useEffect(() => {
     const interval = setInterval(() => setDateTime(new Date()), 1000);
     return () => clearInterval(interval);
@@ -74,11 +74,10 @@ function Layout({ session, setSession, setNotification }) { // ✅ add setNotifi
     hour12: true,
   });
 
-  // ✅ Centralized logout
   const confirmLogout = async () => {
     await logout(setSession);
     setUser(null);
-    setNotification({ message: "Logged out successfully.", type: "success" }); // 🔹 notify
+    setNotification({ message: "Logged out successfully.", type: "success" });
     navigate("/login");
   };
 
@@ -97,125 +96,55 @@ function Layout({ session, setSession, setNotification }) { // ✅ add setNotifi
           <div className="logo">
             <img src={logo} alt="Community Guard Logo" className="logo-img" />
             <h2>Community Guard</h2>
-          
-          
-          {/* User Profile Section */}
-          {!loading && user && (
-            <div className="user-profile" style={{
-              padding: '1rem',
-              borderBottom: '1px solid rgba(255,255,255,0.1)',
-              marginBottom: '1rem',
-              textAlign: 'center'
-            }}>
-              <img 
-                src={user.avatar_url || "/src/assets/profile.png"} 
-                alt="User Profile" 
+
+            {/* User Profile Section */}
+            {!loading && user && (
+              <div
+                className="user-profile"
                 style={{
-                  width: '50px',
-                  height: '50px',
-                  borderRadius: '50%',
-                  objectFit: 'cover',
-                  marginBottom: '0.5rem',
-                  border: '2px solid rgba(255,255,255,0.2)'
+                  paddingBottom: "1rem",
+                  borderBottom: "1px solid rgba(255,255,255,0.1)",
+                  marginBottom: "1rem",
+                  textAlign: "center",
                 }}
-              />
-              <h4 style={{ 
-                margin: 0, 
-                fontSize: '0.9rem', 
-                color: 'white',
-                fontWeight: '500'
-              }}>
-                {user.firstname} {user.lastname}
-              </h4>
-              <p style={{ 
-                margin: 0, 
-                fontSize: '0.75rem', 
-                color: 'rgba(255,255,255,0.7)',
-                fontStyle: 'italic'
-              }}>
-                {user.role || 'Resident'}
-              </p>
-            </div>
-          )}
-          
-          {/* Sign In Prompt for Guest Users */}
-          {!loading && !user && (
-            <div className="guest-profile" style={{
-              padding: '1rem',
-              borderBottom: '1px solid rgba(255,255,255,0.1)',
-              marginBottom: '1rem',
-              textAlign: 'center'
-            }}>
-              <div style={{
-                width: '50px',
-                height: '50px',
-                borderRadius: '50%',
-                backgroundColor: 'rgba(255,255,255,0.1)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                margin: '0 auto 0.5rem',
-                border: '2px solid rgba(255,255,255,0.2)'
-              }}>
-                <FaUser style={{ color: 'rgba(255,255,255,0.5)', fontSize: '1.5rem' }} />
+              > 
               </div>
-              <h4 style={{ 
-                margin: 0, 
-                fontSize: '0.9rem', 
-                color: 'white',
-                fontWeight: '500'
-              }}>
-                Guest User
-              </h4>
-              <button 
-                onClick={() => navigate('/login')}
-                style={{ 
-                  margin: '0.5rem 0 0 0', 
-                  fontSize: '0.7rem', 
-                  color: '#ffffff',
-                  background: 'rgba(255,255,255,0.1)',
-                  border: '1px solid rgba(255,255,255,0.3)',
-                  borderRadius: '15px',
-                  padding: '0.3rem 0.8rem',
-                  cursor: 'pointer',
-                  transition: 'all 0.2s ease'
-                }}
-                onMouseOver={(e) => {
-                  e.target.style.background = 'rgba(255,255,255,0.2)';
-                }}
-                onMouseOut={(e) => {
-                  e.target.style.background = 'rgba(255,255,255,0.1)';
-                }}
-              >
-                Sign In
-              </button>
-            </div>
-          )}
+            )}
           </div>
-          <nav  style={{
-              borderBottom: '1px solid rgba(255,255,255,0.1)',
-              textAlign: 'center'
-            }}>
-            <NavLink to="/home"><FaHome /> Home</NavLink>
-            <NavLink to="/maps"><FaMap /> Map</NavLink>
-            <NavLink to="/reports"><FaPlusCircle /> Reports</NavLink>
-            <NavLink to="/notifications"><FaBell /> Notifications</NavLink>
+
+          {/* Nav links */}
+          <nav
+            style={{
+              borderBottom: "1px solid rgba(255,255,255,0.1)",
+              textAlign: "center",
+            }}
+          >
+            <NavLink to="/home">
+              <FaHome /> Home
+            </NavLink>
+            <NavLink to="/maps">
+              <FaMap /> Map
+            </NavLink>
+            <NavLink to="/reports">
+              <FaPlusCircle /> Reports
+            </NavLink>
+            <NavLink to="/notifications">
+              <FaBell /> Notifications
+            </NavLink>
             <NavLink
-              to={user ? "/profile" : "#"}   // navigate only if signed in
+              to={user ? "/profile" : "#"}
               onClick={(e) => {
                 if (!user) {
                   e.preventDefault();
-                  setShowAuthModal(true);   // show modal if not signed in
+                  setShowAuthModal(true);
                 }
               }}
             >
               <FaUser /> Profile
             </NavLink>
           </nav>
-          <button
-            className="logout-btn"
-            onClick={() => setShowLogoutConfirm(true)}
-          >
+
+          <button className="logout-btn" onClick={() => setShowLogoutConfirm(true)}>
             <FaSignOutAlt /> Logout
           </button>
         </aside>
@@ -223,29 +152,90 @@ function Layout({ session, setSession, setNotification }) { // ✅ add setNotifi
 
       {/* Main content */}
       <main className="main-area">
-        <div className="top-bar">
-          <button
-            className="menu-btn"
-            onClick={() => setSidebarOpen(!sidebarOpen)}
-          >
-            <FaBars />
-          </button>
-          <div className="mobile-logo">
-            <img src={logo} alt="Community Guard Logo" className="logo-img" />
+        <div
+          className="top-bar"
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            padding: "0.5rem 1rem",
+          }}
+        >
+          {/* Left: Menu + Date */}
+          <div style={{ display: "flex", alignItems: "center", gap: "1rem" }}>
+            <button className="menu-btn" onClick={() => setSidebarOpen(!sidebarOpen)}>
+              <FaBars />
+            </button>
+            <div className="date-time" style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+              <FaCalendarAlt />
+              {formattedDateTime}
+            </div>
           </div>
-          <div className="date-time">
-            <FaCalendarAlt /> {formattedDateTime}
-          </div>
+
+          {/* Right: User Profile */}
+          {user && (
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: "0.8rem",
+                cursor: "pointer",
+              }}
+              onClick={() => navigate("/profile")}
+            >
+              <img
+                src={user.avatar_url || "/src/assets/profile.png"}
+                alt="User Avatar"
+                style={{
+                  width: "40px",
+                  height: "40px",
+                  borderRadius: "50%",
+                  objectFit: "cover",
+                  border: "2px solid #11163e",
+                }}
+              />
+              <div>
+                <span
+                  style={{
+                    fontSize: "0.85rem",
+                    fontWeight: "600",
+                    color: "#11163e",
+                  }}
+                >
+                  {user.firstname} {user.lastname}
+                </span>
+                <p
+                  style={{
+                    fontStyle: "Italic",
+                    margin: 0,
+                    fontSize: "0.7rem",
+                    color: "rgba(0,0,0,0.5)",
+                  }}
+                >
+                  {user.role || "Resident"}
+                </p>
+              </div>
+            </div>
+          )}
         </div>
+
         <Outlet />
       </main>
 
       {/* Bottom nav (mobile) */}
       <nav className="bottom-nav">
-        <NavLink to="/home"><FaHome /></NavLink>
-        <NavLink to="/maps"><FaMap /></NavLink>
-        <NavLink to="/reports"><FaPlusCircle /></NavLink>
-        <NavLink to="/notifications"><FaBell /></NavLink>
+        <NavLink to="/home">
+          <FaHome />
+        </NavLink>
+        <NavLink to="/maps">
+          <FaMap />
+        </NavLink>
+        <NavLink to="/reports">
+          <FaPlusCircle />
+        </NavLink>
+        <NavLink to="/notifications">
+          <FaBell />
+        </NavLink>
         <NavLink
           to={user ? "/profile" : "#"}
           onClick={(e) => {
@@ -259,7 +249,7 @@ function Layout({ session, setSession, setNotification }) { // ✅ add setNotifi
         </NavLink>
       </nav>
 
-      {/* Mobile logout button */}
+      {/* Mobile logout */}
       <div
         className="mobile-logout-btn"
         onClick={() => setShowLogoutConfirm(true)}
@@ -268,7 +258,7 @@ function Layout({ session, setSession, setNotification }) { // ✅ add setNotifi
         <FaSignOutAlt />
       </div>
 
-      {/* Logout confirmation modal */}
+      {/* Logout Confirmation */}
       {showLogoutConfirm && (
         <div className="modal-overlay">
           <div className="modal">
@@ -289,7 +279,7 @@ function Layout({ session, setSession, setNotification }) { // ✅ add setNotifi
         </div>
       )}
 
-      {/* Unauthenticated profile modal */}
+      {/* Sign-in modal */}
       {showAuthModal && (
         <div className="modal-overlay">
           <div className="modal">

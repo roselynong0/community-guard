@@ -85,7 +85,7 @@ function Maps() {
 
   return (
     <div className="maps-page">
-      <h2>Olongapo City Barangay Map</h2>
+      <h2>Olongapo City Reports Map</h2>
       <p>Click on a colored marker to view report details.</p>
 
       <MapContainer
