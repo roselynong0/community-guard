@@ -1,254 +1,311 @@
-import React, { useState, useEffect } from 'react';
-import { FaCheckCircle, FaExclamationCircle, FaThumbsUp, FaRegBell, FaTrashAlt } from 'react-icons/fa';
-import axios from 'axios';
-import './Notifications.css';
-import './Notification.css';
+import React, { useEffect, useMemo, useState, useCallback } from "react";
+import "./Notifications.css"; 
+import { 
+  FaInfoCircle, 
+  FaCheckCircle, 
+  FaSyncAlt, 
+  FaClock,
+  FaCheckDouble, 
+  FaSync,       
+  FaCheck,      
+  FaTrashAlt,
+  FaUserShield    
+} from 'react-icons/fa';
 
-const API_URL = "http://localhost:5000/api";
+const API_URL = "http://localhost:5000/api"; 
 
-class ErrorBoundary extends React.Component {
-  constructor(props) {
-    super(props);
-    this.state = { hasError: false, error: null, info: null };
-  }
 
-  static getDerivedStateFromError(error) {
-    return { hasError: true, error };
-  }
+const getFinalNotificationType = (n) => {
+    const textContext = String(n.title || '') + ' ' + String(n.message || '') + ' ' + String(n.type || '');
+    const normalizedText = textContext.trim().toLowerCase();
 
-  componentDidCatch(error, info) {
-    console.error("[Notifications] Rendering error:", error, info);
-    this.setState({ error, info });
-  }
-
-  render() {
-    if (this.state.hasError) {
-      return (
-        <div style={{ padding: 20 }}>
-          <h2>Notifications failed to load</h2>
-          <p style={{ color: '#900' }}>An unexpected error occurred rendering this component.</p>
-          <details style={{ whiteSpace: 'pre-wrap' }}>
-            {String(this.state.error)}
-            {this.state.info && '\n' + (this.state.info.componentStack || '')}
-          </details>
-        </div>
-      );
+    if (normalizedText.includes('resolved') || normalizedText.includes('complete') || normalizedText.includes('success')) {
+        return 'resolved';
     }
-    return this.props.children;
-  }
-}
+    
+    if (normalizedText.includes('verify') || normalizedText.includes('verification') || normalizedText.includes('account required')) {
+        return 'account_alert';
+    }
 
-function NotificationsInner({ token, session }) {
-  // Accept either `session` (preferred) or `token` for backward compatibility
-  const derivedToken = session?.token || token;
-  const [activeFilter, setActiveFilter] = useState('All');
+    if (normalizedText.includes('pending') || normalizedText.includes('submitted') || normalizedText.includes('waiting')) {
+        return 'pending';
+    }
+    if (normalizedText.includes('ongoing') || normalizedText.includes('in-progress')) {
+        return 'ongoing';
+    }
+    
+    const genericType = String(n.type || 'info').trim().toLowerCase();
+    if (genericType !== 'status update') {
+        return genericType;
+    }
+
+    return 'info'; 
+};
+
+
+// UPDATED ICON MAPPING
+const getNotificationIcon = (type) => {
+  switch (type.toLowerCase()) {
+    case 'success':
+    case 'resolved':
+    case 'complete': 
+      return <FaCheckCircle className="icon icon-success" />;
+    
+    // ✅ NEW CASE FOR ACCOUNT/VERIFICATION ALERTS
+    case 'account_alert':
+    case 'security':
+      return <FaUserShield className="icon icon-security" />;
+    // END NEW CASE
+      
+    case 'warning':
+    case 'ongoing':
+    case 'in-progress': 
+      return <FaSyncAlt className="icon icon-warning" />;
+      
+    case 'pending':
+    case 'submitted': 
+    case 'waiting': 
+      return <FaClock className="icon icon-pending" />;
+      
+    default:
+      return <FaInfoCircle className="icon icon-info" />;
+  }
+};
+
+export default function Notifications({ session, token }) {
+  const authToken = session?.token || token || "";
+
   const [notifications, setNotifications] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [lastChecked, setLastChecked] = useState(null);
-  const [showRaw, setShowRaw] = useState(false);
-
-  // ---------------- FETCH NOTIFICATIONS ----------------
-  useEffect(() => {
-    if (!derivedToken) {
-      // No token -> not authenticated, show empty state
-      setNotifications([]);
-      setLoading(false);
-      return;
-    }
-
-    const fetchNotifications = async () => {
-      setLoading(true);
-      console.log("[Notifications] fetchNotifications starting, token present?", !!derivedToken);
-      try {
-        const res = await axios.get(`${API_URL}/notifications`, {
-          headers: { Authorization: `Bearer ${derivedToken}` },
-        });
-  console.log("[Notifications] fetch response:", res && res.data && res.data.notifications ? res.data.notifications.length : 'no-data', res.data);
-        const raw = res.data.notifications || [];
-        const incoming = (raw || []).map((n, idx) => {
-          // Defensive normalization
-          const id = n.id ?? n.notification_id ?? idx;
-          const title = n.title ?? (typeof n.message === 'string' ? (n.message.slice(0, 60) || 'Notification') : 'Notification');
-          const message = n.message ?? n.body ?? '';
-          const type = n.type ?? 'Notification';
-          const read = !!(n.read || n.is_read);
-          const created_at = n.created_at ? String(n.created_at) : null;
-          return { ...n, id, title, message, type, read, created_at };
-        });
-        setNotifications(incoming);
-        console.log("[Notifications] setNotifications -> length:", incoming.length, incoming[0] || null);
-      } catch (err) {
-        console.error("Error fetching notifications:", err);
-        setNotifications([]);
-      } finally {
-        setLoading(false);
-        setLastChecked(new Date().toISOString());
-      }
-    };
-
-    fetchNotifications();
-  }, [derivedToken]);
-
-  // ---------------- MARK AS READ ----------------
-  const markAsRead = async (id) => {
-    if (!derivedToken) return;
-    try {
-      await axios.post(`${API_URL}/notifications/${id}/read`, {}, {
-        headers: { Authorization: `Bearer ${derivedToken}` },
-      });
-      setNotifications(prev =>
-        prev.map(n => n.id === id ? { ...n, read: true } : n)
-      );
-    } catch (err) {
-      console.error("Error marking as read:", err);
-    }
-  };
-
-  // ---------------- DELETE NOTIFICATION ----------------
-  const deleteNotification = async (id) => {
-    if (!derivedToken) return;
-    try {
-      await axios.delete(`${API_URL}/notifications/${id}`, {
-        headers: { Authorization: `Bearer ${derivedToken}` },
-      });
-      setNotifications(prev => prev.filter(n => n.id !== id));
-    } catch (err) {
-      console.error("Error deleting notification:", err);
-    }
-  };
-
-  // ---------------- MARK ALL AS READ ----------------
-  const markAllAsRead = async () => {
-    if (!derivedToken) return;
-    try {
-      await axios.post(`${API_URL}/notifications/read_all`, {}, {
-        headers: { Authorization: `Bearer ${derivedToken}` },
-      });
-      setNotifications(prev => prev.map(n => ({ ...n, read: true })));
-    } catch (err) {
-      console.error("Error marking all as read:", err);
-    }
-  };
-
-  // ---------------- RENDER ICON ----------------
-  const renderIcon = (type) => {
-    switch (type) {
-      case "Complete": return <FaCheckCircle className="icon complete" />;
-      case "Alert": return <FaExclamationCircle className="icon alert" />;
-      case "Like": return <FaThumbsUp className="icon like" />;
-      default: return <FaRegBell className="icon default" />;
-    }
-  };
-
-  const KNOWN_FILTERS = ['Complete', 'Alert', 'Like'];
-  const filteredNotifications = (notifications || []).filter(n => {
-    if (activeFilter === 'All') return true;
-    if (activeFilter === 'Other') return !KNOWN_FILTERS.includes(n.type);
-    return n.type === activeFilter;
-  });
-
-  // (replaced by displayedAllRead below)
-
-  const [unreadOnly, setUnreadOnly] = useState(false);
-
-  // Apply unreadOnly filter on top of the active filter
-  const displayedNotifications = (filteredNotifications || []).filter(n =>
-    unreadOnly ? !n.read : true
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [filter, setFilter] = useState("all"); 
+  const headers = useMemo(
+    () => ({
+      "Content-Type": "application/json",
+      ...(authToken ? { Authorization: `Bearer ${authToken}` } : {}),
+    }),
+    [authToken]
   );
 
-  const displayedAllRead = displayedNotifications.length > 0 && displayedNotifications.every(n => n.read);
+
+  const fetchNotifications = useCallback(async () => {
+    setLoading(true);
+    setError("");
+    try {
+      const res = await fetch(`${API_URL}/notifications`, { headers });
+      if (!res.ok) throw new Error(`Failed to fetch (${res.status})`);
+      const data = await res.json();
+      
+      const list = (data?.notifications || []).map((n) => {
+        
+        // --- Use the new helper to determine the type for the icon ---
+        const finalType = getFinalNotificationType(n);
+
+        return {
+          id: n.id,
+          title: n.title ?? n.type ?? "Notification",
+          message: n.message ?? n.content ?? "",
+          type: finalType, // Use the determined type
+          created_at: n.created_at ?? n.createdAt ?? new Date().toISOString(),
+          read: Boolean(n.read),
+        };
+      });
+      setNotifications(list);
+    } catch (e) {
+      setError(e.message || "Something went wrong loading notifications");
+    } finally {
+      setLoading(false);
+    }
+  }, [headers]);
+
+  useEffect(() => {
+    fetchNotifications();
+  }, [fetchNotifications]);
+
+  const unreadCount = useMemo(
+    () => notifications.filter((n) => !n.read).length,
+    [notifications]
+  );
+
+  const visible = useMemo(() => {
+    if (filter === "unread") return notifications.filter((n) => !n.read);
+    if (filter === "read") return notifications.filter((n) => n.read);
+    return notifications;
+  }, [notifications, filter]);
+
+  const formatTime = (isoString) => {
+      const date = new Date(isoString);
+      return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) + 
+             ' ' + date.toLocaleDateString();
+  };
+
+  async function markRead(id) {
+    try {
+      setNotifications((prev) => prev.map((n) => (n.id === id ? { ...n, read: true } : n)));
+      const res = await fetch(`${API_URL}/notifications/${id}/read`, {
+        method: "POST",
+        headers,
+      });
+      if (!res.ok) throw new Error(`Failed to mark as read (${res.status})`);
+    } catch (e) {
+      setError(e.message || "Failed to mark notification as read");
+      setNotifications((prev) => prev.map((n) => (n.id === id ? { ...n, read: false } : n)));
+    }
+  }
+
+  async function deleteNotification(id) {
+    try {
+      // optimistic remove
+      setNotifications((prev) => prev.filter((n) => n.id !== id));
+      const res = await fetch(`${API_URL}/notifications/${id}`, {
+        method: "DELETE",
+        headers,
+      });
+      if (!res.ok) throw new Error(`Failed to delete (${res.status})`);
+    } catch (e) {
+      setError(e.message || "Failed to delete notification");
+      // refetch to restore list
+      fetchNotifications();
+    }
+  }
+
+  async function markAllRead() {
+    try {
+      setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
+      const res = await fetch(`${API_URL}/notifications/read_all`, {
+        method: "POST",
+        headers,
+      });
+      if (!res.ok) throw new Error(`Failed to mark all as read (${res.status})`);
+    } catch (e) {
+      setError(e.message || "Failed to mark all as read");
+      fetchNotifications();
+    }
+  }
+
 
   return (
-    <div className="notifications-page">
-      <div className="header-row">
-        <h2>Notifications</h2>
-        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+    <div className="notifications-container">
+      <div className="notifications-header">
+        <div className="left">
+          <h2>
+            Notifications
+            <span className="badge" aria-label={`${unreadCount} unread`}>
+              {unreadCount}
+            </span>
+          </h2>
+        </div>
+        <div className="right">
+          {/* Filter button group */}
+          <div className="filter-button-group">
+            <button
+              className={`filter-btn ${filter === "all" ? "active" : ""}`}
+              onClick={() => setFilter("all")}
+            >
+              All
+            </button>
+            <button
+              className={`filter-btn ${filter === "unread" ? "active" : ""}`}
+              onClick={() => setFilter("unread")}
+            >
+              Unread ({unreadCount})
+            </button>
+            <button
+              className={`filter-btn ${filter === "read" ? "active" : ""}`}
+              onClick={() => setFilter("read")}
+            >
+              Read
+            </button>
+          </div>
+
           <button
-            className={`mark-read-btn ${displayedAllRead ? 'disabled' : ''}`}
-            onClick={markAllAsRead}
-            disabled={displayedAllRead}
+            className="btn icon-btn mark-all"
+            onClick={markAllRead}
+            disabled={loading || unreadCount === 0}
+            title="Mark all as read"
           >
-            Mark all as read
+            {/* React Icon: FaCheckDouble */}
+            <FaCheckDouble className="icon" /> 
+            <span className="btn-text">Mark All Read</span>
           </button>
-          <button
-            className={`history-btn ${unreadOnly ? 'active' : ''}`}
-            onClick={() => setUnreadOnly(u => !u)}
-            aria-pressed={unreadOnly}
-            title={unreadOnly ? 'Show all notifications' : 'Show unread only'}
+          <button 
+            className="btn icon-btn refresh" 
+            onClick={fetchNotifications} 
+            disabled={loading}
+            title="Refresh notifications"
           >
-            {unreadOnly ? 'Unread only' : 'All'}
+            {/* React Icon: FaSync */}
+            <FaSync className="icon" />
+            <span className="btn-text">Refresh</span>
           </button>
         </div>
       </div>
 
-      <div className="notifications-filters">
-        {['All', 'Complete', 'Alert', 'Like', 'Other'].map(filter => (
-          <button
-            key={filter}
-            className={`filter-btn ${activeFilter === filter ? 'active' : ''}`}
-            onClick={() => setActiveFilter(filter)}
-          >
-            {filter}
-          </button>
-        ))}
-      </div>
+      {error && (
+        <div className="notice error" role="alert">
+          {error}
+        </div>
+      )}
 
-      <div className="notifications-list">
-        {loading ? (
-          <div className="loading-block">
-            <div className="spinner" aria-hidden="true" />
-            <p className="loading-text">Checking notifications...</p>
-          </div>
-            ) : notifications.length === 0 ? (
-          <div className="no-notifications-block">
-            <h2 className="empty-header">Notifications</h2>
-            <p className="no-notifications">No notifications yet.</p>
-            {lastChecked && (
-              <p className="notif-debug">Checked at: {new Date(lastChecked).toLocaleTimeString()} — fetched {notifications.length} notifications</p>
-            )}
-                <div style={{ textAlign: 'center', marginTop: 8 }}>
-                  <button className="filter-btn" onClick={() => setShowRaw(s => !s)}>
-                    {showRaw ? 'Hide raw response' : 'Show raw response'}
-                  </button>
-                </div>
-                {showRaw && (
-                  <pre style={{ maxHeight: 240, overflow: 'auto', textAlign: 'left', background: '#fff', padding: 12, margin: 12 }}>
-                    {JSON.stringify(notifications, null, 2)}
-                  </pre>
-                )}
-          </div>
-        ) : displayedNotifications.length === 0 ? (
-          <p className="no-notifications">No notifications for this filter.</p>
-        ) : (
-          displayedNotifications.map(notif => (
-            <div key={notif.id} className={`notification-item ${notif.read ? "read" : "unread"}`}>
-              <div className="notif-icon-container">{renderIcon(notif.type)}</div>
-              <div className="notif-details">
-                <h4>{notif.title}</h4>
-                <p className="notif-message">{notif.message}</p>
-                <small className="notif-time">{new Date(notif.created_at).toLocaleString()}</small>
+      {loading ? (
+        <div className="loading loading-block" aria-busy="true" aria-live="polite">
+          <div className="spinner"></div>
+          Loading notifications…
+        </div>
+      ) : visible.length === 0 ? (
+        <div className="empty no-notifications">No notifications to show.</div>
+      ) : (
+        <ul className="notifications-list" role="list">
+          {visible.map((n) => (
+            <li key={n.id} className={`notification-item ${n.read ? "read" : "unread"}`}>
+              {/* Notification Icon */}
+              <div className="notif-icon-container">
+                {getNotificationIcon(n.type)}
               </div>
-              {!notif.read && <span className="unread-dot" />}
+
+              {/* Notification Content */}
+              <div className="notif-details">
+                <p className="notif-message">
+                  <strong>{n.title}</strong>: {n.message}
+                </p>
+                <p className="notif-time">{formatTime(n.created_at)}</p>
+              </div>
+
+              {/* Actions Button Group */}
               <div className="notification-actions">
-                {!notif.read && <button onClick={() => markAsRead(notif.id)}>Mark as read</button>}
-                <button className="delete-notif-btn" onClick={() => deleteNotification(notif.id)}>
-                  <FaTrashAlt />
+                {/* Mark Read button */}
+                {!n.read && (
+                  <button 
+                    className="btn-action mark-read-btn" 
+                    onClick={() => markRead(n.id)}
+                    title="Mark as Read"
+                  >
+                    {/* React Icon: FaCheck */}
+                    <FaCheck />
+                  </button>
+                )}
+                
+                {/* Delete button */}
+                <button 
+                  className="btn-action delete-notif-btn" 
+                  onClick={() => deleteNotification(n.id)}
+                  title="Delete Notification"
+                >
+                    {/* React Icon: FaTrashAlt */}
+                    <FaTrashAlt />
                 </button>
               </div>
-            </div>
-          ))
-        )}
-      </div>
+            </li>
+          ))}
+        </ul>
+      )}
+
+      {!authToken && (
+        <div className="notice warning" role="alert">
+          No auth token detected. Pass <code>session</code> or <code>token</code> prop to
+          <code> &lt;Notifications /&gt;</code>.
+        </div>
+      )}
     </div>
   );
 }
-
-function Notifications(props) {
-  return (
-    <ErrorBoundary>
-      <NotificationsInner {...props} />
-    </ErrorBoundary>
-  );
-}
-
-export default Notifications;
