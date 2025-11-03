@@ -268,6 +268,9 @@ def revoke_session(session_id):
         supabase.table("sessions").delete().eq("id", session_id).eq("user_id", user_id).execute()
         return jsonify({"status": "success", "message": "Session revoked"}), 200
     except Exception as e:
+        # Log full traceback for debugging
+        print(f"❌ Error in delete_profile for user {user_id}: {e}")
+        print(traceback.format_exc())
         return jsonify({"status": "error", "message": str(e)}), 500
 
 
@@ -374,6 +377,15 @@ def register():
 
         except Exception as e:
             print(f"❌ Email setup error: {e}")
+
+        # Create an admin notification so admins see new user registrations that need full verification
+        try:
+            admin_title = f"New user registration: {firstname} {lastname}"
+            admin_message = f"{firstname} {lastname} registered and requires full verification."
+            # Use the new user as the actor to satisfy the NOT NULL actor_id in the migration schema
+            create_admin_notification(actor_id=new_user_id, user_id=new_user_id, title=admin_title, type_label="Account Created", message=admin_message)
+        except Exception as e:
+            print(f"⚠️ Failed to create admin notification for new user: {e}")
 
         # ✅ Return success with user_id and email_sent flag
         return jsonify({
@@ -1054,16 +1066,50 @@ def delete_profile():
             except Exception as e:
                 print("Failed to create notification:", e)
 
-        supabase.table("users").update({"deleted_at": now}).eq("id", user_id).execute()
+        # fetch basic user info for friendlier admin notification (may be None)
+        try:
+            user_resp = supabase.table("users").select("firstname,lastname,email").eq("id", user_id).execute()
+            user_rows = getattr(user_resp, "data", []) or []
+            user_info = user_rows[0] if user_rows else {}
+        except Exception:
+            user_info = {}
 
-        supabase.table("posts").delete().eq("user_id", user_id).execute()
+        # perform soft-delete and cleanup posts (defensive: log DB errors but don't abort)
+        try:
+            supabase.table("users").update({"deleted_at": now}).eq("id", user_id).execute()
+        except Exception as e:
+            print(f"⚠️ Failed to soft-delete user {user_id}: {e}")
+        try:
+            supabase.table("posts").delete().eq("user_id", user_id).execute()
+        except Exception as e:
+            print(f"⚠️ Failed to delete posts for user {user_id}: {e}")
 
         create_notification(
             user_id=user_id,
             title="Profile Deleted",
-            message="Your profile has been flagged as deleted and all your posts have been removed.",
+            message="Your profile has been deleted and your posts were removed.",
             notif_type="Alert"
         )
+
+        # Create admin notification so admins are aware this user was deleted/flagged
+        try:
+            display_name = (f"{user_info.get('firstname','').strip()} {user_info.get('lastname','').strip()}".strip()) or None
+            email = user_info.get('email') if user_info.get('email') else None
+            if display_name and email:
+                who = f"{display_name} <{email}>"
+            elif display_name:
+                who = display_name
+            elif email:
+                who = email
+            else:
+                who = f"user ({user_id})"
+
+            admin_title = "User account deleted"
+            admin_message = f"{who} deleted their account. Posts were removed. Please review associated content if needed."
+            # actor_id is the acting user (request.user_id) who triggered the deletion
+            create_admin_notification(actor_id=request.user_id, user_id=user_id, title=admin_title, type_label="User Deleted", message=admin_message)
+        except Exception as e:
+            print(f"⚠️ Failed to create admin notification for deleted profile: {e}")
 
         return jsonify({
             "status": "success",
@@ -1418,6 +1464,16 @@ def add_report():
         print(f"  - User ID: {report.get('user_id')}")
         print(f"  - All keys: {list(report.keys())}")
 
+        # Create an admin notification for newly submitted reports so admins can review/update statuses
+        try:
+            reporter_name = f"{reporter.get('firstname','') or ''} {reporter.get('lastname','') or ''}".strip() or str(user_id)
+            admin_title = f"New report submitted: {report.get('title')}"
+            admin_message = f"{reporter_name} submitted a new report '{report.get('title')}' in {report.get('address_barangay') or 'Unknown'}. Please review and update its status."
+            # Actor is the reporting user so actor_id is set to user_id
+            create_admin_notification(actor_id=user_id, user_id=user_id, report_id=report_id, title=admin_title, type_label="New Report", message=admin_message)
+        except Exception as e:
+            print(f"⚠️ Failed to create admin notification for new report: {e}")
+
         return jsonify({"status": "success", "report": report}), 201
     except Exception as e:
         print("add_report error:", e)
@@ -1593,13 +1649,33 @@ def update_report(report_id):
 def soft_delete_report(report_id):
     try:
         # Only allow the owner to delete
-        report_resp = supabase.table("reports").select("user_id").eq("id", report_id).execute()
+        # Fetch title as well for nicer admin messages
+        report_resp = supabase.table("reports").select("user_id, title").eq("id", report_id).execute()
         report = getattr(report_resp, "data", [None])[0]
         if not report or report["user_id"] != request.user_id:
             return jsonify({"status": "error", "message": "Not authorized"}), 403
 
         # Soft delete by setting deleted_at
         supabase.table("reports").update({"deleted_at": datetime.now(timezone.utc).isoformat()}).eq("id", report_id).execute()
+
+        # Create an admin notification for soft-deletion by owner
+        try:
+            # Resolve reporter name
+            actor_name = str(request.user_id)
+            try:
+                aresp = supabase.table("users").select("firstname, lastname").eq("id", request.user_id).single().execute()
+                adata = getattr(aresp, "data", None) or {}
+                if adata:
+                    actor_name = f"{adata.get('firstname','').strip()} {adata.get('lastname','').strip()}".strip() or actor_name
+            except Exception:
+                pass
+
+            admin_title = f"Report soft-deleted"
+            report_title = report.get('title') or str(report_id)
+            admin_message = f"Report '{report_title}' was soft-deleted by {actor_name}. Please review if administrative action is required."
+            create_admin_notification(actor_id=request.user_id, user_id=request.user_id, report_id=report_id, title=admin_title, type_label="Report Soft Deleted", message=admin_message)
+        except Exception as e:
+            print(f"⚠️ Failed to create admin notification for soft-deleted report: {e}")
 
         return jsonify({"status": "success", "message": "Report deleted"}), 200
     except Exception as e:
@@ -2226,7 +2302,8 @@ def admin_update_report_status(report_id):
         # Create notification for the user if status changed
         if new_status != old_status and user_id:
             print(f"📧 Creating notification for user {user_id}")
-            create_report_notification(user_id, report_id, report_title, new_status)
+            # Pass the actor (current user) so an admin audit/notification copy can be recorded
+            create_report_notification(user_id, report_id, report_title, new_status, actor_id=request.user_id)
         else:
             print(f"⚠️ No notification sent - Status unchanged or no user_id")
 
@@ -2275,29 +2352,90 @@ def delete_report(report_id):
 
         print(f"✅ User authorized to delete report '{report_title}'")
         
-        # HARD DELETE: Actually remove the report from database
+        # Accept optional deletion reason provided by the admin UI
+        payload = request.json or {}
+        reason = (payload.get('reason') or '').strip()
+        reason_other = (payload.get('reason_other') or '').strip()
+        reason_text = reason_other if reason and reason.lower() == 'other' and reason_other else (reason or 'No reason provided')
+
         print(f"🗑️ Hard deleting report {report_id}")
-        
-        # First delete associated images
-        supabase.table("report_images").delete().eq("report_id", report_id).execute()
-        print(f"🖼️ Deleted images for report {report_id}")
-        
-        # Then delete the report itself
-        supabase.table("reports").delete().eq("id", report_id).execute()
-        print(f"📝 Deleted report {report_id}")
-        
-        # Create notification only if admin deleted someone else's report
-        if user_role == "Admin" and str(request.user_id) != str(report_owner_id):
+
+        # 1) Find any notifications tied to this report so we can remove admin_notifications referencing them
+        try:
+            notif_resp = supabase.table('notifications').select('id').eq('report_id', report_id).execute()
+            notif_rows = getattr(notif_resp, 'data', []) or []
+            notif_ids = [r.get('id') for r in notif_rows if r.get('id')]
+        except Exception as e:
+            print(f"⚠️ Failed to list notifications for report {report_id}: {e}")
+            notif_ids = []
+
+        # 2) Resolve actor display name (used in both user and admin notifications)
+        actor_name = str(request.user_id)
+        try:
+            aresp = supabase.table("users").select("firstname, lastname").eq("id", request.user_id).single().execute()
+            adata = getattr(aresp, "data", None) or {}
+            if adata:
+                actor_name = f"{adata.get('firstname','').strip()} {adata.get('lastname','').strip()}".strip() or actor_name
+        except Exception:
+            pass
+
+        # 3) Create a user-facing notification informing owner their report was removed (include reason). Do NOT reference the report_id to avoid FK issues.
+        try:
+            user_message = f"Your report '{report_title}' was removed by {actor_name}. Reason: {reason_text}"
+            supabase.table('notifications').insert({
+                'user_id': report_owner_id,
+                'report_id': None,
+                'type': 'Report Deleted',
+                'title': 'Report Removed',
+                'message': user_message,
+                'is_read': False,
+                'created_at': datetime.now(timezone.utc).isoformat()
+            }).execute()
+        except Exception as e:
+            print(f"⚠️ Failed to create user notification for report deletion: {e}")
+
+        # 4) Create an admin-facing audit notification describing the deletion and reason (do not reference notification_id to avoid FK problems)
+        try:
+            admin_title = "Report deleted"
+            admin_message = f"Report '{report_title}' was deleted by {actor_name}. Reason: {reason_text}"
+            create_admin_notification(actor_id=request.user_id, user_id=report_owner_id, report_id=None, title=admin_title, type_label="Report Deleted", message=admin_message)
+        except Exception as e:
+            print(f"⚠️ Failed to create admin notification for report deletion: {e}")
+
+        # 4) Remove admin_notifications that reference notifications for this report (avoid FK violations)
+        if notif_ids:
             try:
-                # Use the reusable helper to create a consistent notification
-                create_report_notification(report_owner_id, report_id, report_title, "Deleted")
-                print(f"📧 Notification sent to user {report_owner_id}")
+                # delete admin_notifications that reference these notification ids
+                supabase.table('admin_notifications').delete().in_('notification_id', notif_ids).execute()
+                print(f"🧹 Deleted admin_notifications referencing notifications: {notif_ids}")
             except Exception as e:
-                print("Failed to create deletion notification:", e)
+                print(f"⚠️ Failed to delete admin_notifications for report {report_id}: {e}")
+
+        # 5) Delete notifications tied to this report
+        try:
+            supabase.table('notifications').delete().eq('report_id', report_id).execute()
+            print(f"🧹 Deleted notifications for report {report_id}")
+        except Exception as e:
+            print(f"⚠️ Failed to delete notifications for report {report_id}: {e}")
+
+        # 6) Delete associated images
+        try:
+            supabase.table("report_images").delete().eq("report_id", report_id).execute()
+            print(f"🖼️ Deleted images for report {report_id}")
+        except Exception as e:
+            print(f"⚠️ Failed to delete images for report {report_id}: {e}")
+
+        # 7) Finally delete the report itself
+        try:
+            supabase.table("reports").delete().eq("id", report_id).execute()
+            print(f"📝 Deleted report {report_id}")
+        except Exception as e:
+            print(f"❌ Error deleting report {report_id}: {e}")
+            return jsonify({"status": "error", "message": str(e)}), 500
 
         print(f"✅ Report {report_id} deleted successfully")
         return jsonify({
-            "status": "success", 
+            "status": "success",
             "message": "Report deleted successfully"
         }), 200
 
@@ -2338,10 +2476,208 @@ def get_notifications():
     }), 200
 
 
-def create_report_notification(user_id, report_id, report_title, new_status):
-    status_key = str(new_status).lower()
+# ----------------- ADMIN: ALL NOTIFICATIONS -----------------
+@app.route("/api/admin/notifications", methods=["GET"])
+@token_required
+def admin_get_all_notifications():
+    """
+    Admin-only endpoint: return all notifications across the system
+    enriched with recipient (user) basic info for display in the admin UI
+    """
+    # Check admin role
+    try:
+        current_user_resp = supabase.table("users").select("role").eq("id", request.user_id).single().execute()
+        current_user = current_user_resp.data if current_user_resp.data else {}
+        if current_user.get("role") != "Admin":
+            return jsonify({"status": "error", "message": "Admin access required"}), 403
+
+        # Fetch user-facing notifications
+        resp = supabase.table("notifications").select("*").order("created_at", desc=True).execute()
+        notifications = getattr(resp, "data", []) or []
+
+        # Fetch admin-only notifications (may not exist if migration not applied)
+        admin_notifications = []
+        try:
+            resp_admin = supabase.table("admin_notifications").select("*").order("created_at", desc=True).execute()
+            admin_notifications = getattr(resp_admin, "data", []) or []
+        except Exception as e:
+            print(f"⚠️ admin_notifications table may not exist or query failed: {e}")
+
+        # Collect user_ids and actor_ids to batch fetch user info
+        user_ids = set()
+        actor_ids = set()
+        for n in notifications:
+            if n.get("user_id"):
+                user_ids.add(n.get("user_id"))
+        for a in admin_notifications:
+            if a.get("user_id"):
+                user_ids.add(a.get("user_id"))
+            if a.get("actor_id"):
+                actor_ids.add(a.get("actor_id"))
+
+        all_user_ids = list({str(x) for x in list(user_ids | actor_ids) if x})
+        users_map = {}
+        if all_user_ids:
+            users_resp = supabase.table("users").select("id, firstname, lastname, email").in_("id", all_user_ids).execute()
+            users = getattr(users_resp, "data", []) or []
+            for u in users:
+                users_map[str(u.get("id"))] = {
+                    "id": u.get("id"),
+                    "firstname": u.get("firstname"),
+                    "lastname": u.get("lastname"),
+                    "email": u.get("email"),
+                }
+
+        enriched = []
+        for n in notifications:
+            item = dict(n)
+            recipient = users_map.get(str(item.get("user_id"))) if item.get("user_id") else None
+            item["recipient"] = recipient
+            # normalize created_at to ISO if needed
+            ca = item.get("created_at")
+            if hasattr(ca, "isoformat"):
+                item["created_at"] = ca.isoformat()
+            elif ca is not None:
+                item["created_at"] = str(ca)
+            enriched.append(item)
+
+        enriched_admin = []
+        for a in admin_notifications:
+            item = dict(a)
+            # Attach recipient and actor info if available
+            recipient = users_map.get(str(item.get("user_id"))) if item.get("user_id") else None
+            actor = users_map.get(str(item.get("actor_id"))) if item.get("actor_id") else None
+            item["recipient"] = recipient
+            item["actor"] = actor
+            # normalize created_at
+            ca = item.get("created_at")
+            if hasattr(ca, "isoformat"):
+                item["created_at"] = ca.isoformat()
+            elif ca is not None:
+                item["created_at"] = str(ca)
+            enriched_admin.append(item)
+
+        return jsonify({"status": "success", "notifications": enriched, "admin_notifications": enriched_admin}), 200
+    except Exception as e:
+        print(f"Error in admin_get_all_notifications: {e}")
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+
+@app.route("/api/admin/admin_notifications", methods=["GET"])
+@token_required
+def admin_get_admin_notifications():
+    """Admin-only endpoint returning only admin_notifications enriched with actor and recipient info."""
+    try:
+        current_user_resp = supabase.table("users").select("role").eq("id", request.user_id).single().execute()
+        current_user = current_user_resp.data if current_user_resp.data else {}
+        if current_user.get("role") != "Admin":
+            return jsonify({"status": "error", "message": "Admin access required"}), 403
+
+        admin_notifications = []
+        try:
+            resp_admin = supabase.table("admin_notifications").select("*").order("created_at", desc=True).execute()
+            admin_notifications = getattr(resp_admin, "data", []) or []
+        except Exception as e:
+            print(f"⚠️ admin_notifications table may not exist or query failed: {e}")
+            return jsonify({"status": "success", "admin_notifications": []}), 200
+
+        # Collect user ids and actor ids
+        user_ids = set()
+        actor_ids = set()
+        for a in admin_notifications:
+            if a.get("user_id"):
+                user_ids.add(a.get("user_id"))
+            if a.get("actor_id"):
+                actor_ids.add(a.get("actor_id"))
+
+        all_user_ids = list({str(x) for x in list(user_ids | actor_ids) if x})
+        users_map = {}
+        if all_user_ids:
+            users_resp = supabase.table("users").select("id, firstname, lastname, email").in_("id", all_user_ids).execute()
+            users = getattr(users_resp, "data", []) or []
+            for u in users:
+                users_map[str(u.get("id"))] = {
+                    "id": u.get("id"),
+                    "firstname": u.get("firstname"),
+                    "lastname": u.get("lastname"),
+                    "email": u.get("email"),
+                }
+
+        enriched_admin = []
+        for a in admin_notifications:
+            item = dict(a)
+            recipient = users_map.get(str(item.get("user_id"))) if item.get("user_id") else None
+            actor = users_map.get(str(item.get("actor_id"))) if item.get("actor_id") else None
+            item["recipient"] = recipient
+            item["actor"] = actor
+            ca = item.get("created_at")
+            if hasattr(ca, "isoformat"):
+                item["created_at"] = ca.isoformat()
+            elif ca is not None:
+                item["created_at"] = str(ca)
+            enriched_admin.append(item)
+
+        return jsonify({"status": "success", "admin_notifications": enriched_admin}), 200
+    except Exception as e:
+        print(f"Error in admin_get_admin_notifications: {e}")
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+
+@app.route('/api/admin/admin_notifications/<int:notif_id>/read', methods=['POST'])
+@token_required
+def admin_mark_notification_read(notif_id):
+    try:
+        resp = supabase.table('admin_notifications').update({"is_read": True}).eq('id', notif_id).execute()
+        updated = getattr(resp, 'data', []) or []
+        updated_row = updated[0] if updated else None
+        return jsonify({"status": "success", "notification": updated_row}), 200
+    except Exception as e:
+        print(f"Error marking admin notification read: {e}")
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+
+@app.route('/api/admin/admin_notifications/read_all', methods=['POST'])
+@token_required
+def admin_mark_all_notifications_read():
+    """Mark all admin notifications as read (admin-only)."""
+    try:
+        # Verify admin role
+        current_user_resp = supabase.table("users").select("role").eq("id", request.user_id).single().execute()
+        current_user = current_user_resp.data if current_user_resp.data else {}
+        if current_user.get("role") != "Admin":
+            return jsonify({"status": "error", "message": "Admin access required"}), 403
+
+        # Mark all unread admin notifications as read
+        resp = supabase.table('admin_notifications').update({"is_read": True}).eq('is_read', False).execute()
+        updated = getattr(resp, 'data', []) or []
+        return jsonify({"status": "success", "updated_count": len(updated)}), 200
+    except Exception as e:
+        print(f"Error marking all admin notifications read: {e}")
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+
+@app.route('/api/admin/admin_notifications/<int:notif_id>', methods=['DELETE'])
+@token_required
+def admin_delete_notification(notif_id):
+    try:
+        resp = supabase.table('admin_notifications').delete().eq('id', notif_id).execute()
+        deleted = getattr(resp, 'data', []) or []
+        # Return deleted row if available or a count
+        return jsonify({"status": "success", "deleted_count": len(deleted), "deleted": deleted[0] if deleted else None}), 200
+    except Exception as e:
+        print(f"Error deleting admin notification: {e}")
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+
+def create_report_notification(user_id, report_id, report_title, new_status, actor_id=None):
+    # Defensive validation
+    if not user_id:
+        print("⚠️ create_report_notification called without user_id")
+        return None
+
+    status_key = str(new_status).lower() if new_status is not None else ""
     type_label = "Status Update"
-    title = f"Report Status: {new_status}"
+    title = f"Report Status: {new_status}" if new_status else "Report Update"
 
     status_messages = {
         "pending": f'Your report "{report_title}" is now PENDING review.',
@@ -2350,7 +2686,10 @@ def create_report_notification(user_id, report_id, report_title, new_status):
         "deleted": f'Your report "{report_title}" has been removed by the administration.'
     }
 
-    message = status_messages.get(status_key, f'Your report "{report_title}" status was updated to {new_status}.')
+    if status_key:
+        message = status_messages.get(status_key, f'Your report "{report_title}" status was updated to {new_status}.')
+    else:
+        message = f'Update regarding your report "{report_title}".'
 
     if status_key == "deleted":
         type_label = "Report Deleted"
@@ -2358,20 +2697,102 @@ def create_report_notification(user_id, report_id, report_title, new_status):
 
     try:
         print(f"📧 Creating notification ({type_label}): {message}")
-        result = supabase.table("notifications").insert({
+        # Request the DB to insert the notification (avoid chaining .select() for client compatibility)
+        res = supabase.table("notifications").insert({
             "user_id": user_id,
             "report_id": report_id,
             "type": type_label,
-            "title": title,  # ✅ Now valid
+            "title": title,
             "message": message,
             "is_read": False,
             "created_at": datetime.now(timezone.utc).isoformat()
         }).execute()
-        print(f"✅ Notification created successfully")
-        return True
+
+        inserted = getattr(res, "data", []) or []
+        inserted_row = inserted[0] if inserted else None
+        if inserted_row:
+            print(f"✅ Notification created successfully: id={inserted_row.get('id')}")
+
+            # If an actor_id is provided (admin performed the action), create a linked admin-only notification
+            if actor_id:
+                try:
+                    # Try to resolve actor's name for a nicer admin message
+                    actor_name = str(actor_id)
+                    try:
+                        actor_resp = supabase.table("users").select("id, firstname, lastname").eq("id", actor_id).single().execute()
+                        actor_data = getattr(actor_resp, "data", None) or {}
+                        if actor_data:
+                            actor_name = f"{actor_data.get('firstname','').strip()} {actor_data.get('lastname','').strip()}".strip() or str(actor_id)
+                    except Exception:
+                        # ignore actor resolution failures
+                        pass
+
+                    admin_type = f"Admin {type_label}"
+                    # Keep the admin title concise and remove redundant 'Admin:' prefix
+                    admin_title = title
+
+                    # Admin-focused message (concise and friendly; avoid embedding raw IDs)
+                    if status_key == "deleted":
+                        admin_message = f"Report '{report_title}' was deleted by {actor_name} and removed from the system."
+                    else:
+                        admin_message = f"Report '{report_title}' was updated to {str(new_status).upper()} by {actor_name}."
+
+                    # Use the helper which handles insertion defensively and avoids .select() on insert
+                    create_admin_notification(actor_id=actor_id, user_id=user_id, report_id=report_id, title=admin_title, type_label=admin_type, message=admin_message, notification_id=inserted_row.get("id"))
+                except Exception as adde:
+                    # Fail gracefully if admin_notifications table doesn't exist or insert fails
+                    print(f"⚠️ Failed to create admin notification: {adde}")
+
+            return inserted_row
+
+        print("❌ Notification insert returned no row")
+        return None
     except Exception as e:
         print(f"❌ Failed to create report notification: {e}")
-        return False
+        return None
+
+
+def create_admin_notification(actor_id, user_id=None, report_id=None, title=None, type_label="Admin Alert", message=None, notification_id=None):
+    """
+    Insert a row into admin_notifications for admin-only auditing and alerts.
+    actor_id is required by the schema; for user-driven events we commonly set actor_id=user_id.
+    This is defensive: if the admin_notifications table does not exist, it logs and returns None.
+    """
+    if not actor_id:
+        print("⚠️ create_admin_notification requires actor_id")
+        return None
+
+    try:
+        payload = {
+            "actor_id": actor_id,
+            "user_id": user_id,
+        "notification_id": notification_id,
+            "report_id": report_id,
+            "type": type_label,
+            "title": title,
+            "message": message or "",
+            "is_read": False,
+            "created_at": datetime.now(timezone.utc).isoformat()
+        }
+        try:
+            # Insert without chaining .select() because some supabase client versions
+            # return a SyncQueryRequestBuilder that doesn't support .select() after insert.
+            res = supabase.table("admin_notifications").insert(payload).execute()
+            # We don't rely on returned row here; just return truthy success
+            inserted = getattr(res, "data", []) or []
+            inserted_row = inserted[0] if inserted else None
+            if inserted_row:
+                print(f"🔒 Admin notification created: id={inserted_row.get('id')}")
+                return inserted_row
+            print("🔒 Admin notification created (no returned row)")
+            return True
+        except Exception as e:
+            # Table might not exist yet or permission issue - don't raise
+            print(f"⚠️ Failed to insert into admin_notifications: {e}")
+            return None
+    except Exception as e:
+        print(f"❌ create_admin_notification unexpected error: {e}")
+        return None
 
 
 # Mark notification as read
@@ -2379,24 +2800,44 @@ def create_report_notification(user_id, report_id, report_title, new_status):
 @token_required
 def mark_notification_read(notif_id):
     user_id = request.user_id
-    supabase.table("notifications").update({"is_read": True}).eq("id", notif_id).eq("user_id", user_id).execute()
-    return jsonify({"status": "success"}), 200
+    try:
+        # Update the notification as read. The python supabase client does not support
+        # chaining .select() after update/delete in some versions, so just execute()
+        resp = supabase.table("notifications").update({"is_read": True}).eq("id", notif_id).eq("user_id", user_id).execute()
+        updated = getattr(resp, "data", []) or []
+        updated_row = updated[0] if updated else None
+        return jsonify({"status": "success", "notification": updated_row}), 200
+    except Exception as e:
+        print(f"Error marking notification read: {e}")
+        return jsonify({"status": "error", "message": str(e)}), 500
 
 # Delete notification
 @app.route("/api/notifications/<int:notif_id>", methods=["DELETE"])
 @token_required
 def delete_notification(notif_id):
     user_id = request.user_id
-    supabase.table("notifications").delete().eq("id", notif_id).eq("user_id", user_id).execute()
-    return jsonify({"status": "success"}), 200
+    try:
+        # Delete the notification. Avoid chaining .select() after delete for client compatibility.
+        resp = supabase.table("notifications").delete().eq("id", notif_id).eq("user_id", user_id).execute()
+        deleted = getattr(resp, "data", []) or []
+        return jsonify({"status": "success", "deleted": deleted}), 200
+    except Exception as e:
+        print(f"Error deleting notification: {e}")
+        return jsonify({"status": "error", "message": str(e)}), 500
 
 # Mark all notifications as read
 @app.route("/api/notifications/read_all", methods=["POST"])
 @token_required
 def mark_all_notifications_read():
     user_id = request.user_id
-    supabase.table("notifications").update({"is_read": True}).eq("user_id", user_id).execute()
-    return jsonify({"status": "success"}), 200
+    try:
+        # Mark all notifications as read for this user. Use execute() and inspect resp.data.
+        resp = supabase.table("notifications").update({"is_read": True}).eq("user_id", user_id).execute()
+        updated = getattr(resp, "data", []) or []
+        return jsonify({"status": "success", "updated_count": len(updated)}), 200
+    except Exception as e:
+        print(f"Error marking all notifications read: {e}")
+        return jsonify({"status": "error", "message": str(e)}), 500
 
 
 

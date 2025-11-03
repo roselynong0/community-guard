@@ -140,6 +140,10 @@ function AdminReports({ token }) {
     const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false);
     const [deleteTarget, setDeleteTarget] = useState(null);
     const [isDeleting, setIsDeleting] = useState(false);
+    // New states for deletion reason flow
+    const [isDeleteReasonOpen, setIsDeleteReasonOpen] = useState(false);
+    const [deleteReason, setDeleteReason] = useState('');
+    const [deleteReasonOther, setDeleteReasonOther] = useState('');
     
     const barangays = [
         "All Barangay", "Barretto", "East Bajac-Bajac", "East Tapinac", "Gordon Heights",
@@ -184,14 +188,38 @@ function AdminReports({ token }) {
         }
     }, [isDeleting]);
 
-    const openDeleteConfirm = (report) => {
+    
+
+    // New: open initial delete-reason modal instead of immediately showing permanent delete
+    const closeDeleteReason = useCallback(() => {
+        if (!isDeleting) {
+            setIsDeleteReasonOpen(false);
+            setDeleteReason('');
+            setDeleteReasonOther('');
+        }
+    }, [isDeleting]);
+
+    const openDeleteReason = (report) => {
         setDeleteTarget(report);
+        setDeleteReason('');
+        setDeleteReasonOther('');
+        setIsDeleteReasonOpen(true);
+    };
+
+    const proceedToConfirmDelete = () => {
+        // Ensure a reason is selected; allow 'Other' with text
+        if (!deleteReason) return;
+        if (deleteReason === 'Other' && !deleteReasonOther.trim()) return;
+
+        // close reason modal and open the confirm modal
+        setIsDeleteReasonOpen(false);
         setIsDeleteConfirmOpen(true);
     };
 
     // Use the custom hook to handle focus trapping and ESC key for both modals
     const statusRef = useAriaModal(isStatusModalOpen, closeStatusModal);
     const deleteRef = useAriaModal(isDeleteConfirmOpen, closeDeleteConfirm);
+    const reasonRef = useAriaModal(isDeleteReasonOpen, closeDeleteReason);
     // --------------------------------------------------
 
     // Fetch reports from API (kept original logic)
@@ -355,7 +383,9 @@ function AdminReports({ token }) {
                 headers: {
                     'Authorization': `Bearer ${token}`,
                     'Content-Type': 'application/json'
-                }
+                },
+                // include deletion reason for auditing; server may accept or ignore
+                body: JSON.stringify({ reason: deleteReason || null, reason_other: deleteReasonOther || null })
             });
 
             if (!response.ok) {
@@ -564,7 +594,7 @@ function AdminReports({ token }) {
                                         </button>
                                         <button 
                                             className="icon-btn delete-btn" 
-                                            onClick={() => openDeleteConfirm(report)}
+                                            onClick={() => openDeleteReason(report)}
                                             aria-label={`Delete report: ${report.title}`}
                                             title="Delete Report"
                                         >
@@ -726,11 +756,16 @@ function AdminReports({ token }) {
                 >
                     <div className="modal" onClick={(e) => e.stopPropagation()}>
                         <h3 id="delete-modal-title">Delete Report</h3>
-                        <p>Are you sure you want to delete report: "<strong>{deleteTarget?.title}</strong>" from user: {
+                        <p>Are you sure you want to permanently delete report: "<strong>{deleteTarget?.title}</strong>" from user: {
                             deleteTarget?.reporter 
                                 ? `${deleteTarget.reporter.firstname || ""} ${deleteTarget.reporter.lastname || ""}`.trim()
                                 : "Unknown User"
                             }?</p>
+                        {deleteReason ? (
+                            <div style={{ margin: '8px 0', padding: '8px', background: '#fff7f7', borderRadius: 6 }}>
+                                <strong>Reason for deletion:</strong> {deleteReason === 'Other' ? deleteReasonOther : deleteReason}
+                            </div>
+                        ) : null}
                         <div className="modal-actions">
                             <button 
                                 className="cancel-btn" 
@@ -747,6 +782,65 @@ function AdminReports({ token }) {
                                 style={{ opacity: isDeleting ? 0.6 : 1 }}
                             >
                                 {isDeleting ? 'Deleting...' : 'Yes, Delete Permanently'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Delete Reason Modal: ask admin why the report is being deleted */}
+            {isDeleteReasonOpen && (
+                <div
+                    className="modal-overlay"
+                    onClick={!isDeleting ? closeDeleteReason : undefined}
+                    role="dialog"
+                    aria-modal="true"
+                    aria-labelledby="delete-reason-title"
+                    tabIndex="-1"
+                    ref={reasonRef}
+                >
+                    <div className="modal" onClick={(e) => e.stopPropagation()}>
+                        <h3 id="delete-reason-title">Report Deletion Reason</h3>
+                        <p>Please select the reason why this report should be deleted. This helps auditing and prevents misuse.</p>
+
+                        <label htmlFor="delete-reason-select" style={{ display: 'block', marginBottom: 8, fontWeight: '600' }}>Select reason</label>
+                        <select
+                            id="delete-reason-select"
+                            value={deleteReason}
+                            onChange={(e) => setDeleteReason(e.target.value)}
+                            style={{ width: '100%', padding: 8, marginBottom: 12, borderRadius: 6, border: '1px solid #ddd' }}
+                        >
+                            <option value="">-- Select a reason --</option>
+                            <option value="Fraudulent / False Report">Fraudulent / False Report</option>
+                            <option value="Misinformation">Misinformation</option>
+                            <option value="Duplicate">Duplicate Report</option>
+                            <option value="Not Community Concern">Not a Community Concern</option>
+                            <option value="Spam / Advertisement">Spam / Advertisement</option>
+                            <option value="Other">Other (provide details)</option>
+                        </select>
+
+                        {deleteReason === 'Other' && (
+                            <div style={{ marginBottom: 12 }}>
+                                <label htmlFor="delete-reason-other" style={{ display: 'block', marginBottom: 6 }}>Details</label>
+                                <input
+                                    id="delete-reason-other"
+                                    type="text"
+                                    value={deleteReasonOther}
+                                    onChange={(e) => setDeleteReasonOther(e.target.value)}
+                                    placeholder="Provide brief details (required)"
+                                    style={{ width: '100%', padding: 8, borderRadius: 6, border: '1px solid #ddd' }}
+                                />
+                            </div>
+                        )}
+
+                        <div className="modal-buttons edit-actions" style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
+                            <button onClick={closeDeleteReason} disabled={isDeleting}>Cancel</button>
+                            <button
+                                onClick={proceedToConfirmDelete}
+                                disabled={isDeleting || !deleteReason || (deleteReason === 'Other' && !deleteReasonOther.trim())}
+                                style={{ backgroundColor: '#ef4444', color: '#fff' }}
+                            >
+                                Continue to Delete
                             </button>
                         </div>
                     </div>

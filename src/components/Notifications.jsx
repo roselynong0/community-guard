@@ -141,14 +141,22 @@ export default function Notifications({ session, token }) {
 
   async function markRead(id) {
     try {
+      // Optimistic UI update
       setNotifications((prev) => prev.map((n) => (n.id === id ? { ...n, read: true } : n)));
       const res = await fetch(`${API_URL}/notifications/${id}/read`, {
         method: "POST",
         headers,
       });
       if (!res.ok) throw new Error(`Failed to mark as read (${res.status})`);
+      const data = await res.json();
+      // If server returned a notification, reconcile with local state
+      if (data?.notification) {
+        const srv = data.notification;
+        setNotifications((prev) => prev.map((n) => (n.id === srv.id ? { ...n, read: Boolean(srv.is_read), created_at: srv.created_at ?? n.created_at } : n)));
+      }
     } catch (e) {
       setError(e.message || "Failed to mark notification as read");
+      // revert optimistic change
       setNotifications((prev) => prev.map((n) => (n.id === id ? { ...n, read: false } : n)));
     }
   }
@@ -171,14 +179,21 @@ export default function Notifications({ session, token }) {
 
   async function markAllRead() {
     try {
+      // Optimistic UI update
       setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
       const res = await fetch(`${API_URL}/notifications/read_all`, {
         method: "POST",
         headers,
       });
       if (!res.ok) throw new Error(`Failed to mark all as read (${res.status})`);
+      const data = await res.json();
+      // If server returned updated_count or failed, we can decide to refetch
+      if (data?.status !== 'success') {
+        throw new Error(data?.message || 'Unexpected server response');
+      }
     } catch (e) {
       setError(e.message || "Failed to mark all as read");
+      // refresh from server to get authoritative state
       fetchNotifications();
     }
   }

@@ -12,6 +12,7 @@ import AdminReports from "./components/Admin-Reports";
 import AdminUsers from "./components/Admin-Users";
 import Profile from "./components/Profile";
 import Notifications from "./components/Notifications";
+import AdminNotifications from "./components/Admin-Notifications";
 import Maps from "./components/Maps";
 import { fetchSession } from "./utils/session";
 import VerificationForm from "./components/VerificationForm";
@@ -235,7 +236,7 @@ function App() {
               session?.user?.role !== "Admin" ? (
                 <Navigate to="/notifications" replace />
               ) : (
-                <Notifications token={session?.token} />
+                <AdminNotifications session={session} />
               )
             }
           />

@@ -115,6 +115,21 @@
     background: #e9e9e9;
 }
 
+/* Dropdown styles for admin filters */
+.filter-select {
+    padding: 6px 8px;
+    border-radius: 6px;
+    border: 1px solid #ddd;
+    background: #fff;
+    color: #333;
+    font-size: 14px;
+}
+.filter-select:focus {
+    outline: none;
+    box-shadow: 0 0 0 3px rgba(45,45,115,0.06);
+    border-color: #2d2d73;
+}
+
 .notifications-list {
     list-style: none;
     padding: 0;
@@ -165,11 +180,63 @@
 .icon-security { color: #2d2d73; }
 .icon-info { color: #6c757d; } 
 
+/* dashboard-aligned icon colors */
+.icon-report { color: #2d2d73; } /* total reports / primary */
+.icon-ongoing { color: #ef4444; } /* ongoing cases red (Home used #f40014ff/ef4444) */
+
+/* red delete icon for account deletions */
+.icon-delete { color: #ef4444; }
+
 
 .notif-details {
     flex-grow: 1;
     overflow: hidden;
 }
+
+.notif-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+}
+
+.notif-title {
+    margin: 0 0 6px 0;
+    font-size: 15px;
+    color: #222;
+}
+
+.notif-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 8px;
+    border-radius: 999px;
+    font-size: 12px;
+    font-weight: 600;
+}
+
+.notif-badge .small-icon { font-size: 14px; display: inline-flex; align-items: center; }
+
+/* Ensure the SVG icon inside the badge inherits the badge color so pending/ongoing match resolved */
+.notif-badge .small-icon,
+.notif-badge .small-icon svg {
+    color: inherit;
+    fill: currentColor; /* react-icons use currentColor, ensure fill follows */
+}
+
+/* Badge color variants */
+.notif-badge.resolved { background: rgba(42,157,98,0.08); color: #2a9d62; border: 1px solid rgba(42,157,98,0.12);} 
+.notif-badge.pending { background: rgba(244,183,97,0.08); color: #f4b761; border: 1px solid rgba(244,183,97,0.12);} 
+.notif-badge.ongoing { background: rgba(244,0,20,0.06); color: #f40014; border: 1px solid rgba(244,0,20,0.08);} 
+.notif-badge.report { background: rgba(45,45,115,0.06); color: #2d2d73; border: 1px solid rgba(45,45,115,0.08);} 
+/* account deletion badge - red */
+.notif-badge.account-deleted { background: rgba(244,0,20,0.06); color: #f40014; border: 1px solid rgba(244,0,20,0.08); }
+
+.notif-message { margin: 6px 0 0 0; color: #333; }
+
+.notif-to { font-size: 13px; color: #555; }
+.recipient-icon { font-size: 14px; }
 
 .notif-message {
     margin: 0;

@@ -160,6 +160,9 @@ function AdminLayout({ session, setSession, setNotification }) {
             <NavLink to="/admin/reports">
               <FaFileAlt /> Reports
             </NavLink>
+            <NavLink to="/admin/notifications">
+              <FaBell /> Notifications
+            </NavLink>
             <NavLink to="/admin/users">
               <FaUsers /> Users
             </NavLink>
