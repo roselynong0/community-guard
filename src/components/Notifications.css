@@ -331,6 +331,10 @@
         width: 100%;
     }
 
+    .notifications-container {
+        margin: 0;
+    }
+
     .btn.icon-btn .btn-text {
         display: none; 
     }

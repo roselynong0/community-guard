@@ -17,6 +17,8 @@ import Maps from "./components/Maps";
 import { fetchSession } from "./utils/session";
 import VerificationForm from "./components/VerificationForm";
 import LandingPage from "./components/LandingPage";
+import SafetyTips from "./components/SafetyTips";
+import CommunityFeed from "./components/CommunityFeed";
 
 // ---------------- LOGIN WRAPPER ----------------
 function LoginWrapper({ session, setSession, setNotification }) {
@@ -159,6 +161,26 @@ function App() {
                 <Navigate to="/admin/notifications" replace />
               ) : (
                 <Notifications token={session?.token} />
+              )
+            }
+          />
+          <Route
+            path="/safety-tips"
+            element={
+              session?.user?.role === "Admin" ? (
+                <Navigate to="/admin/dashboard" replace />
+              ) : (
+                <SafetyTips />
+              )
+            }
+          />
+          <Route
+            path="/community-feed"
+            element={
+              session?.user?.role === "Admin" ? (
+                <Navigate to="/admin/dashboard" replace />
+              ) : (
+                <CommunityFeed />
               )
             }
           />

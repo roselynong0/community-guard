@@ -7,6 +7,8 @@ import {
   FaSignOutAlt,
   FaBars,
   FaCalendarAlt,
+  FaLightbulb,
+  FaUserFriends,
   FaMap,
 } from "react-icons/fa";
 import { Outlet, NavLink, useNavigate } from "react-router-dom";
@@ -102,7 +104,6 @@ function Layout({ session, setSession, setNotification }) {
               <div
                 className="user-profile"
                 style={{
-                  paddingBottom: "1rem",
                   borderBottom: "1px solid rgba(255,255,255,0.1)",
                   marginBottom: "1rem",
                   textAlign: "center",
@@ -131,6 +132,12 @@ function Layout({ session, setSession, setNotification }) {
             <NavLink to="/notifications">
               <FaBell /> Notifications
             </NavLink>
+            <NavLink to="/community-feed">
+              <FaUserFriends /> Community Feed
+            </NavLink>
+            <NavLink to="/safety-tips">
+              <FaLightbulb /> Safety Tips
+            </NavLink>
             <NavLink
               to={user ? "/profile" : "#"}
               onClick={(e) => {
@@ -152,15 +159,7 @@ function Layout({ session, setSession, setNotification }) {
 
       {/* Main content */}
       <main className="main-area">
-        <div
-          className="top-bar"
-          style={{
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "space-between",
-            padding: "0.5rem 1rem",
-          }}
-        >
+        <div className="top-bar">
           {/* Left: Menu + Date */}
           <div style={{ display: "flex", alignItems: "center", gap: "1rem" }}>
             <button className="menu-btn" onClick={() => setSidebarOpen(!sidebarOpen)}>
@@ -174,7 +173,7 @@ function Layout({ session, setSession, setNotification }) {
 
           {/* Right: User Profile */}
           {user && (
-            <div
+            <div className="user"
               style={{
                 display: "flex",
                 alignItems: "center",
@@ -185,23 +184,9 @@ function Layout({ session, setSession, setNotification }) {
             >
               <img
                 src={user.avatar_url || "/src/assets/profile.png"}
-                alt="User Avatar"
-                style={{
-                  width: "40px",
-                  height: "40px",
-                  borderRadius: "50%",
-                  objectFit: "cover",
-                  border: "2px solid #11163e",
-                }}
-              />
+                alt="User Avatar"/>
               <div>
-                <span
-                  style={{
-                    fontSize: "0.85rem",
-                    fontWeight: "600",
-                    color: "#11163e",
-                  }}
-                >
+                <span>
                   {user.firstname} {user.lastname}
                 </span>
                 <p

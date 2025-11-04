@@ -52,7 +52,6 @@
 
 .logo {
   text-align: center;
-  margin-bottom: 1rem;
 }
 .logo-img {
   height: 200px;
@@ -212,6 +211,20 @@
 .top-user-profile {
   color: #11163e;
   font-family: "Poppins", sans-serif;
+}
+
+.top-bar .user img {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 2px solid #11163e;
+}
+
+.top-bar .user span {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #11163e;
 }
 
 .top-user-profile h2 {
@@ -472,6 +485,16 @@
 @media (max-width: 768px) {
   .sidebar {
     display: none;
+  }
+  .top-bar {
+    padding: 0 0 10px;
+  }
+  .top-bar .user img {
+    width: 30px;
+    height: 30px;
+  }
+  .top-bar .user span {
+    font-size: 0.7rem;
   }
   .bottom-nav {
     display: flex;
