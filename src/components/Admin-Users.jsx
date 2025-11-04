@@ -44,6 +44,17 @@ function AdminUsers({ token }) {
   const [userInfo, setUserInfo] = useState(null);
   const [infoLoading, setInfoLoading] = useState(false);
   const [checkingFields, setCheckingFields] = useState(false);
+  // Create User modal states
+  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  const [createFirstname, setCreateFirstname] = useState("");
+  const [createLastname, setCreateLastname] = useState("");
+  const [createEmail, setCreateEmail] = useState("");
+  const [createPassword, setCreatePassword] = useState("");
+  const [createRole, setCreateRole] = useState("Account"); // Account | Barangay Official | Responder
+  const [createBarangay, setCreateBarangay] = useState("");
+  const [createAvatarFile, setCreateAvatarFile] = useState(null);
+  const [createAvatarPreview, setCreateAvatarPreview] = useState(null);
+  const [isCreating, setIsCreating] = useState(false);
 
   // Notification handler
   const showNotification = useCallback((message, type = "success") => {
@@ -189,6 +200,79 @@ function AdminUsers({ token }) {
     setSelectedUser(user);
     setIsVerificationModalOpen(true);
     fetchUserInfo(user.id);
+  };
+
+  // --- Create User Modal Helpers ---
+  const barangaysList = [
+    "Barretto", "East Bajac-Bajac", "East Tapinac", "Gordon Heights",
+    "Kalaklan", "Mabayuan", "New Asinan", "New Banicain", "New Cabalan",
+    "New Ilalim", "New Kababae", "New Kalalake", "Old Cabalan", "Pag-Asa",
+    "Santa Rita", "West Bajac-Bajac", "West Tapinac",
+  ];
+
+  const openCreateModal = () => setIsCreateModalOpen(true);
+  const closeCreateModal = () => {
+    setIsCreateModalOpen(false);
+    setCreateFirstname(""); setCreateLastname(""); setCreateEmail(""); setCreatePassword("");
+    setCreateRole("Account"); setCreateBarangay(""); setCreateAvatarFile(null); setCreateAvatarPreview(null);
+  };
+
+  const handleCreateAvatarSelect = (e) => {
+    const file = e.target.files && e.target.files[0];
+    if (!file) return;
+    setCreateAvatarFile(file);
+    setCreateAvatarPreview(URL.createObjectURL(file));
+  };
+
+  const handleCreateUser = async () => {
+    if (isCreating) return;
+    // basic validation
+    if (!createFirstname.trim() || !createLastname.trim() || !createEmail.trim() || !createRole) {
+      showNotification('Please fill required fields (first name, last name, email, role)', 'error');
+      return;
+    }
+
+    setIsCreating(true);
+    try {
+      const formData = new FormData();
+      formData.append('firstname', createFirstname.trim());
+      formData.append('lastname', createLastname.trim());
+      formData.append('email', createEmail.trim());
+      if (createPassword) formData.append('password', createPassword);
+      formData.append('role', createRole);
+      if (createRole === 'Barangay Official' && createBarangay) formData.append('address_barangay', createBarangay);
+      if (createAvatarFile) formData.append('avatar', createAvatarFile);
+
+      const res = await fetch(`${API_URL}/users`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`
+          // NOTE: do not set Content-Type for FormData
+        },
+        body: formData
+      });
+
+      const data = await res.json();
+      if (!res.ok || data.status !== 'success') {
+        throw new Error(data.message || 'Failed to create user');
+      }
+
+      // Add created user to local state if provided
+      if (data.user) {
+        setUsers(prev => [data.user, ...prev]);
+      } else {
+        // fallback: refresh list
+        fetchUsers(true);
+      }
+
+      showNotification('User created successfully', 'success');
+      closeCreateModal();
+    } catch (err) {
+      console.error('Create user error:', err);
+      showNotification(`Failed to create user: ${err.message}`, 'error');
+    } finally {
+      setIsCreating(false);
+    }
   };
 
   // Close verification modal
@@ -352,6 +436,15 @@ function AdminUsers({ token }) {
     <div className="admin-container">
       <div className="admin-header-row">
         <h2>User Management</h2>
+        <div className="admin-header-actions">
+          <button
+            className="refresh-btn"
+            onClick={openCreateModal}
+            title="Create a new user"
+          >
+            Create User
+          </button>
+        </div>
       </div>
 
       {/* Stats Cards */}
@@ -512,6 +605,61 @@ function AdminUsers({ token }) {
             <p>No users match your current search criteria.</p>
           </div>
         )}
+
+      {/* Create User Modal */}
+      {isCreateModalOpen && (
+        <div className="modal-overlay" onClick={closeCreateModal}>
+          <div className="admin-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="admin-modal-header">
+              <h3>Create New Account</h3>
+              <button className="admin-modal-close" onClick={closeCreateModal}>×</button>
+            </div>
+
+            <div className="admin-modal-content">
+              <div style={{ display: 'grid', gap: 12 }}>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <input type="text" placeholder="First name" value={createFirstname} onChange={(e) => setCreateFirstname(e.target.value)} style={{ flex: 1, padding: 10, borderRadius: 8, border: '1px solid #e2e8f0' }} />
+                  <input type="text" placeholder="Last name" value={createLastname} onChange={(e) => setCreateLastname(e.target.value)} style={{ flex: 1, padding: 10, borderRadius: 8, border: '1px solid #e2e8f0' }} />
+                </div>
+
+                <input type="email" placeholder="Email" value={createEmail} onChange={(e) => setCreateEmail(e.target.value)} style={{ padding: 10, borderRadius: 8, border: '1px solid #e2e8f0' }} />
+
+                <input type="password" placeholder="Password (optional)" value={createPassword} onChange={(e) => setCreatePassword(e.target.value)} style={{ padding: 10, borderRadius: 8, border: '1px solid #e2e8f0' }} />
+
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <select value={createRole} onChange={(e) => setCreateRole(e.target.value)} style={{ padding: 10, borderRadius: 8, border: '1px solid #e2e8f0', flex: 1 }}>
+                    <option value="Account">Account</option>
+                    <option value="Barangay Official">Barangay Official</option>
+                    <option value="Responder">Responder</option>
+                  </select>
+
+                  {createRole === 'Barangay Official' && (
+                    <select value={createBarangay} onChange={(e) => setCreateBarangay(e.target.value)} style={{ padding: 10, borderRadius: 8, border: '1px solid #e2e8f0', flex: 1 }}>
+                      <option value="">Select Barangay</option>
+                      {barangaysList.map(b => <option key={b} value={b}>{b}</option>)}
+                    </select>
+                  )}
+                </div>
+
+                <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                    <label style={{ fontSize: 13, color: '#334155' }}>Avatar (optional)</label>
+                    <input type="file" accept="image/*" onChange={handleCreateAvatarSelect} />
+                  </div>
+                  {createAvatarPreview && (
+                    <img src={createAvatarPreview} alt="avatar preview" style={{ width: 64, height: 64, borderRadius: '50%', objectFit: 'cover', border: '1px solid #e2e8f0' }} />
+                  )}
+                </div>
+              </div>
+            </div>
+
+            <div className="admin-modal-actions" style={{ justifyContent: 'flex-end' }}>
+              <button className="cancel-btn" onClick={closeCreateModal} style={{ padding: '10px 16px', borderRadius: 8 }}>Cancel</button>
+              <button className="verify-btn" onClick={handleCreateUser} style={{ marginLeft: 8, padding: '10px 16px', borderRadius: 8 }} disabled={isCreating}>{isCreating ? 'Creating...' : 'Create Account'}</button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Verification Modal */}
       {isVerificationModalOpen && selectedUser && (

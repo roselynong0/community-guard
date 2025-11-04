@@ -45,35 +45,50 @@ Compress(app)
 # ----------------- RETRY UTILITY -----------------
 import time
 import httpx
+import socket
+import random
 
-def supabase_retry(func, max_retries=3, delay=0.5):
+
+def supabase_retry(func, max_retries=5, delay=0.5):
     """
-    Retry wrapper for Supabase operations to handle network issues
+    Retry wrapper for Supabase operations to handle transient network issues.
+
+    Improvements:
+    - Increased default retries to 5
+    - Catches httpx and socket/OSError related errors
+    - Uses exponential backoff with small jitter to reduce retry storms
+    - On repeated network failures returns None (caller should handle fallback)
     """
     for attempt in range(max_retries):
         try:
             return func()
-        except (httpx.ReadError, httpx.ConnectError, httpx.TimeoutException, Exception) as e:
+        except (httpx.ReadError, httpx.ConnectError, httpx.TimeoutException, OSError, socket.error) as e:
             error_str = str(e).lower()
-            # Check if it's a network-related error that we should retry
+            # Heuristic: only retry on common transient/network errors
             if any(keyword in error_str for keyword in [
-                'non-blocking socket operation', 'connection', 'timeout', 
-                'read error', 'network', 'winerror 10035'
+                'non-blocking socket operation', 'connection', 'timeout',
+                'read error', 'network', 'winerror 10035', 'connection reset by peer'
             ]):
                 if attempt < max_retries - 1:
+                    jitter = random.uniform(0, 0.3)
+                    wait = delay + jitter
                     print(f"🔄 Supabase operation failed (attempt {attempt + 1}/{max_retries}): {e}")
-                    print(f"   Retrying in {delay}s...")
-                    time.sleep(delay)
+                    print(f"   Retrying in {wait:.2f}s...")
+                    time.sleep(wait)
                     delay *= 2  # Exponential backoff
                     continue
                 else:
+                    # Final failure: log and return None so callers can fallback gracefully
                     print(f"❌ Supabase operation failed after {max_retries} attempts: {e}")
-                    raise e
+                    return None
             else:
-                # Non-network error, don't retry
+                # Non-network error, re-raise so caller can handle explicitly
                 raise e
-    
-    return None  # Should never reach here
+        except Exception as e:
+            # Unknown errors should bubble up (likely not transient)
+            raise e
+
+    return None
 
 @app.route("/api/data")
 def get_data():

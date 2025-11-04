@@ -8,6 +8,8 @@ import {
   FaBars,
   FaCalendarAlt,
   FaMap,
+  FaComments,
+  FaBook,
 } from "react-icons/fa";
 import { Outlet, NavLink, useNavigate } from "react-router-dom";
 import { logout } from "../utils/session";
@@ -108,7 +110,22 @@ function Layout({ session, setSession, setNotification }) {
                   textAlign: "center",
                 }}
               > 
-              </div>
+                  <img
+                    src={user.avatar_url || "/src/assets/profile.png"}
+                    alt="avatar"
+                    style={{
+                      width: 72,
+                      height: 72,
+                      borderRadius: '50%',
+                      objectFit: 'cover',
+                      border: '2px solid rgba(255,255,255,0.08)'
+                    }}
+                  />
+                  <div style={{ marginTop: 8 }}>
+                    <div style={{ fontWeight: 700, color: '#fff' }}>{user.firstname} {user.lastname}</div>
+                    <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.8)' }}>{user.role || 'Resident'}</div>
+                  </div>
+                </div>
             )}
           </div>
 
@@ -122,11 +139,17 @@ function Layout({ session, setSession, setNotification }) {
             <NavLink to="/home">
               <FaHome /> Home
             </NavLink>
+            <NavLink to="/community">
+              <FaComments /> Community
+            </NavLink>
             <NavLink to="/maps">
               <FaMap /> Map
             </NavLink>
             <NavLink to="/reports">
               <FaPlusCircle /> Reports
+            </NavLink>
+            <NavLink to="/resources">
+              <FaBook /> Resources
             </NavLink>
             <NavLink to="/notifications">
               <FaBell /> Notifications
