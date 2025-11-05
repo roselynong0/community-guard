@@ -60,7 +60,7 @@ async function fetchWithToken(url, token, retries = 3) {
   }
 }
 
-function Home({ token, session, selectedBarangay }) {
+function Home({ token, session }) {
   const [stats, setStats] = useState([
     { title: "Total Reports", value: 0, icon: <FaExclamationTriangle />, color: "#2d2d73" },
     { title: "Ongoing Cases", value: 0, icon: <FaSyncAlt />, color: "#f40014ff" },
@@ -86,10 +86,10 @@ function Home({ token, session, selectedBarangay }) {
       setLoading(true);
       setError(null);
       try {
-  // 1. Fetch dashboard stats
-  // If selectedBarangay is provided, pass it to the backend so it returns barangay-scoped stats
-  const statsEndpoint = `http://localhost:5000/api/stats${selectedBarangay && selectedBarangay !== 'All' ? `?barangay=${encodeURIComponent(selectedBarangay)}` : ''}`;
-  const statsRes = await fetchWithToken(statsEndpoint, token);
+        // 1. Fetch dashboard stats
+        // Barangay filtering temporarily disabled
+        const statsEndpoint = "http://localhost:5000/api/stats";
+        const statsRes = await fetchWithToken(statsEndpoint, token);
         if (statsRes.status === "success") {
           // Both admin and users show "Community Reports"
           setStats([
@@ -114,8 +114,8 @@ function Home({ token, session, selectedBarangay }) {
 
         // 3. Fetch reports by category data
         // For users and admins: get all categories (barangay filtering disabled)
-  const categoryEndpoint = `http://localhost:5000/api/reports/categories?filter=all${selectedBarangay && selectedBarangay !== 'All' ? `&barangay=${encodeURIComponent(selectedBarangay)}` : ''}`;
-  const categoryRes = await fetchWithToken(categoryEndpoint, token);
+        const categoryEndpoint = "http://localhost:5000/api/reports/categories?filter=all";
+        const categoryRes = await fetchWithToken(categoryEndpoint, token);
         if (categoryRes.status === "success" && categoryRes.data && categoryRes.data.length > 0) {
           // Map data to include colors
           const formattedCategoryData = categoryRes.data.map(item => ({
@@ -129,8 +129,8 @@ function Home({ token, session, selectedBarangay }) {
         }
 
         // 4. Fetch recent reports - all reports for everyone (barangay filtering disabled)
-  const reportsEndpoint = `http://localhost:5000/api/reports?limit=5&sort=desc&filter=all${selectedBarangay && selectedBarangay !== 'All' ? `&barangay=${encodeURIComponent(selectedBarangay)}` : ''}`;
-  const recentRes = await fetchWithToken(reportsEndpoint, token);
+        const reportsEndpoint = `http://localhost:5000/api/reports?limit=5&sort=desc&filter=all`;
+        const recentRes = await fetchWithToken(reportsEndpoint, token);
         setRecentReports(recentRes.status === "success" ? recentRes.reports : []);
         
       } catch (err) {
@@ -153,7 +153,7 @@ function Home({ token, session, selectedBarangay }) {
     };
 
     fetchData();
-  }, [token, session?.user?.role, getCategoryColor, selectedBarangay]);
+  }, [token, session?.user?.role, getCategoryColor]);
 
   if (loading) {
     return (

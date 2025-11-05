@@ -7,6 +7,7 @@ import {
   FaUserCheck, 
   FaUserTimes, 
   FaEdit,
+  FaTrashAlt,
   FaPhone,
   FaCalendarAlt,
   FaMapMarkerAlt,
@@ -55,6 +56,11 @@ function AdminUsers({ token }) {
   const [createAvatarFile, setCreateAvatarFile] = useState(null);
   const [createAvatarPreview, setCreateAvatarPreview] = useState(null);
   const [isCreating, setIsCreating] = useState(false);
+  // Bulk delete / selection state
+  const [selectionMode, setSelectionMode] = useState(false);
+  const [selectedIds, setSelectedIds] = useState(new Set());
+  const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   // Notification handler
   const showNotification = useCallback((message, type = "success") => {
@@ -217,6 +223,65 @@ function AdminUsers({ token }) {
     setCreateRole("Account"); setCreateBarangay(""); setCreateAvatarFile(null); setCreateAvatarPreview(null);
   };
 
+  const toggleSelectionMode = () => {
+    if (selectionMode) {
+      setSelectedIds(new Set());
+      setSelectionMode(false);
+    } else {
+      setSelectionMode(true);
+    }
+  };
+
+  const toggleSelectUser = (userId) => {
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      if (next.has(userId)) next.delete(userId);
+      else next.add(userId);
+      return next;
+    });
+  };
+
+  // Open confirmation modal (instead of immediate browser confirm)
+  const confirmDeleteSelected = () => {
+    if (!selectedIds || selectedIds.size === 0) return;
+    setIsDeleteConfirmOpen(true);
+  };
+
+  const performDeleteSelected = async () => {
+    if (!selectedIds || selectedIds.size === 0) {
+      setIsDeleteConfirmOpen(false);
+      return;
+    }
+
+    setIsDeleting(true);
+    try {
+      const ids = Array.from(selectedIds);
+      for (const id of ids) {
+        try {
+          const res = await fetch(`${API_URL}/users/${id}`, {
+            method: 'DELETE',
+            headers: { Authorization: `Bearer ${token}` }
+          });
+          if (!res.ok) console.error('Failed to delete user', id, await res.text());
+        } catch (e) {
+          console.error('Delete request failed for', id, e);
+        }
+      }
+
+      // Refresh user list after deletions
+      setSelectionMode(false);
+      setSelectedIds(new Set());
+      fetchUsers(true);
+      showNotification('Selected users deleted', 'success');
+    } catch (err) {
+      console.error('Error deleting users:', err);
+      showNotification('Error deleting selected users', 'error');
+    } finally {
+      setIsDeleting(false);
+      setIsDeleteConfirmOpen(false);
+    }
+  };
+
   const handleCreateAvatarSelect = (e) => {
     const file = e.target.files && e.target.files[0];
     if (!file) return;
@@ -240,7 +305,7 @@ function AdminUsers({ token }) {
       formData.append('email', createEmail.trim());
       if (createPassword) formData.append('password', createPassword);
       formData.append('role', createRole);
-      if (createRole === 'Barangay Official' && createBarangay) formData.append('address_barangay', createBarangay);
+  if ((createRole === 'Barangay Official' || createRole === 'Responder') && createBarangay) formData.append('address_barangay', createBarangay);
       if (createAvatarFile) formData.append('avatar', createAvatarFile);
 
       const res = await fetch(`${API_URL}/users`, {
@@ -424,12 +489,14 @@ function AdminUsers({ token }) {
       );
   }, [users, statusFilter, roleFilter, debouncedSearch]);
 
-  // Memoized stats to calculate the 4 required stats (removed unverified)
+  // Memoized stats to calculate counts including barangay officials and responders
   const stats = useMemo(() => ({
     totalUsers: users.length,
     fullyVerifiedUsers: users.filter(u => u.isverified && u.verified).length,
     emailVerifiedUsers: users.filter(u => u.isverified && !u.verified).length,
-    adminUsers: users.filter(u => u.role === "Admin").length
+    adminUsers: users.filter(u => u.role === "Admin").length,
+    barangayOfficials: users.filter(u => u.role === "Barangay Official").length,
+    responders: users.filter(u => u.role === "Responder").length
   }), [users]);
 
   return (
@@ -441,11 +508,29 @@ function AdminUsers({ token }) {
             className="refresh-btn"
             onClick={openCreateModal}
             title="Create a new user"
+            style={{ marginRight: 8 }}
           >
             Create User
           </button>
+          <button
+            className="danger-icon-btn"
+            onClick={toggleSelectionMode}
+            title={selectionMode ? 'Exit delete mode' : 'Select users to delete'}
+            style={{ background: selectionMode ? '#ef4444' : 'transparent', color: selectionMode ? '#fff' : '#ef4444', border: selectionMode ? 'none' : '1px solid #ef4444', padding: '8px 10px', borderRadius: 8 }}
+          >
+            <FaTrashAlt />
+          </button>
         </div>
       </div>
+
+      {/* Selection toolbar */}
+      {selectionMode && (
+        <div style={{ display: 'flex', gap: 8, marginBottom: 12, alignItems: 'center' }}>
+          <div style={{ fontSize: 14 }}>{selectedIds.size} selected</div>
+          <button className="cancel-btn" onClick={() => { setSelectionMode(false); setSelectedIds(new Set()); }}>Cancel</button>
+          <button className="verify-btn" onClick={confirmDeleteSelected} style={{ background: '#ef4444', color: '#fff', marginLeft: 8 }}>{isDeleting ? 'Deleting...' : 'Delete Selected'}</button>
+        </div>
+      )}
 
       {/* Stats Cards */}
       <div className="admin-stats-grid">
@@ -492,6 +577,28 @@ function AdminUsers({ token }) {
             </div>
           </div>
         </div>
+
+        {/* 5. Barangay Officials */}
+        <div className="admin-stat-card barangay-official">
+          <div className="admin-stat-content">
+            <FaUser className="admin-stat-icon" style={{ color: '#2563eb' }} />
+            <div className="admin-stat-text">
+              <h4>Barangay Officials</h4>
+              <p>{stats.barangayOfficials}</p>
+            </div>
+          </div>
+        </div>
+
+        {/* 6. Responders */}
+        <div className="admin-stat-card responder">
+          <div className="admin-stat-content">
+            <FaUser className="admin-stat-icon" style={{ color: '#ef4444' }} />
+            <div className="admin-stat-text">
+              <h4>Responders</h4>
+              <p>{stats.responders}</p>
+            </div>
+          </div>
+        </div>
       </div>
 
       {/* Search & Filter Controls */}
@@ -523,6 +630,8 @@ function AdminUsers({ token }) {
           <option value="All">All Roles</option>
           <option value="Admin">Admin</option>
           <option value="Resident">Resident</option>
+          <option value="Barangay Official">Barangay Official</option>
+          <option value="Responder">Responder</option>
         </select>
       </div>
 
@@ -534,14 +643,31 @@ function AdminUsers({ token }) {
         </div>
       ) : filteredUsers.length > 0 ? (
         <div className="admin-users-grid">
-            {filteredUsers.map((user) => (
+            {filteredUsers.map((user) => {
+              const isSelected = selectedIds.has(user.id);
+              return (
               <div
                 key={user.id}
+                onClick={(e) => {
+                  // If in selection mode, toggle selection. Ignore clicks on buttons inside the card.
+                  if (selectionMode) {
+                    const tag = (e.target && e.target.tagName) || '';
+                    if (tag.toLowerCase() !== 'button' && tag.toLowerCase() !== 'svg' && tag.toLowerCase() !== 'path') {
+                      toggleSelectUser(user.id);
+                    }
+                  }
+                }}
                 className={`admin-user-card ${
                   (user.isverified && user.verified) ? 'fully-verified' :
                   user.isverified ? 'email-verified' : 'unverified'
-                }`}
+                } ${isSelected ? 'selected-card' : ''}`}
+                style={isSelected ? { outline: '3px solid rgba(239,68,68,0.15)' } : {}}
               >
+                {selectionMode && (
+                  <div style={{ position: 'absolute', left: 8, top: 8 }}>
+                    <input type="checkbox" checked={isSelected} readOnly onClick={() => toggleSelectUser(user.id)} />
+                  </div>
+                )}
                 <div className="admin-user-header">
                   <div className="admin-user-info">
                     <img 
@@ -554,7 +680,7 @@ function AdminUsers({ token }) {
                       <p>{user.email}</p>
                     </div>
                   </div>
-                  <span className={`admin-role-badge ${user.role.toLowerCase()}`}>
+                  <span className={`admin-role-badge ${user.role.toLowerCase().replace(/\s+/g, '-')}`}>
                     {user.role}
                   </span>
                 </div>
@@ -596,8 +722,9 @@ function AdminUsers({ token }) {
                     )}
                   </div>
                 </div>
-              </div>
-            ))}
+                </div>
+              );
+            })}
           </div>
         ) : (
           <div className="admin-no-users">
@@ -633,7 +760,7 @@ function AdminUsers({ token }) {
                     <option value="Responder">Responder</option>
                   </select>
 
-                  {createRole === 'Barangay Official' && (
+                  {(createRole === 'Barangay Official' || createRole === 'Responder') && (
                     <select value={createBarangay} onChange={(e) => setCreateBarangay(e.target.value)} style={{ padding: 10, borderRadius: 8, border: '1px solid #e2e8f0', flex: 1 }}>
                       <option value="">Select Barangay</option>
                       {barangaysList.map(b => <option key={b} value={b}>{b}</option>)}
@@ -656,6 +783,27 @@ function AdminUsers({ token }) {
             <div className="admin-modal-actions" style={{ justifyContent: 'flex-end' }}>
               <button className="cancel-btn" onClick={closeCreateModal} style={{ padding: '10px 16px', borderRadius: 8 }}>Cancel</button>
               <button className="verify-btn" onClick={handleCreateUser} style={{ marginLeft: 8, padding: '10px 16px', borderRadius: 8 }} disabled={isCreating}>{isCreating ? 'Creating...' : 'Create Account'}</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Confirmation Modal */}
+      {isDeleteConfirmOpen && (
+        <div className="modal-overlay" onClick={() => setIsDeleteConfirmOpen(false)}>
+          <div className="admin-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="admin-modal-header">
+              <h3>Confirm Delete</h3>
+              <button className="admin-modal-close" onClick={() => setIsDeleteConfirmOpen(false)}>×</button>
+            </div>
+
+            <div className="admin-modal-content">
+              <p>Are you sure you want to permanently delete <strong>{selectedIds.size}</strong> selected user(s)? This action cannot be undone.</p>
+            </div>
+
+            <div className="admin-modal-actions" style={{ justifyContent: 'flex-end' }}>
+              <button className="cancel-btn" onClick={() => setIsDeleteConfirmOpen(false)} style={{ padding: '10px 16px', borderRadius: 8 }}>Cancel</button>
+              <button className="verify-btn" onClick={performDeleteSelected} style={{ marginLeft: 8, padding: '10px 16px', borderRadius: 8, background: '#ef4444', color: '#fff' }} disabled={isDeleting}>{isDeleting ? 'Deleting...' : 'Delete'}</button>
             </div>
           </div>
         </div>
@@ -697,7 +845,7 @@ function AdminUsers({ token }) {
                         {selectedUser.email}
                       </p>
                     </div>
-                    <span className={`modal-role-badge admin-role-badge ${selectedUser.role.toLowerCase()}`}>
+                    <span className={`modal-role-badge admin-role-badge ${selectedUser.role.toLowerCase().replace(/\s+/g, '-')}`}>
                       {selectedUser.role}
                     </span>
                   </div>

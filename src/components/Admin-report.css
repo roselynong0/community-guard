@@ -86,6 +86,15 @@
     border-left-color: #8b5cf6;
 }
 
+/* Barangay Official and Responder stat card colors */
+.admin-stat-card.barangay-official {
+    border-left-color: #2563eb;
+}
+
+.admin-stat-card.responder {
+    border-left-color: #ef4444;
+}
+
 .admin-stat-content {
     display: flex;
     align-items: center;
@@ -347,6 +356,17 @@ input.admin-search-input {
 .admin-role-badge.admin {
     background: rgba(139, 92, 246, 0.1);
     color: #8b5cf6;
+}
+
+/* Role badge colors for Barangay Officials and Responders */
+.admin-role-badge.barangay-official {
+    background: rgba(37, 99, 235, 0.08);
+    color: #2563eb;
+}
+
+.admin-role-badge.responder {
+    background: rgba(239, 68, 68, 0.08);
+    color: #ef4444;
 }
 
 .admin-role-badge.resident {

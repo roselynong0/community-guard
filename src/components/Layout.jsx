@@ -7,9 +7,9 @@ import {
   FaSignOutAlt,
   FaBars,
   FaCalendarAlt,
+  FaLightbulb,
+  FaUserFriends,
   FaMap,
-  FaComments,
-  FaBook,
 } from "react-icons/fa";
 import { Outlet, NavLink, useNavigate } from "react-router-dom";
 import { logout } from "../utils/session";
@@ -104,28 +104,12 @@ function Layout({ session, setSession, setNotification }) {
               <div
                 className="user-profile"
                 style={{
-                  paddingBottom: "1rem",
                   borderBottom: "1px solid rgba(255,255,255,0.1)",
                   marginBottom: "1rem",
                   textAlign: "center",
                 }}
               > 
-                  <img
-                    src={user.avatar_url || "/src/assets/profile.png"}
-                    alt="avatar"
-                    style={{
-                      width: 72,
-                      height: 72,
-                      borderRadius: '50%',
-                      objectFit: 'cover',
-                      border: '2px solid rgba(255,255,255,0.08)'
-                    }}
-                  />
-                  <div style={{ marginTop: 8 }}>
-                    <div style={{ fontWeight: 700, color: '#fff' }}>{user.firstname} {user.lastname}</div>
-                    <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.8)' }}>{user.role || 'Resident'}</div>
-                  </div>
-                </div>
+              </div>
             )}
           </div>
 
@@ -139,20 +123,20 @@ function Layout({ session, setSession, setNotification }) {
             <NavLink to="/home">
               <FaHome /> Home
             </NavLink>
-            <NavLink to="/community">
-              <FaComments /> Community
-            </NavLink>
             <NavLink to="/maps">
               <FaMap /> Map
             </NavLink>
             <NavLink to="/reports">
               <FaPlusCircle /> Reports
             </NavLink>
-            <NavLink to="/resources">
-              <FaBook /> Resources
-            </NavLink>
             <NavLink to="/notifications">
               <FaBell /> Notifications
+            </NavLink>
+            <NavLink to="/community-feed">
+              <FaUserFriends /> Community Feed
+            </NavLink>
+            <NavLink to="/safety-tips">
+              <FaLightbulb /> Safety Tips
             </NavLink>
             <NavLink
               to={user ? "/profile" : "#"}
@@ -175,15 +159,7 @@ function Layout({ session, setSession, setNotification }) {
 
       {/* Main content */}
       <main className="main-area">
-        <div
-          className="top-bar"
-          style={{
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "space-between",
-            padding: "0.5rem 1rem",
-          }}
-        >
+        <div className="top-bar">
           {/* Left: Menu + Date */}
           <div style={{ display: "flex", alignItems: "center", gap: "1rem" }}>
             <button className="menu-btn" onClick={() => setSidebarOpen(!sidebarOpen)}>
@@ -197,7 +173,7 @@ function Layout({ session, setSession, setNotification }) {
 
           {/* Right: User Profile */}
           {user && (
-            <div
+            <div className="user"
               style={{
                 display: "flex",
                 alignItems: "center",
@@ -208,23 +184,9 @@ function Layout({ session, setSession, setNotification }) {
             >
               <img
                 src={user.avatar_url || "/src/assets/profile.png"}
-                alt="User Avatar"
-                style={{
-                  width: "40px",
-                  height: "40px",
-                  borderRadius: "50%",
-                  objectFit: "cover",
-                  border: "2px solid #11163e",
-                }}
-              />
+                alt="User Avatar"/>
               <div>
-                <span
-                  style={{
-                    fontSize: "0.85rem",
-                    fontWeight: "600",
-                    color: "#11163e",
-                  }}
-                >
+                <span>
                   {user.firstname} {user.lastname}
                 </span>
                 <p

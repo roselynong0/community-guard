@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { FaUserFriends } from 'react-icons/fa';
 import './CommunityFeed.css';
 
 function CommunityFeed({ token }) {
@@ -35,7 +36,7 @@ function CommunityFeed({ token }) {
   return (
     <div className="community-container">
       <div className="community-header">
-        <h2>Community Feed</h2>
+        <h1 className="title" style={{ margin: 0, display: 'flex', alignItems: 'center', gap: 8, fontSize: '1.5rem' }}><FaUserFriends /> Community Feed</h1>
         <div className="community-controls">
           <input
             aria-label="Search community posts"

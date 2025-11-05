@@ -73,13 +73,15 @@ function LoginForm({ setSession, setNotification }) {
           localStorage.setItem("token", result.session.token);
           setSession(result.session);
           const userRole = result.session.user?.role;
-          const redirectPath = userRole === "Admin" ? "/admin/dashboard" : "/home";
-          
-          if (userRole === "Admin") {
+          const adminRoles = ["Admin", "Barangay Official", "Responder"];
+          const redirectPath = adminRoles.includes(userRole) ? "/admin/dashboard" : "/home";
+
+          if (adminRoles.includes(userRole)) {
             setNotification({ message: "Admin access granted!", type: "success" });
           } else {
             setNotification({ message: "Login successful! 🎉", type: "success" });
           }
+
           setTimeout(() => navigate(redirectPath), 2000);
         } else if (result.status === "invalid_credentials") {
         setNotification({ message: "Incorrect email or password.", type: "error" });

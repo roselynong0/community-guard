@@ -45,50 +45,35 @@ Compress(app)
 # ----------------- RETRY UTILITY -----------------
 import time
 import httpx
-import socket
-import random
 
-
-def supabase_retry(func, max_retries=5, delay=0.5):
+def supabase_retry(func, max_retries=3, delay=0.5):
     """
-    Retry wrapper for Supabase operations to handle transient network issues.
-
-    Improvements:
-    - Increased default retries to 5
-    - Catches httpx and socket/OSError related errors
-    - Uses exponential backoff with small jitter to reduce retry storms
-    - On repeated network failures returns None (caller should handle fallback)
+    Retry wrapper for Supabase operations to handle network issues
     """
     for attempt in range(max_retries):
         try:
             return func()
-        except (httpx.ReadError, httpx.ConnectError, httpx.TimeoutException, OSError, socket.error) as e:
+        except (httpx.ReadError, httpx.ConnectError, httpx.TimeoutException, Exception) as e:
             error_str = str(e).lower()
-            # Heuristic: only retry on common transient/network errors
+            # Check if it's a network-related error that we should retry
             if any(keyword in error_str for keyword in [
-                'non-blocking socket operation', 'connection', 'timeout',
-                'read error', 'network', 'winerror 10035', 'connection reset by peer'
+                'non-blocking socket operation', 'connection', 'timeout', 
+                'read error', 'network', 'winerror 10035'
             ]):
                 if attempt < max_retries - 1:
-                    jitter = random.uniform(0, 0.3)
-                    wait = delay + jitter
                     print(f"🔄 Supabase operation failed (attempt {attempt + 1}/{max_retries}): {e}")
-                    print(f"   Retrying in {wait:.2f}s...")
-                    time.sleep(wait)
+                    print(f"   Retrying in {delay}s...")
+                    time.sleep(delay)
                     delay *= 2  # Exponential backoff
                     continue
                 else:
-                    # Final failure: log and return None so callers can fallback gracefully
                     print(f"❌ Supabase operation failed after {max_retries} attempts: {e}")
-                    return None
+                    raise e
             else:
-                # Non-network error, re-raise so caller can handle explicitly
+                # Non-network error, don't retry
                 raise e
-        except Exception as e:
-            # Unknown errors should bubble up (likely not transient)
-            raise e
-
-    return None
+    
+    return None  # Should never reach here
 
 @app.route("/api/data")
 def get_data():
@@ -779,9 +764,10 @@ def login():
 
     # Check role-based authentication first
     user_role = user.get("role", "Resident")
-    if requested_role == "Admin" and user_role != "Admin":
+    # Allow Admin tab sign-in for Admins, Barangay Officials, and Responders
+    if requested_role == "Admin" and user_role not in ("Admin", "Barangay Official", "Responder"):
         return jsonify({
-            "status": "role_mismatch", 
+            "status": "role_mismatch",
             "message": "This account is not authorized for admin access. Please use the Resident login tab.",
             "suggested_role": "Resident"
         }), 403
@@ -1975,6 +1961,127 @@ def get_all_users():
         print(f"Error fetching users: {e}")
         return jsonify({"status": "error", "message": str(e)}), 500
 
+@app.route("/api/users", methods=["POST"])
+@token_required
+def create_user():
+    """Admin-only: create a new user (accepts multipart/form-data).
+    Expects form fields: firstname, middlename (opt), lastname, email, password (opt), role
+    Optional file field: avatar
+    For roles 'Barangay Official' and 'Responder', isverified will be set to True automatically.
+    """
+    try:
+        # Only admins may create accounts via this endpoint
+        user_resp = supabase.table("users").select("role").eq("id", request.user_id).execute()
+        user_info = getattr(user_resp, "data", [None])[0]
+        if not user_info or user_info.get("role") != "Admin":
+            return jsonify({"status": "error", "message": "Admin privileges required"}), 403
+
+        form = request.form or {}
+        firstname = form.get("firstname")
+        middlename = form.get("middlename") or None
+        lastname = form.get("lastname")
+        email = form.get("email")
+        password = form.get("password") or None
+        role = form.get("role") or "Resident"
+
+        if not firstname or not lastname or not email:
+            return jsonify({"status": "error", "message": "firstname, lastname and email are required"}), 400
+
+        # Check for existing email
+        def fetch_existing():
+            return supabase.table("users").select("id,email").eq("email", email).execute()
+
+        existing_resp = supabase_retry(fetch_existing)
+        existing = getattr(existing_resp, "data", []) or []
+        if existing:
+            return jsonify({"status": "error", "message": "Email already exists"}), 409
+
+        avatar_url = None
+        # Handle avatar upload (optional)
+        if "avatar" in request.files:
+            file = request.files["avatar"]
+            if file and file.filename:
+                filename = secure_filename(file.filename)
+                # prefix with timestamp to avoid collisions
+                prefix = str(int(time.time()))
+                save_name = f"{prefix}-{filename}"
+                uploads_dir = os.path.join(os.getcwd(), "uploads")
+                os.makedirs(uploads_dir, exist_ok=True)
+                dest = os.path.join(uploads_dir, save_name)
+                file.save(dest)
+                avatar_url = f"/api/uploads/{save_name}"
+
+        # Hash password if provided
+        hashed = None
+        if password:
+            try:
+                hashed = hashpw(password.encode(), gensalt()).decode()
+            except Exception:
+                hashed = None
+
+        # Force isverified for official roles
+        isverified = True if role in ("Barangay Official", "Responder") else False
+
+        payload = {
+            "firstname": firstname,
+            "middlename": middlename,
+            "lastname": lastname,
+            "email": email,
+            "password": hashed,
+            "role": role,
+            "isverified": isverified,
+            "avatar_url": avatar_url or "/default-avatar.png",
+        }
+
+        def insert_user():
+            return supabase.table("users").insert(payload).execute()
+
+        resp = supabase_retry(insert_user)
+        if not resp:
+            return jsonify({"status": "error", "message": "Failed to create user (no response)"}), 500
+
+        inserted = getattr(resp, "data", []) or []
+        user_row = inserted[0] if inserted else None
+        if not user_row:
+            return jsonify({"status": "error", "message": "Failed to create user"}), 500
+
+        # Remove password before returning
+        user_row.pop("password", None)
+
+        # If the admin provided a barangay for this user and the role is Responder (or Barangay Official), persist it into the info table
+        address_barangay = form.get("address_barangay") or None
+        try:
+            if role == "Responder" or role == "Barangay Official":
+                info_payload = {
+                    "user_id": user_row.get("id"),
+                    "address_barangay": address_barangay,
+                    "address_city": "Olongapo",
+                    "address_province": "Zambales",
+                    "created_at": datetime.now(timezone.utc).isoformat(),
+                    "updated_at": datetime.now(timezone.utc).isoformat()
+                }
+
+                def insert_info():
+                    return supabase.table("info").insert(info_payload).execute()
+
+                info_resp = supabase_retry(insert_info)
+                # It's OK if info insert fails silently for now, but log for diagnosis
+                if not info_resp:
+                    print(f"⚠️ info insert returned no response for user {user_row.get('id')}")
+                else:
+                    inserted_info = getattr(info_resp, "data", []) or []
+                    if not inserted_info:
+                        print(f"⚠️ info insert returned no row for user {user_row.get('id')}")
+        except Exception as e:
+            print(f"❌ Failed to insert info row for user {user_row.get('id')}: {e}")
+
+        return jsonify({"status": "success", "user": user_row}), 201
+
+    except Exception as e:
+        print(f"❌ Error in create_user: {e}")
+        print(traceback.format_exc())
+        return jsonify({"status": "error", "message": "Internal server error"}), 500
+
 @app.route("/api/users/<user_id>/verification", methods=["PUT"])
 @token_required
 def update_user_verification(user_id):
@@ -2264,6 +2371,105 @@ def update_full_verification(user_id):
     except Exception as e:
         print(f"Error updating user full verification: {e}")
         return jsonify({"status": "error", "message": str(e)}), 500
+# ----------------- ADMIN: USER DELETE -----------------
+@app.route("/api/users/<user_id>", methods=["DELETE"])
+@token_required
+def delete_user(user_id):
+    """Admin or owner: soft-delete a user by setting deleted_at timestamp."""
+    try:
+        # Check caller privileges
+        caller_resp = supabase.table("users").select("role").eq("id", request.user_id).execute()
+        caller = getattr(caller_resp, "data", [None])[0]
+        if not caller:
+            return jsonify({"status": "error", "message": "Unauthorized"}), 403
+
+        # Only Admins or the user themself may delete; Admins can delete any user
+        if caller.get("role") != "Admin" and str(request.user_id) != str(user_id):
+            return jsonify({"status": "error", "message": "Admin access required"}), 403
+
+        # We will permanently delete the user and related content (posts, sessions, info, notifications)
+        # Use the retry wrapper for each DB operation
+        now = datetime.now(timezone.utc).isoformat()
+
+        # Delete posts
+        def do_delete_posts():
+            return supabase.table("posts").delete().eq("user_id", user_id).execute()
+
+        try:
+            posts_resp = supabase_retry(do_delete_posts)
+            print(f"delete_user: deleted posts response: {getattr(posts_resp, 'data', None)}")
+        except Exception as e:
+            print(f"⚠️ delete_user: failed to delete posts for {user_id}: {e}")
+
+        # Delete sessions
+        def do_delete_sessions():
+            return supabase.table("sessions").delete().eq("user_id", user_id).execute()
+
+        try:
+            sessions_resp = supabase_retry(do_delete_sessions)
+            print(f"delete_user: deleted sessions response: {getattr(sessions_resp, 'data', None)}")
+        except Exception as e:
+            print(f"⚠️ delete_user: failed to delete sessions for {user_id}: {e}")
+
+        # Delete info row
+        def do_delete_info():
+            return supabase.table("info").delete().eq("user_id", user_id).execute()
+
+        try:
+            info_resp = supabase_retry(do_delete_info)
+            print(f"delete_user: deleted info response: {getattr(info_resp, 'data', None)}")
+        except Exception as e:
+            print(f"⚠️ delete_user: failed to delete info for {user_id}: {e}")
+
+        # Delete notifications
+        def do_delete_notifications():
+            return supabase.table("notifications").delete().eq("user_id", user_id).execute()
+
+        try:
+            notifs_resp = supabase_retry(do_delete_notifications)
+            print(f"delete_user: deleted notifications response: {getattr(notifs_resp, 'data', None)}")
+        except Exception as e:
+            print(f"⚠️ delete_user: failed to delete notifications for {user_id}: {e}")
+
+        # Finally, delete the user row itself
+        def do_delete_user():
+            return supabase.table("users").delete().eq("id", user_id).execute()
+
+        resp = None
+        try:
+            resp = supabase_retry(do_delete_user)
+        except Exception as e:
+            print(f"❌ delete_user: supabase delete user failed for {user_id}: {e}")
+            return jsonify({"status": "error", "message": "Failed to delete user"}), 500
+
+        if not resp:
+            print(f"❌ delete_user: supabase_retry returned no response for delete user {user_id}")
+            return jsonify({"status": "error", "message": "Failed to delete user (no response)"}), 500
+
+        # Log and validate response
+        try:
+            resp_data = getattr(resp, "data", None)
+            resp_status = getattr(resp, "status_code", None)
+            print(f"delete_user: supabase delete response status={resp_status} data={resp_data}")
+            if resp_data is None or (isinstance(resp_data, list) and len(resp_data) == 0):
+                print(f"⚠️ delete_user: delete executed but no rows returned for user {user_id}")
+                return jsonify({"status": "error", "message": "User delete executed but no rows removed (check DB)"}), 500
+        except Exception as e:
+            print(f"❌ delete_user: error reading supabase delete response: {e}")
+
+        # Create an admin notification to log that admin removed this user
+        try:
+            who = f"user ({user_id})"
+            admin_title = "User account permanently deleted"
+            admin_message = f"{who} was permanently deleted by admin {request.user_id}. Posts and related data were removed."
+            create_admin_notification(actor_id=request.user_id, user_id=user_id, title=admin_title, type_label="User Deleted", message=admin_message)
+        except Exception as e:
+            print(f"⚠️ delete_user: failed to create admin notification: {e}")
+
+        return jsonify({"status": "success", "message": "User permanently deleted"}), 200
+    except Exception as e:
+        print(f"❌ Error deleting user {user_id}: {e}")
+        return jsonify({"status": "error", "message": "Internal server error"}), 500
 
 # ----------------- ADMIN STATUS UPDATE -----------------
 @app.route("/api/reports/<report_id>/status", methods=["PUT"])
@@ -2861,6 +3067,12 @@ UPLOAD_FOLDER = os.path.join(os.getcwd(), "uploads")
 
 @app.route("/api/uploads/<filename>")
 def uploaded_file(filename):
+    return send_from_directory(UPLOAD_FOLDER, filename)
+
+
+# Backwards-compatible alias: some clients request /uploads/<filename> (without /api prefix)
+@app.route("/uploads/<filename>")
+def uploaded_file_public(filename):
     return send_from_directory(UPLOAD_FOLDER, filename)
 
 # ----------------- RUN APP -----------------

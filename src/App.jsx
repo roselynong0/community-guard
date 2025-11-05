@@ -14,16 +14,18 @@ import Profile from "./components/Profile";
 import Notifications from "./components/Notifications";
 import AdminNotifications from "./components/Admin-Notifications";
 import Maps from "./components/Maps";
-import CommunityFeed from "./components/CommunityFeed";
-import Resources from "./components/Resources";
+import CommunityMetrics from "./components/CommunityMetrics";
+import BarangayLayout from "./components/BarangayLayout";
+import BarangayHome from "./components/BarangayHome";
+import CommunityFeedBarangay from "./components/CommunityFeedBarangay";
+import ResponderLayout from "./components/ResponderLayout";
+import ResponderHome from "./components/ResponderHome";
+import CommunityFeedResponder from "./components/CommunityFeedResponder";
 import { fetchSession } from "./utils/session";
 import VerificationForm from "./components/VerificationForm";
 import LandingPage from "./components/LandingPage";
-import ResponderLayout from "./components/ResponderLayout";
-import ResponderHome from "./components/ResponderHome";
-import ResponderReports from "./components/ResponderReports";
-import BarangayLayout from "./components/BarangayLayout";
-import BarangayHome from "./components/BarangayHome";
+import SafetyTips from "./components/SafetyTips";
+import CommunityFeed from "./components/CommunityFeed";
 
 // ---------------- LOGIN WRAPPER ----------------
 function LoginWrapper({ session, setSession, setNotification }) {
@@ -83,7 +85,12 @@ function App() {
           element={
             session ? (
               <Navigate
-                to={session.user?.role === "Admin" ? "/admin/dashboard" : "/home"}
+                to={
+                  session.user?.role === "Admin" ? "/admin/dashboard" :
+                  session.user?.role === "Barangay Official" ? "/barangay/home" :
+                  session.user?.role === "Responder" ? "/responder/home" :
+                  "/home"
+                }
                 replace
               />
             ) : (
@@ -98,7 +105,12 @@ function App() {
             session
               ? (
                 <Navigate
-                  to={session.user?.role === "Admin" ? "/admin/dashboard" : "/home"}
+                  to={
+                    session.user?.role === "Admin" ? "/admin/dashboard" :
+                    session.user?.role === "Barangay Official" ? "/barangay/home" :
+                    session.user?.role === "Responder" ? "/responder/home" :
+                    "/home"
+                  }
                   replace
                 />
               )
@@ -113,10 +125,10 @@ function App() {
         <Route path="/forgot-password" element={<ForgotPassword />} />
         <Route path="/reset-password" element={<ResetPassword />} />
 
-        {/* --- RESIDENT PROTECTED ROUTES --- */}
+        {/* --- RESIDENT PROTECTED ROUTES (Residents only) --- */}
         <Route
           element={
-            session && session.user?.role !== "Admin" ? (
+            session && session.user?.role === "Resident" ? (
               <Layout
                 session={session}
                 setSession={setSession}
@@ -124,6 +136,10 @@ function App() {
               />
             ) : session && session.user?.role === "Admin" ? (
               <Navigate to="/admin/dashboard" replace />
+            ) : session && session.user?.role === "Barangay Official" ? (
+              <Navigate to="/barangay/home" replace />
+            ) : session && session.user?.role === "Responder" ? (
+              <Navigate to="/responder/home" replace />
             ) : (
               <Navigate to="/login" replace />
             )
@@ -132,124 +148,122 @@ function App() {
           <Route
             path="/home"
             element={
-              session?.user?.role === "Admin" ? (
-                <Navigate to="/admin/dashboard" replace />
-              ) : (
+              session?.user?.role === "Resident" ? (
                 <Home token={session?.token} session={session} />
+              ) : session?.user?.role === "Admin" ? (
+                <Navigate to="/admin/dashboard" replace />
+              ) : session?.user?.role === "Barangay Official" ? (
+                <Navigate to="/barangay/home" replace />
+              ) : session?.user?.role === "Responder" ? (
+                <Navigate to="/responder/home" replace />
+              ) : (
+                <Navigate to="/login" replace />
               )
             }
           />
           <Route
             path="/maps"
             element={
-              session?.user?.role === "Admin" ? (
-                <Navigate to="/admin/maps" replace />
-              ) : (
+              session?.user?.role === "Resident" ? (
                 <Maps token={session?.token} />
+              ) : session?.user?.role === "Admin" ? (
+                <Navigate to="/admin/maps" replace />
+              ) : session?.user?.role === "Barangay Official" ? (
+                <Navigate to="/barangay/maps" replace />
+              ) : session?.user?.role === "Responder" ? (
+                <Navigate to="/responder/maps" replace />
+              ) : (
+                <Navigate to="/login" replace />
               )
             }
           />
           <Route
             path="/reports"
             element={
-              session?.user?.role === "Admin" ? (
-                <Navigate to="/admin/reports" replace />
-              ) : (
+              session?.user?.role === "Resident" ? (
                 <Reports session={session} />
+              ) : session?.user?.role === "Admin" ? (
+                <Navigate to="/admin/reports" replace />
+              ) : session?.user?.role === "Barangay Official" ? (
+                <Navigate to="/barangay/reports" replace />
+              ) : session?.user?.role === "Responder" ? (
+                <Navigate to="/responder/reports" replace />
+              ) : (
+                <Navigate to="/login" replace />
               )
             }
           />
           <Route
             path="/notifications"
             element={
-              session?.user?.role === "Admin" ? (
-                <Navigate to="/admin/notifications" replace />
-              ) : (
+              session?.user?.role === "Resident" ? (
                 <Notifications token={session?.token} />
+              ) : session?.user?.role === "Admin" ? (
+                <Navigate to="/admin/notifications" replace />
+              ) : session?.user?.role === "Barangay Official" ? (
+                <Navigate to="/barangay/notifications" replace />
+              ) : session?.user?.role === "Responder" ? (
+                <Navigate to="/responder/notifications" replace />
+              ) : (
+                <Navigate to="/login" replace />
               )
             }
           />
           <Route
-            path="/community"
+            path="/safety-tips"
             element={
-              session?.user?.role === "Admin" ? (
+              session?.user?.role === "Resident" ? (
+                <SafetyTips />
+              ) : session?.user?.role === "Admin" ? (
                 <Navigate to="/admin/dashboard" replace />
+              ) : session?.user?.role === "Barangay Official" ? (
+                <Navigate to="/barangay/home" replace />
+              ) : session?.user?.role === "Responder" ? (
+                <Navigate to="/responder/home" replace />
               ) : (
-                <CommunityFeed token={session?.token} />
+                <Navigate to="/login" replace />
               )
             }
           />
           <Route
-            path="/resources"
+            path="/community-feed"
             element={
-              session?.user?.role === "Admin" ? (
+              session?.user?.role === "Resident" ? (
+                <CommunityFeed />
+              ) : session?.user?.role === "Admin" ? (
                 <Navigate to="/admin/dashboard" replace />
+              ) : session?.user?.role === "Barangay Official" ? (
+                <Navigate to="/barangay/community-feed" replace />
+              ) : session?.user?.role === "Responder" ? (
+                <Navigate to="/responder/community-feed" replace />
               ) : (
-                <Resources token={session?.token} />
+                <Navigate to="/login" replace />
               )
             }
           />
           <Route
             path="/profile"
             element={
-              session?.user?.role === "Admin" ? (
-                <Navigate to="/admin/profile" replace />
-              ) : (
+              session?.user?.role === "Resident" ? (
                 <Profile token={session?.token} />
-              )
-            }
-          />
-        </Route>
-
-        {/* --- ADMIN PROTECTED ROUTES --- */}
-
-        {/* --- RESPONDER PROTECTED ROUTES --- */}
-        <Route
-          element={
-            session && session.user?.role === "Responder" ? (
-              <ResponderLayout session={session} />
-            ) : session ? (
-              <Navigate to="/home" replace />
-            ) : (
-              <Navigate to="/login" replace />
-            )
-          }
-        >
-          <Route
-            path="/responder/home"
-            element={
-              session?.user?.role !== "Responder" ? (
-                <Navigate to="/home" replace />
+              ) : session?.user?.role === "Admin" ? (
+                <Navigate to="/admin/profile" replace />
+              ) : session?.user?.role === "Barangay Official" ? (
+                <Navigate to="/barangay/profile" replace />
+              ) : session?.user?.role === "Responder" ? (
+                <Navigate to="/responder/profile" replace />
               ) : (
-                <ResponderHome token={session?.token} session={session} />
+                <Navigate to="/login" replace />
               )
             }
-          />
-          <Route
-            path="/responder/reports"
-            element={
-              session?.user?.role !== "Responder" ? (
-                <Navigate to="/home" replace />
-              ) : (
-                <ResponderReports token={session?.token} />
-              )
-            }
-          />
-          <Route
-            path="/responder/maps"
-            element={session?.user?.role !== "Responder" ? <Navigate to="/maps" replace /> : <Maps token={session?.token} />}
-          />
-          <Route
-            path="/responder/notifications"
-            element={session?.user?.role !== "Responder" ? <Navigate to="/notifications" replace /> : <Notifications token={session?.token} />}
           />
         </Route>
 
         {/* --- BARANGAY PROTECTED ROUTES --- */}
         <Route
           element={
-            session && session.user?.role === "Barangay" ? (
-              <BarangayLayout session={session} />
+            session && session.user?.role === "Barangay Official" ? (
+              <BarangayLayout session={session} setNotification={setNotification} />
             ) : session ? (
               <Navigate to="/home" replace />
             ) : (
@@ -257,25 +271,36 @@ function App() {
             )
           }
         >
-          <Route
-            path="/barangay/home"
-            element={
-              session?.user?.role !== "Barangay" ? (
-                <Navigate to="/home" replace />
-              ) : (
-                <BarangayHome token={session?.token} session={session} />
-              )
-            }
-          />
-          <Route
-            path="/barangay/maps"
-            element={session?.user?.role !== "Barangay" ? <Navigate to="/maps" replace /> : <Maps token={session?.token} />}
-          />
-          <Route
-            path="/barangay/notifications"
-            element={session?.user?.role !== "Barangay" ? <Navigate to="/notifications" replace /> : <Notifications token={session?.token} />}
-          />
+          <Route path="/barangay/home" element={<BarangayHome token={session?.token} session={session} />} />
+          <Route path="/barangay/stats" element={<AdminReports token={session?.token} />} />
+          <Route path="/barangay/maps" element={<Maps token={session?.token} />} />
+          <Route path="/barangay/reports" element={<Reports session={session} />} />
+          <Route path="/barangay/notifications" element={<Notifications token={session?.token} />} />
+          <Route path="/barangay/community-feed" element={<CommunityFeedBarangay token={session?.token} session={session} />} />
+          <Route path="/barangay/profile" element={<Profile token={session?.token} />} />
         </Route>
+
+        {/* --- RESPONDER PROTECTED ROUTES --- */}
+        <Route
+          element={
+            session && session.user?.role === "Responder" ? (
+              <ResponderLayout session={session} setNotification={setNotification} />
+            ) : session ? (
+              <Navigate to="/home" replace />
+            ) : (
+              <Navigate to="/login" replace />
+            )
+          }
+        >
+          <Route path="/responder/home" element={<ResponderHome token={session?.token} session={session} />} />
+          <Route path="/responder/maps" element={<Maps token={session?.token} />} />
+          <Route path="/responder/reports" element={<Reports session={session} />} />
+          <Route path="/responder/notifications" element={<Notifications token={session?.token} />} />
+          <Route path="/responder/community-feed" element={<CommunityFeedResponder token={session?.token} session={session} />} />
+          <Route path="/responder/profile" element={<Profile token={session?.token} />} />
+        </Route>
+
+        {/* --- ADMIN PROTECTED ROUTES --- */}
         <Route
           element={
             session && session.user?.role === "Admin" ? (
@@ -328,6 +353,16 @@ function App() {
                 <Navigate to="/home" replace />
               ) : (
                 <AdminUsers token={session?.token} />
+              )
+            }
+          />
+          <Route
+            path="/admin/community-metrics"
+            element={
+              session?.user?.role !== "Admin" ? (
+                <Navigate to="/home" replace />
+              ) : (
+                <CommunityMetrics session={session} setNotification={setNotification} />
               )
             }
           />

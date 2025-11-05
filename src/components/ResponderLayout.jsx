@@ -2,6 +2,7 @@ import React from 'react';
 import { Outlet, NavLink } from 'react-router-dom';
 import { FaHome, FaMap, FaBell, FaUser, FaPlusCircle } from 'react-icons/fa';
 import './Layout.css';
+import Maps from './Maps';
 
 // Lightweight responder layout that reuses the main Layout styling but exposes
 // a simplified sidebar tailored for responders. It renders an <Outlet /> so
@@ -21,6 +22,12 @@ export default function ResponderLayout({ session }) {
           <NavLink to="/responder/notifications"><FaBell /> Notifications</NavLink>
           <NavLink to="/profile"><FaUser /> Profile</NavLink>
         </nav>
+        {/* compact map preview for quick reference */}
+        <div style={{ marginTop: 12 }}>
+          <div style={{ borderRadius: 8, overflow: 'hidden', height: 160, boxShadow: '0 1px 3px rgba(0,0,0,0.08)' }}>
+            <Maps />
+          </div>
+        </div>
       </aside>
 
       <main className="main-area">
