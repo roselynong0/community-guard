@@ -9,6 +9,9 @@ const CommunityFeed = () => {
   const [openModal, setOpenModal] = useState(false);
   const [notification, setNotification] = useState(null);
 
+  // ✅ NEW
+  const [searchTerm, setSearchTerm] = useState("");
+
   useEffect(() => {
     fetchPosts();
   }, []);
@@ -113,6 +116,16 @@ const CommunityFeed = () => {
     );
   };
 
+  // ✅ FILTER POSTS
+  const filteredPosts = posts.filter((p) => {
+    const text = searchTerm.toLowerCase();
+    return (
+      p.title?.toLowerCase().includes(text) ||
+      p.content?.toLowerCase().includes(text) ||
+      p.author?.toLowerCase().includes(text)
+    );
+  });
+
   return (
     <div className="feed-container">
       {notification && (
@@ -127,15 +140,26 @@ const CommunityFeed = () => {
           Community Feed
         </h2>
 
-        <button className="feed-btn" onClick={() => setOpenModal(true)}>
-          + New Post
-        </button>
+        {/* ✅ SEARCH + NEW POST ROW */}
+        <div className="header-actions">
+          <input
+            className="feed-search"
+            type="text"
+            placeholder="Search post or user..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+          />
+
+          <button className="feed-btn" onClick={() => setOpenModal(true)}>
+            + New Post
+          </button>
+        </div>
       </div>
 
       <div className="feed-list">
-        {posts.length === 0 && <p>No posts yet.</p>}
+        {filteredPosts.length === 0 && <p>No posts found.</p>}
 
-        {posts.map((post) => (
+        {filteredPosts.map((post) => (
           <PostCard
             key={post.id}
             post={post}
