@@ -242,6 +242,26 @@ function App() {
             }
           />
           <Route
+            path="/safety-tips"
+            element={
+              session?.user?.role === "Admin" ? (
+                <Navigate to="/admin/dashboard" replace />
+              ) : (
+                <SafetyTips />
+              )
+            }
+          />
+          <Route
+            path="/community-feed"
+            element={
+              session?.user?.role === "Admin" ? (
+                <Navigate to="/admin/dashboard" replace />
+              ) : (
+                <CommunityFeed />
+              )
+            }
+          />
+          <Route
             path="/profile"
             element={
               session?.user?.role === "Resident" ? (
