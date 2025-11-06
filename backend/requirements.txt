@@ -20,7 +20,6 @@ Pillow==10.2.0
 # Utilities
 python-dotenv==1.0.0
 werkzeug==3.0.1
-httpx==0.26.0
 
 # Development
 python-dateutil==2.8.2
