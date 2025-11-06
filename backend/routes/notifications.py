@@ -1,0 +1,278 @@
+"""
+Notifications Blueprint
+Handles user notifications and admin notification management
+"""
+from flask import Blueprint, request, jsonify
+from datetime import datetime, timezone
+from middleware.auth import token_required
+from utils import supabase
+
+notifications_bp = Blueprint("notifications", __name__)
+
+
+# User Notifications
+@notifications_bp.route("/notifications", methods=["GET"])
+@token_required
+def get_notifications():
+    """Get all notifications for the current user"""
+    user_id = request.user_id
+    try:
+        resp = supabase.table("notifications").select("*").eq("user_id", user_id).order("created_at", desc=True).execute()
+        notifications = getattr(resp, "data", []) or []
+
+        normalized = []
+        for n in notifications:
+            item = dict(n)
+            # Ensure consistent field names for React
+            item["read"] = bool(item.get("is_read") or item.get("read"))
+            ca = item.get("created_at")
+            if hasattr(ca, "isoformat"):
+                item["created_at"] = ca.isoformat()
+            elif ca is not None:
+                item["created_at"] = str(ca)
+            normalized.append(item)
+
+        notifications = normalized
+    except Exception as e:
+        print("Error fetching notifications:", e)
+        notifications = []
+
+    return jsonify({
+        "status": "success",
+        "notifications": notifications
+    }), 200
+
+
+@notifications_bp.route("/notifications/<int:notif_id>/read", methods=["POST"])
+@token_required
+def mark_notification_read(notif_id):
+    """Mark a notification as read"""
+    user_id = request.user_id
+    try:
+        resp = supabase.table("notifications").update({"is_read": True}).eq("id", notif_id).eq("user_id", user_id).execute()
+        updated = getattr(resp, "data", []) or []
+        updated_row = updated[0] if updated else None
+        return jsonify({"status": "success", "notification": updated_row}), 200
+    except Exception as e:
+        print(f"Error marking notification read: {e}")
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+
+@notifications_bp.route("/notifications/<int:notif_id>", methods=["DELETE"])
+@token_required
+def delete_notification(notif_id):
+    """Delete a notification"""
+    user_id = request.user_id
+    try:
+        resp = supabase.table("notifications").delete().eq("id", notif_id).eq("user_id", user_id).execute()
+        deleted = getattr(resp, "data", []) or []
+        return jsonify({"status": "success", "deleted": deleted}), 200
+    except Exception as e:
+        print(f"Error deleting notification: {e}")
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+
+@notifications_bp.route("/notifications/read_all", methods=["POST"])
+@token_required
+def mark_all_notifications_read():
+    """Mark all notifications as read for current user"""
+    user_id = request.user_id
+    try:
+        resp = supabase.table("notifications").update({"is_read": True}).eq("user_id", user_id).execute()
+        updated = getattr(resp, "data", []) or []
+        return jsonify({"status": "success", "updated_count": len(updated)}), 200
+    except Exception as e:
+        print(f"Error marking all notifications read: {e}")
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+
+# Admin Notifications
+@notifications_bp.route("/admin/notifications", methods=["GET"])
+@token_required
+def admin_get_all_notifications():
+    """Admin-only endpoint: return all notifications across the system"""
+    try:
+        # Check admin role
+        current_user_resp = supabase.table("users").select("role").eq("id", request.user_id).single().execute()
+        current_user = current_user_resp.data if current_user_resp.data else {}
+        if current_user.get("role") != "Admin":
+            return jsonify({"status": "error", "message": "Admin access required"}), 403
+
+        # Fetch user-facing notifications
+        resp = supabase.table("notifications").select("*").order("created_at", desc=True).execute()
+        notifications = getattr(resp, "data", []) or []
+
+        # Fetch admin-only notifications
+        admin_notifications = []
+        try:
+            resp_admin = supabase.table("admin_notifications").select("*").order("created_at", desc=True).execute()
+            admin_notifications = getattr(resp_admin, "data", []) or []
+        except Exception as e:
+            print(f"⚠️ admin_notifications table may not exist or query failed: {e}")
+
+        # Collect user_ids and actor_ids to batch fetch user info
+        user_ids = set()
+        actor_ids = set()
+        for n in notifications:
+            if n.get("user_id"):
+                user_ids.add(n.get("user_id"))
+        for a in admin_notifications:
+            if a.get("user_id"):
+                user_ids.add(a.get("user_id"))
+            if a.get("actor_id"):
+                actor_ids.add(a.get("actor_id"))
+
+        all_user_ids = list({str(x) for x in list(user_ids | actor_ids) if x})
+        users_map = {}
+        if all_user_ids:
+            users_resp = supabase.table("users").select("id, firstname, lastname, email").in_("id", all_user_ids).execute()
+            users = getattr(users_resp, "data", []) or []
+            for u in users:
+                users_map[str(u.get("id"))] = {
+                    "id": u.get("id"),
+                    "firstname": u.get("firstname"),
+                    "lastname": u.get("lastname"),
+                    "email": u.get("email"),
+                }
+
+        enriched = []
+        for n in notifications:
+            item = dict(n)
+            recipient = users_map.get(str(item.get("user_id"))) if item.get("user_id") else None
+            item["recipient"] = recipient
+            # normalize created_at to ISO if needed
+            ca = item.get("created_at")
+            if hasattr(ca, "isoformat"):
+                item["created_at"] = ca.isoformat()
+            elif ca is not None:
+                item["created_at"] = str(ca)
+            enriched.append(item)
+
+        enriched_admin = []
+        for a in admin_notifications:
+            item = dict(a)
+            # Attach recipient and actor info if available
+            recipient = users_map.get(str(item.get("user_id"))) if item.get("user_id") else None
+            actor = users_map.get(str(item.get("actor_id"))) if item.get("actor_id") else None
+            item["recipient"] = recipient
+            item["actor"] = actor
+            # normalize created_at
+            ca = item.get("created_at")
+            if hasattr(ca, "isoformat"):
+                item["created_at"] = ca.isoformat()
+            elif ca is not None:
+                item["created_at"] = str(ca)
+            enriched_admin.append(item)
+
+        return jsonify({"status": "success", "notifications": enriched, "admin_notifications": enriched_admin}), 200
+    except Exception as e:
+        print(f"Error in admin_get_all_notifications: {e}")
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+
+@notifications_bp.route("/admin/admin_notifications", methods=["GET"])
+@token_required
+def admin_get_admin_notifications():
+    """Admin-only endpoint returning only admin_notifications enriched with actor and recipient info"""
+    try:
+        current_user_resp = supabase.table("users").select("role").eq("id", request.user_id).single().execute()
+        current_user = current_user_resp.data if current_user_resp.data else {}
+        if current_user.get("role") != "Admin":
+            return jsonify({"status": "error", "message": "Admin access required"}), 403
+
+        admin_notifications = []
+        try:
+            resp_admin = supabase.table("admin_notifications").select("*").order("created_at", desc=True).execute()
+            admin_notifications = getattr(resp_admin, "data", []) or []
+        except Exception as e:
+            print(f"⚠️ admin_notifications table may not exist or query failed: {e}")
+            return jsonify({"status": "success", "admin_notifications": []}), 200
+
+        # Collect user ids and actor ids
+        user_ids = set()
+        actor_ids = set()
+        for a in admin_notifications:
+            if a.get("user_id"):
+                user_ids.add(a.get("user_id"))
+            if a.get("actor_id"):
+                actor_ids.add(a.get("actor_id"))
+
+        all_user_ids = list({str(x) for x in list(user_ids | actor_ids) if x})
+        users_map = {}
+        if all_user_ids:
+            users_resp = supabase.table("users").select("id, firstname, lastname, email").in_("id", all_user_ids).execute()
+            users = getattr(users_resp, "data", []) or []
+            for u in users:
+                users_map[str(u.get("id"))] = {
+                    "id": u.get("id"),
+                    "firstname": u.get("firstname"),
+                    "lastname": u.get("lastname"),
+                    "email": u.get("email"),
+                }
+
+        enriched_admin = []
+        for a in admin_notifications:
+            item = dict(a)
+            recipient = users_map.get(str(item.get("user_id"))) if item.get("user_id") else None
+            actor = users_map.get(str(item.get("actor_id"))) if item.get("actor_id") else None
+            item["recipient"] = recipient
+            item["actor"] = actor
+            ca = item.get("created_at")
+            if hasattr(ca, "isoformat"):
+                item["created_at"] = ca.isoformat()
+            elif ca is not None:
+                item["created_at"] = str(ca)
+            enriched_admin.append(item)
+
+        return jsonify({"status": "success", "admin_notifications": enriched_admin}), 200
+    except Exception as e:
+        print(f"Error in admin_get_admin_notifications: {e}")
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+
+@notifications_bp.route("/admin/admin_notifications/<int:notif_id>/read", methods=["POST"])
+@token_required
+def admin_mark_notification_read(notif_id):
+    """Mark an admin notification as read"""
+    try:
+        resp = supabase.table('admin_notifications').update({"is_read": True}).eq('id', notif_id).execute()
+        updated = getattr(resp, 'data', []) or []
+        updated_row = updated[0] if updated else None
+        return jsonify({"status": "success", "notification": updated_row}), 200
+    except Exception as e:
+        print(f"Error marking admin notification read: {e}")
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+
+@notifications_bp.route("/admin/admin_notifications/read_all", methods=["POST"])
+@token_required
+def admin_mark_all_notifications_read():
+    """Mark all admin notifications as read (admin-only)"""
+    try:
+        # Verify admin role
+        current_user_resp = supabase.table("users").select("role").eq("id", request.user_id).single().execute()
+        current_user = current_user_resp.data if current_user_resp.data else {}
+        if current_user.get("role") != "Admin":
+            return jsonify({"status": "error", "message": "Admin access required"}), 403
+
+        # Mark all unread admin notifications as read
+        resp = supabase.table('admin_notifications').update({"is_read": True}).eq('is_read', False).execute()
+        updated = getattr(resp, 'data', []) or []
+        return jsonify({"status": "success", "updated_count": len(updated)}), 200
+    except Exception as e:
+        print(f"Error marking all admin notifications read: {e}")
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+
+@notifications_bp.route("/admin/admin_notifications/<int:notif_id>", methods=["DELETE"])
+@token_required
+def admin_delete_notification(notif_id):
+    """Delete an admin notification"""
+    try:
+        resp = supabase.table('admin_notifications').delete().eq('id', notif_id).execute()
+        deleted = getattr(resp, 'data', []) or []
+        return jsonify({"status": "success", "deleted_count": len(deleted), "deleted": deleted[0] if deleted else None}), 200
+    except Exception as e:
+        print(f"Error deleting admin notification: {e}")
+        return jsonify({"status": "error", "message": str(e)}), 500
+
