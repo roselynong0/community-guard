@@ -3,9 +3,8 @@
 
 cd backend
 
-# Install deps if needed
+# Install dependencies
 pip install -r requirements.txt
 
-# Run the app
-gunicorn app:app --bind 0.0.0.0:$PORT
-    
+# Run using Gunicorn + factory pattern
+gunicorn --bind 0.0.0.0:$PORT "app:create_app()"

@@ -24,3 +24,6 @@ werkzeug==3.0.1
 # Development
 python-dateutil==2.8.2
 psycopg2-binary==2.9.9
+
+# Production server
+gunicorn
