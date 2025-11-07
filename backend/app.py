@@ -3,6 +3,11 @@ Main Flask Application
 Community Guard Backend API
 """
 import os
+import sys
+
+# Add the backend directory to the Python path for Vercel
+sys.path.insert(0, os.path.dirname(__file__))
+
 from flask import Flask, jsonify, send_from_directory
 from flask_cors import CORS
 from flask_caching import Cache
@@ -10,14 +15,20 @@ from flask_compress import Compress
 from werkzeug.exceptions import HTTPException
 import traceback
 
-from config import Config
-from routes.auth import auth_bp
-from routes.profile import profile_bp
-from routes.sessions import sessions_bp
-from routes.verification import verification_bp
-from routes.reports import reports_bp
-from routes.admin import admin_bp
-from routes.notifications import notifications_bp
+try:
+    from config import Config
+    from routes.auth import auth_bp
+    from routes.profile import profile_bp
+    from routes.sessions import sessions_bp
+    from routes.verification import verification_bp
+    from routes.reports import reports_bp
+    from routes.admin import admin_bp
+    from routes.notifications import notifications_bp
+except ImportError as e:
+    print(f"Import error: {e}")
+    print(f"Python path: {sys.path}")
+    print(f"Current directory: {os.getcwd()}")
+    raise
 
 
 def create_app():
@@ -81,7 +92,26 @@ def create_app():
 
 
 # Create app instance
-app = create_app()
+try:
+    app = create_app()
+    print("✅ Flask app created successfully")
+except Exception as e:
+    print(f"❌ Error creating Flask app: {e}")
+    import traceback
+    traceback.print_exc()
+    
+    # Create a minimal fallback app
+    from flask import Flask, jsonify
+    app = Flask(__name__)
+    
+    @app.route("/")
+    @app.route("/api/<path:path>")
+    def error_fallback(path=""):
+        return jsonify({
+            "status": "error", 
+            "message": f"Failed to initialize app: {str(e)}",
+            "error_type": type(e).__name__
+        }), 500
 
 
 if __name__ == "__main__":
