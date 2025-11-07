@@ -13,6 +13,7 @@ import {
 } from "react-icons/fa";
 import { Outlet, NavLink, useNavigate } from "react-router-dom";
 import { logout } from "../utils/session";
+import { API_CONFIG } from "../utils/apiConfig";
 import "./Layout.css";
 import logo from "../assets/logo.png";
 
@@ -34,7 +35,7 @@ function Layout({ session, setSession, setNotification }) {
         return;
       }
       try {
-        const res = await fetch("http://localhost:5000/api/profile", {
+        const res = await fetch(`${API_CONFIG.BASE_URL}/api/profile`, {
           headers: { Authorization: `Bearer ${session.token}` },
         });
         const data = await res.json();

@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import { FaEdit, FaTrashAlt, FaSearch, FaRedo, FaCheckCircle, FaTimesCircle } from "react-icons/fa";
+import { API_CONFIG } from "../utils/apiConfig";
 import "./Reports.css"; 
 
-const API_URL = "http://localhost:5000/api";
+const API_URL = `${API_CONFIG.BASE_URL}/api`;
 const REPORT_STATUSES = ["Pending", "Ongoing", "Resolved"];
 
 // Utility Hook for Modal Accessibility (Focus trap and Esc key)

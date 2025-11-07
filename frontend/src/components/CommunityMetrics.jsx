@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { FaBullhorn, FaChartBar, FaUsers, FaExclamationTriangle, FaSyncAlt, FaCheckCircle, FaClock } from "react-icons/fa";
+import { API_CONFIG } from "../utils/apiConfig";
 
 function CommunityMetrics({ session, setNotification }) {
   const [communityPosts, setCommunityPosts] = useState([]);
@@ -21,7 +22,7 @@ function CommunityMetrics({ session, setNotification }) {
     const load = async () => {
       setLoading(true);
       try {
-        const res = await fetch("http://localhost:5000/api/community/posts");
+        const res = await fetch(`${API_CONFIG.BASE_URL}/api/community/posts`);
         const data = await res.json().catch(() => ({}));
         if (mounted && Array.isArray(data.posts)) setCommunityPosts(data.posts);
         else if (mounted)

@@ -117,3 +117,29 @@ def revoke_all_sessions():
         return jsonify({"status": "success", "message": "All sessions revoked"}), 200
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
+
+
+@sessions_bp.route("/logout", methods=["POST"])
+@token_required
+def logout():
+    """Logout current session"""
+    user_id = request.user_id
+    token = request.headers.get("Authorization", "").replace("Bearer ", "")
+    
+    print(f"🚪 Logout requested by user {user_id}, token: {token[:20]}...")
+    
+    try:
+        # Delete the current session from database
+        result = supabase.table("sessions").delete().eq("token", token).eq("user_id", user_id).execute()
+        print(f"✅ Logout successful for user {user_id}, deleted {len(result.data) if result.data else 0} session(s)")
+        
+        return jsonify({
+            "status": "success",
+            "message": "Logged out successfully"
+        }), 200
+    except Exception as e:
+        print(f"❌ Logout error for user {user_id}: {e}")
+        return jsonify({
+            "status": "error",
+            "message": str(e)
+        }), 500

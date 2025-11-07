@@ -11,6 +11,8 @@ import {
   FaFileAlt,
 } from "react-icons/fa";
 import { Outlet, NavLink, useNavigate } from "react-router-dom";
+import { API_CONFIG } from "../utils/apiConfig";
+import { logout } from "../utils/session";
 import "./Layout.css";
 import logo from "../assets/logo.png";
 
@@ -22,28 +24,35 @@ function BarangayLayout({ session, setSession, setNotification }) {
     firstname: "Juan",
     lastname: "Dela Cruz",
     avatar_url: "/default-avatar.png",
-    });
-  const [loading, setLoading] = useState(false);
+  });
+  const [loading, setLoading] = useState(true);
 
   const navigate = useNavigate();
 
-  // Fetch admin profile if session exists
+  // Fetch barangay official profile if session exists
   useEffect(() => {
     const loadProfile = async () => {
       if (!session?.token) {
         setLoading(false);
         return;
       }
+      
       try {
-        const res = await fetch("http://localhost:5000/api/profile", {
+        const res = await fetch(`${API_CONFIG.BASE_URL}/api/profile`, {
           headers: { Authorization: `Bearer ${session.token}` },
         });
         const data = await res.json();
+        
         if (!res.ok || data.status !== "success") {
-          setSession(null);
-          setUser(null);
+          console.error("Profile fetch failed:", data);
+          if (res.status === 401) {
+            // Only logout on authentication errors
+            setSession(null);
+            setUser(null);
+            navigate("/login");
+          }
         } else {
-          if (data.profile?.role !== "Official") {
+          if (data.profile?.role !== "Barangay Official") {
             setSession(null);
             setUser(null);
             setNotification({
@@ -60,29 +69,13 @@ function BarangayLayout({ session, setSession, setNotification }) {
         }
       } catch (err) {
         console.error("Officials profile fetch error:", err);
-        const isNetworkError =
-          err.message.includes("fetch") ||
-          err.message.includes("network") ||
-          err.name === "TypeError";
-        if (isNetworkError) {
-          setNotification({
-            message:
-              "Connection issue detected. Some features may be temporarily unavailable.",
-            type: "caution",
-          });
-        } else {
-          setSession(null);
-          setUser(null);
-          setNotification({
-            message: "Barangay Official session expired. Please login again.",
-            type: "error",
-          });
-          navigate("/login");
-        }
+        setSession(null);
+        setUser(null);
       } finally {
         setLoading(false);
       }
     };
+    
     loadProfile();
   }, [session, setSession, setNotification, navigate]);
 
@@ -105,26 +98,20 @@ function BarangayLayout({ session, setSession, setNotification }) {
 
   const handleLogout = async () => {
     setShowLogoutConfirm(false);
-    try {
-      const token = session?.token || localStorage.getItem("token");
-      if (token) {
-        await fetch("http://localhost:5000/api/logout", {
-          method: "POST",
-          headers: { Authorization: `Bearer ${token}` },
-        });
-      }
-    } catch (error) {
-      console.error("Barangay logout error:", error);
-    } finally {
-      localStorage.removeItem("token");
-      setSession(null);
-      setUser(null);
-      setNotification({
-        message: `Barangay Official ${user?.firstname || "user"} logged out successfully`,
-        type: "success",
-      });
-      navigate("/login");
-    }
+    
+    // Capture user name before clearing
+    const userName = user?.firstname || "user";
+    
+    // Use the same logout utility as Layout.jsx
+    await logout(setSession);
+    setUser(null);
+    
+    setNotification({
+      message: `Barangay Official ${userName} logged out successfully`,
+      type: "success",
+    });
+    
+    navigate("/login");
   };
 
   if (loading) {
@@ -159,7 +146,7 @@ function BarangayLayout({ session, setSession, setNotification }) {
               <FaHome /> Dashboard
             </NavLink>
             <NavLink to="/barangay/maps">
-              <FaMap /> Map
+              <FaMap /> Maps
             </NavLink>
             <NavLink to="/barangay/reports">
               <FaFileAlt /> Reports
@@ -168,7 +155,10 @@ function BarangayLayout({ session, setSession, setNotification }) {
               <FaBell /> Notifications
             </NavLink>
             <NavLink to="/barangay/community-feed">
-                <FaUserFriends /> Community Feed
+              <FaUserFriends /> Community Feed
+            </NavLink>
+            <NavLink to="/barangay/profile">
+              <FaUsers /> Profile
             </NavLink>
           </nav>
 
@@ -297,16 +287,22 @@ function BarangayLayout({ session, setSession, setNotification }) {
 
       {/* Bottom nav (mobile) */}
       <nav className="bottom-nav">
-        <NavLink to="/admin/dashboard">
+        <NavLink to="/barangay/dashboard">
           <FaHome />
         </NavLink>
-        <NavLink to="/admin/maps">
+        <NavLink to="/barangay/maps">
           <FaMap />
         </NavLink>
-        <NavLink to="/admin/reports">
+        <NavLink to="/barangay/reports">
           <FaFileAlt />
         </NavLink>
-        <NavLink to="/admin/users">
+        <NavLink to="/barangay/notifications">
+          <FaBell />
+        </NavLink>
+        <NavLink to="/barangay/community-feed">
+          <FaUserFriends />
+        </NavLink>
+        <NavLink to="/barangay/profile">
           <FaUsers />
         </NavLink>
       </nav>
@@ -315,7 +311,7 @@ function BarangayLayout({ session, setSession, setNotification }) {
       <div
         className="mobile-logout-bubble"
         onClick={() => setShowLogoutConfirm(true)}
-        title="Admin Logout"
+        title="Barangay Official Logout"
       >
         <FaSignOutAlt />
       </div>

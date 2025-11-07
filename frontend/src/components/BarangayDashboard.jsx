@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect } from "react";
 import {
   FaExclamationTriangle,
   FaCheckCircle,
@@ -22,6 +22,7 @@ import {
   Bar,
 } from "recharts";
 
+import { API_CONFIG } from "../utils/apiConfig";
 import MapView from "../components/Mapview";
 import "./BarangayDashboard.css";
 
@@ -45,30 +46,21 @@ async function fetchWithToken(url, token, retries = 3) {
 
       return res.json();
     } catch (error) {
-      if (attempt === retries) throw error;
-      await new Promise((resolve) => setTimeout(resolve, 1000 * attempt));
+      console.log(`Fetch attempt ${attempt}/${retries} failed:`, error.message);
+      
+      if (attempt === retries) {
+        throw error; // Last attempt failed, throw the error
+      }
+      
+      // Wait before retrying (exponential backoff)
+      const delay = Math.min(1000 * Math.pow(2, attempt - 1), 5000);
+      console.log(`Retrying in ${delay}ms...`);
+      await new Promise(resolve => setTimeout(resolve, delay));
     }
   }
 }
 
-const trendData = [
-  { month: "Jan", count: 20 },
-  { month: "Feb", count: 32 },
-  { month: "Mar", count: 28 },
-  { month: "Apr", count: 40 },
-  { month: "May", count: 44 },
-];
-
-// ✅ NEW DATA – barangays with most reports
-const barangayMostReports = [
-  { barangay: "Baretto", total: 42 },
-  { barangay: "Kalaklan", total: 38 },
-  { barangay: "East Tapinac", total: 31 },
-  { barangay: "Santa Rita", total: 25 },
-  { barangay: "Gordon Heights", total: 18 },
-];
-
-export default function BarangayDashboard({ token, session }) {
+export default function BarangayDashboard({ token }) {
   const [stats, setStats] = useState([
     { title: "Total Reports", value: 0, icon: <FaExclamationTriangle />, color: "#2d2d73" },
     { title: "Ongoing", value: 0, icon: <FaSyncAlt />, color: "#f40014ff" },
@@ -76,61 +68,122 @@ export default function BarangayDashboard({ token, session }) {
     { title: "Pending", value: 0, icon: <FaClock />, color: "#f4b761ff" },
   ]);
 
-  // ✅ GET BARANGAY
-  const selectedBarangay = session?.user?.barangay || "All";
+  const [userProfile, setUserProfile] = useState(null);
+  const [trendData, setTrendData] = useState([]);
+  const [topBarangays, setTopBarangays] = useState([]);
+  const [loading, setLoading] = useState(true);
 
-  // ✅ Fetch Stats on mount
+  // ✅ Single useEffect to fetch profile and dashboard data
   useEffect(() => {
-    if (!token) return;
-    const fetchStats = async () => {
+    if (!token) {
+      setLoading(false);
+      return;
+    }
+    
+    const fetchAllData = async () => {
+      setLoading(true);
       try {
-        const statsEndpoint = `http://localhost:5000/api/stats${
+        // 1. Fetch profile first to get barangay
+        const profileResponse = await fetchWithToken(`${API_CONFIG.BASE_URL}/api/profile`, token);
+        if (profileResponse.status !== "success") {
+          console.error("Failed to load profile:", profileResponse);
+          setLoading(false);
+          return;
+        }
+        
+        const profile = profileResponse.profile;
+        setUserProfile(profile);
+        
+        const selectedBarangay = profile?.address_barangay || "All";
+        console.log("🔄 Fetching dashboard data for barangay:", selectedBarangay);
+        
+        // 2. Fetch dashboard data with barangay filter
+        const dashboardEndpoint = `${API_CONFIG.BASE_URL}/api/dashboard/barangay/stats${
           selectedBarangay !== "All"
             ? `?barangay=${encodeURIComponent(selectedBarangay)}`
             : ""
         }`;
-
-        const response = await fetchWithToken(statsEndpoint, token);
-
+        
+        console.log("📊 Fetching all data from:", dashboardEndpoint);
+        const response = await fetchWithToken(dashboardEndpoint, token);
+        
         if (response.status === "success") {
-          setStats([
-            {
-              title: "Total Reports",
-              value: response.totalReports || 0,
-              icon: <FaExclamationTriangle />,
-              color: "#2d2d73",
-            },
-            {
-              title: "Ongoing",
-              value: response.ongoing || 0,
-              icon: <FaSyncAlt />,
-              color: "#f40014ff",
-            },
-            {
-              title: "Resolved",
-              value: response.resolved || 0,
-              icon: <FaCheckCircle />,
-              color: "#2a9d62ff",
-            },
-            {
-              title: "Pending",
-              value: response.pending || 0,
-              icon: <FaClock />,
-              color: "#f4b761ff",
-            },
-          ]);
+          console.log("✅ Dashboard data loaded:", response);
+          
+          // Update stats
+          if (response.stats) {
+            setStats([
+              {
+                title: "Total Reports",
+                value: response.stats.totalReports || 0,
+                icon: <FaExclamationTriangle />,
+                color: "#2d2d73",
+              },
+              {
+                title: "Ongoing",
+                value: response.stats.ongoing || 0,
+                icon: <FaSyncAlt />,
+                color: "#f40014ff",
+              },
+              {
+                title: "Resolved",
+                value: response.stats.resolved || 0,
+                icon: <FaCheckCircle />,
+                color: "#2a9d62ff",
+              },
+              {
+                title: "Pending",
+                value: response.stats.pending || 0,
+                icon: <FaClock />,
+                color: "#f4b761ff",
+              },
+            ]);
+          }
+          
+          // Update trends
+          if (response.trends && response.trends.length > 0) {
+            console.log("✅ Trends loaded:", response.trends.length, "months");
+            setTrendData(response.trends);
+          } else {
+            console.warn("⚠️ No trend data available");
+            setTrendData([]);
+          }
+          
+          // Update top barangays
+          if (response.topBarangays && response.topBarangays.length > 0) {
+            console.log("✅ Top barangays loaded:", response.topBarangays.length);
+            setTopBarangays(response.topBarangays);
+          } else {
+            setTopBarangays([]);
+          }
+        } else {
+          console.warn("⚠️ Dashboard response not successful:", response);
         }
+
+        console.log("✅ Dashboard data fetch completed");
+
       } catch (error) {
-        console.error("Failed to load stats:", error);
+        console.error("❌ Failed to load dashboard data:", error);
+        console.error("Error details:", error.message, error.stack);
+      } finally {
+        setLoading(false);
       }
     };
 
-    fetchStats();
-  }, [token, selectedBarangay, session]);
+    fetchAllData();
+  }, [token]); // Only depend on token, not userProfile
+
+  if (loading) {
+    return (
+      <div className="loading-overlay">
+        <div className="spinner"></div>
+        <p>Loading Barangay Dashboard...</p>
+      </div>
+    );
+  }
 
   return (
     <div className="dashboard">
-
       {/* --- STAT CARDS (Dynamic) --- */}
       <div className="stats-grid">
         {stats.map((stat, i) => (
@@ -169,28 +222,30 @@ export default function BarangayDashboard({ token, session }) {
         </div>
       </div>
 
-      {/* --- BARANGAYS WITH MOST REPORTS --- */}
-      <div className="section-card animate-up">
-        <h3>Barangays with Most Reports</h3>
-        <div className="chart-container">
-          <ResponsiveContainer width="100%" height={260}>
-            <BarChart data={barangayMostReports}>
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="barangay" />
-              <YAxis />
-              <Tooltip />
-              <Legend />
-              <Bar dataKey="total" fill="#2d2d73" />
-            </BarChart>
-          </ResponsiveContainer>
+      {/* --- BARANGAYS WITH MOST REPORTS (only show if viewing "All") --- */}
+      {userProfile?.address_barangay === "All" && topBarangays.length > 0 && (
+        <div className="section-card animate-up">
+          <h3>Barangays with Most Reports</h3>
+          <div className="chart-container">
+            <ResponsiveContainer width="100%" height={260}>
+              <BarChart data={topBarangays}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey="barangay" />
+                <YAxis />
+                <Tooltip />
+                <Legend />
+                <Bar dataKey="total" fill="#2d2d73" />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
         </div>
-      </div>
+      )}
 
       {/* --- MAP --- */}
       <div className="map-section animate-up">
         <h3>High-Risk Zones Map</h3>
         <div className="map-placeholder">
-          <MapView reports={barangayMostReports} />
+          <MapView reports={topBarangays} />
         </div>
       </div>
 

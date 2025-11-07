@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { API_CONFIG } from "../utils/apiConfig";
 
 // Lightweight responder community feed. If a backend endpoint exists at
 // /api/reports this will try to fetch reports (assignable to responders).
@@ -13,7 +14,7 @@ export default function CommunityFeedResponder({ session, token }) {
 
     const fetchReports = async () => {
       try {
-        const res = await fetch('http://localhost:5000/api/reports', {
+        const res = await fetch(`${API_CONFIG.BASE_URL}/api/reports`, {
           headers: { Authorization: `Bearer ${authToken}`, 'Content-Type': 'application/json' },
         });
         const data = await res.json().catch(() => ({}));

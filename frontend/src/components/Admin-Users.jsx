@@ -15,11 +15,12 @@ import {
   FaExclamationTriangle,
   FaBell
 } from "react-icons/fa";
+import { API_CONFIG } from "../utils/apiConfig";
 import "./Admin-report.css";
 import "./Notification.css";
 import "./Admin-Users-Performance.css"; 
 
-const API_URL = "http://localhost:5000/api";
+const API_URL = `${API_CONFIG.BASE_URL}/api`;
 
 function AdminUsers({ token }) {
   const [users, setUsers] = useState([]);

@@ -1,10 +1,12 @@
 // utils/session.js
+import { API_CONFIG } from './apiConfig';
+
 export async function fetchSession() {
   try {
     const token = localStorage.getItem("token");
     if (!token) return null;
 
-    const res = await fetch("http://localhost:5000/api/sessions", {
+    const res = await fetch(`${API_CONFIG.BASE_URL}/api/sessions`, {
       headers: {
         Authorization: `Bearer ${token}`,
       },
@@ -43,7 +45,7 @@ export async function logout(setSession) {
   }
 
   try {
-    await fetch("http://localhost:5000/api/logout", {
+    await fetch(`${API_CONFIG.BASE_URL}/api/logout`, {
       method: "POST",
       headers: {
         Authorization: `Bearer ${token}`,
@@ -53,6 +55,7 @@ export async function logout(setSession) {
     console.error("Logout failed:", err);
   } finally {
     localStorage.removeItem("token");
+    sessionStorage.clear();
     setSession(null);
   }
 }

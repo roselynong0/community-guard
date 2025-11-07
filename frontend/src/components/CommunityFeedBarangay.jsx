@@ -1,5 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useOutletContext } from 'react-router-dom';
+import { API_CONFIG } from "../utils/apiConfig";
+import "./CommunityFeed.css";
 
 // Barangay feed reads `selectedBarangay` from the Outlet context if present.
 export default function CommunityFeedBarangay({ session, token }) {
@@ -15,8 +17,8 @@ export default function CommunityFeedBarangay({ session, token }) {
     const fetchReports = async () => {
       try {
         const url = selectedBarangay && selectedBarangay !== 'All'
-          ? `http://localhost:5000/api/reports?barangay=${encodeURIComponent(selectedBarangay)}`
-          : 'http://localhost:5000/api/reports';
+          ? `${API_CONFIG.BASE_URL}/api/reports?barangay=${encodeURIComponent(selectedBarangay)}`
+          : `${API_CONFIG.BASE_URL}/api/reports`;
 
         const res = await fetch(url, {
           headers: { Authorization: `Bearer ${authToken}`, 'Content-Type': 'application/json' },

@@ -715,3 +715,203 @@ def get_barangays():
         print("get_barangays error:", e)
         return jsonify({"status": "error", "message": str(e), "barangays": []}), 500
 
+
+# Dashboard-specific endpoints for BarangayDashboard
+@reports_bp.route("/dashboard/barangay/stats", methods=["GET"])
+@token_required
+def get_barangay_dashboard_stats():
+    """
+    Barangay Official Dashboard Stats
+    Simplified endpoint that mirrors Home.jsx logic
+    Works with or without RPC functions
+    """
+    try:
+        user_id = request.user_id
+        barangay_param = request.args.get("barangay")  # Optional barangay filter
+        
+        print(f"🏘️ Barangay dashboard stats requested by user {user_id}, barangay filter: {barangay_param}")
+        
+        # Get user's barangay from info table
+        def get_user_info():
+            return supabase.table("info").select("address_barangay").eq("user_id", user_id).single().execute()
+        
+        try:
+            user_info_resp = supabase_retry(get_user_info)
+            user_barangay = getattr(user_info_resp, "data", {}).get("address_barangay")
+            print(f"✅ User barangay: {user_barangay}")
+        except:
+            user_barangay = None
+            print(f"⚠️ Could not find user barangay")
+        
+        # Determine which barangay to filter by
+        filter_barangay = barangay_param if barangay_param and barangay_param != "All" else user_barangay
+        
+        # Fetch reports with barangay filter
+        def fetch_reports_for_stats():
+            query = supabase.table("reports").select("status, created_at, address_barangay").is_("deleted_at", None)
+            if filter_barangay:
+                query = query.eq("address_barangay", filter_barangay)
+                print(f"📊 Filtering reports by barangay: {filter_barangay}")
+            return query.execute()
+        
+        reports_resp = supabase_retry(fetch_reports_for_stats)
+        reports_list = getattr(reports_resp, "data", []) or []
+        
+        print(f"✅ Fetched {len(reports_list)} reports for barangay {filter_barangay or 'All'}")
+        
+        # Calculate stats
+        stats = {
+            "totalReports": len(reports_list),
+            "pending": 0,
+            "ongoing": 0,
+            "resolved": 0
+        }
+        
+        # Count by status
+        for report in reports_list:
+            status = (report.get("status") or "").lower()
+            if status == "pending":
+                stats["pending"] += 1
+            elif status == "ongoing":
+                stats["ongoing"] += 1
+            elif status == "resolved":
+                stats["resolved"] += 1
+        
+        # Calculate monthly trends (last 6 months)
+        from collections import defaultdict
+        from datetime import datetime as dt
+        
+        monthly_counts = defaultdict(int)
+        month_order = {}
+        
+        for report in reports_list:
+            created_at = report.get("created_at")
+            if created_at:
+                try:
+                    date = dt.fromisoformat(created_at.replace('Z', '+00:00'))
+                    month_name = date.strftime("%b")
+                    month_num = date.month
+                    monthly_counts[month_name] += 1
+                    if month_name not in month_order:
+                        month_order[month_name] = month_num
+                except:
+                    pass
+        
+        # Sort by month number
+        trends = [
+            {"month": month, "count": monthly_counts[month]}
+            for month in sorted(monthly_counts.keys(), key=lambda m: month_order.get(m, 0))
+        ]
+        
+        # Calculate top barangays (only if viewing "All")
+        top_barangays = []
+        if not filter_barangay or barangay_param == "All":
+            from collections import Counter
+            barangay_counts = Counter([r.get("address_barangay") for r in reports_list if r.get("address_barangay")])
+            top_5 = barangay_counts.most_common(5)
+            top_barangays = [{"barangay": barangay, "total": count} for barangay, count in top_5]
+        
+        print(f"✅ Stats: {stats}, Trends: {len(trends)} months, Top Barangays: {len(top_barangays)}")
+        
+        return jsonify({
+            "status": "success",
+            "stats": stats,
+            "trends": trends,
+            "topBarangays": top_barangays,
+            "userBarangay": user_barangay
+        }), 200
+        
+    except Exception as e:
+        print(f"❌ get_barangay_dashboard_stats error: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({
+            "status": "error",
+            "message": str(e),
+            "stats": {"totalReports": 0, "pending": 0, "ongoing": 0, "resolved": 0},
+            "trends": [],
+            "topBarangays": []
+        }), 500
+
+
+@reports_bp.route("/dashboard/monthly-trends", methods=["GET"])
+@token_required
+def get_monthly_trends():
+    """Get monthly report trends for dashboard charts"""
+    try:
+        barangay_filter = request.args.get("barangay")
+        
+        # Try using RPC function first, fall back to manual query
+        try:
+            if barangay_filter and barangay_filter != "All":
+                result = supabase.rpc("get_monthly_report_trends", {"barangay_filter": barangay_filter}).execute()
+            else:
+                result = supabase.rpc("get_monthly_report_trends").execute()
+            
+            trends = getattr(result, "data", []) or []
+            return jsonify({"status": "success", "trends": trends}), 200
+        except Exception as rpc_error:
+            print(f"⚠️ RPC function not available, using fallback: {rpc_error}")
+            
+            # Fallback to manual query
+            def fetch_monthly():
+                query = supabase.table("reports").select("created_at").is_("deleted_at", None)
+                if barangay_filter and barangay_filter != "All":
+                    query = query.eq("address_barangay", barangay_filter)
+                return query.execute()
+            
+            resp = supabase_retry(fetch_monthly)
+            reports = getattr(resp, "data", []) or []
+            
+            # Group by month
+            from collections import defaultdict
+            from datetime import datetime as dt
+            
+            monthly_counts = defaultdict(int)
+            for report in reports:
+                created_at = report.get("created_at")
+                if created_at:
+                    month = dt.fromisoformat(created_at.replace('Z', '+00:00')).strftime("%b")
+                    monthly_counts[month] += 1
+            
+            trends = [{"month": month, "count": count} for month, count in monthly_counts.items()]
+            return jsonify({"status": "success", "trends": trends}), 200
+            
+    except Exception as e:
+        print(f"get_monthly_trends error: {e}")
+        return jsonify({"status": "error", "message": str(e), "trends": []}), 500
+
+
+@reports_bp.route("/dashboard/top-barangays", methods=["GET"])
+@token_required
+def get_top_barangays():
+    """Get top 5 barangays by report count"""
+    try:
+        # Try using RPC function first, fall back to manual query
+        try:
+            result = supabase.rpc("get_top_barangays_by_reports").execute()
+            top_barangays = getattr(result, "data", []) or []
+            return jsonify({"status": "success", "barangays": top_barangays}), 200
+        except Exception as rpc_error:
+            print(f"⚠️ RPC function not available, using fallback: {rpc_error}")
+            
+            # Fallback to manual query
+            def fetch_all_barangays():
+                return supabase.table("reports").select("address_barangay").is_("deleted_at", None).execute()
+            
+            resp = supabase_retry(fetch_all_barangays)
+            reports = getattr(resp, "data", []) or []
+            
+            # Count by barangay
+            from collections import Counter
+            barangay_counts = Counter([r.get("address_barangay") for r in reports if r.get("address_barangay")])
+            
+            # Get top 5
+            top_5 = barangay_counts.most_common(5)
+            top_barangays = [{"barangay": barangay, "total": count} for barangay, count in top_5]
+            
+            return jsonify({"status": "success", "barangays": top_barangays}), 200
+            
+    except Exception as e:
+        print(f"get_top_barangays error: {e}")
+        return jsonify({"status": "error", "message": str(e), "barangays": []}), 500

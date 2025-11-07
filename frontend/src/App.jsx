@@ -91,7 +91,7 @@ function App() {
               <Navigate
                 to={
                   session.user?.role === "Admin" ? "/admin/users" :
-                  session.user?.role === "Barangay Official" ? "/barangay/home" :
+                  session.user?.role === "Barangay Official" ? "/barangay/dashboard" :
                   session.user?.role === "Responder" ? "/responder/home" :
                   "/home"
                 }
@@ -111,7 +111,7 @@ function App() {
                 <Navigate
                   to={
                     session.user?.role === "Admin" ? "/admin/users" :
-                    session.user?.role === "Barangay Official" ? "/barangay/home" :
+                    session.user?.role === "Barangay Official" ? "/barangay/dashboard" :
                     session.user?.role === "Responder" ? "/responder/home" :
                     "/home"
                   }
@@ -141,7 +141,7 @@ function App() {
             ) : session && session.user?.role === "Admin" ? (
               <Navigate to="/admin/users" replace />
             ) : session && session.user?.role === "Barangay Official" ? (
-              <Navigate to="/barangay/home" replace />
+              <Navigate to="/barangay/dashboard" replace />
             ) : session && session.user?.role === "Responder" ? (
               <Navigate to="/responder/home" replace />
             ) : (
@@ -157,7 +157,7 @@ function App() {
               ) : session?.user?.role === "Admin" ? (
                 <Navigate to="/admin/users" replace />
               ) : session?.user?.role === "Barangay Official" ? (
-                <Navigate to="/barangay/home" replace />
+                <Navigate to="/barangay/dashboard" replace />
               ) : session?.user?.role === "Responder" ? (
                 <Navigate to="/responder/home" replace />
               ) : (
@@ -173,7 +173,7 @@ function App() {
               ) : session?.user?.role === "Admin" ? (
                 <Navigate to="/admin/maps" replace />
               ) : session?.user?.role === "Barangay Official" ? (
-                <Navigate to="/barangay/maps" replace />
+                <Navigate to="/barangay/dashboard" replace />
               ) : session?.user?.role === "Responder" ? (
                 <Navigate to="/responder/maps" replace />
               ) : (
@@ -189,7 +189,7 @@ function App() {
               ) : session?.user?.role === "Admin" ? (
                 <Navigate to="/admin/reports" replace />
               ) : session?.user?.role === "Barangay Official" ? (
-                <Navigate to="/barangay/reports" replace />
+                <Navigate to="/barangay/dashboard" replace />
               ) : session?.user?.role === "Responder" ? (
                 <Navigate to="/responder/reports" replace />
               ) : (
@@ -205,7 +205,7 @@ function App() {
               ) : session?.user?.role === "Admin" ? (
                 <Navigate to="/admin/notifications" replace />
               ) : session?.user?.role === "Barangay Official" ? (
-                <Navigate to="/barangay/notifications" replace />
+                <Navigate to="/barangay/dashboard" replace />
               ) : session?.user?.role === "Responder" ? (
                 <Navigate to="/responder/notifications" replace />
               ) : (
@@ -253,7 +253,7 @@ function App() {
               ) : session?.user?.role === "Admin" ? (
                 <Navigate to="/admin/profile" replace />
               ) : session?.user?.role === "Barangay Official" ? (
-                <Navigate to="/barangay/profile" replace />
+                <Navigate to="/barangay/dashboard" replace />
               ) : session?.user?.role === "Responder" ? (
                 <Navigate to="/responder/profile" replace />
               ) : (
@@ -275,10 +275,9 @@ function App() {
             )
           }
         >
-          <Route path="/barangay/home" element={<BarangayHome token={session?.token} session={session} />} />
-          <Route path="/barangay/dashboard" element={<BarangayDashboard token={session?.token} session={session} />} />
+          <Route path="/barangay/dashboard" element={<BarangayDashboard token={session?.token} />} />
           <Route path="/barangay/maps" element={<Maps token={session?.token} />} />
-          <Route path="/barangay/reports" element={<BarangayReports token={session?.token} session={session} />} />
+          <Route path="/barangay/reports" element={<BarangayReports token={session?.token} />} />
           <Route path="/barangay/notifications" element={<Notifications token={session?.token} />} />
           <Route path="/barangay/community-feed" element={<BarangayCommunityFeed token={session?.token} session={session} />} />
           <Route path="/barangay/profile" element={<Profile token={session?.token} />} />
@@ -373,18 +372,6 @@ function App() {
             }
           />
         </Route>
-
-        {/* --- BARANGAY OFFICIAL ROUTES --- */}
-        <Route>
-          <Route element={<BarangayLayout />}>
-          <Route path="/barangay/dashboard" element={<BarangayDashboard />} />
-          <Route path="/barangay/maps" element={<Maps />} />
-          <Route path="/barangay/reports" element={<BarangayReports />} />
-          <Route path="/barangay/notifications" element={<Notifications />} />
-          <Route path="/barangay/community-feed" element={<BarangayCommunityFeed />} />
-        </Route>
-        </Route>
-
 
         {/* --- FALLBACK --- */}
         <Route

@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback, useRef } from "react";
 import axios from "axios";
 import { FaEdit, FaTrashAlt, FaSearch, FaRedo, FaCheckCircle, FaTimesCircle } from "react-icons/fa";
 import { MapContainer, TileLayer, Marker, useMap, useMapEvents } from "react-leaflet";
+import { API_CONFIG } from "../utils/apiConfig";
 import "leaflet/dist/leaflet.css";
 import L from "leaflet";
 import "./Reports.css";
@@ -9,7 +10,7 @@ import markerIcon2x from "leaflet/dist/images/marker-icon-2x.png";
 import markerIcon from "leaflet/dist/images/marker-icon.png";
 import markerShadow from "leaflet/dist/images/marker-shadow.png";
 
-const API_URL = "http://localhost:5000/api";
+const API_URL = `${API_CONFIG.BASE_URL}/api`;
 
 // Helper function to construct proper image URLs with optimization
 const getImageUrl = (imgUrl) => {
@@ -19,7 +20,7 @@ const getImageUrl = (imgUrl) => {
   }
   // If it's an API path, construct full URL
   if (imgUrl && imgUrl.startsWith('/api/')) {
-    return `http://localhost:5000${imgUrl}`;
+    return `${API_CONFIG.BASE_URL}${imgUrl}`;
   }
   // Default case for relative paths
   if (imgUrl) {

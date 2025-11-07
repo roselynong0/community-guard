@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState, useCallback } from "react";
+import { API_CONFIG } from "../utils/apiConfig";
 import "./Notifications.css"; 
 import { 
   FaInfoCircle, 
@@ -12,7 +13,7 @@ import {
   FaUserShield    
 } from 'react-icons/fa';
 
-const API_URL = "http://localhost:5000/api"; 
+const API_URL = `${API_CONFIG.BASE_URL}/api`; 
 
 
 const getFinalNotificationType = (n) => {

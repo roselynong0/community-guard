@@ -6,11 +6,12 @@ import {
   Popup,
   CircleMarker,
 } from "react-leaflet";
+import { API_CONFIG } from "../utils/apiConfig";
 import L from "leaflet";
 import "./Maps.css";
 import "leaflet/dist/leaflet.css";
 
-const API_URL = "http://localhost:5000/api";
+const API_URL = `${API_CONFIG.BASE_URL}/api`;
 const OLONGAPO_CENTER = [14.8291, 120.2829];
 const INITIAL_ZOOM = 13;
 

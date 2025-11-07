@@ -83,7 +83,7 @@ function LoginForm({ setSession, setNotification }) {
             redirectPath = "/admin/users";
             loginMessage = "Admin access granted!";
           } else if (userRole === "Barangay Official") {
-            redirectPath = "/barangay/home";
+            redirectPath = "/barangay/dashboard";
             loginMessage = "Barangay Official access granted!";
           } else if (userRole === "Responder") {
             redirectPath = "/responder/home";

@@ -68,15 +68,30 @@ def token_required(f):
         token = parts[1]
 
         try:
-            # Find session by token
-            resp = supabase.table("sessions").select("*").eq("token", token).execute()
-            sessions = getattr(resp, "data", []) or []
+            # Find session by token with retry logic
+            max_retries = 3
+            retry_count = 0
+            sessions = []
+            
+            while retry_count < max_retries:
+                try:
+                    resp = supabase.table("sessions").select("*").eq("token", token).execute()
+                    sessions = getattr(resp, "data", []) or []
+                    break  # Success, exit retry loop
+                except Exception as retry_err:
+                    retry_count += 1
+                    if retry_count >= max_retries:
+                        raise retry_err
+                    print(f"Session lookup retry {retry_count}/{max_retries}: {retry_err}")
+                    import time
+                    time.sleep(0.1)  # Brief delay before retry
             
             if not sessions:
                 return jsonify({"status": "error", "message": "Invalid session token"}), 401
         except Exception as e:
-            print(f"Session lookup error: {e}")
-            return jsonify({"status": "error", "message": "Session validation failed"}), 500
+            print(f"Session lookup error after retries: {e}")
+            # Return 401 instead of 500 to prevent logout cascade
+            return jsonify({"status": "error", "message": "Session validation temporarily unavailable. Please try again."}), 401
 
         session = sessions[0]
         now = datetime.now(timezone.utc)
