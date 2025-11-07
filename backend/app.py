@@ -34,24 +34,34 @@ except ImportError as e:
 def create_app():
     """Application factory"""
     app = Flask(__name__)
-    
-    # Load configuration
+
+    # ✅ Load configuration
     app.config.from_object(Config)
-    
-    # Initialize CORS with proper configuration for Vercel
-    CORS(app, 
-         resources={r"/*": {"origins": "*"}},
-         supports_credentials=True,
-         allow_headers=["Content-Type", "Authorization"],
-         methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"])
-    
+
+    # ✅ Enable CORS for Vercel → Railway
+    CORS(
+        app,
+        resources={r"/*": {
+            "origins": [
+                "https://community-guard.vercel.app",  # ✅ Production Vercel
+                "https://*.vercel.app",  # ✅ Preview deployments
+                "http://localhost:5173",  # ✅ Local development
+                "http://127.0.0.1:5173"
+            ]
+        }},
+        supports_credentials=True,
+        allow_headers=["Content-Type", "Authorization"],
+        methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"]
+    )
+
+    # ✅ optional caching + compression
     cache = Cache(app, config={
         'CACHE_TYPE': Config.CACHE_TYPE,
         'CACHE_DEFAULT_TIMEOUT': Config.CACHE_DEFAULT_TIMEOUT
     })
     Compress(app)
-    
-    # Register blueprints with /api prefix
+
+    # ✅ Register blueprints under /api
     app.register_blueprint(auth_bp, url_prefix='/api')
     app.register_blueprint(profile_bp, url_prefix='/api')
     app.register_blueprint(sessions_bp, url_prefix='/api')
@@ -59,23 +69,22 @@ def create_app():
     app.register_blueprint(reports_bp, url_prefix='/api')
     app.register_blueprint(admin_bp, url_prefix='/api')
     app.register_blueprint(notifications_bp, url_prefix='/api')
-    
-    # Health check endpoint
+
+    # ✅ Health check
     @app.route("/api/health")
     def health_check():
         return jsonify({"status": "ok", "message": "Community Guard API is running"}), 200
-    
-    # Serve uploaded files
+
+    # ✅ Serve uploaded files
     @app.route("/api/uploads/<filename>")
     def uploaded_file(filename):
         return send_from_directory(Config.UPLOAD_FOLDER, filename)
-    
-    # Backwards-compatible alias: some clients request /uploads/<filename> (without /api prefix)
+
     @app.route("/uploads/<filename>")
     def uploaded_file_public(filename):
         return send_from_directory(Config.UPLOAD_FOLDER, filename)
-    
-    # Global error handler
+
+    # ✅ Global exception handler
     @app.errorhandler(Exception)
     def handle_global_exception(e):
         if isinstance(e, HTTPException):
@@ -87,38 +96,37 @@ def create_app():
         print("\n=== Global exception ===")
         print(traceback.format_exc())
         return jsonify({"status": "error", "message": "Unexpected error occurred"}), 500
-    
+
     return app
 
 
-# Create app instance
+# ✅ Create app instance
 try:
     app = create_app()
     print("✅ Flask app created successfully")
+
 except Exception as e:
     print(f"❌ Error creating Flask app: {e}")
     import traceback
     traceback.print_exc()
-    
-    # Create a minimal fallback app
+
     from flask import Flask, jsonify
     app = Flask(__name__)
-    
+
     @app.route("/")
     @app.route("/api/<path:path>")
     def error_fallback(path=""):
         return jsonify({
-            "status": "error", 
+            "status": "error",
             "message": f"Failed to initialize app: {str(e)}",
             "error_type": type(e).__name__
         }), 500
 
 
 if __name__ == "__main__":
-    # Ensure uploads directory exists
+    # ✅ Ensure uploads directory exists
     os.makedirs(Config.UPLOAD_FOLDER, exist_ok=True)
-    
-    # Run the application
+
     app.run(
         debug=Config.DEBUG,
         port=Config.PORT,
