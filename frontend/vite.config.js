@@ -9,24 +9,24 @@ export default defineConfig({
     react(),
     VitePWA({
       registerType: 'autoUpdate',
-      includeAssets: ['favicon.svg'],
+      includeAssets: ['vite.svg'],
       manifest: {
-        name: 'My Mobile App',
-        short_name: 'MobileApp',
+        name: 'Community Guard',
+        short_name: 'CommunityGuard',
         start_url: '/',
         display: 'standalone',
         background_color: '#ffffff',
         theme_color: '#42b883',
         icons: [
           {
-            src: '/icon-192.png',
+            src: '/vite.svg',
             sizes: '192x192',
-            type: 'image/png',
+            type: 'image/svg+xml',
           },
           {
-            src: '/icon-512.png',
+            src: '/vite.svg',
             sizes: '512x512',
-            type: 'image/png',
+            type: 'image/svg+xml',
           },
         ],
       },
