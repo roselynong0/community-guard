@@ -1,18 +1,13 @@
 {
   "version": 2,
+  "buildCommand": "cd frontend && npm install && npm run build",
+  "outputDirectory": "frontend/dist",
   "builds": [
     {
       "src": "backend/app.py",
       "use": "@vercel/python",
       "config": {
         "maxLambdaSize": "15mb"
-      }
-    },
-    {
-      "src": "frontend/package.json",
-      "use": "@vercel/static-build",
-      "config": {
-        "distDir": "dist"
       }
     }
   ],
@@ -26,8 +21,16 @@
       "dest": "backend/app.py"
     },
     {
+      "src": "/assets/(.*)",
+      "dest": "frontend/dist/assets/$1"
+    },
+    {
+      "src": "/(.*\\.(js|css|png|jpg|jpeg|svg|ico|woff|woff2|ttf|eot|json|webmanifest))",
+      "dest": "frontend/dist/$1"
+    },
+    {
       "src": "/(.*)",
-      "dest": "frontend/index.html"
+      "dest": "frontend/dist/index.html"
     }
   ]
 }
