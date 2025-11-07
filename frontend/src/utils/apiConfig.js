@@ -3,34 +3,45 @@
 
 // Dynamic getter for BASE_URL (called every time it's accessed)
 const getBaseUrl = () => {
-  // First, check if VITE_API_URL is explicitly set (for local development)
-  if (import.meta.env.VITE_API_URL) {
-    return import.meta.env.VITE_API_URL;
-  }
-  
-  // Check if we're in browser
+  // Check if we're in browser (runtime detection)
   if (typeof window !== 'undefined') {
     const hostname = window.location.hostname;
     
-    // If on Vercel, use the same origin (works for all Vercel URLs)
-    if (hostname.includes('vercel.app')) {
+    // If on Vercel or any vercel.app domain, use the same origin
+    if (hostname.includes('vercel.app') || hostname.includes('community-guard')) {
+      console.log('Detected Vercel deployment, using:', window.location.origin);
       return window.location.origin;
     }
     
-    // If on localhost, use local backend
+    // If on localhost, check for VITE_API_URL first, then use local backend
     if (hostname === 'localhost' || hostname === '127.0.0.1') {
-      return 'http://localhost:5000';
+      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+      console.log('Detected localhost, using:', apiUrl);
+      return apiUrl;
     }
   }
   
-  // Fallback
-  return 'http://localhost:5000';
+  // Fallback to environment variable or localhost
+  const fallback = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+  console.log('Using fallback:', fallback);
+  return fallback;
 };
 
 export const API_CONFIG = {
   // Make BASE_URL a getter so it's evaluated at runtime, not build time
   get BASE_URL() {
-    return getBaseUrl();
+    const url = getBaseUrl();
+    // Log for debugging (remove in production if needed)
+    if (typeof window !== 'undefined' && !window.__API_LOGGED__) {
+      console.log('🌐 API Configuration:', {
+        hostname: window.location.hostname,
+        apiBaseUrl: url,
+        isVercel: window.location.hostname.includes('vercel.app'),
+        isLocalhost: window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
+      });
+      window.__API_LOGGED__ = true;
+    }
+    return url;
   },
   
   // API endpoints
