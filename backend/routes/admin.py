@@ -326,16 +326,19 @@ def update_full_verification(user_id):
 @admin_bp.route("/reports/<report_id>/status", methods=["PUT"])
 @token_required
 def admin_update_report_status(report_id):
-    """Admin endpoint to update report status and notify the user"""
+    """Admin/Barangay/Responder endpoint to update report status and notify the user"""
     try:
-        print(f"🔄 Admin status update request for report {report_id}")
+        print(f"🔄 Status update request for report {report_id}")
         
-        # Check if user is an admin
+        # Check if user has permission (Admin, Barangay Official, or Responder)
         user_resp = supabase.table("users").select("role").eq("id", request.user_id).execute()
         user = getattr(user_resp, "data", [None])[0]
-        if not user or user.get("role") != "Admin":
-            print(f"❌ Non-admin user {request.user_id} attempted status update")
-            return jsonify({"status": "error", "message": "Admin access required"}), 403
+        allowed_roles = ["Admin", "Barangay Official", "Responder"]
+        
+        if not user or user.get("role") not in allowed_roles:
+            user_role = user.get("role") if user else "Unknown"
+            print(f"❌ Unauthorized user {request.user_id} (role: {user_role}) attempted status update")
+            return jsonify({"status": "error", "message": "Admin, Barangay Official, or Responder access required"}), 403
 
         data = request.json
         new_status = data.get("status")
