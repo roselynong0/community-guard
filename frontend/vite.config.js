@@ -5,6 +5,7 @@ import compression from 'vite-plugin-compression'
 
 // https://vite.dev/config/
 export default defineConfig({
+  base: '/', // Ensure absolute paths for all browsers
   plugins: [
     react(),
     // PWA disabled - remove manifest and icon errors
