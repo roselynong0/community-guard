@@ -7,14 +7,15 @@ import compression from 'vite-plugin-compression'
 export default defineConfig({
   plugins: [
     react(),
-    VitePWA({
-      registerType: 'autoUpdate',
-      includeAssets: ['vite.svg'],
-      manifest: false, // Disable manifest for now to avoid 401 errors
-      workbox: {
-        globPatterns: ['**/*.{js,css,html,ico,png,svg,jpg,jpeg}']
-      }
-    }),
+    // PWA disabled - remove manifest and icon errors
+    // VitePWA({
+    //   registerType: 'autoUpdate',
+    //   includeAssets: ['vite.svg'],
+    //   manifest: false,
+    //   workbox: {
+    //     globPatterns: ['**/*.{js,css,html,ico,png,svg,jpg,jpeg}']
+    //   }
+    // }),
 
     // ✅ Compress JS/CSS/HTML in production builds
     compression({
