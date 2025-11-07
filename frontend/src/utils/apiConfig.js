@@ -1,30 +1,37 @@
 // API Configuration
 // This allows switching between development and production environments
 
-// Dynamic getter for BASE_URL (called every time it's accessed)
+// Dynamic getter for BASE_URL (called every time it's accessed at RUNTIME)
 const getBaseUrl = () => {
-  // Check if we're in browser (runtime detection)
+  // ALWAYS check window location first (runtime detection)
   if (typeof window !== 'undefined') {
     const hostname = window.location.hostname;
+    const origin = window.location.origin;
     
-    // If on Vercel or any vercel.app domain, use the same origin
-    if (hostname.includes('vercel.app') || hostname.includes('community-guard')) {
-      console.log('Detected Vercel deployment, using:', window.location.origin);
-      return window.location.origin;
+    // Production: If on Vercel or any production domain, use the same origin
+    // DO NOT use environment variables in production
+    if (hostname.includes('vercel.app') || hostname.includes('community-guard.vercel.app')) {
+      console.log('✅ Detected Vercel deployment, using:', origin);
+      return origin;
     }
     
-    // If on localhost, check for VITE_API_URL first, then use local backend
+    // Development: If on localhost, use local backend
     if (hostname === 'localhost' || hostname === '127.0.0.1') {
-      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000';
-      console.log('Detected localhost, using:', apiUrl);
+      // Only on localhost do we check for environment variable
+      const localApi = import.meta.env.VITE_API_URL;
+      const apiUrl = localApi || 'http://localhost:5000';
+      console.log('✅ Detected localhost, using:', apiUrl);
       return apiUrl;
     }
+    
+    // Any other domain: use same origin (production fallback)
+    console.log('✅ Using same origin for domain:', origin);
+    return origin;
   }
   
-  // Fallback to environment variable or localhost
-  const fallback = import.meta.env.VITE_API_URL || 'http://localhost:5000';
-  console.log('Using fallback:', fallback);
-  return fallback;
+  // Server-side rendering fallback (should not happen in browser)
+  console.warn('⚠️ Window not available, using empty string');
+  return '';
 };
 
 export const API_CONFIG = {
