@@ -26,6 +26,11 @@ import VerificationForm from "./components/VerificationForm";
 import LandingPage from "./components/LandingPage";
 import SafetyTips from "./components/SafetyTips";
 import CommunityFeed from "./components/CommunityFeed";
+import BarangayLayout from "./components/BarangayLayout";
+import BarangayDashboard from "./components/BarangayDashboard";
+import BarangayReports from "./components/BarangayReports";
+import BarangayCommunityFeed from "./components/BarangayCommunityFeed"; 
+
 
 // ---------------- LOGIN WRAPPER ----------------
 function LoginWrapper({ session, setSession, setNotification }) {
@@ -369,6 +374,18 @@ function App() {
             }
           />
         </Route>
+
+        {/* --- BARANGAY OFFICIAL ROUTES --- */}
+        <Route>
+          <Route element={<BarangayLayout />}>
+          <Route path="/barangay/dashboard" element={<BarangayDashboard />} />
+          <Route path="/barangay/maps" element={<Maps />} />
+          <Route path="/barangay/reports" element={<BarangayReports />} />
+          <Route path="/barangay/notifications" element={<Notifications />} />
+          <Route path="/barangay/community-feed" element={<BarangayCommunityFeed />} />
+        </Route>
+        </Route>
+
 
         {/* --- FALLBACK --- */}
         <Route

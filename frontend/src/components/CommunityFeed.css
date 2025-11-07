@@ -9,6 +9,31 @@
   align-items: center;
 }
 
+.header-actions {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+.feed-search {
+  padding: 8px 10px;
+  border: 1px solid #bbb;
+  border-radius: 6px;
+  min-width: 200px;
+  font-size: 14px;
+}
+
+.header-actions input {
+  margin: 0;
+  padding: 10px;
+  width: auto;
+}
+
+.feed-search:focus {
+  outline: none;
+  border-color: #2d2d73;
+}
+
 .feed-title {
   display: flex;
   align-items: center;
@@ -21,7 +46,7 @@
 }
 
 .feed-btn {
-  background: #3578e5;
+  background: #2d2d73;
   width: auto;
   color: white;
   border: none;
@@ -285,7 +310,7 @@
 }
 
 .edit-comment-container button {
-  background: #007aff;
+  background: #2d2d73;
   border: none;
   color: #fff;
   width: auto;
@@ -300,6 +325,22 @@
   background: #005ec5;
 }
 
+
+@media (max-width: 600px) {
+  .header-actions {
+    width: 100%;
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .feed-search {
+    width: 100%;
+  }
+
+  .feed-btn {
+    width: 100%;
+  }
+}
 
 @media (max-width: 480px) {
   .feed-container {

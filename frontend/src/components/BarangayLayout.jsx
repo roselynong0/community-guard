@@ -1,82 +1,139 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect } from "react";
 import {
   FaHome,
-  FaChartBar,
-  FaMap,
-  FaBell,
-  FaUser,
   FaSignOutAlt,
   FaBars,
   FaCalendarAlt,
-} from 'react-icons/fa';
-import { Outlet, NavLink, useNavigate } from 'react-router-dom';
-import './Layout.css';
-import logo from '../assets/logo.png';
-import { logout } from '../utils/session';
+  FaMap,
+  FaUserFriends,
+  FaUsers,
+  FaBell,
+  FaFileAlt,
+} from "react-icons/fa";
+import { Outlet, NavLink, useNavigate } from "react-router-dom";
+import "./Layout.css";
+import logo from "../assets/logo.png";
 
-export default function BarangayLayout({ session, setSession, setNotification }) {
+function BarangayLayout({ session, setSession, setNotification }) {
   const [sidebarOpen, setSidebarOpen] = useState(true);
-  const [user, setUser] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const [dateTime, setDateTime] = useState(new Date());
+  const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
+  const [user, setUser] = useState({
+    firstname: "Juan",
+    lastname: "Dela Cruz",
+    avatar_url: "/default-avatar.png",
+    });
+  const [loading, setLoading] = useState(false);
+
   const navigate = useNavigate();
 
-  const token = session?.token || '';
-
+  // Fetch admin profile if session exists
   useEffect(() => {
     const loadProfile = async () => {
-      if (!token) {
+      if (!session?.token) {
         setLoading(false);
         return;
       }
       try {
-        const res = await fetch('http://localhost:5000/api/profile', {
-          headers: { Authorization: `Bearer ${token}` },
+        const res = await fetch("http://localhost:5000/api/profile", {
+          headers: { Authorization: `Bearer ${session.token}` },
         });
         const data = await res.json();
-        if (!res.ok || data.status !== 'success') {
+        if (!res.ok || data.status !== "success") {
+          setSession(null);
           setUser(null);
         } else {
+          if (data.profile?.role !== "Official") {
+            setSession(null);
+            setUser(null);
+            setNotification({
+              message: "Access denied. Barangay Official privileges required.",
+              type: "error",
+            });
+            navigate("/login");
+            return;
+          }
           setUser({
             ...data.profile,
-            avatar_url: data.profile?.avatar_url || '/default-avatar.png',
+            avatar_url: data.profile?.avatar_url || "/default-avatar.png",
           });
         }
       } catch (err) {
-        console.error('Profile fetch error:', err);
-        setUser(null);
+        console.error("Officials profile fetch error:", err);
+        const isNetworkError =
+          err.message.includes("fetch") ||
+          err.message.includes("network") ||
+          err.name === "TypeError";
+        if (isNetworkError) {
+          setNotification({
+            message:
+              "Connection issue detected. Some features may be temporarily unavailable.",
+            type: "caution",
+          });
+        } else {
+          setSession(null);
+          setUser(null);
+          setNotification({
+            message: "Barangay Official session expired. Please login again.",
+            type: "error",
+          });
+          navigate("/login");
+        }
       } finally {
         setLoading(false);
       }
     };
-
     loadProfile();
-  }, [token]);
+  }, [session, setSession, setNotification, navigate]);
 
+  // 🕒 Update date/time every second
   useEffect(() => {
     const interval = setInterval(() => setDateTime(new Date()), 1000);
     return () => clearInterval(interval);
   }, []);
 
-  const formattedDateTime = dateTime.toLocaleString('en-US', {
-    weekday: 'long', month: 'short', day: 'numeric', year: 'numeric',
-    hour: 'numeric', minute: '2-digit', second: '2-digit', hour12: true,
+  const formattedDateTime = dateTime.toLocaleString("en-US", {
+    weekday: "long",
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: true,
   });
 
-  const confirmLogout = async () => {
-    await logout(setSession);
-    setUser(null);
-    setNotification({ message: 'Logged out successfully.', type: 'success' });
-    navigate('/login');
+  const handleLogout = async () => {
+    setShowLogoutConfirm(false);
+    try {
+      const token = session?.token || localStorage.getItem("token");
+      if (token) {
+        await fetch("http://localhost:5000/api/logout", {
+          method: "POST",
+          headers: { Authorization: `Bearer ${token}` },
+        });
+      }
+    } catch (error) {
+      console.error("Barangay logout error:", error);
+    } finally {
+      localStorage.removeItem("token");
+      setSession(null);
+      setUser(null);
+      setNotification({
+        message: `Barangay Official ${user?.firstname || "user"} logged out successfully`,
+        type: "success",
+      });
+      navigate("/login");
+    }
   };
 
-  if (loading)
+  if (loading) {
     return (
-      <div style={{ padding: '2rem', textAlign: 'center' }}>
-        Loading user...
+      <div style={{ padding: "2rem", textAlign: "center" }}>
+        Loading Barangay Panel...
       </div>
     );
+  }
 
   return (
     <div className="home-container">
@@ -84,56 +141,63 @@ export default function BarangayLayout({ session, setSession, setNotification })
       {sidebarOpen && (
         <aside className="sidebar">
           <div className="logo">
-            <img src={logo} alt="Logo" className="logo-img" />
-            <h2>Barangay Officials</h2>
-
-            {/* User Profile Section */}
-            {!loading && user && (
-              <div
-                className="user-profile"
-                style={{
-                  borderBottom: '1px solid rgba(255,255,255,0.1)',
-                  marginBottom: '1rem',
-                  textAlign: 'center',
-                }}
-              > 
-              </div>
-            )}
+            <img src={logo} alt="Community Guard Logo" className="logo-img" />
+            <h2 style={{
+              borderBottom: '1px solid rgba(255,255,255,0.1)',
+              textAlign: 'center'
+            }}>Community Guard</h2>
           </div>
 
-          {/* Nav links - keep only barangay-specific tabs + profile */}
-          <nav style={{ borderBottom: '1px solid rgba(255,255,255,0.1)', textAlign: 'center' }}>
-            <NavLink to="/barangay/home"><FaHome /> Home</NavLink>
-            <NavLink to="/barangay/stats"><FaChartBar /> Reports</NavLink>
-            <NavLink to="/barangay/maps"><FaMap /> Map</NavLink>
-            <NavLink to="/barangay/notifications"><FaBell /> Notifications</NavLink>
-            <NavLink to="/barangay/profile"><FaUser /> Profile</NavLink>
+          {/* Sidebar Nav */}
+          <nav
+            style={{
+              borderBottom: "1px solid rgba(255,255,255,0.1)",
+              textAlign: "center",
+            }}
+          >
+            <NavLink to="/barangay/dashboard">
+              <FaHome /> Dashboard
+            </NavLink>
+            <NavLink to="/barangay/maps">
+              <FaMap /> Map
+            </NavLink>
+            <NavLink to="/barangay/reports">
+              <FaFileAlt /> Reports
+            </NavLink>
+            <NavLink to="/barangay/notifications">
+              <FaBell /> Notifications
+            </NavLink>
+            <NavLink to="/barangay/community-feed">
+                <FaUserFriends /> Community Feed
+            </NavLink>
           </nav>
 
+          {/* Logout */}
           <button
-            className="logout-btn"
+            className="logout-btn admin-logout-btn"
             onClick={() => setShowLogoutConfirm(true)}
             style={{
-              background: 'none',
-              border: 'none',
-              padding: '0.8rem',
-              color: '#c7c7c7',
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: '0.5rem',
-              borderRadius: '8px',
-              transition: 'all 0.3s ease',
-              width: '100%',
+              background: "none",
+              border: "none",
+              padding: "0.8rem",
+              color: "#c7c7c7",
+              cursor: "pointer",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              gap: "0.5rem",
+              borderRadius: "8px",
+              transition: "all 0.3s ease",
+              width: "100%",
             }}
             onMouseEnter={(e) => {
-              e.target.style.background = 'linear-gradient(135deg, #d9534f, #c9302c)';
-              e.target.style.color = '#fff';
+              e.target.style.background =
+                "linear-gradient(135deg, #d9534f, #c9302c)";
+              e.target.style.color = "#fff";
             }}
             onMouseLeave={(e) => {
-              e.target.style.background = 'none';
-              e.target.style.color = '#c7c7c7';
+              e.target.style.background = "none";
+              e.target.style.color = "#c7c7c7";
             }}
           >
             <FaSignOutAlt /> Logout
@@ -146,70 +210,69 @@ export default function BarangayLayout({ session, setSession, setNotification })
         <div
           className="top-bar"
           style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            padding: '0.8rem 1.2rem',
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            padding: "0.8rem 1.2rem",
           }}
         >
           {/* Left side: Menu + DateTime */}
           <div
             style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '1rem',
-              color: '#11163e',
+              display: "flex",
+              alignItems: "center",
+              gap: "1rem",
+              color: "#11163e",
             }}
           >
             <button
               className="menu-btn"
               onClick={() => setSidebarOpen(!sidebarOpen)}
               style={{
-                background: 'none',
-                border: 'none',
-                fontSize: '1.5rem',
-                cursor: 'pointer',
-                color: '#11163e',
+                background: "none",
+                border: "none",
+                fontSize: "1.5rem",
+                cursor: "pointer",
+                color: "#11163e",
               }}
             >
               <FaBars />
             </button>
             <div className="date-time" style={{ fontWeight: 500 }}>
-              <FaCalendarAlt style={{ marginRight: '0.4rem' }} />
+              <FaCalendarAlt style={{ marginRight: "0.4rem" }} />{" "}
               {formattedDateTime}
             </div>
           </div>
 
-          {/* Right side: Barangay Official Profile */}
+          {/* Right side: Barangay Profile */}
           {!loading && user && (
             <div
-              className="user-profile-top"
+              className="admin-profile-top"
               style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '0.7rem',
-                cursor: 'pointer',
+                display: "flex",
+                alignItems: "center",
+                gap: "0.7rem",
+                cursor: "pointer",
               }}
-              onClick={() => navigate('/barangay/profile')}
             >
               <img
-                src={user.avatar_url || '/src/assets/profile.png'}
-                alt="Barangay Official Profile"
+                src={user.avatar_url || "/src/assets/profile.png"}
+                alt="Barangay Profile"
                 style={{
-                  width: '40px',
-                  height: '40px',
-                  borderRadius: '50%',
-                  objectFit: 'cover',
-                  border: '2px solid #11163e',
+                  width: "40px",
+                  height: "40px",
+                  borderRadius: "50%",
+                  objectFit: "cover",
+                  border: "2px solid #11163e",
                 }}
               />
-              <div style={{ textAlign: 'right' }}>
+              <div style={{ textAlign: "right" }}>
                 <h4
                   style={{
                     margin: 0,
-                    fontSize: '0.9rem',
-                    color: '#11163e',
-                    fontWeight: '600',
+                    fontSize: "0.9rem",
+                    color: "#11163e",
+                    fontWeight: "600",
                   }}
                 >
                   {user.firstname} {user.lastname}
@@ -217,12 +280,12 @@ export default function BarangayLayout({ session, setSession, setNotification })
                 <p
                   style={{
                     margin: 0,
-                    fontSize: '0.75rem',
-                    color: '#666',
-                    fontStyle: 'italic',
+                    fontSize: "0.75rem",
+                    color: "#666",
+                    fontStyle: "italic",
                   }}
                 >
-                  {user.role || 'Barangay Official'}
+                  Barangay Official
                 </p>
               </div>
             </div>
@@ -234,41 +297,45 @@ export default function BarangayLayout({ session, setSession, setNotification })
 
       {/* Bottom nav (mobile) */}
       <nav className="bottom-nav">
-        <NavLink to="/barangay/home">
+        <NavLink to="/admin/dashboard">
           <FaHome />
         </NavLink>
-        <NavLink to="/barangay/maps">
+        <NavLink to="/admin/maps">
           <FaMap />
         </NavLink>
-        <NavLink to="/barangay/stats">
-          <FaChartBar />
+        <NavLink to="/admin/reports">
+          <FaFileAlt />
         </NavLink>
-        <NavLink to="/barangay/notifications">
-          <FaBell />
-        </NavLink>
-        <NavLink to="/barangay/profile">
-          <FaUser />
+        <NavLink to="/admin/users">
+          <FaUsers />
         </NavLink>
       </nav>
 
-      {/* Mobile logout */}
+      {/* Mobile logout bubble */}
       <div
         className="mobile-logout-bubble"
         onClick={() => setShowLogoutConfirm(true)}
-        title="Logout"
+        title="Admin Logout"
       >
         <FaSignOutAlt />
       </div>
 
-      {/* Logout Confirmation */}
+      {/* Logout confirmation modal */}
       {showLogoutConfirm && (
         <div className="modal-overlay">
           <div className="modal">
             <h3>Confirm Logout</h3>
             <p>Are you sure you want to log out?</p>
             <div className="modal-actions">
-              <button onClick={() => setShowLogoutConfirm(false)} className="cancel-btn">Cancel</button>
-              <button onClick={confirmLogout} className="confirm-btn">Logout</button>
+              <button
+                onClick={() => setShowLogoutConfirm(false)}
+                className="cancel-btn"
+              >
+                Cancel
+              </button>
+              <button onClick={handleLogout} className="confirm-btn">
+                Logout
+              </button>
             </div>
           </div>
         </div>
@@ -276,3 +343,5 @@ export default function BarangayLayout({ session, setSession, setNotification })
     </div>
   );
 }
+
+export default BarangayLayout;

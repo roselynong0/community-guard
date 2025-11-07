@@ -4,12 +4,11 @@ import "./Notifications.css";
 import PostModal from "./PostModal";
 import { FaPaperPlane, FaUsers, FaEdit, FaTrash } from "react-icons/fa";
 
-const CommunityFeed = () => {
+const BarangayCommunityFeed = () => {
   const [posts, setPosts] = useState([]);
   const [openModal, setOpenModal] = useState(false);
   const [notification, setNotification] = useState(null);
 
-  // ✅ NEW
   const [searchTerm, setSearchTerm] = useState("");
 
   useEffect(() => {
@@ -20,20 +19,10 @@ const CommunityFeed = () => {
     setPosts([
       {
         id: 1,
-        author: "Barangay Official",
+        author: "Barangay Captain",
         role: "official",
-        title: "Community Clean-Up Drive",
-        content: "Join us this weekend at the plaza!",
-        timestamp: "2025-11-01",
-        status: "approved",
-        comments: [],
-      },
-      {
-        id: 2,
-        author: "Juan Dela Cruz",
-        role: "resident",
-        title: "Stray Dog Spotted",
-        content: "Aggressive dog seen near Riverside.",
+        title: "Cleanup Activity Next Week",
+        content: "Bring gloves and masks. Thank you!",
         timestamp: "2025-11-02",
         status: "approved",
         comments: [],
@@ -41,15 +30,21 @@ const CommunityFeed = () => {
     ]);
   };
 
-  const handleNewPost = (newPost) => {
-    setPosts((prev) => [newPost, ...prev]);
+  // ✅ Auto-approve posts since this is for officials
+  const handleNewPost = (post) => {
+    const officialPost = {
+      ...post,
+      id: Date.now(),
+      role: "official",
+      status: "approved",
+      timestamp: new Date().toLocaleString(),
+    };
+
+    setPosts((prev) => [officialPost, ...prev]);
 
     setNotification({
-      type: newPost.status === "pending" ? "caution" : "success",
-      message:
-        newPost.status === "pending"
-          ? "Post submitted! Waiting for admin approval."
-          : "Post published successfully!",
+      type: "success",
+      message: "Post published successfully!",
     });
 
     setTimeout(() => setNotification(null), 3000);
@@ -68,8 +63,8 @@ const CommunityFeed = () => {
     if (!commentText.trim()) return;
     const commenter = getCurrentUserName();
 
-    setPosts((prevPosts) =>
-      prevPosts.map((p) =>
+    setPosts((prev) =>
+      prev.map((p) =>
         p.id === postId
           ? {
               ...p,
@@ -90,33 +85,33 @@ const CommunityFeed = () => {
 
   const handleEditComment = (postId, commentId, newText) => {
     setPosts((prev) =>
-      prev.map((post) =>
-        post.id === postId
+      prev.map((p) =>
+        p.id === postId
           ? {
-              ...post,
-              comments: post.comments.map((c) =>
+              ...p,
+              comments: p.comments.map((c) =>
                 c.id === commentId ? { ...c, text: newText } : c
               ),
             }
-          : post
+          : p
       )
     );
   };
 
   const handleDeleteComment = (postId, commentId) => {
     setPosts((prev) =>
-      prev.map((post) =>
-        post.id === postId
+      prev.map((p) =>
+        p.id === postId
           ? {
-              ...post,
-              comments: post.comments.filter((c) => c.id !== commentId),
+              ...p,
+              comments: p.comments.filter((c) => c.id !== commentId),
             }
-          : post
+          : p
       )
     );
   };
 
-  // ✅ FILTER POSTS
+  // ✅ SEARCH filter
   const filteredPosts = posts.filter((p) => {
     const text = searchTerm.toLowerCase();
     return (
@@ -137,10 +132,9 @@ const CommunityFeed = () => {
       <div className="feed-header">
         <h2 className="feed-title">
           <FaUsers className="feed-icon" />
-          Community Feed
+          Barangay Official Feed
         </h2>
 
-        {/* ✅ SEARCH + NEW POST ROW */}
         <div className="header-actions">
           <input
             className="feed-search"
@@ -203,19 +197,11 @@ const PostCard = ({ post, onAddComment, onEditComment, onDeleteComment }) => {
 
   return (
     <div
-      className={`post-card
-      ${post.status === "pending" ? "post-pending" : ""}
-      ${post.role === "official" ? "official" : ""}
-    `}
+      className={`post-card ${post.role === "official" ? "official" : ""}`}
     >
       <div className="post-header">
         <h3>{post.title}</h3>
-        {post.role === "official" && (
-          <span className="badge-official">Officials</span>
-        )}
-        {post.status === "pending" && (
-          <span className="badge-pending">Pending Approval</span>
-        )}
+        <span className="badge-official">Official</span>
       </div>
 
       <p className="post-content">{post.content}</p>
@@ -312,4 +298,4 @@ const PostCard = ({ post, onAddComment, onEditComment, onDeleteComment }) => {
   );
 };
 
-export default CommunityFeed;
+export default BarangayCommunityFeed;
