@@ -1,19 +1,37 @@
 // API Configuration
 // This allows switching between development and production environments
 
-// Auto-detect if we're on Vercel or localhost
+// Dynamic getter for BASE_URL (called every time it's accessed)
 const getBaseUrl = () => {
-  // If running on Vercel (production/preview), use the same domain
-  if (typeof window !== 'undefined' && window.location.hostname.includes('vercel.app')) {
-    return window.location.origin; // Uses same domain as frontend
+  // First, check if VITE_API_URL is explicitly set (for local development)
+  if (import.meta.env.VITE_API_URL) {
+    return import.meta.env.VITE_API_URL;
   }
-  // For local development, use localhost backend
-  return import.meta.env.VITE_API_URL || 'http://localhost:5000';
+  
+  // Check if we're in browser
+  if (typeof window !== 'undefined') {
+    const hostname = window.location.hostname;
+    
+    // If on Vercel, use the same origin (works for all Vercel URLs)
+    if (hostname.includes('vercel.app')) {
+      return window.location.origin;
+    }
+    
+    // If on localhost, use local backend
+    if (hostname === 'localhost' || hostname === '127.0.0.1') {
+      return 'http://localhost:5000';
+    }
+  }
+  
+  // Fallback
+  return 'http://localhost:5000';
 };
 
 export const API_CONFIG = {
-  // Use environment variable if available, fallback to localhost for development
-  BASE_URL: getBaseUrl(),
+  // Make BASE_URL a getter so it's evaluated at runtime, not build time
+  get BASE_URL() {
+    return getBaseUrl();
+  },
   
   // API endpoints
   endpoints: {

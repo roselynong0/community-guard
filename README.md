@@ -1,7 +1,13 @@
 # Community Guard
 
+[![Deployment](https://img.shields.io/badge/Deployed%20on-Vercel-black?logo=vercel)](https://community-guard.vercel.app)
+[![React](https://img.shields.io/badge/React-19.1.1-blue?logo=react)](https://reactjs.org/)
+[![Flask](https://img.shields.io/badge/Flask-Python-green?logo=flask)](https://flask.palletsprojects.com/)
+
 ## Overview
-Community Guard is a React-based web application designed to enhance community safety through incident reporting and administrative management. The system allows residents to report incidents while providing administrators with tools to manage reports and verify users.
+Community Guard is a full-stack web application designed to enhance community safety through incident reporting and administrative management. The system allows residents to report incidents while providing administrators with tools to manage reports and verify users.
+
+**🌐 Live Demo:** [https://community-guard.vercel.app](https://community-guard.vercel.app)
 
 ## 🚀 Features
 - **Incident Reporting**: Residents can report safety incidents with location data
@@ -10,6 +16,8 @@ Community Guard is a React-based web application designed to enhance community s
 - **User Authentication**: Secure login/registration with email verification
 - **Real-time Notifications**: Updates on report status changes
 - **Mobile Responsive**: Optimized for both desktop and mobile devices
+- **Role-Based Access**: Admin, Barangay Official, Responder, and Resident roles
+- **Session Management**: Track and manage active login sessions
 
 ## 🛠️ Tech Stack
 **Frontend:**
@@ -85,43 +93,73 @@ npm install
 
 ## 🚀 Running the Project
 
-### Development Mode
+### Local Development Mode
 
 You need to run **both** the backend and frontend servers in separate terminals:
 
 **Terminal 1 - Backend (Flask API):**
-```bash
-cd backend
+```powershell
+cd master/backend
 python app.py
 ```
 Backend will run on `http://localhost:5000`
 
 **Terminal 2 - Frontend (React/Vite):**
-```bash
-cd frontend
+```powershell
+cd master/frontend
 npm run dev
 ```
 Frontend will run on `http://localhost:5173`
 
-The Vite dev server is configured to proxy all `/api` requests to the Flask backend automatically.
+The application is configured to work seamlessly in both localhost and production:
+- **Localhost**: Frontend uses `http://localhost:5000` for API calls
+- **Vercel**: Automatically detects and uses `https://community-guard.vercel.app`
 
-### Production Build
+### Testing Localhost Setup
 
-**Backend:**
-```bash
-cd backend
-# Use a production WSGI server like Gunicorn
-pip install gunicorn
-gunicorn -w 4 -b 0.0.0.0:5000 app:app
+1. **Backend Health Check**: Open `http://localhost:5000/api/health`
+   - Should return: `{"status": "ok", "message": "Community Guard API is running"}`
+
+2. **Frontend**: Open `http://localhost:5173`
+   - Should display the Community Guard landing page
+
+3. **Test API Connection**: Try registering or logging in
+
+### Production Deployment (Vercel)
+
+**Quick Deploy:**
+```powershell
+# Install Vercel CLI (first time only)
+npm install -g vercel
+
+# Login to Vercel
+vercel login
+
+# Deploy to production
+cd master
+vercel --prod
 ```
 
-**Frontend:**
-```bash
-cd frontend
-npm run build
-# Output will be in dist/ folder
-npm run preview  # To preview the production build
+**Environment Variables for Vercel:**
+Set these in your Vercel Dashboard (Settings → Environment Variables):
 ```
+SUPABASE_URL=your_supabase_url
+SUPABASE_KEY=your_supabase_key
+MJ_APIKEY_PUBLIC=your_mailjet_public_key
+MJ_APIKEY_SECRET=your_mailjet_secret_key
+SECRET_KEY=your_secret_key
+EMAIL_CODE_EXPIRY=10
+FLASK_ENV=production
+FRONTEND_URL=https://community-guard.vercel.app
+```
+
+**Frontend Environment Variables:**
+```
+VITE_SUPABASE_URL=your_supabase_url
+VITE_SUPABASE_ANON_KEY=your_supabase_anon_key
+```
+
+**Note:** Don't set `VITE_API_URL` on Vercel - it auto-detects the production URL.
 
 ## 📁 Project Structure
 
@@ -189,19 +227,29 @@ community-guard/master/
 ## 🔄 Available Scripts
 
 ### Backend (Python):
-```bash
+```powershell
 cd backend
-python app.py              # Start Flask development server
-pip install -r requirements.txt  # Install dependencies
+python app.py                      # Start Flask development server
+pip install -r requirements.txt    # Install dependencies
+pip freeze > requirements.txt      # Update dependencies
 ```
 
 ### Frontend (NPM):
-```bash
+```powershell
 cd frontend
-npm run dev                # Start Vite development server
-npm run build              # Build for production
-npm run preview            # Preview production build
-npm run lint               # Run ESLint
+npm run dev                        # Start Vite development server
+npm run build                      # Build for production
+npm run preview                    # Preview production build
+npm run lint                       # Run ESLint
+npm install                        # Install dependencies
+```
+
+### Deployment:
+```powershell
+cd master
+vercel                             # Deploy to preview
+vercel --prod                      # Deploy to production
+vercel logs                        # View deployment logs
 ```
 
 ## 🌐 API Endpoints
@@ -246,6 +294,63 @@ The Flask backend uses **Blueprint architecture** for organized routing. All end
 - `DELETE /api/notifications/<id>` - Delete notification (requires token)
 
 > **Note:** Routes marked with "requires token" need the `Authorization: Bearer <token>` header.
+
+## 🌍 Environment Configuration
+
+### How Auto-Detection Works
+
+The application intelligently detects its environment:
+
+**Development (Localhost):**
+- Frontend checks `VITE_API_URL` in `.env` → uses `http://localhost:5000`
+- Backend uses `FRONTEND_URL` from `.env` → `http://localhost:5173`
+
+**Production (Vercel):**
+- Frontend detects `vercel.app` domain → uses same origin automatically
+- Backend uses `FRONTEND_URL` from Vercel dashboard → `https://community-guard.vercel.app`
+
+### Backend Environment Variables
+
+**Local Development** (`backend/.env`):
+```env
+SUPABASE_URL=your_supabase_url
+SUPABASE_KEY=your_supabase_key
+MJ_APIKEY_PUBLIC=your_mailjet_public_key
+MJ_APIKEY_SECRET=your_mailjet_secret_key
+SECRET_KEY=your_secret_key
+EMAIL_CODE_EXPIRY=10
+FLASK_ENV=development
+FRONTEND_URL=http://localhost:5173
+PORT=5000
+```
+
+**Production** (Set in Vercel Dashboard):
+```env
+SUPABASE_URL=your_supabase_url
+SUPABASE_KEY=your_supabase_key
+MJ_APIKEY_PUBLIC=your_mailjet_public_key
+MJ_APIKEY_SECRET=your_mailjet_secret_key
+SECRET_KEY=your_secret_key
+EMAIL_CODE_EXPIRY=10
+FLASK_ENV=production
+FRONTEND_URL=https://community-guard.vercel.app
+```
+
+### Frontend Environment Variables
+
+**Local Development** (`frontend/.env`):
+```env
+VITE_SUPABASE_URL=your_supabase_url
+VITE_SUPABASE_ANON_KEY=your_supabase_anon_key
+VITE_API_URL=http://localhost:5000
+```
+
+**Production** (Set in Vercel Dashboard):
+```env
+VITE_SUPABASE_URL=your_supabase_url
+VITE_SUPABASE_ANON_KEY=your_supabase_anon_key
+# Do NOT set VITE_API_URL - it auto-detects!
+```
 
 ## 📱 Usage
 1. **For Residents:**
@@ -309,41 +414,96 @@ The backend is organized using **Flask Blueprints** for modularity:
 
 ## 🐛 Troubleshooting
 
-### Common Issues:
-1. **Port conflicts**: 
-   - Make sure port 5000 (backend) is not in use
-   - Make sure port 5173 (frontend) is not in use
-   - Kill any processes using these ports if needed
+### Local Development Issues:
 
-2. **Environment variables**: 
-   - Ensure `.env` file exists in the root or backend directory
-   - Verify all required variables are set correctly
-   - Check for typos in variable names
+**Port conflicts:**
+```powershell
+# Backend port 5000 in use
+# Change PORT in backend/.env to 5001
+# Update VITE_API_URL in frontend/.env to http://localhost:5001
 
-3. **Dependencies**: 
-   - Backend: Run `pip install -r requirements.txt` in backend directory
-   - Frontend: Run `npm install` in frontend directory
-   - Consider using a Python virtual environment
+# Frontend port 5173 in use
+# Vite will automatically try the next available port (5174, etc.)
+```
 
-4. **Supabase connection**: 
-   - Verify your Supabase URL and key are correct
-   - Check your internet connection
-   - Ensure Supabase project is active
+**Environment variables:**
+- Ensure `backend/.env` and `frontend/.env` files exist
+- Copy from `.env.example` files if needed
+- For localhost: `VITE_API_URL=http://localhost:5000` (frontend)
+- For localhost: `FRONTEND_URL=http://localhost:5173` (backend)
 
-5. **Import errors**:
-   - Backend: Make sure you're running from the backend directory
-   - Frontend: Clear node_modules and reinstall if needed
+**Dependencies not installing:**
+```powershell
+# Backend
+cd backend
+pip install -r requirements.txt
 
-6. **CORS errors**:
-   - Ensure backend CORS is configured correctly
-   - Check that frontend is making requests to the correct backend URL
-   - Verify the Vite proxy configuration in `vite.config.js`
+# Frontend
+cd frontend
+rm -rf node_modules
+npm install
+```
+
+**Backend won't start:**
+- Check if Python 3.8+ is installed: `python --version`
+- Make sure you're in the `backend` directory
+- Check for errors in terminal output
+- Verify Supabase credentials in `.env`
+
+**Frontend won't start:**
+- Check if Node.js is installed: `node --version`
+- Make sure you're in the `frontend` directory
+- Run `npm install` first
+- Check for errors in terminal output
+
+**API requests failing:**
+- Ensure backend is running on port 5000
+- Check `VITE_API_URL` in `frontend/.env`
+- Open browser console (F12) for CORS errors
+- Verify `frontend/src/utils/apiConfig.js` configuration
+
+### Vercel Deployment Issues:
+
+**Build fails:**
+- Check build logs in Vercel Dashboard
+- Verify all environment variables are set
+- Ensure `requirements.txt` and `package.json` are up to date
+
+**API requests fail on Vercel:**
+- Remove `VITE_API_URL` from Vercel environment variables
+- It should auto-detect and use `https://community-guard.vercel.app`
+- Check CORS settings in `backend/app.py`
+
+**Database connection fails:**
+- Verify Supabase credentials in Vercel Dashboard
+- Check Supabase project is active and accessible
+- Ensure environment variables are set for production
+
+**Environment not switching properly:**
+- The app auto-detects environment:
+  - Localhost → uses `http://localhost:5000`
+  - Vercel → uses same origin (e.g., `https://community-guard.vercel.app`)
+- Check `frontend/src/utils/apiConfig.js` for logic
+
+### Quick Fixes:
+```powershell
+# Reset everything
+cd master/frontend
+rm -rf node_modules
+npm install
+
+cd ../backend
+pip install -r requirements.txt
+
+# Check health
+# Backend: http://localhost:5000/api/health
+# Frontend: http://localhost:5173
+```
 
 ### Getting Help:
-- Check the browser console for frontend errors (F12)
-- Check the Flask terminal output for backend errors
-- Review the `backend/README.md` for backend-specific help
-- Review the `frontend/README.md` for frontend-specific help
+- Check browser console for frontend errors (F12)
+- Check terminal output for backend errors
+- Review Vercel logs for deployment issues
 - Ensure all dependencies are installed correctly
 
 ## 🤝 Contributing

@@ -29,9 +29,11 @@ env.bak/
 venv.bak/
 
 # Environment Variables
-.env
-.env.local
-.env.*.local
+# Note: .env files are tracked for team collaboration in private repo
+# Vercel ignores these files automatically and uses Dashboard environment variables
+# .env
+# .env.local
+# .env.*.local
 
 # IDE
 .vscode/

@@ -22,17 +22,20 @@ class Config:
     EMAIL_CODE_EXPIRY = int(os.getenv("EMAIL_CODE_EXPIRY_MINUTES", 10))
     
     # Frontend Configuration
-    FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:3000")
+    # Auto-detect: Use localhost for dev, Vercel for production
+    FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:5173")
     
     # Flask Configuration
-    DEBUG = True
-    PORT = 5000
+    DEBUG = os.getenv("FLASK_ENV", "development") == "development"
+    PORT = int(os.getenv("PORT", 5000))
     
     # Cache Configuration
     CACHE_TYPE = 'SimpleCache'
     CACHE_DEFAULT_TIMEOUT = 300
     
     # Upload Configuration
-    UPLOAD_FOLDER = os.path.join(os.getcwd(), "backend", "uploads")
+    # Get the backend directory path regardless of where the script is run from
+    BACKEND_DIR = os.path.dirname(os.path.abspath(__file__))
+    UPLOAD_FOLDER = os.path.join(BACKEND_DIR, "uploads")
     ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg'}
     MAX_CONTENT_LENGTH = 16 * 1024 * 1024  # 16MB max file size
