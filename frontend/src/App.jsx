@@ -26,7 +26,6 @@ import VerificationForm from "./components/VerificationForm";
 import LandingPage from "./components/LandingPage";
 import SafetyTips from "./components/SafetyTips";
 import CommunityFeed from "./components/CommunityFeed";
-import BarangayLayout from "./components/BarangayLayout";
 import BarangayDashboard from "./components/BarangayDashboard";
 import BarangayReports from "./components/BarangayReports";
 import BarangayCommunityFeed from "./components/BarangayCommunityFeed"; 
@@ -277,11 +276,11 @@ function App() {
           }
         >
           <Route path="/barangay/home" element={<BarangayHome token={session?.token} session={session} />} />
-          <Route path="/barangay/stats" element={<AdminReports token={session?.token} />} />
+          <Route path="/barangay/dashboard" element={<BarangayDashboard token={session?.token} session={session} />} />
           <Route path="/barangay/maps" element={<Maps token={session?.token} />} />
-          <Route path="/barangay/reports" element={<Reports session={session} />} />
+          <Route path="/barangay/reports" element={<BarangayReports token={session?.token} session={session} />} />
           <Route path="/barangay/notifications" element={<Notifications token={session?.token} />} />
-          <Route path="/barangay/community-feed" element={<CommunityFeedBarangay token={session?.token} session={session} />} />
+          <Route path="/barangay/community-feed" element={<BarangayCommunityFeed token={session?.token} session={session} />} />
           <Route path="/barangay/profile" element={<Profile token={session?.token} />} />
         </Route>
 
