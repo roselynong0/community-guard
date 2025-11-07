@@ -861,6 +861,10 @@ opacity: 0.9;
     margin-bottom: 10px;
 }
 
+.reports-list button {
+    width: auto;
+}
+
 .report-card {
     background: #fff;
     padding: 15px;

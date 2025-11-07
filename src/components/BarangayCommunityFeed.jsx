@@ -1,0 +1,301 @@
+import React, { useState, useEffect } from "react";
+import "./CommunityFeed.css";
+import "./Notifications.css";
+import PostModal from "./PostModal";
+import { FaPaperPlane, FaUsers, FaEdit, FaTrash } from "react-icons/fa";
+
+const BarangayCommunityFeed = () => {
+  const [posts, setPosts] = useState([]);
+  const [openModal, setOpenModal] = useState(false);
+  const [notification, setNotification] = useState(null);
+
+  const [searchTerm, setSearchTerm] = useState("");
+
+  useEffect(() => {
+    fetchPosts();
+  }, []);
+
+  const fetchPosts = async () => {
+    setPosts([
+      {
+        id: 1,
+        author: "Barangay Captain",
+        role: "official",
+        title: "Cleanup Activity Next Week",
+        content: "Bring gloves and masks. Thank you!",
+        timestamp: "2025-11-02",
+        status: "approved",
+        comments: [],
+      },
+    ]);
+  };
+
+  // ✅ Auto-approve posts since this is for officials
+  const handleNewPost = (post) => {
+    const officialPost = {
+      ...post,
+      id: Date.now(),
+      role: "official",
+      status: "approved",
+      timestamp: new Date().toLocaleString(),
+    };
+
+    setPosts((prev) => [officialPost, ...prev]);
+
+    setNotification({
+      type: "success",
+      message: "Post published successfully!",
+    });
+
+    setTimeout(() => setNotification(null), 3000);
+  };
+
+  const getCurrentUserName = () => {
+    try {
+      const user = JSON.parse(localStorage.getItem("user"));
+      return user?.name || "Unknown User";
+    } catch {
+      return "Unknown User";
+    }
+  };
+
+  const handleAddComment = (postId, commentText) => {
+    if (!commentText.trim()) return;
+    const commenter = getCurrentUserName();
+
+    setPosts((prev) =>
+      prev.map((p) =>
+        p.id === postId
+          ? {
+              ...p,
+              comments: [
+                ...p.comments,
+                {
+                  id: Date.now(),
+                  name: commenter,
+                  text: commentText,
+                  timestamp: new Date().toISOString(),
+                },
+              ],
+            }
+          : p
+      )
+    );
+  };
+
+  const handleEditComment = (postId, commentId, newText) => {
+    setPosts((prev) =>
+      prev.map((p) =>
+        p.id === postId
+          ? {
+              ...p,
+              comments: p.comments.map((c) =>
+                c.id === commentId ? { ...c, text: newText } : c
+              ),
+            }
+          : p
+      )
+    );
+  };
+
+  const handleDeleteComment = (postId, commentId) => {
+    setPosts((prev) =>
+      prev.map((p) =>
+        p.id === postId
+          ? {
+              ...p,
+              comments: p.comments.filter((c) => c.id !== commentId),
+            }
+          : p
+      )
+    );
+  };
+
+  // ✅ SEARCH filter
+  const filteredPosts = posts.filter((p) => {
+    const text = searchTerm.toLowerCase();
+    return (
+      p.title?.toLowerCase().includes(text) ||
+      p.content?.toLowerCase().includes(text) ||
+      p.author?.toLowerCase().includes(text)
+    );
+  });
+
+  return (
+    <div className="feed-container">
+      {notification && (
+        <div className={`notif notif-${notification.type}`}>
+          {notification.message}
+        </div>
+      )}
+
+      <div className="feed-header">
+        <h2 className="feed-title">
+          <FaUsers className="feed-icon" />
+          Barangay Official Feed
+        </h2>
+
+        <div className="header-actions">
+          <input
+            className="feed-search"
+            type="text"
+            placeholder="Search post or user..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+          />
+
+          <button className="feed-btn" onClick={() => setOpenModal(true)}>
+            + New Post
+          </button>
+        </div>
+      </div>
+
+      <div className="feed-list">
+        {filteredPosts.length === 0 && <p>No posts found.</p>}
+
+        {filteredPosts.map((post) => (
+          <PostCard
+            key={post.id}
+            post={post}
+            onAddComment={handleAddComment}
+            onEditComment={handleEditComment}
+            onDeleteComment={handleDeleteComment}
+          />
+        ))}
+      </div>
+
+      {openModal && (
+        <PostModal onClose={() => setOpenModal(false)} onSubmit={handleNewPost} />
+      )}
+    </div>
+  );
+};
+
+
+// ✅ POST CARD
+const PostCard = ({ post, onAddComment, onEditComment, onDeleteComment }) => {
+  const [comment, setComment] = useState("");
+  const [showComments, setShowComments] = useState(false);
+  const [editingCommentId, setEditingCommentId] = useState(null);
+  const [editingText, setEditingText] = useState("");
+
+  const currentUser = (() => {
+    try {
+      const user = JSON.parse(localStorage.getItem("user"));
+      return user?.name || "Unknown User";
+    } catch {
+      return "Unknown User";
+    }
+  })();
+
+  const handleCommentKey = (e) => {
+    if (e.key === "Enter") {
+      onAddComment(post.id, comment);
+      setComment("");
+    }
+  };
+
+  return (
+    <div
+      className={`post-card ${post.role === "official" ? "official" : ""}`}
+    >
+      <div className="post-header">
+        <h3>{post.title}</h3>
+        <span className="badge-official">Official</span>
+      </div>
+
+      <p className="post-content">{post.content}</p>
+
+      <p className="post-subinfo">
+        {post.author} · {post.timestamp}
+      </p>
+
+      <div className="toggle-comment-container">
+        <button
+          className="toggle-comment-btn"
+          onClick={() => setShowComments(!showComments)}
+        >
+          {showComments ? "Hide Comments" : "View Comments"}
+        </button>
+      </div>
+
+      {showComments && (
+        <div className="comments-box">
+          <h4>Comments</h4>
+
+          {(!post.comments || post.comments.length === 0) && (
+            <p className="no-comments">No comments yet</p>
+          )}
+
+          <div className="comments-scroll">
+            {(post.comments ?? []).map((c) => (
+              <div key={c.id} className="comment-item">
+                {editingCommentId === c.id ? (
+                  <div className="edit-comment-container">
+                    <input
+                      value={editingText}
+                      onChange={(e) => setEditingText(e.target.value)}
+                    />
+                    <button
+                      onClick={() => {
+                        onEditComment(post.id, c.id, editingText);
+                        setEditingCommentId(null);
+                      }}
+                    >
+                      Save
+                    </button>
+                  </div>
+                ) : (
+                  <>
+                    <p>{c.text}</p>
+                    <span className="comment-time">
+                      {c.name} · {new Date(c.timestamp).toLocaleString()}
+                    </span>
+                  </>
+                )}
+
+                {c.name === currentUser && editingCommentId !== c.id && (
+                  <div className="comment-actions">
+                    <FaEdit
+                      className="comment-icon edit"
+                      onClick={() => {
+                        setEditingCommentId(c.id);
+                        setEditingText(c.text);
+                      }}
+                    />
+                    <FaTrash
+                      className="comment-icon delete"
+                      onClick={() => onDeleteComment(post.id, c.id)}
+                    />
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+
+          <div className="comment-input-section">
+            <input
+              type="text"
+              placeholder="Write a comment..."
+              value={comment}
+              onChange={(e) => setComment(e.target.value)}
+              onKeyDown={handleCommentKey}
+            />
+
+            <button
+              className="comment-send-btn"
+              onClick={() => {
+                onAddComment(post.id, comment);
+                setComment("");
+              }}
+            >
+              <FaPaperPlane />
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+export default BarangayCommunityFeed;

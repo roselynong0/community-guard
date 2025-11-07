@@ -1,0 +1,41 @@
+@import "./Home.css";
+
+
+.trend-section {
+  background: #fff;
+  border-radius: 12px;
+  padding: 1.25rem;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+  border: 1px solid #f1f5f9;
+}
+
+.trend-section .chart-container {
+  min-height: 260px;
+}
+
+.recent-reports {
+  min-height: 320px;
+}
+
+.report-barangay {
+  margin-left: 1rem;
+  padding: 0.25rem 0.6rem;
+  background: #e4e7ff;
+  color: #2d2d73;
+  border-radius: 12px;
+  font-size: 0.8rem;
+  font-weight: 500;
+}
+
+.section-card {
+  background: #fff;
+  border-radius: 12px;
+  padding: 1.25rem;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+  border: 1px solid #f1f5f9;
+}
+
+.animate-up {
+  animation: slideUp 0.6s ease-out forwards;
+  opacity: 0;
+}
