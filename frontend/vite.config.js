@@ -10,26 +10,10 @@ export default defineConfig({
     VitePWA({
       registerType: 'autoUpdate',
       includeAssets: ['vite.svg'],
-      manifest: {
-        name: 'Community Guard',
-        short_name: 'CommunityGuard',
-        start_url: '/',
-        display: 'standalone',
-        background_color: '#ffffff',
-        theme_color: '#42b883',
-        icons: [
-          {
-            src: '/vite.svg',
-            sizes: '192x192',
-            type: 'image/svg+xml',
-          },
-          {
-            src: '/vite.svg',
-            sizes: '512x512',
-            type: 'image/svg+xml',
-          },
-        ],
-      },
+      manifest: false, // Disable manifest for now to avoid 401 errors
+      workbox: {
+        globPatterns: ['**/*.{js,css,html,ico,png,svg,jpg,jpeg}']
+      }
     }),
 
     // ✅ Compress JS/CSS/HTML in production builds

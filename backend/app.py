@@ -27,8 +27,13 @@ def create_app():
     # Load configuration
     app.config.from_object(Config)
     
-    # Initialize extensions
-    CORS(app, supports_credentials=True)
+    # Initialize CORS with proper configuration for Vercel
+    CORS(app, 
+         resources={r"/*": {"origins": "*"}},
+         supports_credentials=True,
+         allow_headers=["Content-Type", "Authorization"],
+         methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"])
+    
     cache = Cache(app, config={
         'CACHE_TYPE': Config.CACHE_TYPE,
         'CACHE_DEFAULT_TIMEOUT': Config.CACHE_DEFAULT_TIMEOUT

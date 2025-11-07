@@ -8,29 +8,31 @@ const getBaseUrl = () => {
     const hostname = window.location.hostname;
     const origin = window.location.origin;
     
+    console.log('🔍 Checking hostname:', hostname);
+    
     // Production: If on Vercel or any production domain, use the same origin
-    // DO NOT use environment variables in production
-    if (hostname.includes('vercel.app') || hostname.includes('community-guard.vercel.app')) {
+    // PRIORITY 1: Production domains ALWAYS use same origin
+    if (hostname.includes('vercel.app')) {
       console.log('✅ Detected Vercel deployment, using:', origin);
       return origin;
     }
     
     // Development: If on localhost, use local backend
+    // PRIORITY 2: Localhost can check environment variable
     if (hostname === 'localhost' || hostname === '127.0.0.1') {
-      // Only on localhost do we check for environment variable
-      const localApi = import.meta.env.VITE_API_URL;
+      const localApi = typeof import.meta !== 'undefined' && import.meta.env ? import.meta.env.VITE_API_URL : null;
       const apiUrl = localApi || 'http://localhost:5000';
       console.log('✅ Detected localhost, using:', apiUrl);
       return apiUrl;
     }
     
-    // Any other domain: use same origin (production fallback)
+    // PRIORITY 3: Any other domain uses same origin (production fallback)
     console.log('✅ Using same origin for domain:', origin);
     return origin;
   }
   
   // Server-side rendering fallback (should not happen in browser)
-  console.warn('⚠️ Window not available, using empty string');
+  console.warn('⚠️ Window not available');
   return '';
 };
 
