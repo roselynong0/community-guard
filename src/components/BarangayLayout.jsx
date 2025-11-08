@@ -156,19 +156,19 @@ function BarangayLayout({ session, setSession, setNotification }) {
             }}
           >
             <NavLink to="/barangay/dashboard">
-              <FaHome /> Dashboard
-            </NavLink>
-            <NavLink to="/barangay/maps">
-              <FaMap /> Map
+              <FaHome /> Barangay Dashboard
             </NavLink>
             <NavLink to="/barangay/reports">
               <FaFileAlt /> Reports
             </NavLink>
+            <NavLink to="/barangay/community-feed">
+              <FaUserFriends /> Community Feed
+            </NavLink>
+            <NavLink to="/barangay/maps">
+              <FaMap /> Map
+            </NavLink>
             <NavLink to="/barangay/notifications">
               <FaBell /> Notifications
-            </NavLink>
-            <NavLink to="/barangay/community-feed">
-                <FaUserFriends /> Community Feed
             </NavLink>
           </nav>
 
@@ -297,17 +297,20 @@ function BarangayLayout({ session, setSession, setNotification }) {
 
       {/* Bottom nav (mobile) */}
       <nav className="bottom-nav">
-        <NavLink to="/admin/dashboard">
+        <NavLink to="/barangay/dashboard">
           <FaHome />
         </NavLink>
-        <NavLink to="/admin/maps">
-          <FaMap />
-        </NavLink>
-        <NavLink to="/admin/reports">
+        <NavLink to="/barangay/reports">
           <FaFileAlt />
         </NavLink>
-        <NavLink to="/admin/users">
-          <FaUsers />
+        <NavLink to="/barangay/community-feed">
+          <FaUserFriends />
+        </NavLink>
+        <NavLink to="/barangay/maps">
+          <FaMap />
+        </NavLink>
+        <NavLink to="/barangay/notifications">
+          <FaBell />
         </NavLink>
       </nav>
 

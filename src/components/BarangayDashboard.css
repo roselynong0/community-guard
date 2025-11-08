@@ -1,5 +1,27 @@
 @import "./Home.css";
+.barangay-filter {
+  width: 250px;
+  padding: 0.5rem;
+}
 
+.barangay-filter label {
+  margin: 0 10px;
+}
+
+.two-column-section {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 20px;
+}
+
+.trend-column,
+.pie-column {
+  flex: 1 1 300px; 
+  background: #fff;
+  padding: 15px;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+}
 
 .trend-section {
   background: #fff;
@@ -38,4 +60,11 @@
 .animate-up {
   animation: slideUp 0.6s ease-out forwards;
   opacity: 0;
+}
+
+@media (max-width: 780px) {
+  .barangay-filter {
+    width: auto;
+    justify-content: center;
+  }
 }
