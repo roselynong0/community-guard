@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from "react";
 import "./CommunityFeed.css";
 import "./Notifications.css";
-import PostModal from "./PostModal";
 import { FaPaperPlane, FaUsers, FaEdit, FaTrash } from "react-icons/fa";
 
 const BarangayCommunityFeed = () => {
