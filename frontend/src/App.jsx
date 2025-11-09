@@ -29,6 +29,12 @@ import CommunityFeed from "./components/CommunityFeed";
 import BarangayDashboard from "./components/BarangayDashboard";
 import BarangayReports from "./components/BarangayReports";
 import BarangayCommunityFeed from "./components/BarangayCommunityFeed"; 
+import BarangayNotifications from "./components/BarangayNotifications";
+
+import RespondersLayout from "./components/RespondersLayout";
+import RespondersDashboard from "./components/RespondersDashboard";
+import RespondersReports from "./components/RespondersReports"; 
+import RespondersNotifications from "./components/RespondersNotifications";
 
 
 // ---------------- LOGIN WRAPPER ----------------
