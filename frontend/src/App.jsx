@@ -175,7 +175,7 @@ function App() {
             path="/maps"
             element={
               session?.user?.role === "Resident" ? (
-                <Maps token={session?.token} />
+                <Maps session={session} userRole="Resident" />
               ) : session?.user?.role === "Admin" ? (
                 <Navigate to="/admin/maps" replace />
               ) : session?.user?.role === "Barangay Official" ? (
@@ -282,7 +282,7 @@ function App() {
           }
         >
           <Route path="/barangay/dashboard" element={<BarangayDashboard token={session?.token} />} />
-          <Route path="/barangay/maps" element={<Maps token={session?.token} />} />
+          <Route path="/barangay/maps" element={<Maps session={session} userRole="Barangay Official" />} />
           <Route path="/barangay/reports" element={<BarangayReports token={session?.token} />} />
           <Route path="/barangay/notifications" element={<Notifications token={session?.token} />} />
           <Route path="/barangay/community-feed" element={<BarangayCommunityFeed token={session?.token} session={session} />} />
@@ -302,7 +302,7 @@ function App() {
           }
         >
           <Route path="/responder/home" element={<ResponderHome token={session?.token} session={session} />} />
-          <Route path="/responder/maps" element={<Maps token={session?.token} />} />
+          <Route path="/responder/maps" element={<Maps session={session} userRole="Responder" />} />
           <Route path="/responder/reports" element={<AdminReports token={session?.token} />} />
           <Route path="/responder/notifications" element={<Notifications token={session?.token} />} />
           <Route path="/responder/community-feed" element={<CommunityFeedResponder token={session?.token} session={session} />} />

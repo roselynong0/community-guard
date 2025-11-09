@@ -4,9 +4,8 @@ FROM python:3.11-slim
 # Set working directory
 WORKDIR /app
 
-# Copy backend files
+# Copy backend folder (including requirements.txt)
 COPY backend/ ./backend
-COPY requirements.txt ./backend/
 
 # Install dependencies
 RUN pip install --upgrade pip

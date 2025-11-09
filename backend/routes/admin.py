@@ -6,7 +6,15 @@ from flask import Blueprint, request, jsonify
 from datetime import datetime, timezone
 import time
 from middleware.auth import token_required
-from utils import supabase, supabase_retry, create_report_notification, create_admin_notification, create_notification
+from utils import (
+    supabase,
+    supabase_retry,
+    create_report_notification,
+    create_admin_notification,
+    create_account_deletion_notification,
+    create_barangay_notification,
+    create_notification,
+)
 
 admin_bp = Blueprint("admin", __name__)
 
@@ -378,6 +386,34 @@ def admin_update_report_status(report_id):
         else:
             print(f"⚠️ No notification sent - Status unchanged or no user_id")
 
+        # Create a barangay official notification if status changed
+        try:
+            if new_status != old_status:
+                # Fetch the full report to get barangay info
+                full_report_resp = supabase.table("reports").select("address_barangay").eq("id", report_id).execute()
+                full_report = getattr(full_report_resp, "data", [None])[0]
+                
+                if full_report:
+                    barangay_name = full_report.get("address_barangay")
+                    
+                    # Find barangay officials for this barangay
+                    barangay_officials_resp = supabase.table("users").select("id").eq("role", "Barangay Official").eq("barangay", barangay_name).execute()
+                    barangay_officials = getattr(barangay_officials_resp, "data", []) or []
+                    
+                    # Send notification to all barangay officials in that barangay
+                    for official in barangay_officials:
+                        official_id = official.get("id")
+                        if official_id:
+                            create_barangay_notification(
+                                barangay_official_id=official_id,
+                                report_id=report_id,
+                                report_title=report_title,
+                                event_type="status_changed",
+                                barangay_name=barangay_name
+                            )
+        except Exception as e:
+            print(f"⚠️ Failed to create barangay notification for status change: {e}")
+
         print(f"✅ Report status successfully updated to {new_status}")
         return jsonify({
             "status": "success", 
@@ -468,6 +504,33 @@ def delete_report(report_id):
             create_admin_notification(actor_id=request.user_id, user_id=report_owner_id, report_id=None, title=admin_title, type_label="Report Deleted", message=admin_message)
         except Exception as e:
             print(f"⚠️ Failed to create admin notification for report deletion: {e}")
+
+        # Create barangay official notification if report was deleted
+        try:
+            # Fetch the full report to get barangay info before deletion
+            full_report_resp = supabase.table("reports").select("address_barangay").eq("id", report_id).execute()
+            full_report = getattr(full_report_resp, "data", [None])[0]
+            
+            if full_report:
+                barangay_name = full_report.get("address_barangay")
+                
+                # Find barangay officials for this barangay
+                barangay_officials_resp = supabase.table("users").select("id").eq("role", "Barangay Official").eq("barangay", barangay_name).execute()
+                barangay_officials = getattr(barangay_officials_resp, "data", []) or []
+                
+                # Send notification to all barangay officials in that barangay
+                for official in barangay_officials:
+                    official_id = official.get("id")
+                    if official_id:
+                        create_barangay_notification(
+                            barangay_official_id=official_id,
+                            report_id=report_id,
+                            report_title=report_title,
+                            event_type="deleted",
+                            barangay_name=barangay_name
+                        )
+        except Exception as e:
+            print(f"⚠️ Failed to create barangay notification for report deletion: {e}")
 
         # Remove admin_notifications that reference notifications for this report
         if notif_ids:

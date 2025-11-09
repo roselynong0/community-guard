@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import {
   FaHome,
-  FaChartBar,
+  FaExclamationTriangle,
   FaMap,
   FaBell,
   FaUser,
@@ -111,7 +111,7 @@ export default function ResponderLayout({ session, setSession, setNotification }
             }}
           >
             <NavLink to="/responder/home"><FaHome /> Home</NavLink>
-            <NavLink to="/responder/reports"><FaChartBar /> Reports</NavLink>
+            <NavLink to="/responder/reports"><FaExclamationTriangle /> Reports</NavLink>
             <NavLink to="/responder/maps"><FaMap /> Map</NavLink>
             <NavLink to="/responder/notifications"><FaBell /> Notifications</NavLink>
             <NavLink to="/responder/profile"><FaUser /> Profile</NavLink>
@@ -249,7 +249,7 @@ export default function ResponderLayout({ session, setSession, setNotification }
           <FaMap />
         </NavLink>
         <NavLink to="/responder/reports">
-          <FaChartBar />
+          <FaExclamationTriangle />
         </NavLink>
         <NavLink to="/responder/notifications">
           <FaBell />

@@ -92,7 +92,7 @@ function ResetPassword() {
               value={confirmPassword}
               onChange={(e) => setConfirmPassword(e.target.value)}
             />
-            <button type="submit">Reset Password</button>
+            <button type="submit" className="form-submit-btn">Reset Password</button>
           </form>
 
           <span className="back-link" onClick={() => navigate("/login")}>

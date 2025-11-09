@@ -45,6 +45,20 @@ function Profile({ token }) {
 
     const displayField = (field, placeholder) => field || placeholder;
 
+    const getRoleBadgeClass = (role) => {
+        switch (role) {
+            case "Admin":
+                return "admin";
+            case "Barangay Official":
+                return "barangay-official";
+            case "Responder":
+                return "responder";
+            case "Resident":
+            default:
+                return "resident";
+        }
+    };
+
     // MODIFIED: Adjusting notification type logic to match CSS
     const addNotification = (message, type = "error") => {
         const id = Date.now();
@@ -70,7 +84,7 @@ function Profile({ token }) {
                         ...profile,
                         address_barangay: profile.address_barangay || "Barretto",
                         address_city: profile.address_city || "Olongapo",
-                        role: "Resident",
+                        role: profile.role || "Resident",
                         contact: profile.phone || "",
                     });
                     setEditProfileData({
@@ -82,6 +96,7 @@ function Profile({ token }) {
                         address_barangay: profile.address_barangay || "Barretto",
                         email: profile.email || "",
                         birthdate: profile.birthdate || "",
+                        role: profile.role || "Resident",
                     });
                 }
             } catch (err) {
@@ -301,7 +316,7 @@ function Profile({ token }) {
                             {displayField(user.address_barangay, "No barangay selected")}, Olongapo City
                         </p>
                         <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", alignItems: "center", justifyContent: "center" }}>
-                            <span className="admin-role-badge resident">{user.role}</span>
+                            <span className={`admin-role-badge ${getRoleBadgeClass(user.role)}`}>{user.role}</span>
                             <span
                                 className={`admin-verification-status ${
                                     user.verified ? "fully-verified" : "unverified"
@@ -379,10 +394,46 @@ function Profile({ token }) {
 
                     {/* Profile Card */}
                     <div className="profile-card fade-in-up" style={{ animationDelay: '0.3s' }}>
-                        <h3>Activity</h3>
-                        <p>📌 Reports Submitted: <strong>{reportsSubmitted}</strong></p>
-                        <p>✅ Reports Resolved: <strong>{reportsResolved}</strong></p>
+                        <div className="card-header">
+                            <h3>
+                                Role & Status
+                            </h3>
+                        </div>
+                        <p>
+                            <strong>Role:</strong>{" "}
+                            <span className={`admin-role-badge ${getRoleBadgeClass(user.role)}`}>
+                                {user.role}
+                            </span>
+                        </p>
+                        {user.role === "Barangay Official" && user.address_barangay && (
+                            <p>
+                                <strong>Assigned Barangay:</strong> {user.address_barangay}
+                            </p>
+                        )}
+                        <p>
+                            <strong>Verification Status:</strong>{" "}
+                            <span
+                                className={`admin-verification-status ${
+                                    user.verified ? "fully-verified" : "unverified"
+                                }`}
+                            >
+                                {user.verified ? (
+                                    <><FaCheckCircle />Verified</>
+                                ) : (
+                                    <><FaTimesCircle />Unverified</>
+                                )}
+                            </span>
+                        </p>
                     </div>
+
+                    {/* Activity Card - Only show for Residents */}
+                    {user.role === "Resident" && (
+                        <div className="profile-card fade-in-up" style={{ animationDelay: '0.4s' }}>
+                            <h3>Activity</h3>
+                            <p>📌 Reports Submitted: <strong>{reportsSubmitted}</strong></p>
+                            <p>✅ Reports Resolved: <strong>{reportsResolved}</strong></p>
+                        </div>
+                    )}
                 </div>
             </div>
 

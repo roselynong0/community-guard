@@ -81,7 +81,7 @@ function ForgotPassword() {
               value={email}
               onChange={handleChange}
             />
-            <button type="submit">Send Reset Code</button>
+            <button type="submit" className="form-submit-btn">Send Reset Code</button>
           </form>
 
           <span className="back-link" onClick={() => navigate("/login")}>

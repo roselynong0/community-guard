@@ -301,3 +301,78 @@ def create_account_deletion_notification(deleted_user_id, deleted_user_name, del
     except Exception as e:
         print(f"❌ Unexpected error in create_account_deletion_notification: {e}")
         return None
+
+
+def create_barangay_notification(barangay_official_id, report_id, report_title, event_type, barangay_name, report_category=None, actor_name=None):
+    """
+    Create a notification for a barangay official about report activity in their barangay.
+    
+    Args:
+        barangay_official_id: ID of the barangay official to notify
+        report_id: ID of the report that triggered the notification
+        report_title: Title of the report
+        event_type: Type of event - "created", "updated", "deleted", "status_changed"
+        barangay_name: Name of the barangay
+        report_category: Category of the report (optional)
+        actor_name: Name of the user/admin who triggered the event (optional)
+    """
+    if not barangay_official_id:
+        print("⚠️ create_barangay_notification called without barangay_official_id")
+        return None
+
+    event_type = str(event_type).lower()
+    
+    # Build notification message based on event type
+    if event_type == "created":
+        title = "New Report in Your Barangay"
+        message = f'New report "{report_title}" was submitted in {barangay_name}.'
+        if report_category:
+            message += f' Category: {report_category}.'
+        type_label = "Report Alert"
+    
+    elif event_type == "status_changed":
+        title = "Report Status Update"
+        message = f'Report "{report_title}" in {barangay_name} has been updated.'
+        type_label = "Status Update"
+    
+    elif event_type == "updated":
+        title = "Report Updated"
+        message = f'Report "{report_title}" in {barangay_name} has been updated.'
+        type_label = "Report Update"
+    
+    elif event_type == "deleted":
+        title = "Report Deleted"
+        message = f'Report "{report_title}" in {barangay_name} has been deleted and removed from the system.'
+        type_label = "Report Alert"
+    
+    else:
+        title = "Report Activity in Your Barangay"
+        message = f'Activity detected on report "{report_title}" in {barangay_name}.'
+        type_label = "Notification"
+
+    try:
+        print(f"📧 Creating barangay notification ({type_label}): {message}")
+        
+        res = supabase.table("notifications").insert({
+            "user_id": barangay_official_id,
+            "report_id": report_id,
+            "type": type_label,
+            "title": title,
+            "message": message,
+            "is_read": False,
+            "created_at": datetime.now(timezone.utc).isoformat()
+        }).execute()
+
+        inserted = getattr(res, "data", []) or []
+        inserted_row = inserted[0] if inserted else None
+        
+        if inserted_row:
+            print(f"✅ Barangay notification created successfully: id={inserted_row.get('id')}")
+            return inserted_row
+        else:
+            print("❌ Barangay notification insert returned no row")
+            return None
+    
+    except Exception as e:
+        print(f"❌ Failed to create barangay notification: {e}")
+        return None

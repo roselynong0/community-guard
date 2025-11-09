@@ -47,16 +47,29 @@ const createColoredIcon = (color) =>
 
 const getColor = (barangay) => barangayColors[barangay?.trim()] || "gray";
 
-function Maps() {
+function Maps({ session, userRole }) {
   const [reports, setReports] = useState([]);
+  const [userBarangay, setUserBarangay] = useState(null);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const fetchMapReports = async () => {
       try {
-        const token = localStorage.getItem("access_token");
-        const response = await fetch(`${API_URL}/map_reports`, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
+        setLoading(true);
+        const token = session?.token || localStorage.getItem("access_token");
+        
+        // Check if user is a barangay official
+        const isBarangayOfficial = userRole === "Barangay Official";
+        
+        let endpoint = `${API_URL}/map_reports`;
+        let headers = { Authorization: `Bearer ${token}` };
+        
+        // If barangay official, use the filtered endpoint
+        if (isBarangayOfficial && token) {
+          endpoint = `${API_URL}/map_reports/barangay`;
+        }
+        
+        const response = await fetch(endpoint, { headers });
         const data = await response.json();
 
         if (data.status === "success") {
@@ -66,16 +79,25 @@ function Maps() {
             longitude: parseFloat(r.longitude),
           }));
           setReports(formatted);
+          
+          // Set user's barangay if they're a barangay official
+          if (isBarangayOfficial && data.barangay) {
+            setUserBarangay(data.barangay);
+          }
+          
+          console.log(`✅ Loaded ${formatted.length} map reports${isBarangayOfficial ? ` for barangay: ${data.barangay}` : ''}`);
         } else {
           console.error("Map reports error:", data.message);
         }
       } catch (err) {
         console.error("Failed to load map reports:", err);
+      } finally {
+        setLoading(false);
       }
     };
 
     fetchMapReports();
-  }, []);
+  }, [session, userRole]);
 
   // Group reports by barangay
   const reportsByBarangay = reports.reduce((acc, r) => {
@@ -84,10 +106,22 @@ function Maps() {
     return acc;
   }, {});
 
+  const mapTitle = userBarangay 
+    ? `${userBarangay} Reports Map`
+    : "Olongapo City Reports Map";
+
+  const mapSubtitle = userBarangay
+    ? `Viewing reports in ${userBarangay} barangay`
+    : "Click on a colored marker to view report details.";
+
   return (
     <div className="maps-page">
-      <h2>Olongapo City Reports Map</h2>
-      <p>Click on a colored marker to view report details.</p>
+      <h2>{mapTitle}</h2>
+      {loading ? (
+        <p>Loading map reports...</p>
+      ) : (
+        <p>{mapSubtitle}</p>
+      )}
 
       <MapContainer
         center={OLONGAPO_CENTER}

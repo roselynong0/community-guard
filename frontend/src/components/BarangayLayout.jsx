@@ -8,7 +8,7 @@ import {
   FaUserFriends,
   FaUsers,
   FaBell,
-  FaFileAlt,
+  FaChartLine,
 } from "react-icons/fa";
 import { Outlet, NavLink, useNavigate } from "react-router-dom";
 import { API_CONFIG } from "../utils/apiConfig";
@@ -145,17 +145,11 @@ function BarangayLayout({ session, setSession, setNotification }) {
             <NavLink to="/barangay/dashboard">
               <FaHome /> Dashboard
             </NavLink>
+            <NavLink to="/barangay/reports">
+              <FaChartLine /> Reports
+            </NavLink>
             <NavLink to="/barangay/maps">
               <FaMap /> Maps
-            </NavLink>
-            <NavLink to="/barangay/reports">
-              <FaFileAlt /> Reports
-            </NavLink>
-            <NavLink to="/barangay/community-feed">
-              <FaUserFriends /> Community Feed
-            </NavLink>
-            <NavLink to="/barangay/maps">
-              <FaMap /> Map
             </NavLink>
             <NavLink to="/barangay/notifications">
               <FaBell /> Notifications
@@ -296,11 +290,11 @@ function BarangayLayout({ session, setSession, setNotification }) {
         <NavLink to="/barangay/dashboard">
           <FaHome />
         </NavLink>
+         <NavLink to="/barangay/reports">
+          <FaChartLine />
+        </NavLink>
         <NavLink to="/barangay/maps">
           <FaMap />
-        </NavLink>
-        <NavLink to="/barangay/reports">
-          <FaFileAlt />
         </NavLink>
         <NavLink to="/barangay/notifications">
           <FaBell />

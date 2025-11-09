@@ -7,7 +7,7 @@ from datetime import datetime, timezone
 import time
 import base64
 from middleware.auth import token_required
-from utils import supabase, supabase_retry, create_report_notification, create_admin_notification
+from utils import supabase, supabase_retry, create_report_notification, create_admin_notification, create_barangay_notification
 from PIL import Image
 import io
 
@@ -139,6 +139,56 @@ def fetch_reports(limit=10, sort="desc", user_only=False, barangay_filter=False,
     except Exception as e:
         print("fetch_reports error:", e)
         return []
+
+
+@reports_bp.route("/barangay/reports", methods=["GET"])
+@token_required
+def get_barangay_reports():
+    """Get reports specific to Barangay Official's barangay only"""
+    try:
+        user_id = request.user_id
+        limit = int(request.args.get("limit", 10))
+        sort = request.args.get("sort", "desc").lower()
+        
+        # Verify user is a Barangay Official
+        user_resp = supabase.table("users").select("role").eq("id", user_id).execute()
+        user_data = getattr(user_resp, "data", [])
+        
+        if not user_data or user_data[0].get("role") != "Barangay Official":
+            print(f"❌ User {user_id} is not a Barangay Official")
+            return jsonify({"status": "error", "message": "Only Barangay Officials can access this endpoint"}), 403
+        
+        # Get barangay from info table
+        info_resp = supabase.table("info").select("address_barangay").eq("user_id", user_id).execute()
+        info_data = getattr(info_resp, "data", [])
+        
+        if not info_data or not info_data[0].get("address_barangay"):
+            print(f"❌ Could not determine barangay for Barangay Official {user_id}")
+            return jsonify({"status": "error", "message": "Barangay information not found"}), 400
+        
+        user_barangay = info_data[0].get("address_barangay")
+        
+        print(f"📊 Fetching reports for Barangay Official in {user_barangay}")
+        
+        # Fetch reports for this barangay using the fetch_reports function
+        reports_list = fetch_reports(
+            limit=limit,
+            sort=sort,
+            barangay_filter=True,
+            barangay_param=user_barangay,
+            user_id=user_id
+        )
+        
+        print(f"✅ Sent {len(reports_list)} reports for barangay {user_barangay}")
+        return jsonify({
+            "status": "success",
+            "reports": reports_list,
+            "barangay": user_barangay,
+            "total": len(reports_list)
+        }), 200
+    except Exception as e:
+        print(f"❌ Barangay reports fetch failed: {str(e)}")
+        return jsonify({"status": "error", "message": str(e), "reports": []}), 500
 
 
 @reports_bp.route("/reports", methods=["GET"])
@@ -335,6 +385,31 @@ def add_report():
         except Exception as e:
             print(f"⚠️ Failed to create admin notification for new report: {e}")
 
+        # Create a barangay official notification for the barangay where report was submitted
+        try:
+            barangay_name = report.get('address_barangay') or 'Unknown'
+            report_category = report.get('category') or 'General'
+            
+            # Find barangay officials for this barangay
+            barangay_officials_resp = supabase.table("users").select("id").eq("role", "Barangay Official").eq("barangay", barangay_name).execute()
+            barangay_officials = getattr(barangay_officials_resp, "data", []) or []
+            
+            # Send notification to all barangay officials in that barangay
+            for official in barangay_officials:
+                official_id = official.get("id")
+                if official_id:
+                    create_barangay_notification(
+                        barangay_official_id=official_id,
+                        report_id=report_id,
+                        report_title=report.get('title'),
+                        event_type="created",
+                        barangay_name=barangay_name,
+                        report_category=report_category,
+                        actor_name=reporter_name
+                    )
+        except Exception as e:
+            print(f"⚠️ Failed to create barangay notification for new report: {e}")
+
         return jsonify({"status": "success", "report": report}), 201
     except Exception as e:
         print("add_report error:", e)
@@ -404,20 +479,7 @@ def update_report(report_id):
         # Only create notification if status changed
         new_status = data.get("status")
         if new_status and new_status != old_status:
-            # Fetch actor's user information to get human-readable name
-            try:
-                actor_resp = supabase.table("users").select("firstname, lastname").eq("id", request.user_id).execute()
-                actor_data = getattr(actor_resp, "data", [None])[0]
-                actor_name = None
-                if actor_data:
-                    firstname = actor_data.get("firstname", "").strip()
-                    lastname = actor_data.get("lastname", "").strip()
-                    actor_name = f"{firstname} {lastname}".strip() if firstname or lastname else None
-            except Exception as e:
-                print(f"⚠️ Error fetching actor info for notification: {e}")
-                actor_name = None
-            
-            create_report_notification(request.user_id, report_id, report_title, new_status, actor_id=request.user_id, actor_name=actor_name)
+            create_report_notification(request.user_id, report_id, report_title, new_status)
 
         # Handle image replacement - store as base64 in database
         if "images" in request.files:
@@ -535,7 +597,80 @@ def soft_delete_report(report_id):
         return jsonify({"status": "error", "message": str(e)}), 500
 
 
+
+
 # Map Reports Endpoints
+@reports_bp.route("/map_reports/barangay", methods=["GET"])
+@token_required
+def get_barangay_map_reports():
+    """
+    Barangay Official endpoint: Returns map reports only for their barangay
+    Filters by the official's address_barangay from their profile
+    """
+    user_id = request.user_id
+    
+    try:
+        # Verify user is a barangay official
+        user_resp = supabase.table("users").select("role").eq("id", user_id).execute()
+        user = getattr(user_resp, "data", [None])[0]
+        
+        if not user or user.get("role") != "Barangay Official":
+            return jsonify({"status": "error", "message": "Barangay Official access required"}), 403
+        
+        # Get barangay from info table
+        info_resp = supabase.table("info").select("address_barangay").eq("user_id", user_id).execute()
+        info = getattr(info_resp, "data", [None])[0]
+        user_barangay = info.get("address_barangay") if info else None
+        
+        if not user_barangay:
+            return jsonify({"status": "error", "message": "Barangay information not found in profile"}), 400
+        
+        print(f"📍 Fetching map reports for barangay official {user_id} in barangay: {user_barangay}")
+        
+        # Fetch only reports from their barangay with valid coordinates
+        response = supabase.table("reports").select(
+            "id, title, address_barangay, address_street, latitude, longitude, user_id, created_at, status"
+        ).eq("address_barangay", user_barangay).is_("deleted_at", None).execute()
+
+        reports_list = getattr(response, "data", []) or []
+        print(f"📊 Total reports in {user_barangay}: {len(reports_list)}")
+
+        # Filter only valid geotagged reports
+        reports_list = [r for r in reports_list if r.get("latitude") and r.get("longitude")]
+        print(f"📍 Reports with valid coordinates in {user_barangay}: {len(reports_list)}")
+
+        # Fetch reporter info for each report
+        for r in reports_list:
+            user_data = (
+                supabase.table("users")
+                .select("firstname, lastname, email")
+                .eq("id", r["user_id"])
+                .execute()
+                .data
+            )
+            if user_data:
+                r["reporter"] = {
+                    "first_name": user_data[0]["firstname"],
+                    "last_name": user_data[0]["lastname"],
+                    "email": user_data[0]["email"]
+                }
+            else:
+                r["reporter"] = {"first_name": "Unknown", "last_name": "", "email": ""}
+        
+        print(f"✅ Barangay map reports prepared: {len(reports_list)} reports with reporter info")
+
+        return jsonify({
+            "status": "success", 
+            "reports": reports_list,
+            "barangay": user_barangay,
+            "total": len(reports_list)
+        }), 200
+
+    except Exception as e:
+        print(f"❌ Error fetching barangay map reports: {e}")
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+
 @reports_bp.route("/map_reports", methods=["GET"])
 def get_map_reports():
     """Optimized endpoint for map view - returns only reports with valid coordinates"""
@@ -579,6 +714,7 @@ def get_map_reports():
         return jsonify({"status": "error", "message": str(e)}), 500
 
 
+# Map Reports Endpoints
 @reports_bp.route("/map_reports/counts", methods=["GET"])
 def get_map_report_counts():
     """Returns the number of reports per barangay for the map view"""
@@ -737,12 +873,16 @@ def get_barangay_dashboard_stats():
     Barangay Official Dashboard Stats
     Simplified endpoint that mirrors Home.jsx logic
     Works with or without RPC functions
+    Supports time-based filtering: today, yesterday, this-month, this-year
     """
     try:
+        from datetime import datetime as dt, timedelta
+        
         user_id = request.user_id
         barangay_param = request.args.get("barangay")  # Optional barangay filter
+        time_filter = request.args.get("filter", "this-month").lower()  # New time filter parameter
         
-        print(f"🏘️ Barangay dashboard stats requested by user {user_id}, barangay filter: {barangay_param}")
+        print(f"🏘️ Barangay dashboard stats requested by user {user_id}, barangay filter: {barangay_param}, time filter: {time_filter}")
         
         # Get user's barangay from info table
         def get_user_info():
@@ -756,21 +896,44 @@ def get_barangay_dashboard_stats():
             user_barangay = None
             print(f"⚠️ Could not find user barangay")
         
-        # Determine which barangay to filter by
+        # Determine which barangay to filter by for stats (still use user's barangay for stats)
         filter_barangay = barangay_param if barangay_param and barangay_param != "All" else user_barangay
         
-        # Fetch reports with barangay filter
+        # Calculate date range based on filter
+        now = dt.now(timezone.utc)
+        date_filter = None
+        
+        if time_filter == "today":
+            date_filter = now.replace(hour=0, minute=0, second=0, microsecond=0)
+            print(f"🕐 Filtering for today: {date_filter}")
+        elif time_filter == "yesterday":
+            yesterday = now - timedelta(days=1)
+            date_filter = yesterday.replace(hour=0, minute=0, second=0, microsecond=0)
+            print(f"🕐 Filtering for yesterday: {date_filter}")
+        elif time_filter == "this-month":
+            date_filter = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+            print(f"🕐 Filtering for this month: {date_filter}")
+        elif time_filter == "this-year":
+            date_filter = now.replace(month=1, day=1, hour=0, minute=0, second=0, microsecond=0)
+            print(f"🕐 Filtering for this year: {date_filter}")
+        else:
+            date_filter = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)  # Default to this month
+        
+        # Fetch reports with barangay and date filters
         def fetch_reports_for_stats():
             query = supabase.table("reports").select("status, created_at, address_barangay").is_("deleted_at", None)
             if filter_barangay:
                 query = query.eq("address_barangay", filter_barangay)
                 print(f"📊 Filtering reports by barangay: {filter_barangay}")
+            if date_filter:
+                query = query.gte("created_at", date_filter.isoformat())
+                print(f"📊 Filtering reports from: {date_filter.isoformat()}")
             return query.execute()
         
         reports_resp = supabase_retry(fetch_reports_for_stats)
         reports_list = getattr(reports_resp, "data", []) or []
         
-        print(f"✅ Fetched {len(reports_list)} reports for barangay {filter_barangay or 'All'}")
+        print(f"✅ Fetched {len(reports_list)} reports for barangay {filter_barangay or 'All'} with filter {time_filter}")
         
         # Calculate stats
         stats = {
@@ -790,61 +953,78 @@ def get_barangay_dashboard_stats():
             elif status == "resolved":
                 stats["resolved"] += 1
         
-        # Calculate monthly trends (last 6 months)
+        # Calculate barangay counts from ALL reports (lifetime data)
+        # This shows trends across ALL barangays with NO date filtering for lifetime view
+        def fetch_all_barangay_reports():
+            query = supabase.table("reports").select("address_barangay").is_("deleted_at", None)
+            return query.execute()
+        
+        barangay_reports_resp = supabase_retry(fetch_all_barangay_reports)
+        barangay_reports_list = getattr(barangay_reports_resp, "data", []) or []
+        
         from collections import defaultdict
-        from datetime import datetime as dt
+        barangay_counts = defaultdict(int)
         
+        for report in barangay_reports_list:
+            barangay = report.get("address_barangay", "Unknown")
+            barangay_counts[barangay] += 1
+        
+        # Sort by count and get ALL barangays (not just top 5) - sorted by count
+        all_barangays_sorted = sorted(
+            [{"barangay": k, "total": v} for k, v in barangay_counts.items()],
+            key=lambda x: x["total"],
+            reverse=True
+        )
+        
+        print(f"✅ Stats (for user's barangay): {stats}, Total Barangays (all barangays): {len(all_barangays_sorted)}")
+        
+        # Calculate monthly trends ONLY for the barangay official's own barangay
+        def fetch_barangay_reports_for_trends():
+            query = supabase.table("reports").select("created_at").is_("deleted_at", None)
+            if user_barangay:
+                query = query.eq("address_barangay", user_barangay)
+            return query.execute()
+        
+        trends_resp = supabase_retry(fetch_barangay_reports_for_trends)
+        barangay_specific_reports = getattr(trends_resp, "data", []) or []
+        
+        # Group by month for the barangay official's barangay only
+        from collections import defaultdict
+        month_order = {"Jan": 1, "Feb": 2, "Mar": 3, "Apr": 4, "May": 5, "Jun": 6,
+                       "Jul": 7, "Aug": 8, "Sep": 9, "Oct": 10, "Nov": 11, "Dec": 12}
         monthly_counts = defaultdict(int)
-        month_order = {}
         
-        for report in reports_list:
+        for report in barangay_specific_reports:
             created_at = report.get("created_at")
             if created_at:
                 try:
-                    date = dt.fromisoformat(created_at.replace('Z', '+00:00'))
-                    month_name = date.strftime("%b")
-                    month_num = date.month
-                    monthly_counts[month_name] += 1
-                    if month_name not in month_order:
-                        month_order[month_name] = month_num
+                    report_date = dt.fromisoformat(created_at.replace('Z', '+00:00'))
+                    month = report_date.strftime("%b")
+                    monthly_counts[month] += 1
                 except:
                     pass
         
-        # Sort by month number
+        # Sort by month order
         trends = [
             {"month": month, "count": monthly_counts[month]}
             for month in sorted(monthly_counts.keys(), key=lambda m: month_order.get(m, 0))
         ]
         
-        # Calculate top barangays (only if viewing "All")
-        top_barangays = []
-        if not filter_barangay or barangay_param == "All":
-            from collections import Counter
-            barangay_counts = Counter([r.get("address_barangay") for r in reports_list if r.get("address_barangay")])
-            top_5 = barangay_counts.most_common(5)
-            top_barangays = [{"barangay": barangay, "total": count} for barangay, count in top_5]
-        
-        print(f"✅ Stats: {stats}, Trends: {len(trends)} months, Top Barangays: {len(top_barangays)}")
+        print(f"✅ Monthly trends for {user_barangay}: {len(trends)} months")
         
         return jsonify({
             "status": "success",
             "stats": stats,
+            "topBarangays": all_barangays_sorted,
             "trends": trends,
-            "topBarangays": top_barangays,
-            "userBarangay": user_barangay
+            "filter": time_filter
         }), 200
         
     except Exception as e:
         print(f"❌ get_barangay_dashboard_stats error: {e}")
         import traceback
         traceback.print_exc()
-        return jsonify({
-            "status": "error",
-            "message": str(e),
-            "stats": {"totalReports": 0, "pending": 0, "ongoing": 0, "resolved": 0},
-            "trends": [],
-            "topBarangays": []
-        }), 500
+        return jsonify({"status": "error", "message": str(e)}), 500
 
 
 @reports_bp.route("/dashboard/monthly-trends", methods=["GET"])

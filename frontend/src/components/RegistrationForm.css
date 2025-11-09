@@ -122,35 +122,6 @@ input[type="password"]::-webkit-credentials-auto-fill-button {
   box-sizing: border-box;
 }
 
-.password-toggle-btn {
-  position: absolute;
-  right: 0.75rem;
-  top: 50%;
-  transform: translateY(-50%);
-  background: none;
-  border: none;
-  cursor: pointer;
-  color: #999;
-  font-size: 1rem;
-  padding: 0;
-  width: 1.5rem;
-  height: 1.5rem;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 50%;
-  z-index: 2;
-  transition: all 0.2s ease;
-  margin-top: -0.25rem;
-}
-
-.password-toggle-btn:hover {
-  color: #2d2d73;
-  background: rgba(45, 45, 115, 0.05);
-  transform: translateY(-50%) scale(1.1);
-  margin-top: -0.25rem;
-}
-
 input[type="text"]:focus,
 input[type="email"]:focus,
 input[type="password"]:focus {
@@ -204,6 +175,61 @@ input[type="password"]::placeholder {
   text-decoration: underline;
 }
 
+/* Primary Form Submit Button */
+.form-submit-btn {
+  width: 100%;
+  padding: 0.75rem;
+  border: none;
+  border-radius: 30px;
+  background: #1d256a !important;
+  color: white;
+  font-weight: bold;
+  font-size: 1rem;
+  cursor: pointer;
+  transition: background 0.3s ease;
+}
+
+.form-submit-btn:hover:not(:disabled) {
+  background: #778EA0 !important;
+}
+
+.form-submit-btn:disabled {
+  background: #ccc !important;
+  cursor: not-allowed;
+  opacity: 0.7;
+}
+
+/* Password Toggle Button */
+.password-toggle-btn {
+  position: absolute;
+  right: 0.75rem;
+  top: 50%;
+  transform: translateY(-50%);
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: #999;
+  font-size: 1rem;
+  padding: 0;
+  width: 1.5rem;
+  height: 1.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  z-index: 2;
+  transition: all 0.2s ease;
+  margin-top: -0.25rem;
+}
+
+.password-toggle-btn:hover {
+  color: #2d2d73;
+  background: rgba(45, 45, 115, 0.05);
+  transform: translateY(-50%) scale(1.1);
+  margin-top: -0.25rem;
+}
+
+/* Terms Button */
 .terms-btn {
   background: none;
   border: none;
@@ -217,32 +243,6 @@ input[type="password"]::placeholder {
 
 .terms-btn:hover {
   text-decoration: none;
-}
-
-.form-card button:not(.password-toggle-btn):not(.tab-btn):not(.terms-btn),
-.wrapper button:not(.password-toggle-btn):not(.tab-btn):not(.terms-btn) {
-  width: 100%;
-  padding: 0.75rem;
-  border: none;
-  border-radius: 30px;
-  background: #1d256a !important;
-  color: white;
-  font-weight: bold;
-  font-size: 1rem;
-  cursor: pointer;
-  transition: background 0.3s ease;
-}
-
-.form-card button:not(.password-toggle-btn):not(.tab-btn):not(.terms-btn):hover:not(:disabled),
-.wrapper button:not(.password-toggle-btn):not(.tab-btn):not(.terms-btn):hover:not(:disabled) {
-  background: #778EA0 !important;
-}
-
-.form-card button:not(.password-toggle-btn):not(.tab-btn):not(.terms-btn):disabled,
-.wrapper button:not(.password-toggle-btn):not(.tab-btn):not(.terms-btn):disabled {
-  background: #ccc !important;
-  cursor: not-allowed;
-  opacity: 0.7;
 }
 
 /* Back link */
@@ -277,27 +277,7 @@ input[type="password"]::placeholder {
   justify-content:center;
 }
 
-.tab-btn {
-  padding: 6px 12px;
-  border-radius: 18px;
-  border: 1px solid rgba(0,0,0,0.08);
-  background: rgba(255,255,255,0.9);
-  color: #000; /* unselected text black */
-  cursor: pointer;
-  font-weight: 600;
-}
-
-.tab-btn:hover {
-  box-shadow: 0 2px 6px rgba(0,0,0,0.06);
-}
-
-.tab-btn.active {
-  background: linear-gradient(90deg,#11163e,#5a6aa8);
-  color: #fff; /* selected tab text white */
-  border-color: rgba(0,0,0,0.08);
-}
-
-/* full width strip inside the modal */
+/* Tab Strip Container */
 .tab-strip {
   display: flex;
   justify-content: center;
@@ -309,6 +289,7 @@ input[type="password"]::placeholder {
   gap: 8px;
 }
 
+/* Base Tab Button - Within Tab Strip */
 .tab-strip .tab-btn {
   flex: 1 1 0;
   margin: 0;
@@ -319,17 +300,33 @@ input[type="password"]::placeholder {
   letter-spacing: 0.3px;
   transition: all 0.25s ease;
   border: 1px solid rgba(0,0,0,0.08);
+  background: rgba(255,255,255,0.9);
+  color: #000;
+  cursor: pointer;
   box-shadow: 0 1px 3px rgba(0,0,0,0.04);
 }
 
-.tab-strip .tab-btn:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 3px 8px rgba(0,0,0,0.08);
+/* Tab Button Hover State - Unselected Tab */
+.tab-strip .tab-btn:hover:not(.active) {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+  background: rgba(255,255,255,0.95);
+  border-color: rgba(45, 45, 115, 0.15);
 }
 
+/* Tab Button Active State */
 .tab-strip .tab-btn.active {
-  transform: translateY(-1px);
+  background: linear-gradient(90deg, #11163e, #5a6aa8);
+  color: #fff;
+  border-color: rgba(45, 45, 115, 0.3);
   box-shadow: 0 4px 12px rgba(45,45,115,0.15);
+  transform: translateY(-1px);
+}
+
+/* Tab Button Active + Hover State */
+.tab-strip .tab-btn.active:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 16px rgba(45,45,115,0.25);
 }
 
 @keyframes bgSlide {

@@ -4,6 +4,7 @@ import {
   FaCheckCircle,
   FaSyncAlt,
   FaClock,
+  FaFilter,
 } from "react-icons/fa";
 
 import {
@@ -72,6 +73,8 @@ export default function BarangayDashboard({ token }) {
   const [trendData, setTrendData] = useState([]);
   const [topBarangays, setTopBarangays] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [trendFilter, setTrendFilter] = useState("this-month"); // Filter for "Barangays with Most Reports"
+  const [reportView, setReportView] = useState("barangay"); // Toggle between "barangay" and "monthly"
 
   // ✅ Single useEffect to fetch profile and dashboard data
   useEffect(() => {
@@ -173,6 +176,33 @@ export default function BarangayDashboard({ token }) {
     fetchAllData();
   }, [token]); // Only depend on token, not userProfile
 
+  // ✅ Separate effect to handle filter changes for top barangays
+  useEffect(() => {
+    if (!token || !userProfile) {
+      return;
+    }
+
+    const fetchFilteredBarangays = async () => {
+      try {
+        // Build query with time filter - NO barangay filter for top barangays
+        // This shows ALL barangays, not just the user's barangay
+        let query = `${API_CONFIG.BASE_URL}/api/dashboard/barangay/stats?filter=${trendFilter}`;
+        
+        console.log(`📊 Fetching all barangays with filter: ${trendFilter}`, query);
+        const response = await fetchWithToken(query, token);
+        
+        if (response.status === "success" && response.topBarangays) {
+          console.log(`✅ Top barangays loaded for ${trendFilter}:`, response.topBarangays.length);
+          setTopBarangays(response.topBarangays);
+        }
+      } catch (error) {
+        console.error(`❌ Failed to fetch filtered barangays for ${trendFilter}:`, error);
+      }
+    };
+
+    fetchFilteredBarangays();
+  }, [token, trendFilter, userProfile]);
+
   if (loading) {
     return (
       <div className="loading-overlay">
@@ -205,41 +235,61 @@ export default function BarangayDashboard({ token }) {
         ))}
       </div>
 
-      {/* --- TREND MONITORING --- */}
-      <div className="trend-section animate-up">
-        <h3>Monthly Report Summary</h3>
+      {/* --- COMBINED TRENDS SECTION (Barangay Trends & Monthly Reports) --- */}
+      <div className="section-card animate-up">
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1.5rem" }}>
+          <h3 style={{ margin: 0 }}>
+            {reportView === "barangay" ? "Barangays with Most Reports" : "Monthly Report Summary"}
+          </h3>
+          <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+            <FaFilter style={{ fontSize: "0.875rem", color: "#666" }} />
+            <select
+              value={reportView}
+              onChange={(e) => setReportView(e.target.value)}
+              style={{
+                padding: "0.5rem 0.75rem",
+                borderRadius: "6px",
+                border: "1px solid #e0e0e0",
+                fontSize: "0.875rem",
+                fontWeight: "500",
+                backgroundColor: "#fff",
+                color: "#333",
+                cursor: "pointer",
+                transition: "all 0.2s ease",
+              }}
+            >
+              <option value="barangay">Barangay Trends</option>
+              <option value="monthly">Monthly Reports</option>
+            </select>
+          </div>
+        </div>
+
         <div className="chart-container">
           <ResponsiveContainer width="100%" height={260}>
-            <LineChart data={trendData}>
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="month" />
-              <YAxis />
-              <Tooltip />
-              <Legend />
-              <Line type="monotone" dataKey="count" stroke="#2d2d73" strokeWidth={2} />
-            </LineChart>
+            {reportView === "barangay" ? (
+              /* Barangay Trends - Bar Chart */
+              <BarChart data={topBarangays.map(item => ({...item, Total: parseInt(item.total) || 0}))}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey="barangay" />
+                <YAxis allowDecimals={false} type="number" domain={[0, 'dataMax + 1']} />
+                <Tooltip formatter={(value) => parseInt(value)} />
+                <Legend />
+                <Bar dataKey="Total" fill="#2d2d73" />
+              </BarChart>
+            ) : (
+              /* Monthly Report Summary - Line Chart */
+              <LineChart data={trendData.map(item => ({...item, Count: parseInt(item.count) || 0}))}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey="month" />
+                <YAxis allowDecimals={false} type="number" domain={[0, 'dataMax + 1']} />
+                <Tooltip formatter={(value) => parseInt(value)} />
+                <Legend />
+                <Line type="monotone" dataKey="Count" stroke="#2d2d73" strokeWidth={2} />
+              </LineChart>
+            )}
           </ResponsiveContainer>
         </div>
       </div>
-
-      {/* --- BARANGAYS WITH MOST REPORTS (only show if viewing "All") --- */}
-      {userProfile?.address_barangay === "All" && topBarangays.length > 0 && (
-        <div className="section-card animate-up">
-          <h3>Barangays with Most Reports</h3>
-          <div className="chart-container">
-            <ResponsiveContainer width="100%" height={260}>
-              <BarChart data={topBarangays}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="barangay" />
-                <YAxis />
-                <Tooltip />
-                <Legend />
-                <Bar dataKey="total" fill="#2d2d73" />
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-        </div>
-      )}
 
       {/* --- MAP --- */}
       <div className="map-section animate-up">

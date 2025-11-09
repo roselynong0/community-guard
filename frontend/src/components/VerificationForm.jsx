@@ -151,7 +151,7 @@ function VerificationForm() {
               onChange={handleChange}
               maxLength={6}
             />
-            <button type="submit">Verify</button>
+            <button type="submit" className="form-submit-btn">Verify</button>
           </form>
 
           <p className="resend-text">

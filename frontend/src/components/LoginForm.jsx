@@ -233,7 +233,7 @@ function LoginForm({ setSession, setNotification }) {
                   {showPassword ? <FaEyeSlash /> : <FaEye />}
                 </button>
               </div>
-              <button type="submit" disabled={isLoggingIn}>
+              <button type="submit" className="form-submit-btn" disabled={isLoggingIn}>
                 {isLoggingIn ? (
                   loginMode === "Admin" ? "Verifying Admin Access..." : "Logging in..."
                 ) : (

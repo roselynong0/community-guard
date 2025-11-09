@@ -314,3 +314,150 @@ def admin_delete_notification(notif_id):
         print(f"Error deleting admin notification: {e}")
         return jsonify({"status": "error", "message": str(e)}), 500
 
+
+# Barangay Official Notifications
+@notifications_bp.route("/barangay/notifications", methods=["GET"])
+@token_required
+def barangay_get_notifications():
+    """
+    Barangay Official-only endpoint: Get notifications related to their barangay
+    Filters notifications for the current user about reports in their barangay
+    """
+    user_id = request.user_id
+    
+    try:
+        # Verify that the user is a Barangay Official
+        current_user_resp = supabase.table("users").select("role, barangay").eq("id", user_id).single().execute()
+        current_user = current_user_resp.data if current_user_resp.data else {}
+        
+        if current_user.get("role") != "Barangay Official":
+            return jsonify({"status": "error", "message": "Barangay Official access required"}), 403
+        
+        user_barangay = current_user.get("barangay")
+        
+        # Fetch all notifications for this user
+        resp = supabase.table("notifications").select("*").eq("user_id", user_id).order("created_at", desc=True).execute()
+        notifications = getattr(resp, "data", []) or []
+        
+        # If we have a barangay, filter to show only relevant notifications
+        # (notifications about reports in their barangay)
+        if user_barangay:
+            # Get report IDs from notifications
+            report_ids = [n.get("report_id") for n in notifications if n.get("report_id")]
+            
+            barangay_reports = []
+            if report_ids:
+                # Fetch reports to check their barangay
+                reports_resp = supabase.table("reports").select("id, address_barangay").in_("id", report_ids).execute()
+                reports = getattr(reports_resp, "data", []) or []
+                barangay_reports = [r.get("id") for r in reports if r.get("address_barangay") == user_barangay]
+            
+            # Filter notifications to only those related to their barangay reports
+            notifications = [n for n in notifications if n.get("report_id") in barangay_reports or not n.get("report_id")]
+        
+        # Normalize created_at timestamps
+        normalized = []
+        for n in notifications:
+            item = dict(n)
+            item["read"] = bool(item.get("is_read") or item.get("read"))
+            ca = item.get("created_at")
+            if hasattr(ca, "isoformat"):
+                item["created_at"] = ca.isoformat()
+            elif ca is not None:
+                item["created_at"] = str(ca)
+            normalized.append(item)
+        
+        return jsonify({
+            "status": "success",
+            "notifications": normalized,
+            "barangay": user_barangay
+        }), 200
+    
+    except Exception as e:
+        print(f"Error in barangay_get_notifications: {e}")
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+
+@notifications_bp.route("/barangay/notifications/<int:notif_id>/read", methods=["POST"])
+@token_required
+def barangay_mark_notification_read(notif_id):
+    """
+    Mark a barangay notification as read (barangay official only)
+    """
+    user_id = request.user_id
+    
+    try:
+        # Verify barangay official role
+        current_user_resp = supabase.table("users").select("role").eq("id", user_id).single().execute()
+        current_user = current_user_resp.data if current_user_resp.data else {}
+        
+        if current_user.get("role") != "Barangay Official":
+            return jsonify({"status": "error", "message": "Barangay Official access required"}), 403
+        
+        # Update notification (verify it belongs to this user)
+        resp = supabase.table("notifications").update({"is_read": True}).eq("id", notif_id).eq("user_id", user_id).execute()
+        updated = getattr(resp, "data", []) or []
+        updated_row = updated[0] if updated else None
+        
+        if updated_row:
+            return jsonify({"status": "success", "notification": updated_row}), 200
+        else:
+            return jsonify({"status": "error", "message": "Notification not found"}), 404
+    
+    except Exception as e:
+        print(f"Error marking barangay notification read: {e}")
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+
+@notifications_bp.route("/barangay/notifications/read_all", methods=["POST"])
+@token_required
+def barangay_mark_all_notifications_read():
+    """
+    Mark all barangay notifications as read (barangay official only)
+    """
+    user_id = request.user_id
+    
+    try:
+        # Verify barangay official role
+        current_user_resp = supabase.table("users").select("role").eq("id", user_id).single().execute()
+        current_user = current_user_resp.data if current_user_resp.data else {}
+        
+        if current_user.get("role") != "Barangay Official":
+            return jsonify({"status": "error", "message": "Barangay Official access required"}), 403
+        
+        # Mark all notifications for this user as read
+        resp = supabase.table("notifications").update({"is_read": True}).eq("user_id", user_id).eq("is_read", False).execute()
+        updated = getattr(resp, "data", []) or []
+        
+        return jsonify({"status": "success", "updated_count": len(updated)}), 200
+    
+    except Exception as e:
+        print(f"Error marking all barangay notifications read: {e}")
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+
+@notifications_bp.route("/barangay/notifications/<int:notif_id>", methods=["DELETE"])
+@token_required
+def barangay_delete_notification(notif_id):
+    """
+    Delete a barangay notification (barangay official only)
+    """
+    user_id = request.user_id
+    
+    try:
+        # Verify barangay official role
+        current_user_resp = supabase.table("users").select("role").eq("id", user_id).single().execute()
+        current_user = current_user_resp.data if current_user_resp.data else {}
+        
+        if current_user.get("role") != "Barangay Official":
+            return jsonify({"status": "error", "message": "Barangay Official access required"}), 403
+        
+        # Delete the notification (verify it belongs to this user)
+        resp = supabase.table("notifications").delete().eq("id", notif_id).eq("user_id", user_id).execute()
+        deleted = getattr(resp, "data", []) or []
+        
+        return jsonify({"status": "success", "deleted_count": len(deleted), "deleted": deleted[0] if deleted else None}), 200
+    
+    except Exception as e:
+        print(f"Error deleting barangay notification: {e}")
+        return jsonify({"status": "error", "message": str(e)}), 500

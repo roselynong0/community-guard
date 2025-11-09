@@ -124,9 +124,9 @@ function BarangayReports({ token }) {
     const [loading, setLoading] = useState(true);
     const [search, setSearch] = useState("");
     const [category, setCategory] = useState("All");
-    const [barangay, setBarangay] = useState("All");
     const [statusFilter, setStatusFilter] = useState("All"); 
     const [sort, setSort] = useState("latest");
+    const [userBarangay, setUserBarangay] = useState(null);
     const [previewImage, setPreviewImage] = useState(null);
     const [notification, setNotification] = useState(null);
     const [highlightedReportId, setHighlightedReportId] = useState(null);
@@ -145,20 +145,12 @@ function BarangayReports({ token }) {
     const [isDeleteReasonOpen, setIsDeleteReasonOpen] = useState(false);
     const [deleteReason, setDeleteReason] = useState('');
     const [deleteReasonOther, setDeleteReasonOther] = useState('');
-    
-    const barangays = [
-        "All Barangay", "Barretto", "East Bajac-Bajac", "East Tapinac", "Gordon Heights",
-        "Kalaklan", "Mabayuan", "New Asinan", "New Banicain", "New Cabalan",
-        "New Ilalim", "New Kababae", "New Kalalake", "Old Cabalan", "Pag-Asa",
-        "Santa Rita", "West Bajac-Bajac", "West Tapinac",
-    ];
 
     // --- REFS for Keyboard Navigation ---
     const filterContainerRef = useRef(null);
     // Elements we want to navigate between with arrow keys
     const filterSelector = 'input.admin-search-input, .admin-top-controls .admin-filter-select, .reports-list button:first-child'; 
     useKeyboardNavigation(filterContainerRef, filterSelector);
-    // -----------------------------------
 
     // Notification handler
     const showNotification = useCallback((message, type = "success") => {
@@ -233,7 +225,8 @@ function BarangayReports({ token }) {
         setLoading(true);
         try {
             const sortParam = sort === "latest" ? "desc" : "asc";
-            const response = await fetch(`${API_URL}/reports?limit=50&sort=${sortParam}`, {
+            // Use the new barangay-specific endpoint
+            const response = await fetch(`${API_URL}/barangay/reports?limit=50&sort=${sortParam}`, {
                 headers: { 
                     'Authorization': `Bearer ${token}`,
                     'Content-Type': 'application/json'
@@ -241,11 +234,16 @@ function BarangayReports({ token }) {
             });
 
             if (!response.ok) {
-                throw new Error('Failed to fetch reports');
+                throw new Error('Failed to fetch barangay reports');
             }
 
             const data = await response.json();
             if (data.status === "success") {
+                // Set the user's barangay from response
+                if (data.barangay) {
+                    setUserBarangay(data.barangay);
+                }
+                
                 const reports = Array.isArray(data.reports) ? data.reports : [];
                 
                 const transformedReports = reports.map(report => {
@@ -276,10 +274,10 @@ function BarangayReports({ token }) {
                 });
                 setReports(transformedReports);
             } else {
-                throw new Error(data.message || 'Failed to fetch reports');
+                throw new Error(data.message || 'Failed to fetch barangay reports');
             }
         } catch (error) {
-            console.error('Error fetching reports:', error);  
+            console.error('Error fetching barangay reports:', error);  
             setReports([]);
         } finally {
             setLoading(false);
@@ -414,10 +412,9 @@ function BarangayReports({ token }) {
         }
     };
 
-    // Filtered reports (kept original logic)
+    // Filtered reports (removed barangay filter - fetched from backend already filtered)
     const filteredReports = reports
         .filter((r) => (category === "All" ? true : r.category === category))
-        .filter((r) => (barangay === "All" ? true : r.barangay === barangay))
         .filter((r) => (statusFilter === "All" ? true : r.status === statusFilter))
         .filter(
             (r) => {
@@ -432,7 +429,7 @@ function BarangayReports({ token }) {
     return (
         <div className="admin-container">
             <div className="admin-header-row">
-                <h2>All Community Reports</h2>
+                <h2>{userBarangay ? `${userBarangay} Reports` : 'Community Reports'}</h2>
             </div>
 
             {/* IMPROVEMENT: Added ref to the filter container for keyboard navigation */}
@@ -464,19 +461,6 @@ function BarangayReports({ token }) {
                     <option value="Hazard">Hazard</option>
                     <option value="Lost&Found">Lost & Found</option>
                     <option value="Others">Others</option>
-                </select>
-                
-                <label htmlFor="barangay-filter" className="sr-only">Filter by Barangay</label>
-                <select 
-                    id="barangay-filter"
-                    value={barangay} 
-                    onChange={(e) => setBarangay(e.target.value)}
-                    className="admin-filter-select"
-                    aria-label="Filter reports by barangay"
-                >
-                    {barangays.map((b) => (
-                        <option key={b} value={b === "All Barangay" ? "All" : b}>{b}</option>
-                    ))}
                 </select>
                 
                 <label htmlFor="status-filter" className="sr-only">Filter by Status</label>
@@ -649,7 +633,6 @@ function BarangayReports({ token }) {
                             onClick={() => {
                                 setSearch("");
                                 setCategory("All");
-                                setBarangay("All");
                                 setStatusFilter("All");
                             }}
                             style={{ marginTop: '10px' }}
