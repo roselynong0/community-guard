@@ -151,6 +151,12 @@ function BarangayLayout({ session, setSession, setNotification }) {
             <NavLink to="/barangay/reports">
               <FaFileAlt /> Reports
             </NavLink>
+            <NavLink to="/barangay/community-feed">
+              <FaUserFriends /> Community Feed
+            </NavLink>
+            <NavLink to="/barangay/maps">
+              <FaMap /> Map
+            </NavLink>
             <NavLink to="/barangay/notifications">
               <FaBell /> Notifications
             </NavLink>

@@ -114,6 +114,18 @@ def register():
         except Exception as e:
             print(f"❌ Email error: {e}")
 
+        # Create welcome notification for self-registered user
+        try:
+            from utils import create_notification
+            create_notification(
+                user_id=new_user_id,
+                title="Welcome!",
+                message=f"Welcome {firstname}! Thank you for registering with Community Guard. Please verify your email and complete your profile to get started.",
+                notif_type="Welcome"
+            )
+        except Exception as e:
+            print(f"⚠️ Failed to create welcome notification for new user: {e}")
+
         # Create admin notification
         try:
             admin_title = f"New user registration: {firstname} {lastname}"

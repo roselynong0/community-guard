@@ -62,6 +62,10 @@ function AdminUsers({ token }) {
   const [selectedIds, setSelectedIds] = useState(new Set());
   const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  // User deletion reason modal states
+  const [isDeleteReasonOpen, setIsDeleteReasonOpen] = useState(false);
+  const [deleteReason, setDeleteReason] = useState("");
+  const [deleteReasonOther, setDeleteReasonOther] = useState("");
 
   // Notification handler
   const showNotification = useCallback((message, type = "success") => {
@@ -245,6 +249,19 @@ function AdminUsers({ token }) {
   // Open confirmation modal (instead of immediate browser confirm)
   const confirmDeleteSelected = () => {
     if (!selectedIds || selectedIds.size === 0) return;
+    // First open the reason modal instead of going directly to confirmation
+    setIsDeleteReasonOpen(true);
+  };
+
+  const closeDeleteReason = () => {
+    setIsDeleteReasonOpen(false);
+    setDeleteReason("");
+    setDeleteReasonOther("");
+  };
+
+  const proceedToConfirmDelete = () => {
+    // Close reason modal and open confirmation modal
+    setIsDeleteReasonOpen(false);
     setIsDeleteConfirmOpen(true);
   };
 
@@ -257,11 +274,19 @@ function AdminUsers({ token }) {
     setIsDeleting(true);
     try {
       const ids = Array.from(selectedIds);
+      const finalReason = deleteReason === 'Other' ? deleteReasonOther : deleteReason;
+      
       for (const id of ids) {
         try {
           const res = await fetch(`${API_URL}/users/${id}`, {
             method: 'DELETE',
-            headers: { Authorization: `Bearer ${token}` }
+            headers: { 
+              Authorization: `Bearer ${token}`,
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+              deletion_reason: finalReason
+            })
           });
           if (!res.ok) console.error('Failed to delete user', id, await res.text());
         } catch (e) {
@@ -272,6 +297,8 @@ function AdminUsers({ token }) {
       // Refresh user list after deletions
       setSelectionMode(false);
       setSelectedIds(new Set());
+      setDeleteReason("");
+      setDeleteReasonOther("");
       fetchUsers(true);
       showNotification('Selected users deleted', 'success');
     } catch (err) {
@@ -800,11 +827,84 @@ function AdminUsers({ token }) {
 
             <div className="admin-modal-content">
               <p>Are you sure you want to permanently delete <strong>{selectedIds.size}</strong> selected user(s)? This action cannot be undone.</p>
+              {deleteReason ? (
+                <div style={{ margin: '12px 0', padding: '12px', background: '#fff7f7', borderRadius: 6, border: '1px solid #ffe0e0' }}>
+                  <strong>Deletion Reason:</strong> <br/>
+                  {deleteReason === 'Other' ? deleteReasonOther : deleteReason}
+                </div>
+              ) : null}
             </div>
 
             <div className="admin-modal-actions" style={{ justifyContent: 'flex-end' }}>
-              <button className="cancel-btn" onClick={() => setIsDeleteConfirmOpen(false)} style={{ padding: '10px 16px', borderRadius: 8 }}>Cancel</button>
-              <button className="verify-btn" onClick={performDeleteSelected} style={{ marginLeft: 8, padding: '10px 16px', borderRadius: 8, background: '#ef4444', color: '#fff' }} disabled={isDeleting}>{isDeleting ? 'Deleting...' : 'Delete'}</button>
+              <button className="cancel-btn" onClick={() => setIsDeleteConfirmOpen(false)} style={{ padding: '10px 16px', borderRadius: 8 }} disabled={isDeleting}>Cancel</button>
+              <button className="verify-btn" onClick={performDeleteSelected} style={{ marginLeft: 8, padding: '10px 16px', borderRadius: 8, background: '#ef4444', color: '#fff' }} disabled={isDeleting}>{isDeleting ? 'Deleting...' : 'Yes, Delete Permanently'}</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Reason Modal: ask admin why the users are being deleted */}
+      {isDeleteReasonOpen && (
+        <div
+          className="modal-overlay"
+          onClick={!isDeleting ? closeDeleteReason : undefined}
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="delete-reason-title"
+          tabIndex="-1"
+        >
+          <div className="admin-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="admin-modal-header">
+              <h3 id="delete-reason-title">User Deletion Reason</h3>
+              <button className="admin-modal-close" onClick={closeDeleteReason} disabled={isDeleting}>×</button>
+            </div>
+
+            <div className="admin-modal-content">
+              <p>Please select the reason why these user(s) should be deleted. This helps with auditing and prevents misuse.</p>
+
+              <label htmlFor="delete-reason-select" style={{ display: 'block', marginBottom: 8, fontWeight: '600' }}>Select reason</label>
+              <select
+                id="delete-reason-select"
+                value={deleteReason}
+                onChange={(e) => setDeleteReason(e.target.value)}
+                style={{ width: '100%', padding: 8, marginBottom: 12, borderRadius: 6, border: '1px solid #ddd' }}
+                disabled={isDeleting}
+              >
+                <option value="">-- Select a reason --</option>
+                <option value="Account Compromise / Hacking">Account Compromise / Hacking</option>
+                <option value="Violation of Community Guidelines">Violation of Community Guidelines</option>
+                <option value="Spam / Malicious Activity">Spam / Malicious Activity</option>
+                <option value="Inactive Account">Inactive Account</option>
+                <option value="Duplicate Account">Duplicate Account</option>
+                <option value="User Request">User Request for Account Deletion</option>
+                <option value="Other">Other (provide details)</option>
+              </select>
+
+              {deleteReason === 'Other' && (
+                <div style={{ marginBottom: 12 }}>
+                  <label htmlFor="delete-reason-other" style={{ display: 'block', marginBottom: 6 }}>Details</label>
+                  <input
+                    id="delete-reason-other"
+                    type="text"
+                    value={deleteReasonOther}
+                    onChange={(e) => setDeleteReasonOther(e.target.value)}
+                    placeholder="Provide brief details (required)"
+                    style={{ width: '100%', padding: 8, borderRadius: 6, border: '1px solid #ddd' }}
+                    disabled={isDeleting}
+                  />
+                </div>
+              )}
+            </div>
+
+            <div className="admin-modal-actions" style={{ justifyContent: 'flex-end', gap: 10 }}>
+              <button onClick={closeDeleteReason} disabled={isDeleting} style={{ padding: '10px 16px', borderRadius: 8 }}>Cancel</button>
+              <button
+                onClick={proceedToConfirmDelete}
+                disabled={isDeleting || !deleteReason || (deleteReason === 'Other' && !deleteReasonOther.trim())}
+                style={{ backgroundColor: '#ef4444', color: '#fff', padding: '10px 16px', borderRadius: 8, border: 'none', cursor: 'pointer' }}
+              >
+                Continue to Delete
+              </button>
             </div>
           </div>
         </div>

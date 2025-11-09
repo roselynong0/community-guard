@@ -219,12 +219,13 @@ input[type="password"]::placeholder {
   text-decoration: none;
 }
 
-button {
+.form-card button:not(.password-toggle-btn):not(.tab-btn):not(.terms-btn),
+.wrapper button:not(.password-toggle-btn):not(.tab-btn):not(.terms-btn) {
   width: 100%;
   padding: 0.75rem;
   border: none;
   border-radius: 30px;
-  background: #1d256a;
+  background: #1d256a !important;
   color: white;
   font-weight: bold;
   font-size: 1rem;
@@ -232,12 +233,14 @@ button {
   transition: background 0.3s ease;
 }
 
-button:hover:not(:disabled) {
-  background: #778EA0;
+.form-card button:not(.password-toggle-btn):not(.tab-btn):not(.terms-btn):hover:not(:disabled),
+.wrapper button:not(.password-toggle-btn):not(.tab-btn):not(.terms-btn):hover:not(:disabled) {
+  background: #778EA0 !important;
 }
 
-button:disabled {
-  background: #ccc;
+.form-card button:not(.password-toggle-btn):not(.tab-btn):not(.terms-btn):disabled,
+.wrapper button:not(.password-toggle-btn):not(.tab-btn):not(.terms-btn):disabled {
+  background: #ccc !important;
   cursor: not-allowed;
   opacity: 0.7;
 }

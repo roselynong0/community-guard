@@ -90,9 +90,12 @@ def mark_all_notifications_read():
 @notifications_bp.route("/admin/notifications", methods=["GET"])
 @token_required
 def admin_get_all_notifications():
-    """Admin-only endpoint: return all notifications across the system"""
+    """
+    Admin-only endpoint: return all notifications across the system
+    enriched with recipient (user) basic info for display in the admin UI
+    """
+    # Check admin role
     try:
-        # Check admin role
         current_user_resp = supabase.table("users").select("role").eq("id", request.user_id).single().execute()
         current_user = current_user_resp.data if current_user_resp.data else {}
         if current_user.get("role") != "Admin":
@@ -102,7 +105,7 @@ def admin_get_all_notifications():
         resp = supabase.table("notifications").select("*").order("created_at", desc=True).execute()
         notifications = getattr(resp, "data", []) or []
 
-        # Fetch admin-only notifications
+        # Fetch admin-only notifications (may not exist if migration not applied)
         admin_notifications = []
         try:
             resp_admin = supabase.table("admin_notifications").select("*").order("created_at", desc=True).execute()
@@ -125,7 +128,7 @@ def admin_get_all_notifications():
         all_user_ids = list({str(x) for x in list(user_ids | actor_ids) if x})
         users_map = {}
         if all_user_ids:
-            users_resp = supabase.table("users").select("id, firstname, lastname, email").in_("id", all_user_ids).execute()
+            users_resp = supabase.table("users").select("id, firstname, lastname, email, role").in_("id", all_user_ids).execute()
             users = getattr(users_resp, "data", []) or []
             for u in users:
                 users_map[str(u.get("id"))] = {
@@ -133,6 +136,7 @@ def admin_get_all_notifications():
                     "firstname": u.get("firstname"),
                     "lastname": u.get("lastname"),
                     "email": u.get("email"),
+                    "role": u.get("role"),
                 }
 
         enriched = []
@@ -173,22 +177,26 @@ def admin_get_all_notifications():
 @notifications_bp.route("/admin/admin_notifications", methods=["GET"])
 @token_required
 def admin_get_admin_notifications():
-    """Admin-only endpoint returning only admin_notifications enriched with actor and recipient info"""
+    """
+    Admin-only endpoint returning only admin_notifications enriched with actor and recipient info
+    """
     try:
+        # Verify admin role
         current_user_resp = supabase.table("users").select("role").eq("id", request.user_id).single().execute()
         current_user = current_user_resp.data if current_user_resp.data else {}
         if current_user.get("role") != "Admin":
             return jsonify({"status": "error", "message": "Admin access required"}), 403
 
+        # Fetch admin notifications (gracefully handle if table doesn't exist)
         admin_notifications = []
         try:
             resp_admin = supabase.table("admin_notifications").select("*").order("created_at", desc=True).execute()
             admin_notifications = getattr(resp_admin, "data", []) or []
-        except Exception as e:
-            print(f"⚠️ admin_notifications table may not exist or query failed: {e}")
+        except Exception as table_e:
+            print(f"⚠️ admin_notifications table may not exist: {table_e}")
             return jsonify({"status": "success", "admin_notifications": []}), 200
 
-        # Collect user ids and actor ids
+        # Collect user_ids and actor_ids for batch fetch
         user_ids = set()
         actor_ids = set()
         for a in admin_notifications:
@@ -197,10 +205,11 @@ def admin_get_admin_notifications():
             if a.get("actor_id"):
                 actor_ids.add(a.get("actor_id"))
 
+        # Batch fetch user info
         all_user_ids = list({str(x) for x in list(user_ids | actor_ids) if x})
         users_map = {}
         if all_user_ids:
-            users_resp = supabase.table("users").select("id, firstname, lastname, email").in_("id", all_user_ids).execute()
+            users_resp = supabase.table("users").select("id, firstname, lastname, email, role").in_("id", all_user_ids).execute()
             users = getattr(users_resp, "data", []) or []
             for u in users:
                 users_map[str(u.get("id"))] = {
@@ -208,8 +217,10 @@ def admin_get_admin_notifications():
                     "firstname": u.get("firstname"),
                     "lastname": u.get("lastname"),
                     "email": u.get("email"),
+                    "role": u.get("role"),
                 }
 
+        # Enrich notifications with user info
         enriched_admin = []
         for a in admin_notifications:
             item = dict(a)
@@ -217,6 +228,7 @@ def admin_get_admin_notifications():
             actor = users_map.get(str(item.get("actor_id"))) if item.get("actor_id") else None
             item["recipient"] = recipient
             item["actor"] = actor
+            # Normalize created_at to ISO format
             ca = item.get("created_at")
             if hasattr(ca, "isoformat"):
                 item["created_at"] = ca.isoformat()
@@ -233,12 +245,25 @@ def admin_get_admin_notifications():
 @notifications_bp.route("/admin/admin_notifications/<int:notif_id>/read", methods=["POST"])
 @token_required
 def admin_mark_notification_read(notif_id):
-    """Mark an admin notification as read"""
+    """
+    Mark a single admin notification as read (admin-only)
+    """
     try:
-        resp = supabase.table('admin_notifications').update({"is_read": True}).eq('id', notif_id).execute()
-        updated = getattr(resp, 'data', []) or []
+        # Verify admin role
+        current_user_resp = supabase.table("users").select("role").eq("id", request.user_id).single().execute()
+        current_user = current_user_resp.data if current_user_resp.data else {}
+        if current_user.get("role") != "Admin":
+            return jsonify({"status": "error", "message": "Admin access required"}), 403
+
+        # Update admin notification
+        resp = supabase.table("admin_notifications").update({"is_read": True}).eq("id", notif_id).execute()
+        updated = getattr(resp, "data", []) or []
         updated_row = updated[0] if updated else None
-        return jsonify({"status": "success", "notification": updated_row}), 200
+
+        if updated_row:
+            return jsonify({"status": "success", "notification": updated_row}), 200
+        else:
+            return jsonify({"status": "error", "message": "Notification not found"}), 404
     except Exception as e:
         print(f"Error marking admin notification read: {e}")
         return jsonify({"status": "error", "message": str(e)}), 500
@@ -247,7 +272,9 @@ def admin_mark_notification_read(notif_id):
 @notifications_bp.route("/admin/admin_notifications/read_all", methods=["POST"])
 @token_required
 def admin_mark_all_notifications_read():
-    """Mark all admin notifications as read (admin-only)"""
+    """
+    Mark all admin notifications as read (admin-only)
+    """
     try:
         # Verify admin role
         current_user_resp = supabase.table("users").select("role").eq("id", request.user_id).single().execute()
@@ -256,8 +283,9 @@ def admin_mark_all_notifications_read():
             return jsonify({"status": "error", "message": "Admin access required"}), 403
 
         # Mark all unread admin notifications as read
-        resp = supabase.table('admin_notifications').update({"is_read": True}).eq('is_read', False).execute()
-        updated = getattr(resp, 'data', []) or []
+        resp = supabase.table("admin_notifications").update({"is_read": True}).eq("is_read", False).execute()
+        updated = getattr(resp, "data", []) or []
+
         return jsonify({"status": "success", "updated_count": len(updated)}), 200
     except Exception as e:
         print(f"Error marking all admin notifications read: {e}")
@@ -267,10 +295,20 @@ def admin_mark_all_notifications_read():
 @notifications_bp.route("/admin/admin_notifications/<int:notif_id>", methods=["DELETE"])
 @token_required
 def admin_delete_notification(notif_id):
-    """Delete an admin notification"""
+    """
+    Delete an admin notification (admin-only)
+    """
     try:
-        resp = supabase.table('admin_notifications').delete().eq('id', notif_id).execute()
-        deleted = getattr(resp, 'data', []) or []
+        # Verify admin role
+        current_user_resp = supabase.table("users").select("role").eq("id", request.user_id).single().execute()
+        current_user = current_user_resp.data if current_user_resp.data else {}
+        if current_user.get("role") != "Admin":
+            return jsonify({"status": "error", "message": "Admin access required"}), 403
+
+        # Delete the notification
+        resp = supabase.table("admin_notifications").delete().eq("id", notif_id).execute()
+        deleted = getattr(resp, "data", []) or []
+
         return jsonify({"status": "success", "deleted_count": len(deleted), "deleted": deleted[0] if deleted else None}), 200
     except Exception as e:
         print(f"Error deleting admin notification: {e}")

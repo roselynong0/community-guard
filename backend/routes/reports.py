@@ -404,7 +404,20 @@ def update_report(report_id):
         # Only create notification if status changed
         new_status = data.get("status")
         if new_status and new_status != old_status:
-            create_report_notification(request.user_id, report_id, report_title, new_status)
+            # Fetch actor's user information to get human-readable name
+            try:
+                actor_resp = supabase.table("users").select("firstname, lastname").eq("id", request.user_id).execute()
+                actor_data = getattr(actor_resp, "data", [None])[0]
+                actor_name = None
+                if actor_data:
+                    firstname = actor_data.get("firstname", "").strip()
+                    lastname = actor_data.get("lastname", "").strip()
+                    actor_name = f"{firstname} {lastname}".strip() if firstname or lastname else None
+            except Exception as e:
+                print(f"⚠️ Error fetching actor info for notification: {e}")
+                actor_name = None
+            
+            create_report_notification(request.user_id, report_id, report_title, new_status, actor_id=request.user_id, actor_name=actor_name)
 
         # Handle image replacement - store as base64 in database
         if "images" in request.files:

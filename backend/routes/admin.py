@@ -621,6 +621,33 @@ def create_user():
         except Exception as e:
             print(f"❌ Failed to insert info row for user {user_row.get('id')}: {e}")
 
+        # Create notifications for new user creation by admin
+        try:
+            from utils.notifications import create_admin_notification, create_notification
+            
+            # 1. Create welcome notification for new user (with admin creation indicator)
+            create_notification(
+                user_id=user_row.get("id"),
+                title="Account Created by Administrator",
+                message=f"Welcome {firstname}! Your account has been created by an administrator. Your role is: {role}. Please update your profile and get started!",
+                notif_type="Account Created"
+            )
+            
+            # 2. Create admin audit notification
+            admin_title = f"New account created: {firstname} {lastname}"
+            admin_message = f"New account created for {firstname} {lastname}\n\nAccount Details:\n• Email: {email}\n• Role: {role}\n• Barangay: {address_barangay or 'Not specified'}\n• Account ID: {user_row.get('id')}"
+            
+            create_admin_notification(
+                actor_id=request.user_id,
+                user_id=user_row.get("id"),
+                report_id=None,
+                title=admin_title,
+                type_label="Account Created",
+                message=admin_message
+            )
+        except Exception as e:
+            print(f"⚠️ Failed to create notifications for new admin-created user: {e}")
+
         return jsonify({"status": "success", "user": user_row}), 201
 
     except Exception as e:
@@ -642,6 +669,16 @@ def delete_user(user_id):
         # Only Admins or the user themself may delete
         if caller.get("role") != "Admin" and str(request.user_id) != str(user_id):
             return jsonify({"status": "error", "message": "Admin access required"}), 403
+
+        # Get deletion reason from request body
+        data = request.get_json() or {}
+        deletion_reason = data.get("deletion_reason", "")
+
+        # Fetch user info before deletion for the notification
+        user_to_delete_resp = supabase.table("users").select("firstname, lastname, email").eq("id", user_id).single().execute()
+        user_to_delete = getattr(user_to_delete_resp, "data", None) or {}
+        deleted_user_name = f"{user_to_delete.get('firstname', '').strip()} {user_to_delete.get('lastname', '').strip()}".strip() or "Unknown User"
+        deleted_user_email = user_to_delete.get('email', '')
 
         now = datetime.now(timezone.utc).isoformat()
 
@@ -711,20 +748,18 @@ def delete_user(user_id):
         except Exception as e:
             print(f"❌ delete_user: error reading supabase delete response: {e}")
 
-        # Create an admin notification
+        # Create an enhanced admin notification with account deletion details
         try:
-            who = f"user ({user_id})"
-            admin_title = "User account permanently deleted"
-            admin_message = f"{who} was permanently deleted by admin {request.user_id}. Posts and related data were removed."
-            create_admin_notification(
-                actor_id=request.user_id, 
-                user_id=user_id, 
-                title=admin_title, 
-                type_label="User Deleted", 
-                message=admin_message
+            from utils.notifications import create_account_deletion_notification
+            create_account_deletion_notification(
+                deleted_user_id=user_id,
+                deleted_user_name=deleted_user_name,
+                deleted_user_email=deleted_user_email,
+                actor_id=request.user_id,
+                deletion_reason=deletion_reason
             )
         except Exception as e:
-            print(f"⚠️ delete_user: failed to create admin notification: {e}")
+            print(f"⚠️ delete_user: failed to create account deletion notification: {e}")
 
         return jsonify({"status": "success", "message": "User permanently deleted"}), 200
     except Exception as e:

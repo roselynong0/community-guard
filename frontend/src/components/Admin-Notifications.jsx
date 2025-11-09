@@ -349,8 +349,8 @@ export default function AdminNotifications({ session }) {
                   </div>
                 </div>
 
-                {/* Human-friendly message on the next line */}
-                <p className="notif-message">{n.message}</p>
+                {/* Human-friendly message on the next line - preserve newlines with white-space: pre-wrap */}
+                <p className="notif-message" style={{ whiteSpace: 'pre-wrap', wordWrap: 'break-word' }}>{n.message}</p>
                 <small className="notif-time">{new Date(n.created_at).toLocaleString()}</small>
 
                 {n.recipient ? (
@@ -358,12 +358,12 @@ export default function AdminNotifications({ session }) {
                     <span className="recipient-icon small-icon" style={{ marginRight: 8 }}>
                       <FaUser className={`icon ${getIconClassForNotification(n)}`} />
                     </span>
-                    <span>To: {n.recipient.firstname} {n.recipient.lastname} &lt;{n.recipient.email}&gt;</span>
+                    <span>To: {n.recipient.firstname} {n.recipient.lastname} ({n.recipient.role || 'Resident'}) &lt;{n.recipient.email}&gt;</span>
                   </div>
                 ) : null}
 
                 {n.actor ? (
-                  <div style={{ marginTop: 6, color: '#444', fontStyle: 'italic' }}>By: {n.actor.firstname || ''} {n.actor.lastname || ''}</div>
+                  <div style={{ marginTop: 6, color: '#444', fontStyle: 'italic' }}>By: {n.actor.firstname || ''} {n.actor.lastname || ''} ({n.actor.role || 'Resident'})</div>
                 ) : null}
               </div>
               <div className="notification-actions">
