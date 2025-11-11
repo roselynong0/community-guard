@@ -7,6 +7,7 @@ import {
   FaUserCheck, 
   FaUserTimes, 
   FaEdit,
+  FaTrashAlt,
   FaPhone,
   FaCalendarAlt,
   FaMapMarkerAlt,
@@ -14,19 +15,19 @@ import {
   FaExclamationTriangle,
   FaBell
 } from "react-icons/fa";
+import { API_CONFIG } from "../utils/apiConfig";
 import "./Admin-report.css";
 import "./Notification.css";
 import "./Admin-Users-Performance.css"; 
 
-const API_URL = "http://localhost:5000/api";
+const API_URL = `${API_CONFIG.BASE_URL}/api`;
 
 function AdminUsers({ token }) {
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
-  const [statusFilter, setStatusFilter] = useState("All"); 
-  const [roleFilter, setRoleFilter] = useState("All");
+  const [statusFilter, setStatusFilter] = useState("All");
   const [notification, setNotification] = useState(null);
   
   // Prevent multiple simultaneous fetches
@@ -44,6 +45,30 @@ function AdminUsers({ token }) {
   const [userInfo, setUserInfo] = useState(null);
   const [infoLoading, setInfoLoading] = useState(false);
   const [checkingFields, setCheckingFields] = useState(false);
+  // Create User modal states
+  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  const [createFirstname, setCreateFirstname] = useState("");
+  const [createLastname, setCreateLastname] = useState("");
+  const [createEmail, setCreateEmail] = useState("");
+  const [createPassword, setCreatePassword] = useState("");
+  const [createRole, setCreateRole] = useState("Account"); // Account | Barangay Official | Responder
+  const [createBarangay, setCreateBarangay] = useState("");
+  const [createAvatarFile, setCreateAvatarFile] = useState(null);
+  const [createAvatarPreview, setCreateAvatarPreview] = useState(null);
+  const [isCreating, setIsCreating] = useState(false);
+  // Bulk delete / selection state
+  const [selectionMode, setSelectionMode] = useState(false);
+  const [selectedIds, setSelectedIds] = useState(new Set());
+  const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+  // User deletion reason modal states
+  const [isDeleteReasonOpen, setIsDeleteReasonOpen] = useState(false);
+  const [deleteReason, setDeleteReason] = useState("");
+  const [deleteReasonOther, setDeleteReasonOther] = useState("");
+
+  // NEW TAB section
+const tabs = ["Residents", "Barangay Officials", "Responders", "Admin"];
+const [activeTab, setActiveTab] = useState("Residents");
 
   // Notification handler
   const showNotification = useCallback((message, type = "success") => {
@@ -191,6 +216,161 @@ function AdminUsers({ token }) {
     fetchUserInfo(user.id);
   };
 
+  // --- Create User Modal Helpers ---
+  const barangaysList = [
+    "Barretto", "East Bajac-Bajac", "East Tapinac", "Gordon Heights",
+    "Kalaklan", "Mabayuan", "New Asinan", "New Banicain", "New Cabalan",
+    "New Ilalim", "New Kababae", "New Kalalake", "Old Cabalan", "Pag-Asa",
+    "Santa Rita", "West Bajac-Bajac", "West Tapinac",
+  ];
+
+  const openCreateModal = () => setIsCreateModalOpen(true);
+  const closeCreateModal = () => {
+    setIsCreateModalOpen(false);
+    setCreateFirstname(""); setCreateLastname(""); setCreateEmail(""); setCreatePassword("");
+    setCreateRole("Account"); setCreateBarangay(""); setCreateAvatarFile(null); setCreateAvatarPreview(null);
+  };
+
+  const toggleSelectionMode = () => {
+    if (selectionMode) {
+      setSelectedIds(new Set());
+      setSelectionMode(false);
+    } else {
+      setSelectionMode(true);
+    }
+  };
+
+  const toggleSelectUser = (userId) => {
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      if (next.has(userId)) next.delete(userId);
+      else next.add(userId);
+      return next;
+    });
+  };
+
+  // Open confirmation modal (instead of immediate browser confirm)
+  const confirmDeleteSelected = () => {
+    if (!selectedIds || selectedIds.size === 0) return;
+    // First open the reason modal instead of going directly to confirmation
+    setIsDeleteReasonOpen(true);
+  };
+
+  const closeDeleteReason = () => {
+    setIsDeleteReasonOpen(false);
+    setDeleteReason("");
+    setDeleteReasonOther("");
+  };
+
+  const proceedToConfirmDelete = () => {
+    // Close reason modal and open confirmation modal
+    setIsDeleteReasonOpen(false);
+    setIsDeleteConfirmOpen(true);
+  };
+
+  const performDeleteSelected = async () => {
+    if (!selectedIds || selectedIds.size === 0) {
+      setIsDeleteConfirmOpen(false);
+      return;
+    }
+
+    setIsDeleting(true);
+    try {
+      const ids = Array.from(selectedIds);
+      const finalReason = deleteReason === 'Other' ? deleteReasonOther : deleteReason;
+      
+      for (const id of ids) {
+        try {
+          const res = await fetch(`${API_URL}/users/${id}`, {
+            method: 'DELETE',
+            headers: { 
+              Authorization: `Bearer ${token}`,
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+              deletion_reason: finalReason
+            })
+          });
+          if (!res.ok) console.error('Failed to delete user', id, await res.text());
+        } catch (e) {
+          console.error('Delete request failed for', id, e);
+        }
+      }
+
+      // Refresh user list after deletions
+      setSelectionMode(false);
+      setSelectedIds(new Set());
+      setDeleteReason("");
+      setDeleteReasonOther("");
+      fetchUsers(true);
+      showNotification('Selected users deleted', 'success');
+    } catch (err) {
+      console.error('Error deleting users:', err);
+      showNotification('Error deleting selected users', 'error');
+    } finally {
+      setIsDeleting(false);
+      setIsDeleteConfirmOpen(false);
+    }
+  };
+
+  const handleCreateAvatarSelect = (e) => {
+    const file = e.target.files && e.target.files[0];
+    if (!file) return;
+    setCreateAvatarFile(file);
+    setCreateAvatarPreview(URL.createObjectURL(file));
+  };
+
+  const handleCreateUser = async () => {
+    if (isCreating) return;
+    // basic validation
+    if (!createFirstname.trim() || !createLastname.trim() || !createEmail.trim() || !createRole) {
+      showNotification('Please fill required fields (first name, last name, email, role)', 'error');
+      return;
+    }
+
+    setIsCreating(true);
+    try {
+      const formData = new FormData();
+      formData.append('firstname', createFirstname.trim());
+      formData.append('lastname', createLastname.trim());
+      formData.append('email', createEmail.trim());
+      if (createPassword) formData.append('password', createPassword);
+      formData.append('role', createRole);
+  if ((createRole === 'Barangay Official' || createRole === 'Responder') && createBarangay) formData.append('address_barangay', createBarangay);
+      if (createAvatarFile) formData.append('avatar', createAvatarFile);
+
+      const res = await fetch(`${API_URL}/users`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`
+          // NOTE: do not set Content-Type for FormData
+        },
+        body: formData
+      });
+
+      const data = await res.json();
+      if (!res.ok || data.status !== 'success') {
+        throw new Error(data.message || 'Failed to create user');
+      }
+
+      // Add created user to local state if provided
+      if (data.user) {
+        setUsers(prev => [data.user, ...prev]);
+      } else {
+        // fallback: refresh list
+        fetchUsers(true);
+      }
+
+      showNotification('User created successfully', 'success');
+      closeCreateModal();
+    } catch (err) {
+      console.error('Create user error:', err);
+      showNotification(`Failed to create user: ${err.message}`, 'error');
+    } finally {
+      setIsCreating(false);
+    }
+  };
+
   // Close verification modal
   const closeVerificationModal = () => {
     setIsVerificationModalOpen(false);
@@ -330,29 +510,75 @@ function AdminUsers({ token }) {
   // Memoized filtered users to prevent unnecessary re-renders
   const filteredUsers = useMemo(() => {
     return users
-      .filter((u) => (statusFilter === "All" ? true : 
-        statusFilter === "Verified" ? (u.isverified && u.verified) : !(u.isverified && u.verified)))
-      .filter((u) => (roleFilter === "All" ? true : u.role === roleFilter))
-      .filter(
-        (u) =>
-          `${u.firstname} ${u.lastname}`.toLowerCase().includes(debouncedSearch.toLowerCase()) ||
-          u.email.toLowerCase().includes(debouncedSearch.toLowerCase())
+      // tab filter
+      .filter(u => {
+        if (activeTab === "Residents") return u.role === "Resident";
+        if (activeTab === "Barangay Officials") return u.role === "Barangay Official";
+        if (activeTab === "Responders") return u.role === "Responder";
+        if (activeTab === "Admin") return u.role === "Admin";
+        return true;
+      })
+      // status filter
+      .filter(u =>
+        statusFilter === "All"
+          ? true
+          : statusFilter === "Verified"
+          ? (u.isverified && u.verified)
+          : !(u.isverified && u.verified)
+      )
+      // search filter
+      .filter(u =>
+        `${u.firstname} ${u.lastname}`
+          .toLowerCase()
+          .includes(debouncedSearch.toLowerCase()) ||
+        u.email.toLowerCase().includes(debouncedSearch.toLowerCase())
       );
-  }, [users, statusFilter, roleFilter, debouncedSearch]);
+  }, [users, activeTab, statusFilter, debouncedSearch]);
 
-  // Memoized stats to calculate the 4 required stats (removed unverified)
+  // Memoized stats to calculate counts including barangay officials and responders
   const stats = useMemo(() => ({
     totalUsers: users.length,
     fullyVerifiedUsers: users.filter(u => u.isverified && u.verified).length,
     emailVerifiedUsers: users.filter(u => u.isverified && !u.verified).length,
-    adminUsers: users.filter(u => u.role === "Admin").length
+    residents: users.filter(u => u.role === "Resident").length,
+    adminUsers: users.filter(u => u.role === "Admin").length,
+    barangayOfficials: users.filter(u => u.role === "Barangay Official").length,
+    responders: users.filter(u => u.role === "Responder").length
   }), [users]);
+
 
   return (
     <div className="admin-container">
       <div className="admin-header-row">
         <h2>User Management</h2>
+        <div className="admin-header-actions">
+          <button
+            className="refresh-btn"
+            onClick={openCreateModal}
+            title="Create a new user"
+            style={{ marginRight: 8 }}
+          >
+            Create User
+          </button>
+          <button
+            className="danger-icon-btn"
+            onClick={toggleSelectionMode}
+            title={selectionMode ? 'Exit delete mode' : 'Select users to delete'}
+            style={{ background: selectionMode ? '#ef4444' : 'transparent', color: selectionMode ? '#fff' : '#ef4444', border: selectionMode ? 'none' : '1px solid #ef4444', padding: '8px 10px', borderRadius: 8 }}
+          >
+            <FaTrashAlt />
+          </button>
+        </div>
       </div>
+
+      {/* Selection toolbar */}
+      {selectionMode && (
+        <div style={{ display: 'flex', gap: 8, marginBottom: 12, alignItems: 'center' }}>
+          <div style={{ fontSize: 14 }}>{selectedIds.size} selected</div>
+          <button className="cancel-btn" onClick={() => { setSelectionMode(false); setSelectedIds(new Set()); }}>Cancel</button>
+          <button className="verify-btn" onClick={confirmDeleteSelected} style={{ background: '#ef4444', color: '#fff', marginLeft: 8 }}>{isDeleting ? 'Deleting...' : 'Delete Selected'}</button>
+        </div>
+      )}
 
       {/* Stats Cards */}
       <div className="admin-stats-grid">
@@ -389,6 +615,17 @@ function AdminUsers({ token }) {
           </div>
         </div>
 
+        {/* 1. Total Users */}
+        <div className="admin-stat-card residents">
+          <div className="admin-stat-content">
+            <FaUser className="admin-stat-icon" style={{ color: '#5aecffff' }} />
+            <div className="admin-stat-text">
+              <h4>Residents</h4>
+              <p>{stats.residents}</p>
+            </div>
+          </div>
+        </div>
+
         {/* 4. Admins */}
         <div className="admin-stat-card admin">
           <div className="admin-stat-content">
@@ -399,112 +636,196 @@ function AdminUsers({ token }) {
             </div>
           </div>
         </div>
+
+        {/* 5. Barangay Officials */}
+        <div className="admin-stat-card barangay-official">
+          <div className="admin-stat-content">
+            <FaUser className="admin-stat-icon" style={{ color: '#2563eb' }} />
+            <div className="admin-stat-text">
+              <h4>Barangay Officials</h4>
+              <p>{stats.barangayOfficials}</p>
+            </div>
+          </div>
+        </div>
+
+        {/* 6. Responders */}
+        <div className="admin-stat-card responder">
+          <div className="admin-stat-content">
+            <FaUser className="admin-stat-icon" style={{ color: '#ef4444' }} />
+            <div className="admin-stat-text">
+              <h4>Responders</h4>
+              <p>{stats.responders}</p>
+            </div>
+          </div>
+        </div>
       </div>
 
-      {/* Search & Filter Controls */}
-      <div className="admin-top-controls">
-        <div className="admin-search-container">
-          <input
-            type="text"
-            placeholder="Search users by name or email..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="admin-search-input"
-          />
-          <FaSearch className="admin-search-icon" />
-        </div>
-        <select 
-          value={statusFilter} 
-          onChange={(e) => setStatusFilter(e.target.value)}
-          className="admin-filter-select"
-        >
-          <option value="All">All Status</option>
-          <option value="Verified">Verified</option>
-          <option value="Unverified">Unverified</option>
-        </select>
-        <select 
-          value={roleFilter} 
-          onChange={(e) => setRoleFilter(e.target.value)}
-          className="admin-filter-select"
-        >
-          <option value="All">All Roles</option>
-          <option value="Admin">Admin</option>
-          <option value="Resident">Resident</option>
-        </select>
-      </div>
+      {/* ✅ USER SECTION */}
+      <div className="admin-users-section">
 
-      {/* Users List */}
-      {(loading || showInitialLoader) ? (
-        <div className="admin-loading-container">
-          <div className="admin-spinner"></div>
-          <p className="admin-loading-text">Loading users...</p>
-        </div>
-      ) : filteredUsers.length > 0 ? (
-        <div className="admin-users-grid">
-            {filteredUsers.map((user) => (
-              <div
-                key={user.id}
-                className={`admin-user-card ${
-                  (user.isverified && user.verified) ? 'fully-verified' :
-                  user.isverified ? 'email-verified' : 'unverified'
-                }`}
+        {/* ✅ MODERN USER TABS */}
+        <div className="admin-modern-tabs">
+          <div className="admin-modern-tabs-inner">
+            {tabs.map((t) => (
+              <button
+                key={t}
+                className={`admin-modern-tab ${activeTab === t ? "active" : ""}`}
+                onClick={() => setActiveTab(t)}
               >
-                <div className="admin-user-header">
-                  <div className="admin-user-info">
-                    <img 
-                      src={user.avatar_url || "/src/assets/profile.png"} 
-                      alt="profile" 
-                      className="admin-user-avatar"
-                    />
-                    <div className="admin-user-details">
-                      <h4>{user.firstname} {user.lastname}</h4>
-                      <p>{user.email}</p>
-                    </div>
-                  </div>
-                  <span className={`admin-role-badge ${user.role.toLowerCase()}`}>
-                    {user.role}
-                  </span>
-                </div>
-
-                <div className="admin-user-body">
-                  <div className="admin-user-meta">
-                    <div className="admin-user-meta-item">
-                      <strong>Joined:</strong> {new Date(user.created_at).toLocaleDateString()}
-                    </div>
-                    <div className="admin-user-meta-item">
-                      <strong>Address:</strong> {user.address_barangay || 'Not specified'}, {user.address_city || 'Olongapo'}
-                    </div>
-                  </div>
-                </div>
-
-                <div className="admin-user-footer">
-                  <div className={`admin-verification-status ${
-                    (user.isverified && user.verified) ? 'fully-verified' :
-                    user.isverified ? 'email-verified' : 'unverified'
-                  }`}>
-                    {(user.isverified && user.verified) ? (
-                      <><FaCheckCircle />Fully Verified</>
-                    ) : user.isverified ? (
-                      <><FaUserCheck />Email Verified</>
-                    ) : (
-                      <><FaTimesCircle />Unverified</>
-                    )}
-                  </div>
-                  
-                  <div className="admin-user-actions">
-                    {user.role !== 'Admin' && (
-                      <button
-                        onClick={() => openVerificationModal(user)}
-                        className="admin-btn admin-btn-primary"
-                        title="Update User Verification Status"
-                      >
-                        <FaEdit /> Update Status
-                      </button>
-                    )}
-                  </div>
-                </div>
-              </div>
+                {t}
+              </button>
             ))}
+          </div>
+          <div className="admin-modern-tab-line" />
+        </div>
+
+        {/* ✅ SEARCH + STATUS FILTER */}
+        <div className="admin-top-controls inside-tabs">
+          <div className="admin-search-container">
+            <input
+              type="text"
+              placeholder="Search users by name or email..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="admin-search-input"
+            />
+            <FaSearch className="admin-search-icon" />
+          </div>
+
+          <select
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value)}
+            className="admin-filter-select"
+          >
+            <option value="All">All Status</option>
+            <option value="Verified">Verified</option>
+            <option value="Unverified">Unverified</option>
+          </select>
+        </div>
+
+        {/* ✅ USERS LIST */}
+        {(loading || showInitialLoader) ? (
+          <div className="admin-loading-container">
+            <div className="admin-spinner"></div>
+            <p className="admin-loading-text">Loading users...</p>
+          </div>
+        ) : filteredUsers.length > 0 ? (
+          <div className="admin-users-grid">
+            {filteredUsers.map((user) => {
+              const isSelected = selectedIds.has(user.id);
+              return (
+                <div
+                  key={user.id}
+                  onClick={(e) => {
+                    if (selectionMode) {
+                      const tag = (e.target && e.target.tagName) || "";
+                      if (
+                        tag.toLowerCase() !== "button" &&
+                        tag.toLowerCase() !== "svg" &&
+                        tag.toLowerCase() !== "path"
+                      ) {
+                        toggleSelectUser(user.id);
+                      }
+                    }
+                  }}
+                  className={`admin-user-card ${
+                    user.isverified && user.verified
+                      ? "fully-verified"
+                      : user.isverified
+                      ? "email-verified"
+                      : "unverified"
+                  } ${isSelected ? "selected-card" : ""}`}
+                  style={isSelected ? { outline: "3px solid rgba(239,68,68,0.15)" } : {}}
+                >
+                  {selectionMode && (
+                    <div style={{ position: "absolute", left: 8, top: 8 }}>
+                      <input
+                        type="checkbox"
+                        checked={isSelected}
+                        readOnly
+                        onClick={() => toggleSelectUser(user.id)}
+                      />
+                    </div>
+                  )}
+
+                  <div className="admin-user-header">
+                    <div className="admin-user-info">
+                      <img
+                        src={user.avatar_url || "/src/assets/profile.png"}
+                        alt="profile"
+                        className="admin-user-avatar"
+                      />
+                      <div className="admin-user-details">
+                        <h4>
+                          {user.firstname} {user.lastname}
+                        </h4>
+                        <p>{user.email}</p>
+                      </div>
+                    </div>
+
+                    <span
+                      className={`admin-role-badge ${user.role
+                        .toLowerCase()
+                        .replace(/\s+/g, "-")}`}
+                    >
+                      {user.role}
+                    </span>
+                  </div>
+
+                  <div className="admin-user-body">
+                    <div className="admin-user-meta">
+                      <div className="admin-user-meta-item">
+                        <strong>Joined:</strong>{" "}
+                        {new Date(user.created_at).toLocaleDateString()}
+                      </div>
+                      <div className="admin-user-meta-item">
+                        <strong>Address:</strong>{" "}
+                        {user.address_barangay || "Not specified"},{" "}
+                        {user.address_city || "Olongapo"}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="admin-user-footer">
+                    <div
+                      className={`admin-verification-status ${
+                        user.isverified && user.verified
+                          ? "fully-verified"
+                          : user.isverified
+                          ? "email-verified"
+                          : "unverified"
+                      }`}
+                    >
+                      {user.isverified && user.verified ? (
+                        <>
+                          <FaCheckCircle /> Fully Verified
+                        </>
+                      ) : user.isverified ? (
+                        <>
+                          <FaUserCheck /> Email Verified
+                        </>
+                      ) : (
+                        <>
+                          <FaTimesCircle /> Unverified
+                        </>
+                      )}
+                    </div>
+
+                    {user.role !== "Admin" && (
+                      <div className="admin-user-actions">
+                        <button
+                          onClick={() => openVerificationModal(user)}
+                          className="admin-btn admin-btn-primary"
+                          title="Update User Verification Status"
+                        >
+                          <FaEdit /> Update Status
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
           </div>
         ) : (
           <div className="admin-no-users">
@@ -512,6 +833,157 @@ function AdminUsers({ token }) {
             <p>No users match your current search criteria.</p>
           </div>
         )}
+      </div>
+
+
+      {/* Create User Modal */}
+      {isCreateModalOpen && (
+        <div className="modal-overlay" onClick={closeCreateModal}>
+          <div className="admin-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="admin-modal-header">
+              <h3>Create New Account</h3>
+              <button className="admin-modal-close" onClick={closeCreateModal}>×</button>
+            </div>
+
+            <div className="admin-modal-content">
+              <div style={{ display: 'grid', gap: 12 }}>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <input type="text" placeholder="First name" value={createFirstname} onChange={(e) => setCreateFirstname(e.target.value)} style={{ flex: 1, padding: 10, borderRadius: 8, border: '1px solid #e2e8f0' }} />
+                  <input type="text" placeholder="Last name" value={createLastname} onChange={(e) => setCreateLastname(e.target.value)} style={{ flex: 1, padding: 10, borderRadius: 8, border: '1px solid #e2e8f0' }} />
+                </div>
+
+                <input type="email" placeholder="Email" value={createEmail} onChange={(e) => setCreateEmail(e.target.value)} style={{ padding: 10, borderRadius: 8, border: '1px solid #e2e8f0' }} />
+
+                <input type="password" placeholder="Password (optional)" value={createPassword} onChange={(e) => setCreatePassword(e.target.value)} style={{ padding: 10, borderRadius: 8, border: '1px solid #e2e8f0' }} />
+
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <select value={createRole} onChange={(e) => setCreateRole(e.target.value)} style={{ padding: 10, borderRadius: 8, border: '1px solid #e2e8f0', flex: 1 }}>
+                    <option value="Account">Account</option>
+                    <option value="Barangay Official">Barangay Official</option>
+                    <option value="Responder">Responder</option>
+                  </select>
+
+                  {(createRole === 'Barangay Official' || createRole === 'Responder') && (
+                    <select value={createBarangay} onChange={(e) => setCreateBarangay(e.target.value)} style={{ padding: 10, borderRadius: 8, border: '1px solid #e2e8f0', flex: 1 }}>
+                      <option value="">Select Barangay</option>
+                      {barangaysList.map(b => <option key={b} value={b}>{b}</option>)}
+                    </select>
+                  )}
+                </div>
+
+                <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                    <label style={{ fontSize: 13, color: '#334155' }}>Avatar (optional)</label>
+                    <input type="file" accept="image/*" onChange={handleCreateAvatarSelect} />
+                  </div>
+                  {createAvatarPreview && (
+                    <img src={createAvatarPreview} alt="avatar preview" style={{ width: 64, height: 64, borderRadius: '50%', objectFit: 'cover', border: '1px solid #e2e8f0' }} />
+                  )}
+                </div>
+              </div>
+            </div>
+
+            <div className="admin-modal-actions" style={{ justifyContent: 'flex-end' }}>
+              <button className="cancel-btn" onClick={closeCreateModal} style={{ padding: '10px 16px', borderRadius: 8 }}>Cancel</button>
+              <button className="verify-btn" onClick={handleCreateUser} style={{ marginLeft: 8, padding: '10px 16px', borderRadius: 8 }} disabled={isCreating}>{isCreating ? 'Creating...' : 'Create Account'}</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Confirmation Modal */}
+      {isDeleteConfirmOpen && (
+        <div className="modal-overlay" onClick={() => setIsDeleteConfirmOpen(false)}>
+          <div className="admin-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="admin-modal-header">
+              <h3>Confirm Delete</h3>
+              <button className="admin-modal-close" onClick={() => setIsDeleteConfirmOpen(false)}>×</button>
+            </div>
+
+            <div className="admin-modal-content">
+              <p>Are you sure you want to permanently delete <strong>{selectedIds.size}</strong> selected user(s)? This action cannot be undone.</p>
+              {deleteReason ? (
+                <div style={{ margin: '12px 0', padding: '12px', background: '#fff7f7', borderRadius: 6, border: '1px solid #ffe0e0' }}>
+                  <strong>Deletion Reason:</strong> <br/>
+                  {deleteReason === 'Other' ? deleteReasonOther : deleteReason}
+                </div>
+              ) : null}
+            </div>
+
+            <div className="admin-modal-actions" style={{ justifyContent: 'flex-end' }}>
+              <button className="cancel-btn" onClick={() => setIsDeleteConfirmOpen(false)} style={{ padding: '10px 16px', borderRadius: 8 }} disabled={isDeleting}>Cancel</button>
+              <button className="verify-btn" onClick={performDeleteSelected} style={{ marginLeft: 8, padding: '10px 16px', borderRadius: 8, background: '#ef4444', color: '#fff' }} disabled={isDeleting}>{isDeleting ? 'Deleting...' : 'Yes, Delete Permanently'}</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Reason Modal: ask admin why the users are being deleted */}
+      {isDeleteReasonOpen && (
+        <div
+          className="modal-overlay"
+          onClick={!isDeleting ? closeDeleteReason : undefined}
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="delete-reason-title"
+          tabIndex="-1"
+        >
+          <div className="admin-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="admin-modal-header">
+              <h3 id="delete-reason-title">User Deletion Reason</h3>
+              <button className="admin-modal-close" onClick={closeDeleteReason} disabled={isDeleting}>×</button>
+            </div>
+
+            <div className="admin-modal-content">
+              <p>Please select the reason why these user(s) should be deleted. This helps with auditing and prevents misuse.</p>
+
+              <label htmlFor="delete-reason-select" style={{ display: 'block', marginBottom: 8, fontWeight: '600' }}>Select reason</label>
+              <select
+                id="delete-reason-select"
+                value={deleteReason}
+                onChange={(e) => setDeleteReason(e.target.value)}
+                style={{ width: '100%', padding: 8, marginBottom: 12, borderRadius: 6, border: '1px solid #ddd' }}
+                disabled={isDeleting}
+              >
+                <option value="">-- Select a reason --</option>
+                <option value="Account Compromise / Hacking">Account Compromise / Hacking</option>
+                <option value="Violation of Community Guidelines">Violation of Community Guidelines</option>
+                <option value="Spam / Malicious Activity">Spam / Malicious Activity</option>
+                <option value="Inactive Account">Inactive Account</option>
+                <option value="Duplicate Account">Duplicate Account</option>
+                <option value="User Request">User Request for Account Deletion</option>
+                <option value="Other">Other (provide details)</option>
+              </select>
+
+              {deleteReason === 'Other' && (
+                <div style={{ marginBottom: 12 }}>
+                  <label htmlFor="delete-reason-other" style={{ display: 'block', marginBottom: 6 }}>Details</label>
+                  <input
+                    id="delete-reason-other"
+                    type="text"
+                    value={deleteReasonOther}
+                    onChange={(e) => setDeleteReasonOther(e.target.value)}
+                    placeholder="Provide brief details (required)"
+                    style={{ width: '100%', padding: 8, borderRadius: 6, border: '1px solid #ddd' }}
+                    disabled={isDeleting}
+                  />
+                </div>
+              )}
+            </div>
+
+            <div className="admin-modal-actions" style={{ justifyContent: 'flex-end', gap: 10 }}>
+              <button onClick={closeDeleteReason} disabled={isDeleting} style={{ padding: '10px 16px', borderRadius: 8 }}>Cancel</button>
+              <button
+                onClick={proceedToConfirmDelete}
+                disabled={isDeleting || !deleteReason || (deleteReason === 'Other' && !deleteReasonOther.trim())}
+                style={{ backgroundColor: '#ef4444', color: '#fff', padding: '10px 16px', borderRadius: 8, border: 'none', cursor: 'pointer' }}
+              >
+                Continue to Delete
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Verification Modal */}
       {isVerificationModalOpen && selectedUser && (
@@ -549,7 +1021,7 @@ function AdminUsers({ token }) {
                         {selectedUser.email}
                       </p>
                     </div>
-                    <span className={`modal-role-badge admin-role-badge ${selectedUser.role.toLowerCase()}`}>
+                    <span className={`modal-role-badge admin-role-badge ${selectedUser.role.toLowerCase().replace(/\s+/g, '-')}`}>
                       {selectedUser.role}
                     </span>
                   </div>

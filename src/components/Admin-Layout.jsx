@@ -6,10 +6,11 @@ import {
   FaBars,
   FaCalendarAlt,
   FaMap,
-  FaUser,
   FaUsers,
   FaBell,
   FaFileAlt,
+  FaChartBar,
+  FaComment,
 } from "react-icons/fa";
 import { Outlet, NavLink, useNavigate } from "react-router-dom";
 import "./Layout.css";
@@ -20,6 +21,7 @@ function AdminLayout({ session, setSession, setNotification }) {
   const [dateTime, setDateTime] = useState(new Date());
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const [user, setUser] = useState(null);
+  // (Community metrics moved to a dedicated page)
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
 
@@ -123,6 +125,8 @@ function AdminLayout({ session, setSession, setNotification }) {
     }
   };
 
+  // Community metrics are provided on a separate Admin page
+
   if (loading) {
     return (
       <div style={{ padding: "2rem", textAlign: "center" }}>
@@ -144,27 +148,21 @@ function AdminLayout({ session, setSession, setNotification }) {
             }}>Community Guard</h2>
           </div>
 
-          {/* Sidebar Nav */}
+          {/* Sidebar Nav - Users prioritized; admin no longer has direct Dashboard/Map/Reports links */}
           <nav
             style={{
               borderBottom: "1px solid rgba(255,255,255,0.1)",
               textAlign: "center",
             }}
           >
-            <NavLink to="/admin/dashboard">
-              <FaHome /> Dashboard
+            <NavLink to="/admin/users">
+              <FaUsers /> Users
             </NavLink>
-            <NavLink to="/admin/maps">
-              <FaMap /> Map
-            </NavLink>
-            <NavLink to="/admin/reports">
-              <FaFileAlt /> Reports
+            <NavLink to="/admin/community-feed">
+              <FaComment /> Community Feed
             </NavLink>
             <NavLink to="/admin/notifications">
               <FaBell /> Notifications
-            </NavLink>
-            <NavLink to="/admin/users">
-              <FaUsers /> Users
             </NavLink>
           </nav>
 
@@ -251,6 +249,7 @@ function AdminLayout({ session, setSession, setNotification }) {
                 cursor: "pointer",
               }}
             >
+              {/* Admin actions moved to the Community Metrics page */}
               <img
                 src={user.avatar_url || "/src/assets/profile.png"}
                 alt="Admin Profile"
@@ -293,18 +292,15 @@ function AdminLayout({ session, setSession, setNotification }) {
 
       {/* Bottom nav (mobile) */}
       <nav className="bottom-nav">
-        <NavLink to="/admin/dashboard">
-          <FaHome />
-        </NavLink>
-        <NavLink to="/admin/maps">
-          <FaMap />
-        </NavLink>
-        <NavLink to="/admin/reports">
-          <FaFileAlt />
-        </NavLink>
-        <NavLink to="/admin/users">
-          <FaUsers />
-        </NavLink>
+            <NavLink to="/admin/users">
+              <FaUsers />
+            </NavLink>
+            <NavLink to="/admin/community-feed">
+              <FaComment />
+            </NavLink>
+            <NavLink to="/admin/notifications">
+              <FaBell />
+            </NavLink>
       </nav>
 
       {/* Mobile logout bubble */}

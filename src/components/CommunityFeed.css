@@ -325,6 +325,40 @@
   background: #005ec5;
 }
 
+/* Admin Approval */
+.admin-approval-buttons {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.btn-approve {
+  background: #0abf53;
+  color: white;
+  border: none;
+  padding: 6px 14px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 0.9rem;
+}
+
+.btn-approve:hover {
+  opacity: 0.85;
+}
+
+.btn-reject {
+  background: #d9534f;
+  color: white;
+  border: none;
+  padding: 6px 14px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 0.9rem;
+}
+
+.btn-reject:hover {
+  opacity: 0.85;
+}
 
 @media (max-width: 600px) {
   .header-actions {

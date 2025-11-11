@@ -198,9 +198,11 @@
     justify-content: space-between;
     align-items: center;
     gap: 12px;
+    width: 100%;
 }
 
 .notif-title {
+    flex: 1;
     margin: 0 0 6px 0;
     font-size: 15px;
     color: #222;
@@ -244,10 +246,36 @@
     color: #333;
 }
 
+.notif-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+  gap: 10px;
+}
+
+.notif-message {
+  flex: 1;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+}
+
+.notification-actions {
+  display: flex;
+  gap: 6px;
+}
+
 .notif-time {
     margin: 4px 0 0 0;
     font-size: 12px;
     color: #888;
+}
+
+/* Date + badge container right */
+.notif-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
 /* Notification Actions */
@@ -360,5 +388,13 @@
     .btn-action {
         padding: 6px;
         font-size: 16px;
+    }
+}
+
+@media (max-width: 480px) {
+    .notif-header {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0;
     }
 }

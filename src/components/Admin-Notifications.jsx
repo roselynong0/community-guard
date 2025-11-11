@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState, useCallback } from 'react';
+import { API_CONFIG } from "../utils/apiConfig";
 import './Notifications.css';
 import {
   FaInfoCircle,
@@ -14,7 +15,7 @@ import {
   FaExclamationTriangle,
 } from 'react-icons/fa';
 
-const API_URL = 'http://localhost:5000/api';
+const API_URL = `${API_CONFIG.BASE_URL}/api`;
 
 const getFinalNotificationType = (n) => {
   const textContext = String(n.title || '') + ' ' + String(n.message || '') + ' ' + String(n.type || '');
@@ -340,40 +341,65 @@ export default function AdminNotifications({ session }) {
               <div className="notif-details">
                 <div className="notif-header">
                   <p className="notif-title"><strong>{n.title}</strong></p>
-                  {/* Badge next to title showing status (Pending/Ongoing/Resolved) */}
-                  {/* Badge uses mapped class/label so account_alert adopts report styling and resolved uses resolved styling */}
-                  <div className={`notif-badge ${getBadgeClass(n)}`} title={`Status: ${getBadgeLabel(n)}`} aria-hidden>
-                    <span className="badge-icon small-icon">{getNotificationIcon(getBadgeClass(n))}</span>
-                    <span className="badge-text">{getBadgeLabel(n)}</span>
+
+                  <div className="notif-right">
+                    <small className="notif-time">
+                      {new Date(n.created_at).toLocaleString()}
+                    </small>
+
+                    <div
+                      className={`notif-badge ${getBadgeClass(n)}`}
+                      title={`Status: ${getBadgeLabel(n)}`}
+                      aria-hidden
+                    >
+                      <span className="badge-icon small-icon">
+                        {getNotificationIcon(getBadgeClass(n))}
+                      </span>
+                      <span className="badge-text">{getBadgeLabel(n)}</span>
+                    </div>
                   </div>
                 </div>
 
-                {/* Human-friendly message on the next line */}
-                <p className="notif-message">{n.message}</p>
-                <small className="notif-time">{new Date(n.created_at).toLocaleString()}</small>
+
+                {/* Human-friendly message on the next line - preserve newlines with white-space: pre-wrap */}
+                <div className="notif-row">
+                  <p className="notif-message">
+                    {n.message}
+                  </p>
+
+                  <div className="notification-actions">
+                    {!n.is_read && (
+                      <button
+                        className="btn-action mark-read-btn"
+                        onClick={() => markAdminRead(n.raw_id)}
+                        title="Mark as read"
+                      >
+                        <FaCheck />
+                      </button>
+                    )}
+                    <button
+                      className="btn-action delete-notif-btn"
+                      onClick={() => deleteAdminNotification(n.raw_id)}
+                      title="Delete notification"
+                    >
+                      <FaTrashAlt />
+                    </button>
+                  </div>
+                </div>
+
 
                 {n.recipient ? (
                   <div className="notif-to" style={{ marginTop: 8, color: '#555', display: 'flex', alignItems: 'center' }}>
                     <span className="recipient-icon small-icon" style={{ marginRight: 8 }}>
                       <FaUser className={`icon ${getIconClassForNotification(n)}`} />
                     </span>
-                    <span>To: {n.recipient.firstname} {n.recipient.lastname} &lt;{n.recipient.email}&gt;</span>
+                    <span>To: {n.recipient.firstname} {n.recipient.lastname} ({n.recipient.role || 'Resident'}) &lt;{n.recipient.email}&gt;</span>
                   </div>
                 ) : null}
 
                 {n.actor ? (
-                  <div style={{ marginTop: 6, color: '#444', fontStyle: 'italic' }}>By: {n.actor.firstname || ''} {n.actor.lastname || ''}</div>
+                  <div style={{ color: '#2d2d73', fontStyle: 'italic', fontSize: '12px' }}>By: {n.actor.firstname || ''} {n.actor.lastname || ''} ({n.actor.role || 'Resident'})</div>
                 ) : null}
-              </div>
-              <div className="notification-actions">
-                {!n.is_read && (
-                  <button className="btn-action mark-read-btn" onClick={() => markAdminRead(n.raw_id)} title="Mark as read">
-                    <FaCheck />
-                  </button>
-                )}
-                <button className="btn-action delete-notif-btn" onClick={() => deleteAdminNotification(n.raw_id)} title="Delete notification">
-                  <FaTrashAlt />
-                </button>
               </div>
             </li>
           ))}

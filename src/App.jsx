@@ -20,6 +20,8 @@ import LandingPage from "./components/LandingPage";
 import SafetyTips from "./components/SafetyTips";
 import CommunityFeed from "./components/CommunityFeed";
 
+import AdminCommunityFeed from "./components/Admin-CommunityFeed";
+
 import BarangayLayout from "./components/BarangayLayout";
 import BarangayDashboard from "./components/BarangayDashboard";
 import BarangayReports from "./components/BarangayReports";
@@ -285,6 +287,12 @@ function App() {
               )
             }
           />
+        </Route>
+
+        <Route>
+          <Route element={<AdminLayout />}>
+          <Route path="/admin/community-feed" element={<AdminCommunityFeed />} />
+        </Route>
         </Route>
 
         {/* --- BARANGAY OFFICIAL ROUTES --- */}
