@@ -24,6 +24,7 @@ try:
     from routes.reports import reports_bp
     from routes.admin import admin_bp
     from routes.notifications import notifications_bp
+    from routes.community_feed import community_feed_bp
 except ImportError as e:
     print(f"Import error: {e}")
     print(f"Python path: {sys.path}")
@@ -69,6 +70,7 @@ def create_app():
     app.register_blueprint(reports_bp, url_prefix='/api')
     app.register_blueprint(admin_bp, url_prefix='/api')
     app.register_blueprint(notifications_bp, url_prefix='/api')
+    app.register_blueprint(community_feed_bp, url_prefix='/api')
 
     # ✅ Health check
     @app.route("/api/health")

@@ -267,6 +267,84 @@ def login():
     return jsonify({"status": "success", "session": session_data}), 200
 
 
+@auth_bp.route("/sessions", methods=["GET"])
+@token_required
+def get_sessions():
+    """Get all active sessions for the current user"""
+    try:
+        user_id = request.user_id
+        now = datetime.now(timezone.utc)
+        
+        # Get user data first
+        user_resp = supabase.table("users").select("*").eq("id", user_id).execute()
+        user_data = getattr(user_resp, "data", [None])[0]
+        
+        if not user_data:
+            return jsonify({"status": "error", "message": "User not found", "sessions": []}), 404
+        
+        # Fetch all sessions for this user
+        resp = supabase.table("sessions").select("*").eq("user_id", user_id).order("created_at", desc=True).execute()
+        all_sessions = getattr(resp, "data", []) or []
+        
+        # Filter out expired sessions and enhance with user data
+        active_sessions = []
+        for s in all_sessions:
+            if datetime.fromisoformat(s["expires_at"]) < now:
+                # Auto-delete expired sessions
+                try:
+                    supabase.table("sessions").delete().eq("id", s["id"]).execute()
+                    print(f"🧹 Removed expired session {s['id']} for user {user_id}")
+                except Exception as e:
+                    print(f"⚠️ Failed to delete expired session: {e}")
+            else:
+                # Add user data to each session
+                enhanced_session = {
+                    **s,
+                    "user": {
+                        "id": user_data["id"],
+                        "firstname": user_data["firstname"],
+                        "lastname": user_data["lastname"],
+                        "email": user_data["email"],
+                        "role": user_data.get("role", "Resident"),
+                        "isverified": user_data.get("isverified", False),
+                        "avatar_url": user_data.get("avatar_url", "/default-avatar.png"),
+                    }
+                }
+                active_sessions.append(enhanced_session)
+        
+        return jsonify({"status": "success", "sessions": active_sessions}), 200
+        
+    except Exception as e:
+        print(f"❌ Error fetching sessions: {e}")
+        return jsonify({"status": "error", "message": str(e), "sessions": []}), 500
+
+
+@auth_bp.route("/sessions/<session_id>", methods=["DELETE"])
+@token_required
+def revoke_session(session_id):
+    """Revoke a single session"""
+    try:
+        user_id = request.user_id
+        supabase.table("sessions").delete().eq("id", session_id).eq("user_id", user_id).execute()
+        return jsonify({"status": "success", "message": "Session revoked"}), 200
+    except Exception as e:
+        print(f"❌ Error revoking session: {e}")
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+
+@auth_bp.route("/sessions/revoke-all", methods=["DELETE"])
+@token_required
+def revoke_all_sessions():
+    """Revoke all sessions for the current user"""
+    try:
+        user_id = request.user_id
+        supabase.table("sessions").delete().eq("user_id", user_id).execute()
+        return jsonify({"status": "success", "message": "All sessions revoked", "sessions": []}), 200
+    except Exception as e:
+        print(f"❌ Error revoking all sessions: {e}")
+        return jsonify({"status": "error", "message": str(e), "sessions": []}), 500
+
+
 @auth_bp.route("/logout", methods=["POST"])
 @token_required
 def logout():
