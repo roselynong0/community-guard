@@ -48,30 +48,28 @@ const getFinalNotificationType = (n) => {
 
 const getNotificationIcon = (type) => {
   const t = (type || 'info').toLowerCase();
+
   switch (t) {
+    case 'pending':
+      return <FaClock className="icon icon-pending" />;
+
+    case 'ongoing':
+      return <FaSyncAlt className="icon icon-ongoing" />;
+
     case 'resolved':
     case 'success':
       return <FaCheckCircle className="icon icon-success" />;
-    case 'account_alert':
-      // treat account_alert like a new report visually (exclamation icon)
-      return <FaExclamationTriangle className="icon icon-report" />;
-    case 'user':
-      return <FaUser className="icon icon-security" />; // user icon for account actions
+
     case 'report':
-      // new report posts use the exclamation triangle like the home dashboard
+    case 'account_alert':
       return <FaExclamationTriangle className="icon icon-report" />;
-    case 'warning':
-    case 'ongoing':
-      // ongoing status uses the sync/refresh icon (matching Home)
-      return <FaSyncAlt className="icon icon-ongoing" />;
-    case 'pending':
-      return <FaClock className="icon icon-pending" />;
-    case 'deleted':
-    case 'report deleted':
-      return <FaTrashAlt className="icon icon-warning" />;
+
     case 'account_deleted':
-      // red trash icon for account deletions
       return <FaTrashAlt className="icon icon-delete" />;
+
+    case 'user':
+      return <FaUser className="icon icon-security" />;
+
     default:
       return <FaInfoCircle className="icon icon-info" />;
   }
@@ -80,16 +78,10 @@ const getNotificationIcon = (type) => {
 // main icon shown at the left of each notification item
 // per request: keep the exclamation triangle in front of report posts
 const getMainIcon = (n) => {
-  // if the notification relates to a report or is an account_alert, show the exclamation triangle
-  const t = String(n?.type || '').toLowerCase();
-  const message = String(n?.message || '') + ' ' + String(n?.title || '');
-  const msg = message.toLowerCase();
-  if (t === 'report' || t === 'account_alert' || msg.includes('report') || msg.includes("updated to") || msg.includes('new report')) {
-    return <FaExclamationTriangle className="icon icon-report" />;
-  }
-  // fallback to the type-based icon
-  return getNotificationIcon(t || 'info');
+  const status = getBadgeClass(n);   // use final interpreted status
+  return getNotificationIcon(status);
 };
+
 
 // badge helpers accept either a type string or the full notification object
 const getBadgeClass = (input) => {
