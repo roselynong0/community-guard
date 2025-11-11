@@ -28,7 +28,6 @@ import SafetyTips from "./components/SafetyTips";
 import CommunityFeed from "./components/CommunityFeed";
 import BarangayDashboard from "./components/BarangayDashboard";
 import BarangayReports from "./components/BarangayReports";
-import BarangayCommunityFeed from "./components/BarangayCommunityFeed"; 
 import BarangayNotifications from "./components/BarangayNotifications";
 
 import RespondersLayout from "./components/RespondersLayout";
@@ -285,7 +284,7 @@ function App() {
           <Route path="/barangay/maps" element={<Maps session={session} userRole="Barangay Official" />} />
           <Route path="/barangay/reports" element={<BarangayReports token={session?.token} />} />
           <Route path="/barangay/notifications" element={<Notifications token={session?.token} />} />
-          <Route path="/barangay/community-feed" element={<BarangayCommunityFeed token={session?.token} session={session} />} />
+          <Route path="/barangay/community-feed" element={<CommunityFeedBarangay token={session?.token} session={session} />} />
           <Route path="/barangay/profile" element={<Profile token={session?.token} />} />
         </Route>
 

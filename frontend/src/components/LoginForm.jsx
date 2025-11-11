@@ -72,6 +72,7 @@ function LoginForm({ setSession, setNotification }) {
 
         if (res.ok && result.status === "success") {
           localStorage.setItem("token", result.session.token);
+          localStorage.setItem("session", JSON.stringify(result.session));
           setSession(result.session);
           const userRole = result.session.user?.role;
           
