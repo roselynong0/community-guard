@@ -11,7 +11,9 @@ import L from "leaflet";
 import "./Maps.css";
 import "leaflet/dist/leaflet.css";
 
-const API_URL = `${API_CONFIG.BASE_URL}/api`;
+import { getApiUrl } from "../utils/apiConfig";
+
+// Build endpoints with getApiUrl so VITE_API_URL is used in prod and localhost in dev
 const OLONGAPO_CENTER = [14.8291, 120.2829];
 const INITIAL_ZOOM = 13;
 
@@ -61,14 +63,14 @@ function Maps({ session, userRole }) {
         // Check if user is a barangay official
         const isBarangayOfficial = userRole === "Barangay Official";
         
-        let endpoint = `${API_URL}/map_reports`;
+  let endpoint = getApiUrl('/api/map_reports');
         let headers = { Authorization: `Bearer ${token}` };
         
         // If barangay official, use the filtered endpoint
-        if (isBarangayOfficial && token) {
-          endpoint = `${API_URL}/map_reports/barangay`;
+          if (isBarangayOfficial && token) {
+          endpoint = getApiUrl('/api/map_reports/barangay');
         }
-        
+
         const response = await fetch(endpoint, { headers });
         const data = await response.json();
 
@@ -134,30 +136,24 @@ function Maps({ session, userRole }) {
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
         />
 
-        {/* Barangay markers - one per barangay with reports */}
-        {Object.entries(reportsByBarangay).map(([barangay, reportsArray], i) => {
-          // Use the first report for marker position
-          const markerPosition = [
-            reportsArray[0].latitude,
-            reportsArray[0].longitude,
-          ];
+        {/* Individual report markers with colored icons - each at its own location */}
+        {reports.map((r, idx) =>
+          r.latitude && r.longitude ? (
+            <React.Fragment key={`report-${idx}`}>
+              {/* Colored marker icon with popup */}
+              <Marker
+                position={[r.latitude, r.longitude]}
+                icon={createColoredIcon(getColor(r.address_barangay))}
+              >
+                <Popup>
+                  <div style={{ fontWeight: "bold", fontSize: "14px", marginBottom: "4px" }}>
+                    {r.address_barangay}
+                  </div>
+                  <div style={{ fontSize: "13px", marginBottom: "4px" }}>
+                    📊 Total Reports: {reportsByBarangay[r.address_barangay]?.length || 1}
+                  </div>
 
-          return (
-            <Marker
-              key={`marker-${i}`}
-              position={markerPosition}
-              icon={createColoredIcon(getColor(barangay))}
-            >
-              <Popup>
-                <div style={{ fontWeight: "bold", fontSize: "14px", marginBottom: "4px" }}>
-                  {barangay}
-                </div>
-                <div style={{ fontSize: "13px", marginBottom: "4px" }}>
-                  📊 Total Reports: {reportsArray.length}
-                </div>
-
-                {reportsArray.map((r, idx) => (
-                  <div key={idx} style={{ fontSize: "13px", marginBottom: "6px" }}>
+                  <div style={{ fontSize: "13px", marginBottom: "6px" }}>
                     <strong>{r.title}</strong>
                     <br />
                     📍 {r.address_street}
@@ -166,23 +162,18 @@ function Maps({ session, userRole }) {
                     <br />
                     🌍 {r.latitude.toFixed(6)}, {r.longitude.toFixed(6)}
                   </div>
-                ))}
-              </Popup>
-            </Marker>
-          );
-        })}
-
-        {/* Individual report markers */}
-        {reports.map((r, idx) =>
-          r.latitude && r.longitude ? (
-            <CircleMarker
-              key={`report-${idx}`}
-              center={[r.latitude, r.longitude]}
-              radius={6}
-              color={getColor(r.address_barangay)}
-              fillColor={getColor(r.address_barangay)}
-              fillOpacity={0.8}
-            />
+                </Popup>
+              </Marker>
+              
+              {/* Colored circle dot at the same location */}
+              <CircleMarker
+                center={[r.latitude, r.longitude]}
+                radius={6}
+                color={getColor(r.address_barangay)}
+                fillColor={getColor(r.address_barangay)}
+                fillOpacity={0.8}
+              />
+            </React.Fragment>
           ) : null
         )}
       </MapContainer>

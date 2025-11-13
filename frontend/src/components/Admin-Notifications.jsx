@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState, useCallback } from 'react';
-import { API_CONFIG } from "../utils/apiConfig";
+import { API_CONFIG, getApiUrl } from "../utils/apiConfig";
 import './Notifications.css';
 import {
   FaInfoCircle,
@@ -14,8 +14,6 @@ import {
   FaCheckDouble,
   FaExclamationTriangle,
 } from 'react-icons/fa';
-
-const API_URL = `${API_CONFIG.BASE_URL}/api`;
 
 const getFinalNotificationType = (n) => {
   const textContext = String(n.title || '') + ' ' + String(n.message || '') + ' ' + String(n.type || '');
@@ -183,7 +181,7 @@ export default function AdminNotifications({ session }) {
     setLoading(true);
     setError('');
     try {
-      const res = await fetch(`${API_URL}/admin/admin_notifications`, { headers });
+      const res = await fetch(getApiUrl('/api/admin/admin_notifications'), { headers });
       if (!res.ok) throw new Error(`Failed to fetch (${res.status})`);
       const data = await res.json();
       // Only admin-focused notifications (admin_notifications endpoint)
@@ -217,7 +215,7 @@ export default function AdminNotifications({ session }) {
     try {
       // optimistic update
       setNotifications(prev => prev.map(n => (n.raw_id === rawId ? { ...n, is_read: true } : n)));
-      const res = await fetch(`${API_URL}/admin/admin_notifications/${rawId}/read`, { method: 'POST', headers });
+      const res = await fetch(getApiUrl(`/api/admin/admin_notifications/${rawId}/read`), { method: 'POST', headers });
       if (!res.ok) throw new Error(`Failed to mark read (${res.status})`);
       const data = await res.json();
       if (data?.notification) {
@@ -237,7 +235,7 @@ export default function AdminNotifications({ session }) {
     try {
       // optimistic
       setNotifications(prev => prev.map(n => ({ ...n, is_read: true })));
-      const res = await fetch(`${API_URL}/admin/admin_notifications/read_all`, { method: 'POST', headers });
+      const res = await fetch(getApiUrl('/api/admin/admin_notifications/read_all'), { method: 'POST', headers });
       if (!res.ok) throw new Error(`Failed to mark all read (${res.status})`);
       const data = await res.json();
       if (data?.status !== 'success' && !data?.updated_count) {
@@ -256,7 +254,7 @@ export default function AdminNotifications({ session }) {
     try {
       // optimistic remove
       setNotifications(prev => prev.filter(n => n.raw_id !== rawId));
-      const res = await fetch(`${API_URL}/admin/admin_notifications/${rawId}`, { method: 'DELETE', headers });
+      const res = await fetch(getApiUrl(`/api/admin/admin_notifications/${rawId}`), { method: 'DELETE', headers });
       if (!res.ok) throw new Error(`Failed to delete (${res.status})`);
       // Optionally validate response
     } catch (e) {

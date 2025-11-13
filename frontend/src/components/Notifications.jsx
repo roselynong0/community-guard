@@ -13,7 +13,9 @@ import {
   FaUserShield    
 } from 'react-icons/fa';
 
-const API_URL = `${API_CONFIG.BASE_URL}/api`; 
+import { getApiUrl } from "../utils/apiConfig";
+
+// Use getApiUrl for consistent base URL resolution
 
 
 const getFinalNotificationType = (n) => {
@@ -93,7 +95,7 @@ export default function Notifications({ session, token }) {
     setLoading(true);
     setError("");
     try {
-      const res = await fetch(`${API_URL}/notifications`, { headers });
+  const res = await fetch(getApiUrl(API_CONFIG.endpoints.notifications), { headers });
       if (!res.ok) throw new Error(`Failed to fetch (${res.status})`);
       const data = await res.json();
       
@@ -144,7 +146,7 @@ export default function Notifications({ session, token }) {
     try {
       // Optimistic UI update
       setNotifications((prev) => prev.map((n) => (n.id === id ? { ...n, read: true } : n)));
-      const res = await fetch(`${API_URL}/notifications/${id}/read`, {
+      const res = await fetch(getApiUrl(`/api/notifications/${id}/read`), {
         method: "POST",
         headers,
       });
@@ -166,7 +168,7 @@ export default function Notifications({ session, token }) {
     try {
       // optimistic remove
       setNotifications((prev) => prev.filter((n) => n.id !== id));
-      const res = await fetch(`${API_URL}/notifications/${id}`, {
+      const res = await fetch(getApiUrl(`/api/notifications/${id}`), {
         method: "DELETE",
         headers,
       });
@@ -182,7 +184,7 @@ export default function Notifications({ session, token }) {
     try {
       // Optimistic UI update
       setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
-      const res = await fetch(`${API_URL}/notifications/read_all`, {
+      const res = await fetch(getApiUrl(`/api/notifications/read_all`), {
         method: "POST",
         headers,
       });

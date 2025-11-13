@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState, useCallback } from 'react';
-import { API_CONFIG } from "../utils/apiConfig";
+import { API_CONFIG, getApiUrl } from "../utils/apiConfig";
 import './Notifications.css';
 import {
   FaInfoCircle,
@@ -12,8 +12,6 @@ import {
   FaSync,
   FaExclamationTriangle,
 } from 'react-icons/fa';
-
-const API_URL = `${API_CONFIG.BASE_URL}/api`;
 
 // Determine the type of notification
 const getFinalNotificationType = (n) => {
@@ -158,7 +156,7 @@ export default function BarangayOfficialNotifications({ session }) {
     setLoading(true);
     setError('');
     try {
-      const res = await fetch(`${API_URL}/barangay/notifications`, { headers });
+      const res = await fetch(getApiUrl('/api/barangay/notifications'), { headers });
       if (!res.ok) throw new Error(`Failed to fetch (${res.status})`);
       const data = await res.json();
       
@@ -193,7 +191,7 @@ export default function BarangayOfficialNotifications({ session }) {
   // Mark single notification as read
   const markNotificationRead = async (rawId) => {
     try {
-      const res = await fetch(`${API_URL}/barangay/notifications/${rawId}/read`, {
+      const res = await fetch(getApiUrl(`/api/barangay/notifications/${rawId}/read`), {
         method: 'POST',
         headers,
       });
@@ -210,7 +208,7 @@ export default function BarangayOfficialNotifications({ session }) {
   // Mark all as read
   const markAllRead = async () => {
     try {
-      const res = await fetch(`${API_URL}/barangay/notifications/read_all`, {
+      const res = await fetch(getApiUrl('/api/barangay/notifications/read_all'), {
         method: 'POST',
         headers,
       });
@@ -225,7 +223,7 @@ export default function BarangayOfficialNotifications({ session }) {
   // Delete notification
   const deleteNotification = async (rawId) => {
     try {
-      const res = await fetch(`${API_URL}/barangay/notifications/${rawId}`, {
+      const res = await fetch(getApiUrl(`/api/barangay/notifications/${rawId}`), {
         method: 'DELETE',
         headers,
       });

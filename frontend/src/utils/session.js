@@ -1,5 +1,5 @@
 // utils/session.js
-import { API_CONFIG } from './apiConfig';
+import { API_CONFIG, getApiUrl } from './apiConfig';
 
 export async function fetchSession() {
   try {
@@ -8,7 +8,7 @@ export async function fetchSession() {
 
     // PRIMARY: Fetch from backend API (fresh, authoritative source)
     try {
-      const res = await fetch(`${API_CONFIG.BASE_URL}/api/sessions`, {
+      const res = await fetch(getApiUrl(API_CONFIG.endpoints.sessions), {
         headers: {
           Authorization: `Bearer ${token}`,
         },
@@ -76,7 +76,7 @@ export async function logout(setSession) {
   }
 
   try {
-    await fetch(`${API_CONFIG.BASE_URL}/api/logout`, {
+    await fetch(getApiUrl(API_CONFIG.endpoints.logout), {
       method: "POST",
       headers: {
         Authorization: `Bearer ${token}`,

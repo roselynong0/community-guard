@@ -1,9 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import { FaEdit, FaTrashAlt, FaSearch, FaRedo, FaCheckCircle, FaTimesCircle } from "react-icons/fa";
-import { API_CONFIG } from "../utils/apiConfig";
-import "./Reports.css"; 
-
-const API_URL = `${API_CONFIG.BASE_URL}/api`;
+import { API_CONFIG, getApiUrl } from "../utils/apiConfig";
+import "./Reports.css";
 const REPORT_STATUSES = ["Pending", "Ongoing", "Resolved"];
 
 // Utility Hook for Modal Accessibility (Focus trap and Esc key)
@@ -226,7 +224,7 @@ function BarangayReports({ token }) {
         try {
             const sortParam = sort === "latest" ? "desc" : "asc";
             // Use the new barangay-specific endpoint
-            const response = await fetch(`${API_URL}/barangay/reports?limit=50&sort=${sortParam}`, {
+            const response = await fetch(getApiUrl(`/api/barangay/reports?limit=50&sort=${sortParam}`), {
                 headers: { 
                     'Authorization': `Bearer ${token}`,
                     'Content-Type': 'application/json'
@@ -331,7 +329,7 @@ function BarangayReports({ token }) {
         setIsUpdatingStatus(true);
 
         try {
-            const response = await fetch(`${API_URL}/reports/${selectedReport.id}/status`, {
+            const response = await fetch(getApiUrl(`/api/reports/${selectedReport.id}/status`), {
                 method: 'PUT',
                 headers: {
                     'Authorization': `Bearer ${token}`,
@@ -377,7 +375,7 @@ function BarangayReports({ token }) {
 
         setIsDeleting(true);
         try {
-            const response = await fetch(`${API_URL}/reports/${deleteTarget.id}`, {
+            const response = await fetch(getApiUrl(`/api/reports/${deleteTarget.id}`), {
                 method: 'DELETE',
                 headers: {
                     'Authorization': `Bearer ${token}`,

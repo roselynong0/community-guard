@@ -1,9 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import { FaEdit, FaTrashAlt, FaSearch, FaRedo, FaCheckCircle, FaTimesCircle } from "react-icons/fa";
-import { API_CONFIG } from "../utils/apiConfig";
-import "./Reports.css"; 
-
-const API_URL = `${API_CONFIG.BASE_URL}/api`;
+import { API_CONFIG, getApiUrl } from "../utils/apiConfig";
+import "./Reports.css";
 const REPORT_STATUSES = ["Pending", "Ongoing", "Resolved"];
 
 // Utility Hook for Modal Accessibility (Focus trap and Esc key)
@@ -119,7 +117,7 @@ const useKeyboardNavigation = (containerRef, selector) => {
 // -------------------------------------------------------------
 
 
-function AdminReports({ token }) {
+function AdminReports({ token, reportTitle = 'All Community Reports', showTitle = true }) {
     const [reports, setReports] = useState([]);
     const [loading, setLoading] = useState(true);
     const [search, setSearch] = useState("");
@@ -233,7 +231,7 @@ function AdminReports({ token }) {
         setLoading(true);
         try {
             const sortParam = sort === "latest" ? "desc" : "asc";
-            const response = await fetch(`${API_URL}/reports?limit=50&sort=${sortParam}`, {
+            const response = await fetch(getApiUrl(`/api/reports?limit=50&sort=${sortParam}`), {
                 headers: { 
                     'Authorization': `Bearer ${token}`,
                     'Content-Type': 'application/json'
@@ -333,7 +331,7 @@ function AdminReports({ token }) {
         setIsUpdatingStatus(true);
 
         try {
-            const response = await fetch(`${API_URL}/reports/${selectedReport.id}/status`, {
+            const response = await fetch(getApiUrl(`/api/reports/${selectedReport.id}/status`), {
                 method: 'PUT',
                 headers: {
                     'Authorization': `Bearer ${token}`,
@@ -379,7 +377,7 @@ function AdminReports({ token }) {
 
         setIsDeleting(true);
         try {
-            const response = await fetch(`${API_URL}/reports/${deleteTarget.id}`, {
+            const response = await fetch(getApiUrl(`/api/reports/${deleteTarget.id}`), {
                 method: 'DELETE',
                 headers: {
                     'Authorization': `Bearer ${token}`,
@@ -432,7 +430,7 @@ function AdminReports({ token }) {
     return (
         <div className="admin-container">
             <div className="admin-header-row">
-                <h2>All Community Reports</h2>
+                {showTitle && <h2>{loading ? reportTitle : reportTitle}</h2>}
             </div>
 
             {/* IMPROVEMENT: Added ref to the filter container for keyboard navigation */}

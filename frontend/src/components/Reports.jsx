@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback, useRef } from "react";
 import axios from "axios";
 import { FaEdit, FaTrashAlt, FaSearch, FaRedo, FaCheckCircle, FaTimesCircle } from "react-icons/fa";
 import { MapContainer, TileLayer, Marker, useMap, useMapEvents } from "react-leaflet";
-import { API_CONFIG } from "../utils/apiConfig";
+import { API_CONFIG, getApiUrl } from "../utils/apiConfig";
 import "leaflet/dist/leaflet.css";
 import L from "leaflet";
 import "./Reports.css";
@@ -10,7 +10,7 @@ import markerIcon2x from "leaflet/dist/images/marker-icon-2x.png";
 import markerIcon from "leaflet/dist/images/marker-icon.png";
 import markerShadow from "leaflet/dist/images/marker-shadow.png";
 
-const API_URL = `${API_CONFIG.BASE_URL}/api`;
+// Use getApiUrl(...) so VITE_API_URL from env is used in production (Railway) and localhost in dev
 
 // Helper function to construct proper image URLs with optimization
 const getImageUrl = (imgUrl) => {
@@ -18,13 +18,14 @@ const getImageUrl = (imgUrl) => {
   if (imgUrl && imgUrl.startsWith('data:')) {
     return imgUrl;
   }
-  // If it's an API path, construct full URL
+  // If it's an API path, construct full URL via getApiUrl
   if (imgUrl && imgUrl.startsWith('/api/')) {
-    return `${API_CONFIG.BASE_URL}${imgUrl}`;
+    return getApiUrl(imgUrl);
   }
-  // Default case for relative paths
+  // Default case for relative/relative-API paths
   if (imgUrl) {
-    return `${API_URL}${imgUrl}`;
+    // If path already looks like /api/..., pass through; otherwise assume relative to /api
+    return imgUrl.startsWith('/') ? getApiUrl(imgUrl.startsWith('/api') ? imgUrl : `/api${imgUrl}`) : getApiUrl(`/api/${imgUrl}`);
   }
   // Fallback for empty/null URLs
   return "/src/assets/placeholder.png";
@@ -201,7 +202,7 @@ function Reports({ session }) {
     setLoading(true);
     try {
       const res = await axios.get(
-        `${API_URL}/reports?sort=${sort === "latest" ? "desc" : "asc"}`,
+  getApiUrl(`/api/reports?sort=${sort === "latest" ? "desc" : "asc"}`),
         { 
           headers: { Authorization: `Bearer ${token}` },
           timeout: 30000 // 30 second timeout
@@ -359,7 +360,7 @@ function Reports({ session }) {
           console.log(pair[0] + ': ' + pair[1]);
         }
         
-        const response = await axios.put(`${API_URL}/reports/${editReportId}`, formData, {
+  const response = await axios.put(getApiUrl(`/api/reports/${editReportId}`), formData, {
           headers: {
             Authorization: `Bearer ${token}`,
             "Content-Type": "multipart/form-data",
@@ -398,7 +399,7 @@ function Reports({ session }) {
           console.log(pair[0] + ': ' + pair[1]);
         }
         
-        const response = await axios.post(`${API_URL}/reports`, formData, {
+  const response = await axios.post(getApiUrl(`/api/reports`), formData, {
           headers: {
             Authorization: `Bearer ${token}`,
             "Content-Type": "multipart/form-data",
@@ -498,7 +499,7 @@ function Reports({ session }) {
     setIsDeleting(true);
     
     try {
-      const deleteUrl = `${API_URL}/reports/${deleteTarget.id}`;
+  const deleteUrl = getApiUrl(`/api/reports/${deleteTarget.id}`);
       console.log("🔗 Delete URL:", deleteUrl);
       console.log("🔑 Token exists:", !!token);
       

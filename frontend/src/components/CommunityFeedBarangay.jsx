@@ -3,8 +3,7 @@ import { useOutletContext } from "react-router-dom";
 import "./CommunityFeed.css";
 import "./Notifications.css";
 import { FaPaperPlane, FaUsers, FaTrash, FaExclamationTriangle } from "react-icons/fa";
-
-const API_BASE_URL = "http://localhost:5000/api";
+import { getApiUrl, API_CONFIG } from "../utils/apiConfig";
 
 // ✅ POST TYPES
 const POST_TYPES = ["incident", "safety", "suggestion", "recommendation", "general"];
@@ -37,7 +36,7 @@ const CommunityFeedBarangay = ({ session, token }) => {
 
   const fetchUserInfo = async () => {
     try {
-      const response = await fetch(`${API_BASE_URL}/profile`, {
+      const response = await fetch(getApiUrl(API_CONFIG.endpoints.profile), {
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${authToken}` },
       });
 
@@ -55,31 +54,43 @@ const CommunityFeedBarangay = ({ session, token }) => {
     if (!authToken) return;
 
     try {
-      let url = `${API_BASE_URL}/community/posts`;
+      // Use barangay-specific endpoint which returns only approved posts for barangay officials
+  let url = getApiUrl('/api/community/posts/barangay');
       const params = new URLSearchParams();
 
-      // For barangay officials, show their barangay posts
-      // For residents, show community posts
-      if (selectedBarangay && selectedBarangay !== "All") {
-        params.append("barangay", selectedBarangay);
+      // If userInfo is loaded, use role to determine filter
+      if (userInfo && userInfo.role === "Admin") {
+        // Admins can optionally pass a barangay to filter; otherwise they'll get approved posts across barangays
+        if (selectedBarangay && selectedBarangay !== "All") {
+          params.append("barangay", selectedBarangay);
+        }
+      } else if (userInfo && userInfo.role === "Barangay Official") {
+        // Barangay officials will be scoped server-side to their own address_barangay; no param required
+      } else {
+        // Residents can optionally view a specific barangay (selectedBarangay)
+        if (selectedBarangay && selectedBarangay !== "All") {
+          params.append("barangay", selectedBarangay);
+        }
       }
 
-      if (params.toString()) {
-        url += `?${params.toString()}`;
-      }
-
-      const response = await fetch(url, {
+      // Append params to the full URL returned by getApiUrl
+      const response = await fetch(url + (params.toString() ? `?${params.toString()}` : ''), {
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${authToken}` },
       });
 
       if (response.ok) {
         const data = await response.json();
         setPosts(data.posts || []);
+      } else if (response.status === 403) {
+        setPosts([]);
+        console.warn("Not authorized to view pending posts or that barangay's posts");
+      } else {
+        console.error("Error fetching posts:", response.statusText);
       }
     } catch (error) {
       console.error("Error fetching posts:", error);
     }
-  }, [selectedBarangay, authToken]);
+  }, [selectedBarangay, authToken, userInfo]);
 
   useEffect(() => {
     fetchPosts();
@@ -87,7 +98,7 @@ const CommunityFeedBarangay = ({ session, token }) => {
 
   const handleNewPost = async (newPost) => {
     try {
-      const response = await fetch(`${API_BASE_URL}/community/posts`, {
+      const response = await fetch(getApiUrl('/api/community/posts'), {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${authToken}` },
         body: JSON.stringify(newPost),
@@ -124,7 +135,7 @@ const CommunityFeedBarangay = ({ session, token }) => {
     if (!window.confirm("Are you sure you want to delete this post?")) return;
 
     try {
-      const response = await fetch(`${API_BASE_URL}/community/posts/${postId}`, {
+      const response = await fetch(getApiUrl(`/api/community/posts/${postId}`), {
         method: "DELETE",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${authToken}` },
       });
@@ -151,7 +162,7 @@ const CommunityFeedBarangay = ({ session, token }) => {
     if (!commentText.trim()) return;
 
     try {
-      const response = await fetch(`${API_BASE_URL}/community/posts/${postId}/comments`, {
+      const response = await fetch(getApiUrl(`/api/community/posts/${postId}/comments`), {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${authToken}` },
         body: JSON.stringify({ content: commentText }),
@@ -179,7 +190,7 @@ const CommunityFeedBarangay = ({ session, token }) => {
     if (!window.confirm("Delete this comment?")) return;
 
     try {
-      const response = await fetch(`${API_BASE_URL}/community/comments/${commentId}`, {
+      const response = await fetch(getApiUrl(`/api/community/comments/${commentId}`), {
         method: "DELETE",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${authToken}` },
       });

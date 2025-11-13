@@ -15,12 +15,12 @@ import {
   FaExclamationTriangle,
   FaBell
 } from "react-icons/fa";
-import { API_CONFIG } from "../utils/apiConfig";
+import { API_CONFIG, getApiUrl } from "../utils/apiConfig";
 import "./Admin-report.css";
 import "./Notification.css";
 import "./Admin-Users-Performance.css"; 
 
-const API_URL = `${API_CONFIG.BASE_URL}/api`;
+// Use getApiUrl(...) so VITE_API_URL from env is used in production (Railway) and localhost in dev
 
 function AdminUsers({ token }) {
   const [users, setUsers] = useState([]);
@@ -98,7 +98,7 @@ function AdminUsers({ token }) {
     try {
       const startTime = performance.now();
       
-      const response = await fetch(`${API_URL}/users/verification`, {
+      const response = await fetch(getApiUrl('/api/users/verification'), {
         headers: { 
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
@@ -180,7 +180,7 @@ function AdminUsers({ token }) {
 
     setInfoLoading(true);
     try {
-      const response = await fetch(`${API_URL}/users/${userId}/info`, {
+      const response = await fetch(getApiUrl(`/api/users/${userId}/info`), {
         headers: { 
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
@@ -278,7 +278,7 @@ function AdminUsers({ token }) {
       
       for (const id of ids) {
         try {
-          const res = await fetch(`${API_URL}/users/${id}`, {
+          const res = await fetch(getApiUrl(`/api/users/${id}`), {
             method: 'DELETE',
             headers: { 
               Authorization: `Bearer ${token}`,
@@ -336,7 +336,7 @@ function AdminUsers({ token }) {
   if ((createRole === 'Barangay Official' || createRole === 'Responder') && createBarangay) formData.append('address_barangay', createBarangay);
       if (createAvatarFile) formData.append('avatar', createAvatarFile);
 
-      const res = await fetch(`${API_URL}/users`, {
+      const res = await fetch(getApiUrl('/api/users'), {
         method: 'POST',
         headers: {
           Authorization: `Bearer ${token}`
@@ -389,7 +389,7 @@ function AdminUsers({ token }) {
     try {
       showNotification('🔄 Verifying user with complete profile...', 'info');
       
-      const response = await fetch(`${API_URL}/users/${selectedUser.id}/full-verification`, {
+      const response = await fetch(getApiUrl(`/api/users/${selectedUser.id}/full-verification`), {
         method: 'PUT',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -485,7 +485,7 @@ function AdminUsers({ token }) {
       showNotification('📧 Sending verification reminder...', 'info');
       
       // This would be a new endpoint to send reminder emails
-      const response = await fetch(`${API_URL}/users/${selectedUser.id}/verification-reminder`, {
+      const response = await fetch(getApiUrl(`/api/users/${selectedUser.id}/verification-reminder`), {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,

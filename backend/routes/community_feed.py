@@ -376,3 +376,106 @@ def delete_comment(comment_id):
     except Exception as e:
         print(f"❌ Error deleting comment: {e}")
         return jsonify({"status": "error", "message": str(e)}), 500
+
+
+# ============ MODERATION / BARANGAY-SPECIFIC VIEWS ============
+
+
+@community_feed_bp.route("/community/posts/pending", methods=["GET"])
+@token_required
+def get_pending_posts():
+    """Admin-only: Get pending posts across all barangays"""
+    try:
+        user_id = request.user_id
+
+        # Verify role
+        user_resp = supabase.table("users").select("role").eq("id", user_id).execute()
+        user_data = getattr(user_resp, "data", [None])[0]
+        if not user_data or user_data.get("role") != "Admin":
+            return jsonify({"status": "error", "message": "Forbidden"}), 403
+
+        limit = int(request.args.get("limit", 50))
+
+        response = supabase.table("community_posts").select("*").eq("status", "pending").is_("deleted_at", None).order("created_at", desc=True).limit(limit).execute()
+        posts = getattr(response, "data", []) or []
+
+        enriched_posts = []
+        for post in posts:
+            user_resp = supabase.table("users").select("id, firstname, lastname, avatar_url, role").eq("id", post["user_id"]).execute()
+            user_data = getattr(user_resp, "data", [None])[0]
+
+            # comment count
+            comment_resp = supabase.table("community_comments").select("id", count="exact").eq("post_id", post["id"]).is_("deleted_at", None).execute()
+            comment_count = len(getattr(comment_resp, "data", []))
+
+            post["author"] = user_data or {"id": post["user_id"], "firstname": "Unknown", "lastname": "User", "role": "Resident"}
+            post["comment_count"] = comment_count
+            post["can_edit"] = post["user_id"] == user_id
+            post["can_delete"] = post["user_id"] == user_id
+
+            enriched_posts.append(post)
+
+        return jsonify({"status": "success", "posts": enriched_posts, "total": len(enriched_posts)}), 200
+
+    except Exception as e:
+        print(f"❌ Error fetching pending posts: {e}")
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+
+@community_feed_bp.route("/community/posts/barangay", methods=["GET"])
+@token_required
+def get_barangay_posts():
+    """Return approved posts for a barangay.
+
+    - If the requester is a Barangay Official: returns posts for the official's address_barangay only (status = 'approved').
+    - If the requester is an Admin: can pass ?barangay=Name to fetch approved posts for that barangay, or omit to fetch all approved posts.
+    - Regular residents: behaves like normal community posts endpoint but only returns approved posts for the requested/selected barangay.
+    """
+    try:
+        user_id = request.user_id
+        requested_barangay = request.args.get("barangay")
+        limit = int(request.args.get("limit", 50))
+
+        # Fetch requester role and barangay
+        user_resp = supabase.table("users").select("role, address_barangay").eq("id", user_id).execute()
+        user_data = getattr(user_resp, "data", [None])[0]
+        role = user_data.get("role") if user_data else None
+        user_barangay = user_data.get("address_barangay") if user_data else None
+
+        # If requester is Barangay Official, force barangay to their address
+        if role == "Barangay Official":
+            if not user_barangay:
+                return jsonify({"status": "error", "message": "Barangay not set for official"}), 400
+            barangay_filter = user_barangay
+        else:
+            # Admin may pass any barangay; residents may pass a barangay to view approved posts
+            barangay_filter = requested_barangay
+
+        # Build query: only approved posts
+        query = supabase.table("community_posts").select("*").eq("status", "approved").is_("deleted_at", None)
+        if barangay_filter and barangay_filter != "All":
+            query = query.eq("barangay", barangay_filter)
+
+        response = query.order("is_pinned", desc=True).order("created_at", desc=True).limit(limit).execute()
+        posts = getattr(response, "data", []) or []
+
+        enriched_posts = []
+        for post in posts:
+            post_user_resp = supabase.table("users").select("id, firstname, lastname, avatar_url, role").eq("id", post["user_id"]).execute()
+            post_user = getattr(post_user_resp, "data", [None])[0]
+
+            comment_resp = supabase.table("community_comments").select("id", count="exact").eq("post_id", post["id"]).is_("deleted_at", None).execute()
+            comment_count = len(getattr(comment_resp, "data", []))
+
+            post["author"] = post_user or {"id": post["user_id"], "firstname": "Unknown", "lastname": "User", "role": "Resident"}
+            post["comment_count"] = comment_count
+            post["can_edit"] = post["user_id"] == user_id
+            post["can_delete"] = post["user_id"] == user_id
+
+            enriched_posts.append(post)
+
+        return jsonify({"status": "success", "posts": enriched_posts, "total": len(enriched_posts)}), 200
+
+    except Exception as e:
+        print(f"❌ Error fetching barangay posts: {e}")
+        return jsonify({"status": "error", "message": str(e)}), 500

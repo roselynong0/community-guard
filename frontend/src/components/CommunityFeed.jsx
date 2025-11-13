@@ -2,8 +2,7 @@ import React, { useState, useEffect, useCallback } from "react";
 import "./CommunityFeed.css";
 import "./Notifications.css";
 import { FaPaperPlane, FaUsers, FaTrash } from "react-icons/fa";
-
-const API_BASE_URL = "http://localhost:5000/api";
+import { getApiUrl, API_CONFIG } from "../utils/apiConfig";
 
 // ✅ POST TYPES
 const POST_TYPES = ["incident", "safety", "suggestion", "recommendation", "general"];
@@ -34,7 +33,7 @@ const CommunityFeed = () => {
       const token = localStorage.getItem("token");
       if (!token) return;
 
-      const response = await fetch(`${API_BASE_URL}/profile`, {
+      const response = await fetch(getApiUrl(API_CONFIG.endpoints.profile), {
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
       });
 
@@ -58,7 +57,7 @@ const CommunityFeed = () => {
       const token = localStorage.getItem("token");
       if (!token) return;
 
-      let url = `${API_BASE_URL}/community/posts`;
+      let url = getApiUrl('/api/community/posts');
       const params = new URLSearchParams();
 
       if (barangayFilter && barangayFilter !== "All") {
@@ -69,11 +68,8 @@ const CommunityFeed = () => {
         params.append("post_type", postTypeFilter);
       }
 
-      if (params.toString()) {
-        url += `?${params.toString()}`;
-      }
-
-      const response = await fetch(url, {
+      // Append query string to the full URL returned by getApiUrl
+      const response = await fetch(url + (params.toString() ? `?${params.toString()}` : ''), {
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
       });
 
@@ -95,7 +91,7 @@ const CommunityFeed = () => {
   const handleNewPost = async (newPost) => {
     try {
       const token = localStorage.getItem("token");
-      const response = await fetch(`${API_BASE_URL}/community/posts`, {
+      const response = await fetch(getApiUrl('/api/community/posts'), {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
         body: JSON.stringify(newPost),
@@ -146,7 +142,7 @@ const CommunityFeed = () => {
 
     try {
       const token = localStorage.getItem("token");
-      const response = await fetch(`${API_BASE_URL}/community/posts/${postId}`, {
+      const response = await fetch(getApiUrl(`/api/community/posts/${postId}`), {
         method: "DELETE",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
       });
@@ -179,7 +175,7 @@ const CommunityFeed = () => {
 
     try {
       const token = localStorage.getItem("token");
-      const response = await fetch(`${API_BASE_URL}/community/posts/${postId}/comments`, {
+      const response = await fetch(getApiUrl(`/api/community/posts/${postId}/comments`), {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
         body: JSON.stringify({ content: commentText }),
@@ -214,7 +210,7 @@ const CommunityFeed = () => {
 
     try {
       const token = localStorage.getItem("token");
-      const response = await fetch(`${API_BASE_URL}/community/comments/${commentId}`, {
+      const response = await fetch(getApiUrl(`/api/community/comments/${commentId}`), {
         method: "DELETE",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
       });
@@ -520,7 +516,7 @@ const PostModal = ({ onClose, onSubmit, userBarangay }) => {
       const token = localStorage.getItem("token");
       if (!token) return;
 
-      const response = await fetch(`${API_BASE_URL}/community/posts`, {
+      const response = await fetch(getApiUrl('/api/community/posts'), {
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
       });
 

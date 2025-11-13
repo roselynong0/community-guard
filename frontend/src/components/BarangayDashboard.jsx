@@ -23,7 +23,7 @@ import {
   Bar,
 } from "recharts";
 
-import { API_CONFIG } from "../utils/apiConfig";
+import { API_CONFIG, getApiUrl } from "../utils/apiConfig";
 import MapView from "../components/Mapview";
 import "./BarangayDashboard.css";
 
@@ -69,11 +69,9 @@ export default function BarangayDashboard({ token }) {
     { title: "Pending", value: 0, icon: <FaClock />, color: "#f4b761ff" },
   ]);
 
-  const [userProfile, setUserProfile] = useState(null);
   const [trendData, setTrendData] = useState([]);
   const [topBarangays, setTopBarangays] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [trendFilter, setTrendFilter] = useState("this-month"); // Filter for "Barangays with Most Reports"
   const [reportView, setReportView] = useState("barangay"); // Toggle between "barangay" and "monthly"
 
   // ✅ Single useEffect to fetch profile and dashboard data
@@ -87,7 +85,7 @@ export default function BarangayDashboard({ token }) {
       setLoading(true);
       try {
         // 1. Fetch profile first to get barangay
-        const profileResponse = await fetchWithToken(`${API_CONFIG.BASE_URL}/api/profile`, token);
+        const profileResponse = await fetchWithToken(getApiUrl('/api/profile'), token);
         if (profileResponse.status !== "success") {
           console.error("Failed to load profile:", profileResponse);
           setLoading(false);
@@ -95,17 +93,16 @@ export default function BarangayDashboard({ token }) {
         }
         
         const profile = profileResponse.profile;
-        setUserProfile(profile);
         
         const selectedBarangay = profile?.address_barangay || "All";
         console.log("🔄 Fetching dashboard data for barangay:", selectedBarangay);
         
         // 2. Fetch dashboard data with barangay filter
-        const dashboardEndpoint = `${API_CONFIG.BASE_URL}/api/dashboard/barangay/stats${
+        const dashboardEndpoint = getApiUrl(`/api/dashboard/barangay/stats${
           selectedBarangay !== "All"
             ? `?barangay=${encodeURIComponent(selectedBarangay)}`
             : ""
-        }`;
+        }`);
         
         console.log("📊 Fetching all data from:", dashboardEndpoint);
         const response = await fetchWithToken(dashboardEndpoint, token);
@@ -176,33 +173,6 @@ export default function BarangayDashboard({ token }) {
     fetchAllData();
   }, [token]); // Only depend on token, not userProfile
 
-  // ✅ Separate effect to handle filter changes for top barangays
-  useEffect(() => {
-    if (!token || !userProfile) {
-      return;
-    }
-
-    const fetchFilteredBarangays = async () => {
-      try {
-        // Build query with time filter - NO barangay filter for top barangays
-        // This shows ALL barangays, not just the user's barangay
-        let query = `${API_CONFIG.BASE_URL}/api/dashboard/barangay/stats?filter=${trendFilter}`;
-        
-        console.log(`📊 Fetching all barangays with filter: ${trendFilter}`, query);
-        const response = await fetchWithToken(query, token);
-        
-        if (response.status === "success" && response.topBarangays) {
-          console.log(`✅ Top barangays loaded for ${trendFilter}:`, response.topBarangays.length);
-          setTopBarangays(response.topBarangays);
-        }
-      } catch (error) {
-        console.error(`❌ Failed to fetch filtered barangays for ${trendFilter}:`, error);
-      }
-    };
-
-    fetchFilteredBarangays();
-  }, [token, trendFilter, userProfile]);
-
   if (loading) {
     return (
       <div className="loading-overlay">
@@ -243,6 +213,7 @@ export default function BarangayDashboard({ token }) {
           </h3>
           <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
             <FaFilter style={{ fontSize: "0.875rem", color: "#666" }} />
+            {/* Report View Toggle */}
             <select
               value={reportView}
               onChange={(e) => setReportView(e.target.value)}
