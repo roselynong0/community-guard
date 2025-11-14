@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from "react";
 import {
   FaHome,
-  FaPlusCircle,
   FaBell,
   FaUser,
   FaSignOutAlt,
@@ -10,6 +9,7 @@ import {
   FaLightbulb,
   FaUserFriends,
   FaMap,
+  FaChartLine,
 } from "react-icons/fa";
 import { Outlet, NavLink, useNavigate } from "react-router-dom";
 import { logout } from "../utils/session";
@@ -128,7 +128,7 @@ function Layout({ session, setSession, setNotification }) {
               <FaMap /> Map
             </NavLink>
             <NavLink to="/reports">
-              <FaPlusCircle /> Reports
+              <FaChartLine /> Reports
             </NavLink>
             <NavLink to="/notifications">
               <FaBell /> Notifications
@@ -217,7 +217,7 @@ function Layout({ session, setSession, setNotification }) {
           <FaMap />
         </NavLink>
         <NavLink to="/reports">
-          <FaPlusCircle />
+          <FaChartLine />
         </NavLink>
         <NavLink to="/notifications">
           <FaBell />

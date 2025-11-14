@@ -915,14 +915,17 @@ opacity: 0.9;
 }
 
 .status-badge {
-    padding: 3px 8px;
+    padding: 4px 10px;
     border-radius: 12px;
-    font-size: 12px;
-    font-weight: bold;
+    font-size: 11px;
+    font-weight: 700;
     color: white;
     text-transform: uppercase;
     white-space: nowrap;
-    margin-right: 10px; 
+    letter-spacing: 0.5px;
+    display: inline-flex;
+    align-items: center;
+    height: 24px;
 }
 
 .status-pending {
@@ -930,17 +933,23 @@ opacity: 0.9;
 }
 
 .status-ongoing {
-    background-color: #17a2b8; 
+    background-color: #ff0d0d; 
 }
 
 .status-resolved {
     background-color: #28a745; 
 }
 
+.status-rejected {
+    background-color: #ef5350;
+}
+
 .report-header-actions {
     display: flex;
     align-items: center; 
     gap: 8px;
+    flex-wrap: wrap;
+    justify-content: flex-end;
 }
 
 /* Icon buttons (edit, delete, etc.) */
@@ -953,20 +962,27 @@ opacity: 0.9;
     font-size: 1rem;
     padding: 5px;
     border-radius: 50%;
-    transition: background-color 0.2s, color 0.2s, box-shadow 0.2s;
+    transition: background-color 0.3s ease, color 0.3s ease, box-shadow 0.3s ease;
     color: #2d2d73;
+    display: flex;
+    align-items: center;
+    justify-content: center;
 }
 
-.edit-btn:hover {
-    color: #29ce29; 
-    background-color: rgba(41, 206, 41, 0.15);
-    box-shadow: 0 0 6px rgba(41, 206, 41, 0.3); 
+/* Edit Button Specific Hover - High Specificity */
+button.icon-btn.edit-btn:hover,
+button.edit-btn:hover {
+    color: #2d9c4d !important; 
+    background-color: rgba(45, 156, 77, 0.15) !important;
+    box-shadow: 0 0 6px rgba(45, 156, 77, 0.2) !important;
 }
 
-.delete-btn:hover {
-    color: #e5231d; 
-    background-color: rgba(229, 35, 29, 0.15); 
-    box-shadow: 0 0 6px rgba(229, 35, 29, 0.3); 
+/* Delete Button Specific Hover - High Specificity */
+button.icon-btn.delete-btn:hover,
+button.delete-btn:hover {
+    color: #c62828 !important; 
+    background-color: rgba(239, 83, 80, 0.1) !important; 
+    box-shadow: 0 0 6px rgba(239, 83, 80, 0.2) !important;
 }
 
 .icon-btn:focus,
@@ -985,12 +1001,17 @@ opacity: 0.9;
     box-shadow: none;
 }
 
+/* Prevent global button styles from overriding edit/delete hover */
+button.edit-btn:hover {
+    color: #2d9c4d !important;
+    background-color: rgba(45, 156, 77, 0.15) !important;
+    box-shadow: 0 0 6px rgba(45, 156, 77, 0.2) !important;
+}
 
-.icon-btn:active,
-.edit-btn:active,
-.delete-btn:active {
-    background-color: transparent;
-    box-shadow: none;
+button.delete-btn:hover {
+    color: #c62828 !important;
+    background-color: rgba(239, 83, 80, 0.1) !important;
+    box-shadow: 0 0 6px rgba(239, 83, 80, 0.2) !important;
 }
 
 /* New wrapper for filter icons */
@@ -1355,4 +1376,363 @@ p.report-description-text {
 @keyframes spin {
     from { transform: rotate(0deg); }
     to { transform: rotate(360deg); }
+}
+
+/* === PENDING/UNAPPROVED POST STYLING (COMPLETELY ISOLATED) === */
+/* Uses independent class name to completely avoid conflicts with report-card */
+.report-pending {
+    background: #e8e8e8 !important;
+    padding: 15px !important;
+    border-radius: 12px !important;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.08) !important;
+    margin-bottom: 15px !important;
+    display: flex !important;
+    flex-direction: column !important;
+    opacity: 2 !important;
+    border: 2px solid #ccc !important;
+    position: relative !important;
+}
+
+.report-pending::before {
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-size: 12px;
+    font-weight: bold;
+    z-index: 5;
+}
+
+/* Dim all text content in pending posts */
+.report-pending .report-user,
+.report-pending .report-subinfo,
+.report-pending .report-address-info,
+.report-pending .report-caption,
+.report-pending p,
+.report-pending strong {
+    color: #999 !important;
+}
+
+/* Lower opacity for images in pending posts */
+.report-pending .report-images > img {
+    opacity: 0.65;
+}
+
+/* === REJECTED POST STYLING === */
+.report-rejected {
+    background: #ffebee !important;
+    padding: 15px !important;
+    border-radius: 12px !important;
+    box-shadow: 0 2px 6px rgba(244, 67, 54, 0.15) !important;
+    margin-bottom: 15px !important;
+    display: flex !important;
+    flex-direction: column !important;
+    opacity: 1 !important;
+    border: 2px solid #ef5350 !important;
+    position: relative !important;
+}
+
+/* Red background for rejected posts */
+/* Dim text content in rejected posts */
+.report-rejected .report-user,
+.report-rejected .report-subinfo,
+.report-rejected .report-address-info,
+.report-rejected .report-caption,
+.report-rejected p,
+.report-rejected strong {
+    color: #c62828 !important;
+}
+
+/* Lower opacity for images in rejected posts */
+.report-rejected .report-images > img {
+    opacity: 0.5;
+}
+
+/* Approval buttons for admin/barangay officials */
+.approval-buttons {
+    display: flex;
+    gap: 10px;
+    margin-top: 10px;
+    padding: 10px;
+    background-color: #fff3e0;
+    border-radius: 4px;
+}
+
+.btn-approve,
+.btn-reject {
+    flex: 1;
+    padding: 8px 12px;
+    border: none;
+    border-radius: 4px;
+    font-weight: 600;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    transition: all 0.3s ease;
+}
+
+.btn-approve {
+    background-color: #4caf50;
+    color: white;
+}
+
+.btn-approve:hover {
+    background-color: #45a049;
+    box-shadow: 0 2px 8px rgba(76, 175, 80, 0.3);
+}
+
+.btn-reject {
+    background-color: #f44336;
+    color: white;
+    margin-top: -5px;
+    margin-right: -5px;
+}
+
+.btn-reject:hover {
+    background-color: #da190b;
+    box-shadow: 0 2px 8px rgba(244, 67, 54, 0.3);
+}
+
+.btn-approve:disabled,
+.btn-reject:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+/* Approve/Reject icon button styles in report headers */
+.icon-btn.approve-btn,
+.icon-btn.reject-btn {
+    padding: 5px;
+    border: none;
+    border-radius: 50%;
+    cursor: pointer;
+    font-size: 1rem;
+    transition: all 0.3s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.icon-btn.approve-btn {
+    color: #10b981;
+    background-color: transparent;
+}
+
+.icon-btn.approve-btn:hover:not(:disabled) {
+    color: #059669;
+    background-color: rgba(16, 185, 129, 0.15);
+    box-shadow: 0 0 6px rgba(16, 185, 129, 0.2);
+}
+
+.icon-btn.reject-btn {
+    color: #ef4444;
+    background-color: transparent;
+}
+
+.icon-btn.reject-btn:hover:not(:disabled) {
+    color: #dc2626;
+    background-color: rgba(239, 68, 68, 0.15);
+    box-shadow: 0 0 6px rgba(239, 68, 68, 0.2);
+}
+
+.icon-btn.approve-btn:disabled,
+.icon-btn.reject-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+/* === REJECTION MODAL STYLING === */
+.rejection-modal-overlay {
+    background: rgba(0, 0, 0, 0.6);
+}
+
+.rejection-modal-content {
+    background: #ffebee;
+    border: 2px solid #ef5350;
+    border-radius: 12px;
+    max-width: 500px;
+    width: 90%;
+    max-height: 80vh;
+    overflow-y: auto;
+    box-shadow: 0 8px 32px rgba(244, 67, 54, 0.3);
+}
+
+.rejection-modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 20px;
+    border-bottom: 2px solid #ef5350;
+    background: linear-gradient(135deg, #ffcdd2 0%, #ffebee 100%);
+}
+
+.rejection-modal-header h3 {
+    margin: 0;
+    color: #c62828;
+    font-size: 18px;
+}
+
+.close-modal-btn {
+    background: none;
+    border: none;
+    color: #c62828;
+    font-size: 24px;
+    cursor: pointer;
+    padding: 0;
+    width: 32px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 4px;
+    transition: all 0.3s ease;
+}
+
+.close-modal-btn:hover {
+    background: rgba(198, 40, 40, 0.1);
+}
+
+.rejection-modal-body {
+    padding: 20px;
+    color: #c62828;
+}
+
+.rejection-reason-section h4 {
+    margin: 0 0 10px 0;
+    color: #c62828;
+    font-size: 16px;
+    font-weight: 600;
+}
+
+.rejection-reason-text {
+    background: white;
+    padding: 12px;
+    border-radius: 8px;
+    border-left: 4px solid #ef5350;
+    margin-bottom: 20px;
+    color: #d32f2f;
+    line-height: 1.5;
+}
+
+.possible-violations {
+    background: white;
+    padding: 12px;
+    border-radius: 8px;
+    border-left: 4px solid #ef5350;
+}
+
+.possible-violations h5 {
+    margin: 0 0 10px 0;
+    color: #c62828;
+    font-size: 14px;
+    font-weight: 600;
+}
+
+.possible-violations ul {
+    margin: 0;
+    padding-left: 20px;
+    list-style-type: disc;
+}
+
+.possible-violations li {
+    color: #d32f2f;
+    margin-bottom: 6px;
+    line-height: 1.4;
+    font-size: 14px;
+}
+
+/* Rejection info section in admin/barangay modals */
+.rejection-info-section {
+    color: #c62828;
+}
+
+.rejection-info-section h4 {
+    margin: 15px 0 10px 0;
+    color: #c62828;
+    font-size: 16px;
+    font-weight: 600;
+}
+
+.rejection-info-section h4:first-child {
+    margin-top: 0;
+}
+
+.rejection-report-title {
+    background: white;
+    padding: 12px;
+    border-radius: 8px;
+    border-left: 4px solid #ef5350;
+    color: #d32f2f;
+    line-height: 1.5;
+    font-weight: 500;
+}
+
+.rejection-metadata {
+    background: white;
+    padding: 12px;
+    border-radius: 8px;
+    border-left: 4px solid #ef5350;
+    margin-top: 15px;
+}
+
+.rejection-metadata p {
+    margin: 8px 0;
+    color: #666;
+    font-size: 14px;
+}
+
+.rejection-metadata strong {
+    color: #c62828;
+}
+
+/* Question mark icon button styling */
+.icon-btn.question-btn {
+    background: none;
+    border: none;
+    color: #ef5350;
+    font-size: 18px;
+    cursor: pointer;
+    padding: 8px;
+    border-radius: 50%;
+    transition: all 0.3s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.icon-btn.question-btn:hover {
+    background: rgba(239, 83, 80, 0.1);
+    color: #c62828;
+    box-shadow: 0 0 6px rgba(239, 83, 80, 0.2);
+}
+
+/* === VERIFICATION STATUS STYLES (from Admin-report.css) === */
+.current-verification-status {
+    margin-top: 12px;
+}
+
+.current-verification-status span {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 12px;
+    border-radius: 8px;
+    font-size: 13px;
+    font-weight: 500;
+}
+
+/* Verification status colors */
+.current-verification-status .verified {
+    background: rgba(16, 185, 129, 0.1);
+    color: #059669;
+}
+
+.current-verification-status .email-verified {
+    background: rgba(245, 158, 11, 0.1);
+    color: #d97706;
+}
+
+.current-verification-status .unverified {
+    background: rgba(239, 68, 68, 0.1);
+    color: #dc2626;
 }

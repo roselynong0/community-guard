@@ -17,7 +17,7 @@ def create_report_notification(user_id, report_id, report_title, new_status, act
 
     status_key = str(new_status).lower() if new_status is not None else ""
     type_label = "Status Update"
-    title = f"Report Status: {new_status}" if new_status else "Report Update"
+    title = "Report Status"
 
     status_messages = {
         "pending": f'Your report "{report_title}" is now PENDING review.',
@@ -375,4 +375,60 @@ def create_barangay_notification(barangay_official_id, report_id, report_title, 
     
     except Exception as e:
         print(f"❌ Failed to create barangay notification: {e}")
+        return None
+
+
+def create_report_approval_notification(user_id, report_id, report_title, approver_id=None):
+    """
+    Create a notification when a report gets approved by admin/barangay official.
+    Notifies the original reporter that their report is now visible to the public.
+    """
+    if not user_id:
+        print("⚠️ create_report_approval_notification called without user_id")
+        return None
+
+    try:
+        # Get approver info
+        approver_name = "Administrator"
+        approver_role = "Admin"
+        if approver_id:
+            try:
+                approver_resp = supabase.table("users").select("firstname, lastname, role").eq("id", approver_id).single().execute()
+                approver_data = getattr(approver_resp, "data", None) or {}
+                if approver_data:
+                    first_name = approver_data.get('firstname', '').strip()
+                    last_name = approver_data.get('lastname', '').strip()
+                    approver_name = f"{first_name} {last_name}".strip() or "Administrator"
+                    approver_role = approver_data.get('role', 'Admin')
+            except Exception:
+                pass
+
+        title = "Report Approved"
+        type_label = "Report Approved"
+        message = f'Your report "{report_title}" has been approved and is now visible to the public.'
+
+        print(f"📧 Creating approval notification: {message}")
+        
+        res = supabase.table("notifications").insert({
+            "user_id": user_id,
+            "report_id": report_id,
+            "type": type_label,
+            "title": title,
+            "message": message,
+            "is_read": False,
+            "created_at": datetime.now(timezone.utc).isoformat()
+        }).execute()
+
+        inserted = getattr(res, "data", []) or []
+        inserted_row = inserted[0] if inserted else None
+        
+        if inserted_row:
+            print(f"✅ Report approval notification created: id={inserted_row.get('id')}")
+            return inserted_row
+        else:
+            print("❌ Report approval notification insert returned no row")
+            return None
+    
+    except Exception as e:
+        print(f"❌ Failed to create report approval notification: {e}")
         return None

@@ -334,7 +334,23 @@ function App() {
           />
           <Route
             path="/admin/reports"
-            element={<Navigate to="/admin/users" replace />}
+            element={
+              session?.user?.role !== "Admin" ? (
+                <Navigate to="/home" replace />
+              ) : (
+                <AdminReports token={session?.token} />
+              )
+            }
+          />
+          <Route
+            path="/admin/community-feed"
+            element={
+              session?.user?.role !== "Admin" ? (
+                <Navigate to="/home" replace />
+              ) : (
+                <CommunityFeed />
+              )
+            }
           />
           <Route
             path="/admin/users"

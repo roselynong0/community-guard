@@ -8,7 +8,7 @@ import {
   FaMap,
   FaUsers,
   FaBell,
-  FaFileAlt,
+  FaChartLine,
   FaChartBar,
   FaComment,
 } from "react-icons/fa";
@@ -158,6 +158,9 @@ function AdminLayout({ session, setSession, setNotification }) {
             <NavLink to="/admin/users">
               <FaUsers /> Users
             </NavLink>
+            <NavLink to="/admin/reports">
+              <FaChartLine /> Reports
+            </NavLink>
             <NavLink to="/admin/community-feed">
               <FaComment /> Community Feed
             </NavLink>
@@ -294,6 +297,9 @@ function AdminLayout({ session, setSession, setNotification }) {
       <nav className="bottom-nav">
             <NavLink to="/admin/users">
               <FaUsers />
+            </NavLink>
+            <NavLink to="/admin/reports">
+              <FaChartLine />
             </NavLink>
             <NavLink to="/admin/community-feed">
               <FaComment />

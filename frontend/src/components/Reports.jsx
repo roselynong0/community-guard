@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import axios from "axios";
-import { FaEdit, FaTrashAlt, FaSearch, FaRedo, FaCheckCircle, FaTimesCircle } from "react-icons/fa";
+import { FaEdit, FaTrashAlt, FaSearch, FaRedo, FaCheckCircle, FaTimesCircle, FaQuestionCircle, FaTimes } from "react-icons/fa";
 import { MapContainer, TileLayer, Marker, useMap, useMapEvents } from "react-leaflet";
 import { API_CONFIG, getApiUrl } from "../utils/apiConfig";
 import "leaflet/dist/leaflet.css";
@@ -149,6 +149,10 @@ function Reports({ session }) {
   const [highlightedReportId, setHighlightedReportId] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false); // Prevent double submissions
   const [isDeleting, setIsDeleting] = useState(false); // Delete loading state
+  
+  // ⭐ NEW STATE FOR REJECTION MODAL
+  const [rejectionModalOpen, setRejectionModalOpen] = useState(false);
+  const [rejectionReason, setRejectionReason] = useState(null);
 
   // ⭐ REFS for Modals (already existed)
   const modalRef = useRef(null);
@@ -742,6 +746,8 @@ function Reports({ session }) {
         {!loading && filteredReports.length > 0 ? (
           filteredReports.map((report) => {
             const isExpanded = expandedPosts.includes(report.id);
+            const isPending = report.is_approved === false;
+            const isRejected = report.is_rejected === true;
             const displayDescription = isExpanded
               ? report.description
               : `${(report.description || "").slice(0, 130)}${
@@ -752,7 +758,7 @@ function Reports({ session }) {
               <div 
                 key={report.id} 
                 id={`report-${report.id}`}
-                className={`report-card ${highlightedReportId === String(report.id) ? 'highlighted-report' : ''}`}
+                className={isRejected ? 'report-rejected' : isPending ? 'report-pending' : `report-card ${highlightedReportId === String(report.id) ? 'highlighted-report' : ''}`}
                  role="article"
               >
                 {/* Header */}
@@ -810,15 +816,65 @@ function Reports({ session }) {
                   </div>
 
                   <div className="report-header-actions">
-                    <span
-                      className={`status-badge status-${(
-                        report.status || "pending"
-                      ).toLowerCase()}`}
-                    >
-                      {report.status || "Pending"}
-                    </span>
+                    {/* Show rejection badge and icons if report is rejected */}
+                    {isRejected && session?.user && String(report.user_id) === String(session.user.id) && (
+                      <>
+                        <span className="status-badge status-rejected">REJECTED</span>
+                        <button
+                          className="icon-btn question-btn"
+                          onClick={() => {
+                            setRejectionReason(report.rejection_reason);
+                            setRejectionModalOpen(true);
+                          }}
+                          aria-label={`View rejection details for: ${report.title}`}
+                          title="Rejection Details"
+                        >
+                          <FaQuestionCircle aria-hidden="true" />
+                        </button>
+                        <button
+                          className="icon-btn delete-btn"
+                          onClick={async () => {
+                            try {
+                              const response = await fetch(getApiUrl(`/api/reports/${report.id}`), {
+                                method: 'DELETE',
+                                headers: {
+                                  'Authorization': `Bearer ${session?.token}`,
+                                  'Content-Type': 'application/json'
+                                }
+                              });
 
-                    {session?.user &&
+                              if (!response.ok) {
+                                throw new Error('Failed to delete report');
+                              }
+
+                              setReports(prevReports => prevReports.filter(r => r.id !== report.id));
+                              showNotification('Report deleted', 'success');
+                            } catch (error) {
+                              console.error('Error deleting report:', error);
+                              showNotification(`Failed to delete report: ${error.message}`, 'error');
+                            }
+                          }}
+                          aria-label={`Delete rejected report: ${report.title}`}
+                          title="Delete Report"
+                        >
+                          <FaTrashAlt aria-hidden="true" />
+                        </button>
+                      </>
+                    )}
+
+                    {/* Hide PENDING badge if is_approved is TRUE or report is rejected */}
+                    {!(report.is_approved === true && report.status === "Pending") && !isRejected && (
+                      <span
+                        className={`status-badge status-${(
+                          report.status || "pending"
+                        ).toLowerCase()}`}
+                      >
+                        {report.status || "Pending"}
+                      </span>
+                    )}
+
+                    {/* Show edit/delete for non-rejected reports only if user is owner */}
+                    {!isRejected && session?.user &&
                       String(report.user_id) === String(session.user.id) && (
                         <>
                           <button
@@ -1234,6 +1290,54 @@ function Reports({ session }) {
       )}
 
       {/* Fullscreen Image Preview */}
+      {/* Rejection Reason Modal */}
+      {rejectionModalOpen && (
+        <div 
+          className="modal-overlay rejection-modal-overlay"
+          role="dialog" 
+          aria-modal="true" 
+          aria-labelledby="rejection-modal-title"
+          onClick={() => setRejectionModalOpen(false)}
+        >
+          <div className="rejection-modal-content" onClick={(e) => e.stopPropagation()}>
+            <div className="rejection-modal-header">
+              <h3 id="rejection-modal-title">Report Rejection Details</h3>
+              <button
+                className="close-modal-btn"
+                onClick={() => setRejectionModalOpen(false)}
+                aria-label="Close rejection modal"
+                title="Close"
+              >
+                <FaTimes aria-hidden="true" />
+              </button>
+            </div>
+
+            <div className="rejection-modal-body">
+              <div className="rejection-reason-section">
+                <h4>Reason for Rejection</h4>
+                <p className="rejection-reason-text">
+                  {rejectionReason || 'Your report violated our community guidelines.'}
+                </p>
+                
+                <div className="possible-violations">
+                  <h5>Possible Reasons for Violation:</h5>
+                  <ul>
+                    <li>Inappropriate or offensive language</li>
+                    <li>False or misleading information</li>
+                    <li>Spam or repetitive content</li>
+                    <li>Personal attack or harassment</li>
+                    <li>Violates privacy or confidentiality</li>
+                    <li>Unrelated to community safety</li>
+                    <li>Excessive or graphic content</li>
+                  </ul>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Preview Image */}
       {previewImage && (
         <div 
             className="fullscreen-modal" 

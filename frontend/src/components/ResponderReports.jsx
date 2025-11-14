@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
-import { FaEdit, FaTrashAlt, FaSearch, FaRedo, FaCheckCircle, FaTimesCircle } from "react-icons/fa";
+import { FaEdit, FaTrashAlt, FaSearch, FaRedo, FaCheckCircle, FaTimesCircle, FaCheck, FaTimes } from "react-icons/fa";
 import { API_CONFIG, getApiUrl } from "../utils/apiConfig";
 import "./Reports.css";
 
@@ -397,8 +397,15 @@ function ResponderReports({ token }) {
         }
     };
 
-    // Filtered reports
+    // Filtered reports - Responders see approved reports + pending reports that are approved
     const filteredReports = reports
+        .filter((r) => {
+            // Show approved reports (Ongoing/Resolved status)
+            if (r.is_approved === true) return true;
+            // Show pending reports only if they are approved
+            if (r.status === "Pending" && r.is_approved === true) return true;
+            return false;
+        })
         .filter((r) => (category === "All" ? true : r.category === category))
         .filter((r) => (barangay === "All" ? true : r.barangay === barangay))
         .filter((r) => (statusFilter === "All" ? true : r.status === statusFilter))

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
-import { FaEdit, FaTrashAlt, FaSearch, FaRedo, FaCheckCircle, FaTimesCircle } from "react-icons/fa";
+import { FaEdit, FaTrashAlt, FaSearch, FaRedo, FaCheckCircle, FaTimesCircle, FaCheck, FaTimes } from "react-icons/fa";
 import { API_CONFIG, getApiUrl } from "../utils/apiConfig";
 import "./Reports.css";
 const REPORT_STATUSES = ["Pending", "Ongoing", "Resolved"];
@@ -143,6 +143,14 @@ function BarangayReports({ token }) {
     const [isDeleteReasonOpen, setIsDeleteReasonOpen] = useState(false);
     const [deleteReason, setDeleteReason] = useState('');
     const [deleteReasonOther, setDeleteReasonOther] = useState('');
+    
+    // New states for approval workflow
+    const [isApprovingReport, setIsApprovingReport] = useState(false);
+    const [isRejectingReport, setIsRejectingReport] = useState(false);
+    
+    // New states for rejection info modal (when viewing rejected reports in list)
+    const [rejectionInfoModalOpen, setRejectionInfoModalOpen] = useState(false);
+    const [rejectionInfoReport, _setRejectionInfoReport] = useState(null);
 
     // --- REFS for Keyboard Navigation ---
     const filterContainerRef = useRef(null);
@@ -267,6 +275,9 @@ function BarangayReports({ token }) {
                         title: report.title || 'Untitled Report',
                         description: report.description || 'No description provided',
                         status: report.status || 'Pending',
+                        is_approved: report.is_approved ?? false,
+                        is_rejected: report.is_rejected ?? false,
+                        rejection_reason: report.rejection_reason ?? null,
                         images: report.images?.map(img => img.url) || []
                     };
                 });
@@ -410,8 +421,81 @@ function BarangayReports({ token }) {
         }
     };
 
+    // Approval workflow handlers
+    const handleApproveReport = async (reportId) => {
+        if (!token) return;
+        
+        setIsApprovingReport(true);
+        try {
+            const response = await fetch(getApiUrl(`/api/reports/${reportId}/approve`), {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({})
+            });
+
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.message || 'Failed to approve report');
+            }
+
+            setReports(prevReports =>
+                prevReports.map(r =>
+                    r.id === reportId ? { ...r, is_approved: true } : r
+                )
+            );
+
+            showNotification('Report approved successfully', 'success');
+        } catch (error) {
+            console.error('Error approving report:', error);
+            showNotification(`Failed to approve report: ${error.message}`, 'error');
+        } finally {
+            setIsApprovingReport(false);
+        }
+    };
+
+    const handleRejectReport = async (reportId) => {
+        if (!token) return;
+        
+        setIsRejectingReport(true);
+        try {
+            const response = await fetch(getApiUrl(`/api/reports/${reportId}/reject`), {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({})
+            });
+
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.message || 'Failed to reject report');
+            }
+
+            // Update report to show is_rejected = true instead of removing it
+            setReports(prevReports =>
+                prevReports.map(r => 
+                    r.id === reportId 
+                        ? { ...r, is_rejected: true }
+                        : r
+                )
+            );
+
+            showNotification('Report rejected', 'success');
+        } catch (error) {
+            console.error('Error rejecting report:', error);
+            showNotification(`Failed to reject report: ${error.message}`, 'error');
+        } finally {
+            setIsRejectingReport(false);
+        }
+    };
+
     // Filtered reports (removed barangay filter - fetched from backend already filtered)
     const filteredReports = reports
+        .filter((r) => !r.is_rejected) // Hide rejected reports from barangay view
         .filter((r) => (category === "All" ? true : r.category === category))
         .filter((r) => (statusFilter === "All" ? true : r.status === statusFilter))
         .filter(
@@ -504,12 +588,18 @@ function BarangayReports({ token }) {
                 ) : filteredReports.length > 0 ? (
                     filteredReports.map((report, index) => {
                         const isExpanded = expandedPosts.includes(report.id);
+                        const isPending = !report.is_approved;
+                        
+                        // DEBUG: Log is_approved value for first 3 reports
+                        if (index < 3) {
+                            console.log(`[BarangayReports] Report ${report.id}: is_approved=${report.is_approved}, isPending=${isPending}, status=${report.status}`);
+                        }
 
                         return (
                             <div
                                 key={report.id}
                                 id={`report-${report.id}`}
-                                className={`report-card fade-in ${highlightedReportId === report.id ? 'highlighted-report' : ''}`}
+                                className={isPending ? 'report-pending' : `report-card ${highlightedReportId === report.id ? 'highlighted-report' : ''}`}
                                 style={{ animationDelay: `${index * 0.1}s` }} 
                                 aria-labelledby={`report-title-${report.id}`}
                             >
@@ -564,25 +654,60 @@ function BarangayReports({ token }) {
                                     </div>
 
                                     <div className="report-header-actions">
-                                        <span className={`status-badge status-${report.status.toLowerCase()}`}>
-                                            {report.status}
-                                        </span>
-                                        <button 
-                                            className="icon-btn edit-btn" 
-                                            onClick={() => openStatusModal(report)}
-                                            aria-label={`Edit status for report: ${report.title}`}
-                                            title="Edit Status"
-                                        >
-                                            <FaEdit aria-hidden="true" />
-                                        </button>
-                                        <button 
-                                            className="icon-btn delete-btn" 
-                                            onClick={() => openDeleteReason(report)}
-                                            aria-label={`Delete report: ${report.title}`}
-                                            title="Delete Report"
-                                        >
-                                            <FaTrashAlt aria-hidden="true" />
-                                        </button>
+                                        {!(report.is_approved === true && report.status === "Pending") && (
+                                            <span className={`status-badge status-${report.status.toLowerCase()}`}>
+                                                {report.status}
+                                            </span>
+                                        )}
+                                        {isPending ? (
+                                            <>
+                                                <button 
+                                                    className="icon-btn approve-btn" 
+                                                    onClick={() => handleApproveReport(report.id)}
+                                                    disabled={isApprovingReport}
+                                                    aria-label={`Approve report: ${report.title}`}
+                                                    title="Approve Report"
+                                                >
+                                                    {isApprovingReport ? (
+                                                        <>
+                                                            <span className="spinner-small" aria-hidden="true"></span>
+                                                            {/* Still show check icon but with loading state */}
+                                                            <FaCheck aria-hidden="true" style={{ opacity: 0.5 }} />
+                                                        </>
+                                                    ) : (
+                                                        <FaCheck aria-hidden="true" />
+                                                    )}
+                                                </button>
+                                                <button 
+                                                    className="icon-btn reject-btn" 
+                                                    onClick={() => handleRejectReport(report.id)}
+                                                    disabled={isRejectingReport}
+                                                    aria-label={`Reject report: ${report.title}`}
+                                                    title="Reject Report"
+                                                >
+                                                    <FaTimes aria-hidden="true" />
+                                                </button>
+                                            </>
+                                        ) : (
+                                            <>
+                                                <button 
+                                                    className="icon-btn edit-btn" 
+                                                    onClick={() => openStatusModal(report)}
+                                                    aria-label={`Edit status for report: ${report.title}`}
+                                                    title="Edit Status"
+                                                >
+                                                    <FaEdit aria-hidden="true" />
+                                                </button>
+                                                <button 
+                                                    className="icon-btn delete-btn" 
+                                                    onClick={() => openDeleteReason(report)}
+                                                    aria-label={`Delete report: ${report.title}`}
+                                                    title="Delete Report"
+                                                >
+                                                    <FaTrashAlt aria-hidden="true" />
+                                                </button>
+                                            </>
+                                        )}
                                     </div>
                                 </div>
 
@@ -824,6 +949,63 @@ function BarangayReports({ token }) {
                             >
                                 Continue to Delete
                             </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Rejection Info Modal - Shows when barangay official views a rejected report */}
+            {rejectionInfoModalOpen && rejectionInfoReport && (
+                <div 
+                    className="modal-overlay"
+                    onClick={() => setRejectionInfoModalOpen(false)}
+                    role="dialog"
+                    aria-modal="true"
+                    aria-labelledby="rejection-info-title"
+                >
+                    <div className="rejection-modal-content" onClick={(e) => e.stopPropagation()}>
+                        <div className="rejection-modal-header">
+                            <h3 id="rejection-info-title">Report Rejection Information</h3>
+                            <button
+                                className="close-modal-btn"
+                                onClick={() => setRejectionInfoModalOpen(false)}
+                                aria-label="Close rejection modal"
+                                title="Close"
+                            >
+                                ✕
+                            </button>
+                        </div>
+
+                        <div className="rejection-modal-body">
+                            <div className="rejection-info-section">
+                                <h4>Report Title</h4>
+                                <p className="rejection-report-title">{rejectionInfoReport.title}</p>
+
+                                <h4>Reason for Rejection</h4>
+                                <p className="rejection-reason-text">
+                                    {rejectionInfoReport.rejection_reason || 'Your report violated our community guidelines.'}
+                                </p>
+                                
+                                <div className="possible-violations">
+                                    <h5>Possible Reasons for Violation:</h5>
+                                    <ul>
+                                        <li>Inappropriate or offensive language</li>
+                                        <li>False or misleading information</li>
+                                        <li>Spam or repetitive content</li>
+                                        <li>Personal attack or harassment</li>
+                                        <li>Violates privacy or confidentiality</li>
+                                        <li>Unrelated to community safety</li>
+                                        <li>Excessive or graphic content</li>
+                                    </ul>
+                                </div>
+
+                                <div className="rejection-metadata">
+                                    <p><strong>Status:</strong> <span style={{ color: '#c62828' }}>REJECTED</span></p>
+                                    <p><strong>Reporter:</strong> {rejectionInfoReport.reporter ? `${rejectionInfoReport.reporter.firstname} ${rejectionInfoReport.reporter.lastname}` : 'Unknown'}</p>
+                                    <p><strong>Category:</strong> {rejectionInfoReport.category}</p>
+                                    <p><strong>Barangay:</strong> {rejectionInfoReport.barangay}</p>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>

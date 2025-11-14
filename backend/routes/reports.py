@@ -135,6 +135,10 @@ def fetch_reports(limit=10, sort="desc", user_only=False, barangay_filter=False,
         total_time = round((time.time() - start_time) * 1000, 1)
         print(f"✅ Reports processed in {total_time}ms total")
         
+        # DEBUG: Log first 3 reports with is_approved values
+        for i, report in enumerate(reports_list[:3]):
+            print(f"[DEBUG] Report {i+1} ID={report.get('id')}, is_approved={report.get('is_approved')}, status={report.get('status')}")
+        
         return reports_list
     except Exception as e:
         print("fetch_reports error:", e)
@@ -390,9 +394,16 @@ def add_report():
             barangay_name = report.get('address_barangay') or 'Unknown'
             report_category = report.get('category') or 'General'
             
-            # Find barangay officials for this barangay
-            barangay_officials_resp = supabase.table("users").select("id").eq("role", "Barangay Official").eq("barangay", barangay_name).execute()
-            barangay_officials = getattr(barangay_officials_resp, "data", []) or []
+            # Find barangay officials for this barangay by checking info table
+            barangay_officials_resp = supabase.table("info").select("user_id").eq("address_barangay", barangay_name).execute()
+            barangay_official_ids = [official.get("user_id") for official in (getattr(barangay_officials_resp, "data", []) or [])]
+            
+            # Verify they are actually barangay officials
+            if barangay_official_ids:
+                officials_resp = supabase.table("users").select("id").in_("id", barangay_official_ids).eq("role", "Barangay Official").execute()
+                barangay_officials = getattr(officials_resp, "data", []) or []
+            else:
+                barangay_officials = []
             
             # Send notification to all barangay officials in that barangay
             for official in barangay_officials:
@@ -1108,3 +1119,122 @@ def get_top_barangays():
     except Exception as e:
         print(f"get_top_barangays error: {e}")
         return jsonify({"status": "error", "message": str(e), "barangays": []}), 500
+
+
+# Report Approval Endpoints
+@reports_bp.route("/reports/<report_id>/approve", methods=["POST"])
+@token_required
+def approve_report(report_id):
+    """
+    Approve a pending report to make it visible to public.
+    Only admins and barangay officials can approve reports.
+    """
+    user_id = request.user_id
+    try:
+        # Get user role to check authorization
+        user_resp = supabase.table("users").select("role").eq("id", user_id).execute()
+        user_data = getattr(user_resp, "data", [None])[0]
+        user_role = user_data.get("role") if user_data else None
+        
+        # Only admin or barangay official can approve
+        if user_role not in ["Admin", "Barangay Official"]:
+            print(f"❌ User {user_id} with role {user_role} not authorized to approve reports")
+            return jsonify({"status": "error", "message": "Not authorized to approve reports"}), 403
+        
+        # Check if report exists and get reporter info
+        report_resp = supabase.table("reports").select("id, user_id, title, is_approved").eq("id", report_id).execute()
+        report = getattr(report_resp, "data", [None])[0]
+        
+        if not report:
+            print(f"❌ Report {report_id} not found")
+            return jsonify({"status": "error", "message": "Report not found"}), 404
+        
+        # Check if already approved
+        if report.get("is_approved"):
+            print(f"⚠️ Report {report_id} already approved")
+            return jsonify({"status": "error", "message": "Report already approved"}), 400
+        
+        # Update report to approved
+        now = datetime.now(timezone.utc).isoformat()
+        supabase.table("reports").update({
+            "is_approved": True,
+            "approved_by": user_id,
+            "approved_at": now
+        }).eq("id", report_id).execute()
+        
+        print(f"✅ Report {report_id} approved by {user_id}")
+        
+        # Create notification for the reporter
+        reporter_id = report.get("user_id")
+        report_title = report.get("title")
+        if reporter_id:
+            from utils.notifications import create_report_approval_notification
+            create_report_approval_notification(reporter_id, report_id, report_title, user_id)
+        
+        return jsonify({"status": "success", "message": "Report approved successfully"}), 200
+        
+    except Exception as e:
+        print(f"❌ Failed to approve report {report_id}: {str(e)}")
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+
+@reports_bp.route("/reports/<report_id>/reject", methods=["POST"])
+@token_required
+def reject_report(report_id):
+    """
+    Reject a pending report by setting is_rejected=TRUE.
+    Only admins and barangay officials can reject reports.
+    When a rejected report is deleted by user with is_rejected=TRUE and deleted_at set,
+    no notification is sent to admin/barangay.
+    """
+    user_id = request.user_id
+    try:
+        # Get user role to check authorization
+        user_resp = supabase.table("users").select("role").eq("id", user_id).execute()
+        user_data = getattr(user_resp, "data", [None])[0]
+        user_role = user_data.get("role") if user_data else None
+        
+        # Only admin or barangay official can reject
+        if user_role not in ["Admin", "Barangay Official"]:
+            print(f"❌ User {user_id} with role {user_role} not authorized to reject reports")
+            return jsonify({"status": "error", "message": "Not authorized to reject reports"}), 403
+        
+        # Check if report exists
+        report_resp = supabase.table("reports").select("id, user_id, title").eq("id", report_id).execute()
+        report = getattr(report_resp, "data", [None])[0]
+        
+        if not report:
+            print(f"❌ Report {report_id} not found")
+            return jsonify({"status": "error", "message": "Report not found"}), 404
+        
+        # Get rejection reason from request body if provided
+        data = request.get_json() or {}
+        rejection_reason = data.get("rejection_reason", "Your report violated our community guidelines.")
+        
+        # Set is_rejected to TRUE and record rejection metadata
+        supabase.table("reports").update({
+            "is_rejected": True,
+            "rejected_by": user_id,
+            "rejected_at": datetime.now(timezone.utc).isoformat(),
+            "rejection_reason": rejection_reason
+        }).eq("id", report_id).execute()
+        
+        print(f"✅ Report {report_id} rejected by {user_id}")
+        
+        # Create notification for the reporter about rejection
+        reporter_id = report.get("user_id")
+        report_title = report.get("title")
+        if reporter_id:
+            from utils.notifications import create_notification
+            create_notification(
+                reporter_id,
+                "Report Rejected",
+                f'Your report "{report_title}" did not meet our community guidelines and was not approved for public visibility.',
+                "Report Alert"
+            )
+        
+        return jsonify({"status": "success", "message": "Report rejected"}), 200
+        
+    except Exception as e:
+        print(f"❌ Failed to reject report {report_id}: {str(e)}")
+        return jsonify({"status": "error", "message": str(e)}), 500
