@@ -6,12 +6,32 @@ import os
 from supabase import create_client
 from config import Config
 
-# Initialize Supabase client with environment validation
+# Initialize Supabase client with proper error handling
+supabase = None
+
 try:
     if not Config.SUPABASE_URL or not Config.SUPABASE_KEY:
         raise ValueError("Missing SUPABASE_URL or SUPABASE_KEY environment variables")
     
-    supabase = create_client(Config.SUPABASE_URL, Config.SUPABASE_KEY)
+    # Create client with explicit configuration
+    supabase = create_client(
+        Config.SUPABASE_URL, 
+        Config.SUPABASE_KEY
+    )
+    print("✓ Supabase client initialized successfully")
+    
 except Exception as e:
-    print(f"Error initializing Supabase client: {str(e)}")
-    raise
+    error_msg = str(e)
+    print(f"⚠ Warning: Could not initialize Supabase client: {error_msg}")
+    
+    # If it's the proxy error, provide helpful guidance
+    if "proxy" in error_msg.lower():
+        print("This is a known httpx/gotrue compatibility issue")
+        print("Ensure requirements.txt has compatible versions:")
+        print("  - supabase>=2.5.0")
+        print("  - httpx>=0.25.0")
+        print("  - gotrue>=0.4.2")
+    
+    # Don't re-raise to allow app to start with degraded mode
+    supabase = None
+
