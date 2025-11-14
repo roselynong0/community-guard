@@ -29,12 +29,8 @@ const CommunityFeedBarangay = ({ session, token }) => {
 
   const authToken = token || session?.token || localStorage.getItem("token") || "";
 
-  useEffect(() => {
+  const fetchUserInfo = useCallback(async () => {
     if (!authToken) return;
-    fetchUserInfo();
-  }, []);
-
-  const fetchUserInfo = async () => {
     try {
       const response = await fetch(getApiUrl(API_CONFIG.endpoints.profile), {
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${authToken}` },
@@ -48,7 +44,11 @@ const CommunityFeedBarangay = ({ session, token }) => {
     } catch (error) {
       console.error("Error fetching user info:", error);
     }
-  };
+  }, [authToken]);
+
+  useEffect(() => {
+    fetchUserInfo();
+  }, [fetchUserInfo]);
 
   const fetchPosts = useCallback(async () => {
     if (!authToken) return;
@@ -402,7 +402,7 @@ const PostCard = ({ post, onAddComment, onDeleteComment, onDeletePost }) => {
 };
 
 // ✅ POST MODAL
-const PostModal = ({ onClose, onSubmit, userBarangay, selectedBarangay, isOfficialUser }) => {
+const PostModal = ({ onClose, onSubmit, userBarangay, isOfficialUser }) => {
   const [title, setTitle] = useState("");
   const [content, setContent] = useState("");
   const [postType, setPostType] = useState("general");

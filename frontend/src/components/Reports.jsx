@@ -503,9 +503,13 @@ function Reports({ session }) {
       console.log("🔗 Delete URL:", deleteUrl);
       console.log("🔑 Token exists:", !!token);
       
-      // Use DELETE method for hard delete instead of PATCH for soft delete
+      // Use DELETE method for hard delete - send empty object as body with proper headers
       const response = await axios.delete(deleteUrl, { 
-        headers: { Authorization: `Bearer ${token}` } 
+        data: {},
+        headers: { 
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        } 
       });
       
       console.log("✅ Delete response:", response.status, response.data);

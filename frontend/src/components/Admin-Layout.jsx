@@ -6,11 +6,11 @@ import {
   FaBars,
   FaCalendarAlt,
   FaMap,
-  FaUser,
   FaUsers,
   FaBell,
   FaFileAlt,
   FaChartBar,
+  FaComment,
 } from "react-icons/fa";
 import { Outlet, NavLink, useNavigate } from "react-router-dom";
 import "./Layout.css";
@@ -158,11 +158,11 @@ function AdminLayout({ session, setSession, setNotification }) {
             <NavLink to="/admin/users">
               <FaUsers /> Users
             </NavLink>
+            <NavLink to="/admin/community-feed">
+              <FaComment /> Community Feed
+            </NavLink>
             <NavLink to="/admin/notifications">
               <FaBell /> Notifications
-            </NavLink>
-            <NavLink to="/admin/community-metrics">
-              <FaChartBar /> Community Metrics
             </NavLink>
           </nav>
 
@@ -293,13 +293,13 @@ function AdminLayout({ session, setSession, setNotification }) {
       {/* Bottom nav (mobile) */}
       <nav className="bottom-nav">
             <NavLink to="/admin/users">
-              <FaUsers /> Users
+              <FaUsers />
+            </NavLink>
+            <NavLink to="/admin/community-feed">
+              <FaComment />
             </NavLink>
             <NavLink to="/admin/notifications">
-              <FaBell /> Notifications
-            </NavLink>
-            <NavLink to="/admin/community-metrics">
-              <FaChartBar /> Community Metrics
+              <FaBell />
             </NavLink>
       </nav>
 
