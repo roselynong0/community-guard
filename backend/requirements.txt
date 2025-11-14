@@ -4,8 +4,9 @@ Flask-CORS==4.0.0
 Flask-Caching==2.1.0
 Flask-Compress==1.14
 
-# Database
-supabase==2.3.0
+# Database - Updated for compatibility
+supabase==2.4.2
+httpx==0.24.1
 
 # Authentication & Security
 bcrypt==4.1.2
@@ -26,4 +27,4 @@ python-dateutil==2.8.2
 psycopg2-binary==2.9.9
 
 # Production server
-gunicorn
+gunicorn==23.0.0
