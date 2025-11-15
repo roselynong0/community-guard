@@ -6,7 +6,7 @@ import compression from 'vite-plugin-compression'
 // https://vite.dev/config/
 export default defineConfig({
   base: '/',
-  publicDir: 'public', // Explicitly copy public folder
+  publicDir: 'public',
   plugins: [
     react(),
 

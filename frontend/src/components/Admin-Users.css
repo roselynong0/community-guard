@@ -901,22 +901,16 @@ button.modal-close {
     font-weight: 600;
 }
 
-.info-loading {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    padding: 40px;
-    color: #64748b;
-}
 
 .info-loading .spinner {
-    width: 24px;
-    height: 24px;
-    border: 3px solid #e2e8f0;
-    border-top: 3px solid #3b82f6;
+    width: 32px;
+    height: 32px;
+    border: 3px solid rgba(45, 45, 115, 0.12);
+    border-top: 3px solid #2d2d73;
+    border-right: 3px solid #2d2d73;
     border-radius: 50%;
-    animation: spin 1s linear infinite;
-    margin-bottom: 8px;
+    animation: spin 0.8s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+    filter: drop-shadow(0 2px 4px rgba(45, 45, 115, 0.1));
 }
 
 .info-grid {
@@ -964,18 +958,20 @@ button.modal-close {
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    padding: 60px 20px;
+    padding: 80px 20px;
     color: #64748b;
+    gap: 16px;
 }
 
 .admin-spinner {
-    width: 40px;
-    height: 40px;
-    border: 3px solid #e2e8f0;
-    border-top: 3px solid #3b82f6;
+    width: 48px;
+    height: 48px;
+    border: 3px solid rgba(45, 45, 115, 0.12);
+    border-top: 3px solid #2d2d73;
+    border-right: 3px solid #2d2d73;
     border-radius: 50%;
-    animation: adminSpin 1s linear infinite;
-    margin-bottom: 16px;
+    animation: adminSpin 0.8s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+    filter: drop-shadow(0 2px 8px rgba(45, 45, 115, 0.15));
 }
 
 @keyframes adminSpin {
@@ -985,8 +981,10 @@ button.modal-close {
 }
 
 .admin-loading-text {
-    font-size: 1rem;
+    font-size: 0.95rem;
     font-weight: 500;
+    letter-spacing: 0.3px;
+    color: #475569;
 }
 
 /* === INFO LOADING === */
@@ -994,16 +992,22 @@ button.modal-close {
     display: flex;
     flex-direction: column;
     align-items: center;
-    padding: 40px;
+    justify-content: center;
+    padding: 60px 40px;
     color: #64748b;
+    gap: 12px;
 }
 
 .admin-info-loading .admin-spinner {
-    width: 24px;
-    height: 24px;
+    width: 28px;
+    height: 28px;
     border-width: 2px;
-    margin-bottom: 8px;
+    border-color: rgba(45, 45, 115, 0.12);
+    border-top-color: #2d2d73;
+    border-right-color: #2d2d73;
+    filter: drop-shadow(0 1px 3px rgba(45, 45, 115, 0.1));
 }
+
 
 /* === NO DATA STATES === */
 .admin-no-info {

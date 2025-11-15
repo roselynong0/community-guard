@@ -328,7 +328,7 @@ export default function AdminNotifications({ session }) {
       {error && <div className="notice error">{error}</div>}
 
       {loading ? (
-        <div className="loading loading-block"><div className="spinner"/>Loading…</div>
+        <div className="loading-block"><div className="spinner"/><p>Loading notifications…</p></div>
       ) : filtered.length === 0 ? (
         <div className="no-notifications">No notifications.</div>
       ) : (

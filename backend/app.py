@@ -28,11 +28,22 @@ def create_app():
     app = Flask(__name__)
     app.config.from_object(Config)
 
-    # ✅ Enable CORS properly
+    # ✅ Enable CORS properly - Allow localhost dev and production URLs
     from flask_cors import CORS
+    
+    # Define allowed origins for both development and production
+    allowed_origins = [
+        "http://localhost:5173",      # Local frontend dev server
+        "http://localhost:3000",      # Alternative local frontend port
+        "http://127.0.0.1:5173",      # Local frontend (127.0.0.1)
+        "http://127.0.0.1:3000",      # Local frontend (127.0.0.1)
+        "https://community-guard.vercel.app",  # Vercel production
+        "https://community-guard-production.up.railway.app",  # Railway backend
+    ]
+    
     CORS(
         app,
-        origins=["https://community-guard.vercel.app"],  # Replace with your frontend URL
+        origins=allowed_origins,
         supports_credentials=True,
         allow_headers=["Content-Type", "Authorization", "Accept"],
         methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "HEAD"]

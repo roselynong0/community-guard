@@ -211,20 +211,26 @@ h3 {
 .loading-overlay {
   display: flex;
   flex-direction: column;
-  justify-content: center;
+  justify-content: flex-start;
   align-items: center;
-  height: 80vh;
-  gap: 1rem;
-  background: #f4f4f4;
+  min-height: 400px;
+  gap: 16px;
+  background: transparent;
+  padding-top: 100px;
+  padding-bottom: 40px;
+  padding-left: 20px;
+  padding-right: 20px;
 }
 
 .spinner {
-  width: 60px;
-  height: 60px;
-  border: 6px solid #ddd;
-  border-top-color: #2d2d73;
+  width: 48px;
+  height: 48px;
+  border: 3px solid rgba(45, 45, 115, 0.12);
+  border-top: 3px solid #2d2d73;
+  border-right: 3px solid #2d2d73;
   border-radius: 50%;
-  animation: spin 1s linear infinite;
+  animation: spin 0.8s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+  filter: drop-shadow(0 2px 8px rgba(45, 45, 115, 0.15));
 }
 
 @keyframes spin {
