@@ -8,7 +8,7 @@ import sys
 # Add the backend directory to the Python path for Vercel
 sys.path.insert(0, os.path.dirname(__file__))
 
-from flask import Flask, jsonify, send_from_directory
+from flask import Flask, jsonify, send_from_directory, request
 from flask_cors import CORS
 from flask_caching import Cache
 from flask_compress import Compress
@@ -39,22 +39,30 @@ def create_app():
     # ✅ Load configuration
     app.config.from_object(Config)
 
-    # ✅ Enable CORS for all origins (will be restricted in production)
+    # ✅ Enable CORS for Vercel frontend
     CORS(
         app,
+        origins=[
+            "https://community-guard.vercel.app",  # Production Vercel
+            "https://*.vercel.app",  # Preview deployments
+            "http://localhost:5173",  # Local dev
+            "http://127.0.0.1:5173",
+            "http://localhost:3000",
+            "http://localhost:5000"
+        ],
         supports_credentials=True,
         allow_headers=["Content-Type", "Authorization", "Accept"],
         methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "HEAD"],
         max_age=3600
     )
 
-    # ✅ Handle OPTIONS requests explicitly
+    # ✅ Handle OPTIONS requests explicitly (backup)
     @app.before_request
     def handle_preflight():
         from flask import request
         if request.method == "OPTIONS":
             response = jsonify({"status": "ok"})
-            response.headers['Access-Control-Allow-Origin'] = '*'
+            response.headers['Access-Control-Allow-Origin'] = request.headers.get('Origin', '*')
             response.headers['Access-Control-Allow-Methods'] = 'GET, POST, PUT, DELETE, OPTIONS, HEAD'
             response.headers['Access-Control-Allow-Headers'] = 'Content-Type, Authorization, Accept'
             response.headers['Access-Control-Max-Age'] = '3600'
@@ -63,7 +71,8 @@ def create_app():
     # ✅ Add explicit CORS headers to all responses
     @app.after_request
     def after_request(response):
-        response.headers['Access-Control-Allow-Origin'] = '*'
+        origin = request.headers.get('Origin', '*')
+        response.headers['Access-Control-Allow-Origin'] = origin
         response.headers['Access-Control-Allow-Methods'] = 'GET, POST, PUT, DELETE, OPTIONS, HEAD'
         response.headers['Access-Control-Allow-Headers'] = 'Content-Type, Authorization, Accept'
         response.headers['Access-Control-Max-Age'] = '3600'
