@@ -9,18 +9,16 @@ const getBaseUrl = () => {
     
     // Check for production Vercel deployment - use Railway backend
     if (hostname.includes('vercel.app') || hostname.includes('community-guard.vercel.app')) {
-      const railwayApi = import.meta.env.VITE_API_URL || import.meta.env.VITE_RAILWAY_API_URL || 'https://community-guard-production.up.railway.app';
+      const railwayApi = 'https://community-guard-production.up.railway.app';
       console.log('✅ Detected Vercel deployment, using Railway backend:', railwayApi);
       return railwayApi;
     }
 
     // Local development - use local backend
     if (hostname === 'localhost' || hostname === '127.0.0.1') {
-      const localApi = import.meta.env.VITE_API_URL || 'http://localhost:5000';
-      // Ensure local api has protocol
-      const normalizedLocal = /^https?:\/\//i.test(localApi) ? localApi : `http://${localApi}`;
-      console.log('✅ Detected localhost, using local backend:', normalizedLocal);
-      return normalizedLocal;
+      const localApi = 'http://localhost:5000';
+      console.log('✅ Detected localhost, using local backend:', localApi);
+      return localApi;
     }
 
     console.log('✅ Using same origin for domain:', origin);
