@@ -1,10 +1,8 @@
 {
   "version": 2,
-  "buildCommand": "cd frontend && npm ci && npm run build",
+  "buildCommand": "cd frontend && VITE_API_URL=https://community-guard-production.up.railway.app npm ci && npm run build",
   "outputDirectory": "frontend/dist",
-  "env": {
-    "VITE_API_URL": "https://community-guard-production.up.railway.app"
-  },
+  "framework": "vite",
   "routes": [
     {
       "src": "^/(.*\\.(js|css|png|jpg|jpeg|gif|svg|ico|woff|woff2|ttf|eot|json|webmanifest|txt|wasm|xml))$",
