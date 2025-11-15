@@ -39,17 +39,9 @@ def create_app():
     # ✅ Load configuration
     app.config.from_object(Config)
 
-    # ✅ Enable CORS for Vercel → Railway
+    # ✅ Enable CORS for all origins (will be restricted in production)
     CORS(
         app,
-        origins=[
-            "https://community-guard.vercel.app",  # ✅ Production Vercel
-            "https://*.vercel.app",  # ✅ Preview deployments
-            "http://localhost:5173",  # ✅ Local development
-            "http://127.0.0.1:5173",
-            "http://localhost:3000",
-            "http://localhost:5000"
-        ],
         supports_credentials=True,
         allow_headers=["Content-Type", "Authorization", "Accept"],
         methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "HEAD"],
