@@ -7,17 +7,24 @@
   },
   "routes": [
     {
-      "src": "/assets/(.*)",
+      "src": "^/(.*\\.(js|css|png|jpg|jpeg|gif|svg|ico|woff|woff2|ttf|eot|json|webmanifest|txt|wasm|xml))$",
+      "dest": "frontend/dist/$1",
+      "headers": {
+        "Cache-Control": "public, max-age=31536000, immutable"
+      }
+    },
+    {
+      "src": "^/assets/(.*)$",
       "dest": "frontend/dist/assets/$1",
       "headers": {
         "Cache-Control": "public, max-age=31536000, immutable"
       }
     },
     {
-      "src": "/(.*\\.(js|css|png|jpg|jpeg|svg|ico|woff|woff2|ttf|eot|json|webmanifest|txt|wasm))",
-      "dest": "frontend/dist/$1",
+      "src": "^/api/(.*)$",
+      "dest": "https://community-guard-production.up.railway.app/api/$1",
       "headers": {
-        "Cache-Control": "public, max-age=31536000, immutable"
+        "Access-Control-Allow-Origin": "*"
       }
     },
     {
