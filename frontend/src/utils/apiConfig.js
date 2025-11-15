@@ -9,12 +9,7 @@ const getBaseUrl = () => {
     
     // Check for production Vercel deployment - use Railway backend
     if (hostname.includes('vercel.app') || hostname.includes('community-guard.vercel.app')) {
-      let railwayApi = import.meta.env.VITE_API_URL || import.meta.env.VITE_RAILWAY_API_URL;
-      // Normalize: if user set hostname without protocol (e.g. community-guard-production.up.railway.app),
-      // default to https:// for production deployments
-      if (railwayApi && !/^https?:\/\//i.test(railwayApi)) {
-        railwayApi = `https://${railwayApi}`;
-      }
+      const railwayApi = import.meta.env.VITE_API_URL || import.meta.env.VITE_RAILWAY_API_URL || 'https://community-guard-production.up.railway.app';
       console.log('✅ Detected Vercel deployment, using Railway backend:', railwayApi);
       return railwayApi;
     }
