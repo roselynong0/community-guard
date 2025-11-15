@@ -48,6 +48,15 @@ def create_app():
         max_age=3600
     )
 
+    # ✅ Add explicit CORS headers to all responses
+    @app.after_request
+    def after_request(response):
+        response.headers['Access-Control-Allow-Origin'] = '*'
+        response.headers['Access-Control-Allow-Methods'] = 'GET, POST, PUT, DELETE, OPTIONS, HEAD'
+        response.headers['Access-Control-Allow-Headers'] = 'Content-Type, Authorization, Accept'
+        response.headers['Access-Control-Max-Age'] = '3600'
+        return response
+
     # ✅ optional caching + compression
     cache = Cache(app, config={
         'CACHE_TYPE': Config.CACHE_TYPE,
