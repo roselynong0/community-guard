@@ -48,6 +48,18 @@ def create_app():
         max_age=3600
     )
 
+    # ✅ Handle OPTIONS requests explicitly
+    @app.before_request
+    def handle_preflight():
+        from flask import request
+        if request.method == "OPTIONS":
+            response = jsonify({"status": "ok"})
+            response.headers['Access-Control-Allow-Origin'] = '*'
+            response.headers['Access-Control-Allow-Methods'] = 'GET, POST, PUT, DELETE, OPTIONS, HEAD'
+            response.headers['Access-Control-Allow-Headers'] = 'Content-Type, Authorization, Accept'
+            response.headers['Access-Control-Max-Age'] = '3600'
+            return response, 200
+
     # ✅ Add explicit CORS headers to all responses
     @app.after_request
     def after_request(response):
