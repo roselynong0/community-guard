@@ -2,8 +2,10 @@
 Notifications Blueprint
 Handles user notifications and admin notification management
 """
-from flask import Blueprint, request, jsonify
+from flask import Blueprint, request, jsonify, stream_with_context, Response
 from datetime import datetime, timezone
+import time
+import json
 from middleware.auth import token_required
 from utils import supabase
 
@@ -327,13 +329,16 @@ def barangay_get_notifications():
     
     try:
         # Verify that the user is a Barangay Official
-        current_user_resp = supabase.table("users").select("role, barangay").eq("id", user_id).single().execute()
+        current_user_resp = supabase.table("users").select("role, id").eq("id", user_id).single().execute()
         current_user = current_user_resp.data if current_user_resp.data else {}
         
         if current_user.get("role") != "Barangay Official":
             return jsonify({"status": "error", "message": "Barangay Official access required"}), 403
         
-        user_barangay = current_user.get("barangay")
+        # Fetch barangay from info table
+        info_resp = supabase.table("info").select("address_barangay").eq("user_id", user_id).single().execute()
+        info_data = info_resp.data if info_resp.data else {}
+        user_barangay = info_data.get("address_barangay")
         
         # Fetch all notifications for this user
         resp = supabase.table("notifications").select("*").eq("user_id", user_id).order("created_at", desc=True).execute()
@@ -461,3 +466,82 @@ def barangay_delete_notification(notif_id):
     except Exception as e:
         print(f"Error deleting barangay notification: {e}")
         return jsonify({"status": "error", "message": str(e)}), 500
+
+
+# ========== SERVER-SENT EVENTS (SSE) ENDPOINTS ==========
+
+def get_user_notifications(user_id, role):
+    """Helper function to fetch notifications based on role"""
+    try:
+        if role == "Admin":
+            resp = supabase.table("admin_notifications").select("*").eq("admin_id", user_id).order("created_at", desc=True).execute()
+            notifications = getattr(resp, "data", []) or []
+            # Normalize field names
+            for n in notifications:
+                n["is_read"] = bool(n.get("is_read", False))
+                n["id"] = n.get("id") or n.get("notification_id")
+        else:
+            resp = supabase.table("notifications").select("*").eq("user_id", user_id).order("created_at", desc=True).execute()
+            notifications = getattr(resp, "data", []) or []
+            for n in notifications:
+                n["is_read"] = bool(n.get("is_read", False))
+        
+        return notifications
+    except Exception as e:
+        print(f"Error fetching notifications for SSE: {e}")
+        return []
+
+
+@notifications_bp.route("/notifications/stream", methods=["GET"])
+@token_required
+def notifications_stream():
+    """
+    Server-Sent Events (SSE) endpoint for real-time notifications
+    Streams notification updates to client without repeated polling
+    """
+    user_id = request.user_id
+    role = request.headers.get("X-User-Role", "")  # Client sends role in header
+    
+    # Get initial notifications
+    initial_notifications = get_user_notifications(user_id, role)
+    last_count = len(initial_notifications)
+    last_unread_count = len([n for n in initial_notifications if not n.get("is_read", False)])
+    
+    def event_stream():
+        try:
+            # Send initial data
+            yield f"data: {json.dumps({'type': 'initial', 'notifications': initial_notifications, 'unread_count': last_unread_count})}\n\n"
+            
+            # Keep connection open and check for new notifications every 5 seconds
+            while True:
+                time.sleep(5)
+                
+                # Fetch current notifications
+                current_notifications = get_user_notifications(user_id, role)
+                current_count = len(current_notifications)
+                current_unread_count = len([n for n in current_notifications if not n.get("is_read", False)])
+                
+                # Only send update if count changed
+                if current_count != last_count or current_unread_count != last_unread_count:
+                    yield f"data: {json.dumps({'type': 'update', 'notifications': current_notifications, 'unread_count': current_unread_count})}\n\n"
+                    last_count = current_count
+                    last_unread_count = current_unread_count
+                else:
+                    # Send heartbeat to keep connection alive (no data, just connection check)
+                    yield f": heartbeat\n\n"
+                    
+        except GeneratorExit:
+            print(f"Client {user_id} disconnected from SSE stream")
+        except Exception as e:
+            print(f"SSE Error for user {user_id}: {e}")
+            yield f"data: {json.dumps({'type': 'error', 'message': str(e)})}\n\n"
+    
+    return Response(
+        stream_with_context(event_stream()),
+        mimetype="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "X-Accel-Buffering": "no",
+            "Connection": "keep-alive"
+        }
+    )

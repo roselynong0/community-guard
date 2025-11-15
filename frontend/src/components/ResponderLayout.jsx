@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   FaHome,
   FaExclamationTriangle,
@@ -11,6 +11,8 @@ import {
 } from 'react-icons/fa';
 import { Outlet, NavLink, useNavigate } from 'react-router-dom';
 import { API_CONFIG } from '../utils/apiConfig';
+import Toast from './Toast';
+import { registerToastCallback, registerNotificationCountCallback, startNotificationSSE, stopNotificationSSE, startNotificationPolling, stopNotificationPolling } from '../utils/notificationService';
 import './Layout.css';
 import logo from '../assets/logo.png';
 import { logout } from '../utils/session';
@@ -22,6 +24,10 @@ export default function ResponderLayout({ session, setSession, setNotification }
   const [loading, setLoading] = useState(true);
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const [dateTime, setDateTime] = useState(new Date());
+  const [notificationCount, setNotificationCount] = useState(0);
+  const toastRef = useRef(null);
+  const pollingIntervalRef = useRef(null);
+
   const navigate = useNavigate();
 
   const token = session?.token || '';
@@ -57,6 +63,38 @@ export default function ResponderLayout({ session, setSession, setNotification }
     loadProfile();
   }, [token]);
 
+  // 🔹 Setup real-time notifications via SSE for responder
+  useEffect(() => {
+    if (!token) return;
+
+    // Register toast callback
+    registerToastCallback((message, type) => {
+      if (toastRef.current) {
+        toastRef.current.show(message, type);
+      }
+    });
+
+    // Register notification count callback
+    registerNotificationCountCallback((count) => {
+      setNotificationCount(count);
+    });
+
+    // Start SSE with Responder role (will fallback to polling if SSE not available)
+    try {
+      startNotificationSSE(token, 'Responder');
+    } catch (e) {
+      console.warn('SSE not available, falling back to polling:', e);
+      pollingIntervalRef.current = startNotificationPolling(token, 'Responder', 10000);
+    }
+
+    return () => {
+      stopNotificationSSE();
+      if (pollingIntervalRef.current) {
+        stopNotificationPolling(pollingIntervalRef.current);
+      }
+    };
+  }, [token]);
+
   // Update date/time every second
   useEffect(() => {
     const interval = setInterval(() => setDateTime(new Date()), 1000);
@@ -90,6 +128,7 @@ export default function ResponderLayout({ session, setSession, setNotification }
 
   return (
     <div className="home-container">
+      <Toast ref={toastRef} />
       {/* Sidebar */}
       {sidebarOpen && (
         <aside className="sidebar">
@@ -113,7 +152,11 @@ export default function ResponderLayout({ session, setSession, setNotification }
             <NavLink to="/responder/home"><FaHome /> Home</NavLink>
             <NavLink to="/responder/reports"><FaExclamationTriangle /> Reports</NavLink>
             <NavLink to="/responder/maps"><FaMap /> Map</NavLink>
-            <NavLink to="/responder/notifications"><FaBell /> Notifications</NavLink>
+            <NavLink to="/responder/notifications"><FaBell /> Notifications
+              {notificationCount > 0 && (
+                <span className="notification-badge">{notificationCount}</span>
+              )}
+            </NavLink>
             <NavLink to="/responder/profile"><FaUser /> Profile</NavLink>
           </nav>
 

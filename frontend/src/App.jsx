@@ -14,6 +14,7 @@ import Profile from "./components/Profile";
 import Notifications from "./components/Notifications";
 import AdminNotifications from "./components/Admin-Notifications";
 import Maps from "./components/Maps";
+import AdminMaps from "./components/Admin-Maps";
 import CommunityMetrics from "./components/CommunityMetrics";
 import BarangayLayout from "./components/BarangayLayout";
 import BarangayHome from "./components/BarangayHome";
@@ -330,7 +331,13 @@ function App() {
           />
           <Route
             path="/admin/maps"
-            element={<Navigate to="/admin/users" replace />}
+            element={
+              session?.user?.role !== "Admin" ? (
+                <Navigate to="/home" replace />
+              ) : (
+                <AdminMaps session={session} />
+              )
+            }
           />
           <Route
             path="/admin/reports"

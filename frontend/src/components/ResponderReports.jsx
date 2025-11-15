@@ -122,6 +122,7 @@ function ResponderReports({ token }) {
     const [previewImage, setPreviewImage] = useState(null);
     const [notification, setNotification] = useState(null);
     const [highlightedReportId, setHighlightedReportId] = useState(null);
+    const [responderBarangay, setResponderBarangay] = useState(null);
 
     // States for the Status Update Modal
     const [isStatusModalOpen, setIsStatusModalOpen] = useState(false);
@@ -275,6 +276,25 @@ function ResponderReports({ token }) {
         fetchReports();
     }, [fetchReports]);
 
+    // Fetch responder's barangay
+    useEffect(() => {
+        const fetchResponderBarangay = async () => {
+            if (!token) return;
+            try {
+                const response = await fetch(`${getApiUrl('/api/profile')}`, {
+                    headers: { Authorization: `Bearer ${token}` }
+                });
+                const data = await response.json();
+                if (data.status === 'success' && data.profile?.address_barangay) {
+                    setResponderBarangay(data.profile.address_barangay);
+                }
+            } catch (error) {
+                console.error('Error fetching responder barangay:', error);
+            }
+        };
+        fetchResponderBarangay();
+    }, [token]);
+
     // Handle highlight parameter from URL
     useEffect(() => {
         const urlParams = new URLSearchParams(window.location.search);
@@ -422,7 +442,7 @@ function ResponderReports({ token }) {
     return (
         <div className="admin-container">
             <div className="header-row">
-                <h2>Responder Reports</h2>
+                <h2>{responderBarangay ? `${responderBarangay} Reports` : 'Loading...'}</h2>
             </div>
 
             {/* Filter Controls */}

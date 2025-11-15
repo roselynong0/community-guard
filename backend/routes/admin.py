@@ -131,104 +131,128 @@ def get_users_for_verification():
         start_time = time.time()
         print(f"🔍 Admin fetching users: page={page}, limit={limit}")
         
-        # Use optimized PostgreSQL function for maximum performance
+        # Fallback: Use optimized batch queries with proper error handling
+        fallback_start = time.time()
+        print("🔄 Using optimized fallback queries...")
+        
         try:
-            users_response = supabase.rpc('get_users_with_verification', {
-                'limit_count': limit,
-                'offset_count': offset
-            }).execute()
+            # Fetch users with pagination - CRITICAL OPTIMIZATION
+            # Select only needed fields to reduce payload size
+            users_response = supabase.table("users").select(
+                "id, firstname, lastname, email, role, isverified, avatar_url, created_at"
+            ).is_("is_deleted", None).order("created_at", desc=True).limit(limit).offset(offset).execute()
             
             users = getattr(users_response, "data", []) or []
             
+            # Batch fetch info data for optimal performance
+            enhanced_users = []
             if users:
-                load_time = round((time.time() - start_time) * 1000, 1)
-                print(f"✅ PostgreSQL RPC: {len(users)} users in {load_time}ms")
+                user_ids = [user["id"] for user in users]
                 
-                # Transform data to match expected format
-                enhanced_users = []
+                # Single batch query for all info data
+                info_response = supabase.table("info").select(
+                    "user_id, verified, address_barangay"
+                ).in_("user_id", user_ids).execute()
+                
+                info_data = getattr(info_response, "data", []) or []
+                
+                # Create lookup dict for O(1) access
+                info_lookup = {info["user_id"]: info for info in info_data}
+                
+                # Enhance users with verification info
                 for user in users:
+                    info = info_lookup.get(user["id"], {})
                     enhanced_user = {
                         "id": user["id"],
                         "firstname": user["firstname"],
                         "lastname": user["lastname"],
                         "email": user["email"],
                         "role": user["role"],
-                        "isverified": user["isverified"],
-                        "avatar_url": user["avatar_url"],
-                        "created_at": user["created_at"],
-                        "verified": user["verified"],
-                        "fully_verified": user["fully_verified"],
-                        "address_barangay": user["address_barangay"]
+                        "isverified": user.get("isverified", False),
+                        "avatar_url": user.get("avatar_url"),
+                        "created_at": user.get("created_at"),
+                        "verified": info.get("verified", False),
+                        "fully_verified": user.get("isverified", False) and info.get("verified", False),
+                        "address_barangay": info.get("address_barangay")
                     }
                     enhanced_users.append(enhanced_user)
+            
+            fallback_time = round((time.time() - fallback_start) * 1000, 1)
+            print(f"✅ Batch queries: {len(enhanced_users)} users in {fallback_time}ms")
                 
-                return jsonify({
-                    "status": "success",
-                    "users": enhanced_users,
-                    "page": page,
-                    "total_count": len(enhanced_users),
-                    "performance": {
-                        "load_time_ms": load_time,
-                        "method": "postgresql_rpc",
-                        "optimized": True
-                    }
-                }), 200
-            
-        except Exception as rpc_error:
-            print(f"❌ RPC function failed: {rpc_error}")
-            print("⚠️ Falling back to standard queries...")
-        
-        # Fallback: Use optimized batch queries (slower but compatible)
-        fallback_start = time.time()
-        print("🔄 Using optimized fallback queries...")
-        
-        # Fetch users with pagination
-        users_response = supabase.table("users").select(
-            "id, firstname, lastname, email, role, isverified, "
-            "avatar_url, created_at"
-        ).is_("is_deleted", None).order("created_at", desc=True).limit(limit).offset(offset).execute()
-        
-        users = getattr(users_response, "data", []) or []
-        
-        # Batch fetch info data for optimal performance
-        enhanced_users = []
-        if users:
-            user_ids = [user["id"] for user in users]
-            info_response = supabase.table("info").select("user_id, verified, address_barangay").in_("user_id", user_ids).execute()
-            info_data = getattr(info_response, "data", []) or []
-            
-            # Create lookup dict for O(1) access
-            info_lookup = {info["user_id"]: info for info in info_data}
-            
-            # Enhance users with verification info
-            for user in users:
-                info = info_lookup.get(user["id"], {})
-                enhanced_user = {
-                    **user,
-                    "verified": info.get("verified", False),
-                    "fully_verified": user.get("isverified", False) and info.get("verified", False),
-                    "address_barangay": info.get("address_barangay")
+            return jsonify({
+                "status": "success",
+                "users": enhanced_users,
+                "page": page,
+                "total_count": len(enhanced_users),
+                "performance": {
+                    "load_time_ms": fallback_time,
+                    "method": "batch_queries",
+                    "optimized": True
                 }
-                enhanced_users.append(enhanced_user)
-        
-        fallback_time = round((time.time() - fallback_start) * 1000, 1)
-        print(f"⚠️ Fallback method: {len(enhanced_users)} users in {fallback_time}ms")
+            }), 200
             
-        return jsonify({
-            "status": "success",
-            "users": enhanced_users,
-            "page": page,
-            "total_count": len(enhanced_users),
-            "performance": {
-                "load_time_ms": fallback_time,
-                "method": "batch_queries",
-                "optimized": False
-            }
-        }), 200
+        except Exception as query_error:
+            # Log the actual error but continue
+            print(f"⚠️ Query error (retrying): {str(query_error)}")
+            
+            # Retry with increased timeout
+            import time as time_module
+            time_module.sleep(0.2)  # Brief pause before retry
+            
+            users_response = supabase.table("users").select(
+                "id, firstname, lastname, email, role, isverified, avatar_url, created_at"
+            ).is_("is_deleted", None).order("created_at", desc=True).limit(limit).offset(offset).execute()
+            
+            users = getattr(users_response, "data", []) or []
+            
+            enhanced_users = []
+            if users:
+                user_ids = [user["id"] for user in users]
+                info_response = supabase.table("info").select(
+                    "user_id, verified, address_barangay"
+                ).in_("user_id", user_ids).execute()
+                
+                info_data = getattr(info_response, "data", []) or []
+                info_lookup = {info["user_id"]: info for info in info_data}
+                
+                for user in users:
+                    info = info_lookup.get(user["id"], {})
+                    enhanced_user = {
+                        "id": user["id"],
+                        "firstname": user["firstname"],
+                        "lastname": user["lastname"],
+                        "email": user["email"],
+                        "role": user["role"],
+                        "isverified": user.get("isverified", False),
+                        "avatar_url": user.get("avatar_url"),
+                        "created_at": user.get("created_at"),
+                        "verified": info.get("verified", False),
+                        "fully_verified": user.get("isverified", False) and info.get("verified", False),
+                        "address_barangay": info.get("address_barangay")
+                    }
+                    enhanced_users.append(enhanced_user)
+            
+            retry_time = round((time.time() - fallback_start) * 1000, 1)
+            print(f"✅ Retry successful: {len(enhanced_users)} users in {retry_time}ms")
+            
+            return jsonify({
+                "status": "success",
+                "users": enhanced_users,
+                "page": page,
+                "total_count": len(enhanced_users),
+                "performance": {
+                    "load_time_ms": retry_time,
+                    "method": "batch_queries_retry",
+                    "optimized": True
+                }
+            }), 200
 
     except Exception as e:
         print(f"❌ Admin users fetch failed: {str(e)}")
-        return jsonify({"status": "error", "message": str(e)}), 500
+        import traceback
+        traceback.print_exc()
+        return jsonify({"status": "error", "message": "Failed to fetch users"}), 500
 
 
 @admin_bp.route("/users/<user_id>/info", methods=["GET"])

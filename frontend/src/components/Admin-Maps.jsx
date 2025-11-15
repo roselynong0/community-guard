@@ -5,15 +5,14 @@ import {
   Marker,
   Popup,
   CircleMarker,
+  Circle,
 } from "react-leaflet";
-import { API_CONFIG } from "../utils/apiConfig";
+import { API_CONFIG, getApiUrl } from "../utils/apiConfig";
 import L from "leaflet";
 import "./Maps.css";
 import "leaflet/dist/leaflet.css";
 
-import { getApiUrl } from "../utils/apiConfig";
-
-// Build endpoints with getApiUrl so VITE_API_URL is used in prod and localhost in dev
+// Olongapo Center for map initialization
 const OLONGAPO_CENTER = [14.8291, 120.2829];
 const INITIAL_ZOOM = 13;
 
@@ -78,59 +77,79 @@ const hexToColorName = (hex) => {
   return colorMap[hex] || "gray";
 };
 
-function Maps({ session, userRole }) {
+function AdminMaps({ session }) {
   const [reports, setReports] = useState([]);
-  const [userBarangay, setUserBarangay] = useState(null);
+  const [hotspots, setHotspots] = useState([]);
+  const [safezones, setSafezones] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedBarangay, setSelectedBarangay] = useState('all');
+  const [showHotspots, setShowHotspots] = useState(true);
+  const [showSafezones, setShowSafezones] = useState(true);
 
   useEffect(() => {
-    const fetchMapReports = async () => {
+    const fetchAdminMapData = async () => {
       try {
         setLoading(true);
         const token = session?.token || localStorage.getItem("access_token");
-        
-        // Check if user is a barangay official
-        const isBarangayOfficial = userRole === "Barangay Official";
-        
-  let endpoint = getApiUrl('/api/map_reports');
-        let headers = { Authorization: `Bearer ${token}` };
-        
-        // If barangay official, use the filtered endpoint
-          if (isBarangayOfficial && token) {
-          endpoint = getApiUrl('/api/map_reports/barangay');
+
+        if (!token) {
+          console.warn("Missing token for admin maps");
+          setLoading(false);
+          return;
         }
 
-        const response = await fetch(endpoint, { headers });
-        const data = await response.json();
+        // Fetch all reports
+        const reportsEndpoint = getApiUrl('/api/map_reports');
+        const reportsResponse = await fetch(reportsEndpoint, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        const reportsData = await reportsResponse.json();
 
-        if (data.status === "success") {
-          const formatted = (data.reports || []).map((r) => ({
+        if (reportsData.status === "success") {
+          const formatted = (reportsData.reports || []).map((r) => ({
             ...r,
             latitude: parseFloat(r.latitude),
             longitude: parseFloat(r.longitude),
           }));
           setReports(formatted);
-          
-          // Set user's barangay if they're a barangay official
-          if (isBarangayOfficial && data.barangay) {
-            setUserBarangay(data.barangay);
-            setSelectedBarangay(data.barangay);
-          }
-          
-          console.log(`✅ Loaded ${formatted.length} map reports${isBarangayOfficial ? ` for barangay: ${data.barangay}` : ''}`);
-        } else {
-          console.error("Map reports error:", data.message);
         }
+
+        // Fetch hotspots
+        const hotspotsEndpoint = getApiUrl('/api/hotspots');
+        const hotspotsResponse = await fetch(hotspotsEndpoint, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        const hotspotsData = await hotspotsResponse.json();
+
+        if (hotspotsData.status === "success") {
+          setHotspots(hotspotsData.hotspots || []);
+        }
+
+        // Fetch safezones
+        const safezonesEndpoint = getApiUrl('/api/safezones');
+        const safezonesResponse = await fetch(safezonesEndpoint, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        const safezonesData = await safezonesResponse.json();
+
+        if (safezonesData.status === "success") {
+          setSafezones(safezonesData.safezones || []);
+        }
+
+        console.log(
+          `✅ Loaded admin map data: ${reportsData.reports?.length || 0} reports, ${
+            hotspotsData.hotspots?.length || 0
+          } hotspots, ${safezonesData.safezones?.length || 0} safezones`
+        );
       } catch (err) {
-        console.error("Failed to load map reports:", err);
+        console.error("Failed to load admin map data:", err);
       } finally {
         setLoading(false);
       }
     };
 
-    fetchMapReports();
-  }, [session, userRole]);
+    fetchAdminMapData();
+  }, [session]);
 
   // Group reports by barangay
   const reportsByBarangay = reports.reduce((acc, r) => {
@@ -139,18 +158,23 @@ function Maps({ session, userRole }) {
     return acc;
   }, {});
 
-  // Get all unique barangays for filter dropdown
+  // Get all unique barangays
   const allBarangays = Object.keys(reportsByBarangay).sort();
 
-  // Filter reports based on selected barangay
-  const filteredReports = selectedBarangay === 'all' 
-    ? reports 
+  // Filter reports by selected barangay
+  const filteredReports = selectedBarangay === 'all'
+    ? reports
     : reports.filter(r => r.address_barangay === selectedBarangay);
+
+  // Filter hotspots by selected barangay if needed
+  const filteredHotspots = selectedBarangay === 'all'
+    ? hotspots
+    : hotspots;
 
   return (
     <div className="maps-page">
-      <h2>Olongapo City Reports Map</h2>
-      <p>View all community reports across the city. Click on colored markers to view report details.</p>
+      <h2>City-Wide Reports & Analytics Map</h2>
+      <p>Admin dashboard showing all city reports, hotspots, and safezones. Use filters to focus on specific areas.</p>
 
       {/* Map with overlaid controls */}
       <div style={{ position: 'relative', height: '80vh', overflow: 'hidden' }}>
@@ -164,6 +188,54 @@ function Maps({ session, userRole }) {
             attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
             url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
           />
+
+          {/* Render safezones as circles */}
+          {showSafezones && safezones.map((sz, idx) => (
+            <Circle
+              key={`safezone-${idx}`}
+              center={[sz.center.latitude, sz.center.longitude]}
+              radius={sz.radius_meters}
+              color="#06b6d4"
+              fillColor="#06b6d4"
+              fillOpacity={0.3}
+            >
+              <Popup>
+                <div>
+                  <strong style={{ fontSize: "14px" }}>🛡️ {sz.name}</strong>
+                  <br />
+                  <span style={{ fontSize: "12px" }}>{sz.description}</span>
+                  <br />
+                  <span style={{ fontSize: "11px", color: "#666" }}>
+                    Radius: {sz.radius_meters}m
+                  </span>
+                </div>
+              </Popup>
+            </Circle>
+          ))}
+
+          {/* Render hotspots */}
+          {showHotspots && filteredHotspots.map((hs, idx) => (
+            <Circle
+              key={`hotspot-${idx}`}
+              center={[hs.centroid.latitude, hs.centroid.longitude]}
+              radius={300}
+              color="#dc2626"
+              fillColor="#dc2626"
+              fillOpacity={0.2}
+            >
+              <Popup>
+                <div>
+                  <strong style={{ fontSize: "14px" }}>🔴 Hotspot</strong>
+                  <br />
+                  <span style={{ fontSize: "12px" }}>Reports: {hs.report_count}</span>
+                  <br />
+                  <span style={{ fontSize: "11px", color: "#666" }}>
+                    Last activity: {new Date(hs.last_report_at).toLocaleDateString()}
+                  </span>
+                </div>
+              </Popup>
+            </Circle>
+          ))}
 
           {/* Report markers grouped by barangay */}
           {Object.entries(reportsByBarangay).map(([barangay, reportsArray], i) => {
@@ -226,7 +298,7 @@ function Maps({ session, userRole }) {
         </MapContainer>
 
         {/* Control Panel Overlay - Top Right */}
-        {!loading && allBarangays.length > 0 && (
+        {!loading && (
           <div style={{
             position: 'absolute',
             top: '16px',
@@ -239,33 +311,57 @@ function Maps({ session, userRole }) {
             maxWidth: '320px'
           }}>
             {/* Barangay Filter */}
-            <div style={{ marginBottom: '16px' }}>
-              <label style={{ display: 'block', fontSize: '12px', fontWeight: '600', color: '#666', marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-                Filter Barangay
-              </label>
-              <select
-                value={selectedBarangay}
-                onChange={(e) => setSelectedBarangay(e.target.value)}
-                style={{
-                  width: '100%',
-                  padding: '8px 12px',
-                  borderRadius: '6px',
-                  border: '1px solid #d1d5db',
-                  fontSize: '14px',
-                  cursor: 'pointer',
-                  backgroundColor: '#fff',
-                  color: '#111',
-                  fontWeight: '500'
-                }}
-              >
-                <option value="all">All Barangays ({reports.length})</option>
-                {allBarangays.map(barangay => (
-                  <option key={barangay} value={barangay}>
-                    {barangay} ({reportsByBarangay[barangay].length})
-                  </option>
-                ))}
-              </select>
-            </div>
+            {allBarangays.length > 0 && (
+              <div style={{ marginBottom: '16px' }}>
+                <label style={{ display: 'block', fontSize: '12px', fontWeight: '600', color: '#666', marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                  Filter Barangay
+                </label>
+                <select
+                  value={selectedBarangay}
+                  onChange={(e) => setSelectedBarangay(e.target.value)}
+                  style={{
+                    width: '100%',
+                    padding: '8px 12px',
+                    borderRadius: '6px',
+                    border: '1px solid #d1d5db',
+                    fontSize: '14px',
+                    cursor: 'pointer',
+                    backgroundColor: '#fff',
+                    color: '#111',
+                    fontWeight: '500'
+                  }}
+                >
+                  <option value="all">All Barangays ({reports.length})</option>
+                  {allBarangays.map(barangay => (
+                    <option key={barangay} value={barangay}>
+                      {barangay} ({reportsByBarangay[barangay].length})
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+
+            {/* Toggle Hotspots */}
+            <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', marginBottom: '12px' }}>
+              <input
+                type="checkbox"
+                checked={showHotspots}
+                onChange={(e) => setShowHotspots(e.target.checked)}
+                style={{ cursor: 'pointer', width: '16px', height: '16px', accentColor: '#ef4444' }}
+              />
+              <span style={{ fontSize: '13px', fontWeight: '500', color: '#333' }}>Hotspots ({hotspots.length})</span>
+            </label>
+
+            {/* Toggle Safezones */}
+            <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
+              <input
+                type="checkbox"
+                checked={showSafezones}
+                onChange={(e) => setShowSafezones(e.target.checked)}
+                style={{ cursor: 'pointer', width: '16px', height: '16px', accentColor: '#22c55e' }}
+              />
+              <span style={{ fontSize: '13px', fontWeight: '500', color: '#333' }}>Safezones ({safezones.length})</span>
+            </label>
           </div>
         )}
 
@@ -285,7 +381,15 @@ function Maps({ session, userRole }) {
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', fontSize: '13px' }}>
               <div style={{ padding: '8px 12px', backgroundColor: '#f3f4f6', borderRadius: '6px' }}>
                 <div style={{ fontSize: '11px', color: '#666', fontWeight: '600', textTransform: 'uppercase', marginBottom: '4px' }}>Total Reports</div>
-                <div style={{ fontSize: '18px', fontWeight: '700', color: '#111' }}>{filteredReports.length}</div>
+                <div style={{ fontSize: '18px', fontWeight: '700', color: '#111' }}>{selectedBarangay === 'all' ? reports.length : filteredReports.length}</div>
+              </div>
+              <div style={{ padding: '8px 12px', backgroundColor: '#fef2f2', borderRadius: '6px' }}>
+                <div style={{ fontSize: '11px', color: '#666', fontWeight: '600', textTransform: 'uppercase', marginBottom: '4px' }}>Hotspots</div>
+                <div style={{ fontSize: '18px', fontWeight: '700', color: '#dc2626' }}>{hotspots.length}</div>
+              </div>
+              <div style={{ padding: '8px 12px', backgroundColor: '#f0fdf4', borderRadius: '6px' }}>
+                <div style={{ fontSize: '11px', color: '#666', fontWeight: '600', textTransform: 'uppercase', marginBottom: '4px' }}>Safezones</div>
+                <div style={{ fontSize: '18px', fontWeight: '700', color: '#16a34a' }}>{safezones.length}</div>
               </div>
               <div style={{ padding: '8px 12px', backgroundColor: '#f3f4f6', borderRadius: '6px' }}>
                 <div style={{ fontSize: '11px', color: '#666', fontWeight: '600', textTransform: 'uppercase', marginBottom: '4px' }}>Barangays</div>
@@ -309,7 +413,7 @@ function Maps({ session, userRole }) {
             zIndex: 1001
           }}>
             <div style={{ width: '40px', height: '40px', border: '4px solid #e5e7eb', borderTop: '4px solid #2563eb', borderRadius: '50%', animation: 'spin 1s linear infinite', margin: '0 auto 16px' }}></div>
-            <p style={{ margin: '0', fontSize: '14px', color: '#666' }}>Loading map reports...</p>
+            <p style={{ margin: '0', fontSize: '14px', color: '#666' }}>Loading map data...</p>
           </div>
         )}
       </div>
@@ -317,4 +421,4 @@ function Maps({ session, userRole }) {
   );
 }
 
-export default Maps;
+export default AdminMaps;

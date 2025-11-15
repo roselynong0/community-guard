@@ -187,6 +187,12 @@
 /* red delete icon for account deletions */
 .icon-delete { color: #ef4444; }
 
+/* Role-based user icon colors for actor/recipient display */
+.icon-admin { color: #8b5cf6; } /* Admin - purple */
+.icon-barangay { color: #2563eb; } /* Barangay Official - blue */
+.icon-responder { color: #ef4444; } /* Responder - red */
+.icon-resident { color: #2d2d73; } /* Resident/Account - primary blue */
+
 
 .notif-details {
     flex-grow: 1;
@@ -232,6 +238,8 @@
 .notif-badge.report { background: rgba(45,45,115,0.06); color: #2d2d73; border: 1px solid rgba(45,45,115,0.08);} 
 /* account deletion badge - red */
 .notif-badge.account-deleted { background: rgba(244,0,20,0.06); color: #f40014; border: 1px solid rgba(244,0,20,0.08); }
+/* report deletion badge - red with trash icon */
+.notif-badge.report-deleted { background: rgba(244,0,20,0.06); color: #f40014; border: 1px solid rgba(244,0,20,0.08); }
 
 .notif-message { margin: 6px 0 0 0; color: #333; }
 
@@ -292,9 +300,9 @@
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    padding: 80px 20px;
+    padding: 20px;
     gap: 16px;
-    min-height: 300px;
+    min-height: 60vh;
 }
 
 .loading-block .spinner {

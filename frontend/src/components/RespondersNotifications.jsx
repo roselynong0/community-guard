@@ -1,4 +1,5 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState, useCallback } from "react";
+import { API_CONFIG, getApiUrl } from "../utils/apiConfig";
 import "./Notifications.css";
 import {
   FaInfoCircle,
@@ -12,65 +13,147 @@ import {
   FaExclamationTriangle,
 } from "react-icons/fa";
 
-const API_URL = "http://localhost:5000/api";
-
-// Determine responder notification type
 const getFinalNotificationType = (n) => {
-  const textContext =
-    String(n.title || "") +
-    " " +
-    String(n.message || "") +
-    " " +
-    String(n.type || "");
+  const textContext = String(n.title || '') + ' ' + String(n.message || '') + ' ' + String(n.type || '');
   const normalizedText = textContext.trim().toLowerCase();
 
-  if (normalizedText.includes("resolved") || normalizedText.includes("done")) {
-    return "resolved";
+  // Status updates from barangay officials
+  if (normalizedText.includes('status updated') || normalizedText.includes('updated to')) {
+    const msg = normalizedText;
+    if (msg.includes('resolved')) return 'resolved';
+    if (msg.includes('ongoing') || msg.includes('in-progress')) return 'ongoing';
+    if (msg.includes('pending')) return 'pending';
+    return 'status_update';
   }
 
-  if (normalizedText.includes("pending") || normalizedText.includes("queue")) {
-    return "pending";
+  if (normalizedText.includes('resolved') || normalizedText.includes('complete') || normalizedText.includes('success')) {
+    return 'resolved';
   }
 
-  if (normalizedText.includes("ongoing") || normalizedText.includes("in-progress")) {
-    return "ongoing";
+  if (normalizedText.includes('pending') || normalizedText.includes('submitted') || normalizedText.includes('waiting')) {
+    return 'pending';
   }
 
-  if (
-    normalizedText.includes("emergency") ||
-    normalizedText.includes("critical") ||
-    normalizedText.includes("incident")
-  ) {
-    return "emergency";
+  if (normalizedText.includes('ongoing') || normalizedText.includes('in-progress')) {
+    return 'ongoing';
   }
 
-  return "info";
+  // Post approved by barangay
+  if (normalizedText.includes('approved') || normalizedText.includes('post accepted')) {
+    return 'approved';
+  }
+
+  const genericType = String(n.type || 'info').trim().toLowerCase();
+  if (genericType !== 'status update') return genericType;
+  return 'info';
 };
 
-// Map icons
 const getNotificationIcon = (type) => {
-  switch (type?.toLowerCase()) {
-    case "resolved":
+  const t = (type || 'info').toLowerCase();
+  switch (t) {
+    case 'resolved':
+    case 'success':
       return <FaCheckCircle className="icon icon-success" />;
-    case "pending":
+    case 'pending':
       return <FaClock className="icon icon-pending" />;
-    case "ongoing":
+    case 'ongoing':
+    case 'in-progress':
+      return <FaSyncAlt className="icon icon-ongoing" />;
+    case 'approved':
+      return <FaCheckCircle className="icon icon-success" />;
+    case 'status_update':
       return <FaSyncAlt className="icon icon-warning" />;
-    case "emergency":
-      return <FaExclamationTriangle className="icon icon-report" />;
     default:
       return <FaInfoCircle className="icon icon-info" />;
   }
 };
 
-export default function ResponderNotifications({ session, token }) {
+const getBadgeClass = (input) => {
+  let t = '';
+  let message = '';
+  if (typeof input === 'string') {
+    t = input.toLowerCase();
+  } else if (input && typeof input === 'object') {
+    t = String(input.type || '').toLowerCase();
+    message = String(input.message || '') + ' ' + String(input.title || '');
+  }
+
+  const msg = message.toLowerCase();
+  if (msg.includes('resolved')) return 'resolved';
+  if (msg.includes('ongoing') || msg.includes('in-progress')) return 'ongoing';
+  if (msg.includes('pending')) return 'pending';
+  if (msg.includes('approved')) return 'resolved';
+
+  if (t === 'approved') return 'resolved';
+  if (t === 'status_update') return 'ongoing';
+  if (t === 'success') return 'resolved';
+  return t || 'info';
+};
+
+const getBadgeLabel = (input) => {
+  let t = '';
+  let message = '';
+  if (typeof input === 'string') {
+    t = input.toLowerCase();
+  } else if (input && typeof input === 'object') {
+    t = String(input.type || '').toLowerCase();
+    message = String(input.message || '') + ' ' + String(input.title || '');
+  }
+
+  const msg = message.toLowerCase();
+  if (msg.includes('resolved')) return 'Resolved';
+  if (msg.includes('ongoing') || msg.includes('in-progress')) return 'Ongoing';
+  if (msg.includes('pending')) return 'Pending';
+  if (msg.includes('approved')) return 'Approved';
+
+  switch (t) {
+    case 'approved':
+      return 'Approved';
+    case 'status_update':
+      return 'Status Update';
+    case 'pending':
+      return 'Pending';
+    case 'ongoing':
+      return 'Ongoing';
+    case 'resolved':
+    case 'success':
+      return 'Resolved';
+    default:
+      return (t || 'Info').toString();
+  }
+};
+
+const getIconClassForNotification = (n) => {
+  const t = String(n?.type || '').toLowerCase();
+  const message = String(n?.message || '') + ' ' + String(n?.title || '');
+  const msg = message.toLowerCase();
+  
+  if (t === 'approved' || msg.includes('approved')) {
+    return 'icon-success';
+  }
+  if (msg.includes('resolved') || t === 'resolved') return 'icon-success';
+  if (msg.includes('ongoing') || msg.includes('in-progress') || t === 'ongoing') return 'icon-ongoing';
+  if (msg.includes('pending') || t === 'pending') return 'icon-pending';
+  return 'icon-info';
+};
+
+const getIconClassForActorRole = (actor) => {
+  if (!actor || !actor.role) return 'icon-info';
+  const role = String(actor.role).toLowerCase();
+  switch (role) {
+    case 'admin':
+      return 'icon-admin';
+    case 'barangay official':
+      return 'icon-barangay';
+    case 'responder':
+      return 'icon-responder';
+    default:
+      return 'icon-resident';
+  }
+};
+
+export default function RespondersNotifications({ session, token }) {
   const authToken = session?.token || token || "";
-
-  const [notifications, setNotifications] = useState([]);
-  const [loading] = useState(false);
-  const [error] = useState("");
-  const [filter, setFilter] = useState("all");
-
   const headers = useMemo(
     () => ({
       "Content-Type": "application/json",
@@ -79,165 +162,151 @@ export default function ResponderNotifications({ session, token }) {
     [authToken]
   );
 
-  /** ✅ Dummy notifications */
-  useEffect(() => {
-    const dummyNotifs = [
-      {
-        id: "1",
-        title: "Emergency Incident Report",
-        message: "A critical situation reported at Zone 1.",
-        type: "emergency",
-        created_at: new Date().toISOString(),
-        read: false,
-      },
-      {
-        id: "2",
-        title: "Report Assigned",
-        message: "You have been assigned a fire incident in Zone 4.",
-        type: "ongoing",
-        created_at: new Date().toISOString(),
-        read: false,
-      },
-      {
-        id: "3",
-        title: "Report Pending",
-        message: "Report ID 33221 is waiting acknowledgment.",
-        type: "pending",
-        created_at: new Date().toISOString(),
-        read: true,
-      },
-      {
-        id: "4",
-        title: "Report Resolved",
-        message: "Road obstruction cleared at City Highway.",
-        type: "resolved",
-        created_at: new Date().toISOString(),
-        read: false,
-      },
-    ];
-    setNotifications(dummyNotifs);
-  }, []);
+  const [notifications, setNotifications] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [statusFilter, setStatusFilter] = useState("All");
 
-  const unreadCount = useMemo(
-    () => notifications.filter((n) => !n.read).length,
-    [notifications]
-  );
+  const fetchNotifications = useCallback(async () => {
+    setLoading(true);
+    setError("");
+    try {
+      const res = await fetch(getApiUrl('/api/responder/notifications'), { headers });
+      if (!res.ok) throw new Error(`Failed to fetch (${res.status})`);
+      const data = await res.json();
 
-  const visible = useMemo(() => {
-    if (filter === "unread") return notifications.filter((n) => !n.read);
-    if (filter === "read") return notifications.filter((n) => n.read);
-    return notifications;
-  }, [notifications, filter]);
+      const notifs = (data.notifications || []).map((n) => {
+        const finalType = getFinalNotificationType(n);
+        return {
+          id: `responder-${n.id}`,
+          raw_id: n.id,
+          title: n.title || n.type || 'Responder Notification',
+          message: n.message || '',
+          type: finalType,
+          created_at: n.created_at || new Date().toISOString(),
+          is_read: Boolean(n.is_read),
+          actor: n.actor || null,
+          source: 'responder'
+        };
+      });
 
-  const formatTime = (isoString) => {
-    const date = new Date(isoString);
-    return (
-      date.toLocaleTimeString([], {
-        hour: "2-digit",
-        minute: "2-digit",
-      }) +
-      " " +
-      date.toLocaleDateString()
-    );
+      setNotifications(notifs);
+    } catch (e) {
+      setError(e.message || "Failed to load notifications");
+    } finally {
+      setLoading(false);
+    }
+  }, [headers]);
+
+  useEffect(() => { fetchNotifications(); }, [fetchNotifications]);
+
+  const markResponderRead = async (rawId) => {
+    try {
+      setNotifications(prev => prev.map(n => (n.raw_id === rawId ? { ...n, is_read: true } : n)));
+      const res = await fetch(getApiUrl(`/api/responder/notifications/${rawId}/read`), { method: 'POST', headers });
+      if (!res.ok) throw new Error(`Failed to mark read (${res.status})`);
+      const data = await res.json();
+      if (data?.notification) {
+        setNotifications(prev => prev.map(n => (n.raw_id === rawId ? { ...n, is_read: Boolean(data.notification.is_read) } : n)));
+      }
+    } catch (e) {
+      setNotifications(prev => prev.map(n => (n.raw_id === rawId ? { ...n, is_read: false } : n)));
+      setError(e.message || 'Failed to mark responder notification read');
+    }
   };
 
-  const markRead = (id) => {
-    setNotifications((prev) =>
-      prev.map((n) => (n.id === id ? { ...n, read: true } : n))
-    );
+  const unreadCount = notifications.filter(n => !n.is_read).length;
+
+  const markAllResponderRead = async () => {
+    if (unreadCount === 0) return;
+    try {
+      setNotifications(prev => prev.map(n => ({ ...n, is_read: true })));
+      const res = await fetch(getApiUrl('/api/responder/notifications/read_all'), { method: 'POST', headers });
+      if (!res.ok) throw new Error(`Failed to mark all read (${res.status})`);
+      const data = await res.json();
+      if (data?.status !== 'success' && !data?.updated_count) {
+        throw new Error(data?.message || 'Unexpected response');
+      }
+    } catch (e) {
+      setError(e.message || 'Failed to mark all responder notifications as read');
+      fetchNotifications();
+    }
   };
 
-  const deleteNotification = (id) => {
-    setNotifications((prev) => prev.filter((n) => n.id !== id));
+  const deleteResponderNotification = async (rawId) => {
+    try {
+      setNotifications(prev => prev.filter(n => n.raw_id !== rawId));
+      const res = await fetch(getApiUrl(`/api/responder/notifications/${rawId}`), { method: 'DELETE', headers });
+      if (!res.ok) throw new Error(`Failed to delete (${res.status})`);
+    } catch (e) {
+      setError(e.message || 'Failed to delete responder notification');
+      fetchNotifications();
+    }
   };
 
-  const markAllRead = () => {
-    setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
-  };
+  const filtered = notifications.filter(n => {
+    if (statusFilter === 'Unread' && n.is_read) return false;
+    if (statusFilter === 'Read' && !n.is_read) return false;
+    return true;
+  });
 
   return (
     <div className="notifications-container">
       <div className="notifications-header">
-        <div className="left">
-          <h2>
-            Responder Notifications
-            <span className="badge" aria-label={`${unreadCount} unread`}>
-              {unreadCount}
-            </span>
-          </h2>
-        </div>
-
+        <div className="left"><h2>Responder Notifications</h2></div>
         <div className="right">
-          <div className="filter-button-group">
-            <button
-              className={`filter-btn ${filter === "all" ? "active" : ""}`}
-              onClick={() => setFilter("all")}
-            >
-              All
-            </button>
-            <button
-              className={`filter-btn ${filter === "unread" ? "active" : ""}`}
-              onClick={() => setFilter("unread")}
-            >
-              Unread ({unreadCount})
-            </button>
-            <button
-              className={`filter-btn ${filter === "read" ? "active" : ""}`}
-              onClick={() => setFilter("read")}
-            >
-              Read
-            </button>
+          <div className="filter-controls" style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+            <label style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <span style={{ fontSize: 13, color: '#444' }}>Status</span>
+              <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className="filter-select">
+                <option value="All">All</option>
+                <option value="Unread">Unread ({notifications.filter(n => !n.is_read).length})</option>
+                <option value="Read">Read</option>
+              </select>
+            </label>
           </div>
-
-          <button
-            className="btn icon-btn mark-all"
-            onClick={markAllRead}
-            disabled={unreadCount === 0}
-          >
-            <FaCheckDouble /> <span className="btn-text">Mark All Read</span>
+          <button className="btn icon-btn mark-all" onClick={markAllResponderRead} disabled={loading || unreadCount === 0} title="Mark all as read">
+            <FaCheckDouble className="icon" />
+            <span className="btn-text">Mark All Read</span>
           </button>
-
-          <button className="btn icon-btn refresh">
-            <FaSync /> <span className="btn-text">Refresh</span>
-          </button>
+          <button className="btn icon-btn refresh" onClick={fetchNotifications} disabled={loading}>Refresh</button>
         </div>
       </div>
 
+      {error && <div className="notice error">{error}</div>}
+
       {loading ? (
-        <div className="loading">Loading notifications…</div>
-      ) : visible.length === 0 ? (
-        <div className="empty">No notifications to show.</div>
+        <div className="loading-block"><div className="spinner"/><p>Loading notifications…</p></div>
+      ) : filtered.length === 0 ? (
+        <div className="no-notifications">No notifications.</div>
       ) : (
         <ul className="notifications-list">
-          {visible.map((n) => (
-            <li
-              key={n.id}
-              className={`notification-item ${n.read ? "read" : "unread"}`}
-            >
-              <div className="notif-icon-container">
-                {getNotificationIcon(getFinalNotificationType(n))}
-              </div>
-
+          {filtered.map(n => (
+            <li key={n.id} className={`notification-item ${n.is_read ? 'read' : 'unread'}`}>
+              <div className="notif-icon-container">{getNotificationIcon(n.type)}</div>
               <div className="notif-details">
-                <p className="notif-message">
-                  <strong>{n.title}</strong>: {n.message}
-                </p>
-                <p className="notif-time">{formatTime(n.created_at)}</p>
-              </div>
+                <div className="notif-header">
+                  <p className="notif-title"><strong>{n.title}</strong></p>
+                  <div className={`notif-badge ${getBadgeClass(n)}`} title={`Status: ${getBadgeLabel(n)}`} aria-hidden>
+                    <span className="badge-icon small-icon">{getNotificationIcon(getBadgeClass(n))}</span>
+                    <span className="badge-text">{getBadgeLabel(n)}</span>
+                  </div>
+                </div>
 
+                <p className="notif-message" style={{ whiteSpace: 'pre-wrap', wordWrap: 'break-word' }}>{n.message}</p>
+                <small className="notif-time">{new Date(n.created_at).toLocaleString()}</small>
+
+                {n.actor ? (
+                  <div style={{ marginTop: 6, color: '#444', fontStyle: 'italic' }}>From: {n.actor.firstname || ''} {n.actor.lastname || ''} ({n.actor.role || 'Resident'})</div>
+                ) : null}
+              </div>
               <div className="notification-actions">
-                {!n.read && (
-                  <button
-                    className="btn-action"
-                    onClick={() => markRead(n.id)}
-                  >
+                {!n.is_read && (
+                  <button className="btn-action mark-read-btn" onClick={() => markResponderRead(n.raw_id)} title="Mark as read">
                     <FaCheck />
                   </button>
                 )}
-                <button
-                  className="btn-action"
-                  onClick={() => deleteNotification(n.id)}
-                >
+                <button className="btn-action delete-notif-btn" onClick={() => deleteResponderNotification(n.raw_id)} title="Delete notification">
                   <FaTrashAlt />
                 </button>
               </div>

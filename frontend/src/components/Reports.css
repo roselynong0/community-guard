@@ -257,16 +257,13 @@ to { transform: translateY(0); opacity: 1; }
 .loading-overlay {
 display: flex;
 flex-direction: column;
-justify-content: flex-start;
+justify-content: center;
 align-items: center;
-min-height: 400px;
+min-height: 60vh;
 gap: 16px;
 background: transparent;
 color: #2d2d73;
-padding-top: 100px;
-padding-bottom: 40px;
-padding-left: 20px;
-padding-right: 20px;
+padding: 20px;
 }
 
 .spinner {
@@ -279,6 +276,19 @@ border-radius: 50%;
 animation: spin 0.8s cubic-bezier(0.4, 0, 0.6, 1) infinite;
 filter: drop-shadow(0 2px 8px rgba(45, 45, 115, 0.15));
 }
+
+/* Reports-specific spinner loader */
+.reports-spinner {
+width: 48px;
+height: 48px;
+border: 3px solid rgba(45, 45, 115, 0.12);
+border-top: 3px solid #2d2d73;
+border-right: 3px solid #2d2d73;
+border-radius: 50%;
+animation: spin 0.8s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+filter: drop-shadow(0 2px 8px rgba(45, 45, 115, 0.15));
+}
+
 @keyframes spin { to { transform: rotate(360deg); } }
 
 .loading-user {
@@ -1228,13 +1238,10 @@ p.report-description-text {
     display: flex;
     flex-direction: column;
     align-items: center;
-    justify-content: flex-start;
-    padding-top: 150px;
-    padding-bottom: 40px;
-    padding-left: 20px;
-    padding-right: 20px;
+    justify-content: center;
+    padding: 20px;
     width: 100%;
-    min-height: 300px;
+    min-height: 60vh;
     gap: 16px;
 }
 

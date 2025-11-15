@@ -19,6 +19,10 @@ const getFinalNotificationType = (n) => {
   const textContext = String(n.title || '') + ' ' + String(n.message || '') + ' ' + String(n.type || '');
   const normalizedText = textContext.trim().toLowerCase();
 
+  // Report deletion should be detected first
+  if (normalizedText.includes('report deleted') || normalizedText.includes('report was deleted') || (normalizedText.includes('deleted') && normalizedText.includes('report'))) {
+    return 'report_deleted';
+  }
   if (normalizedText.includes('resolved') || normalizedText.includes('complete') || normalizedText.includes('success')) {
     return 'resolved';
   }
@@ -58,6 +62,9 @@ const getNotificationIcon = (type) => {
     case 'report':
       // new report posts use the exclamation triangle like the home dashboard
       return <FaExclamationTriangle className="icon icon-report" />;
+    case 'report_deleted':
+      // red trash icon for deleted reports
+      return <FaTrashAlt className="icon icon-delete" />;
     case 'warning':
     case 'ongoing':
       // ongoing status uses the sync/refresh icon (matching Home)
@@ -102,12 +109,14 @@ const getBadgeClass = (input) => {
 
   // If message explicitly mentions status, prefer that
   const msg = message.toLowerCase();
+  if (msg.includes('report deleted') || msg.includes('report was deleted') || (msg.includes('deleted') && msg.includes('report'))) return 'report-deleted';
   if (msg.includes('ongoing') || msg.includes('in-progress') || msg.includes('ongoing')) return 'ongoing';
   if (msg.includes('pending') || msg.includes('submitted') || msg.includes('waiting')) return 'pending';
 
   // account / user deleted messages should show account-deleted badge
   if (msg.includes('user deleted') || msg.includes('account deleted') || (msg.includes('deleted') && msg.includes('user'))) return 'account-deleted';
 
+  if (t === 'report_deleted') return 'report-deleted';
   if (t === 'account_alert') return 'report';
   if (t === 'success') return 'resolved';
   if (t === 'account_deleted' || t === 'user deleted' || t === 'user_deleted') return 'account-deleted';
@@ -125,10 +134,13 @@ const getBadgeLabel = (input) => {
   }
 
   const msg = message.toLowerCase();
+  if (msg.includes('report deleted') || msg.includes('report was deleted') || (msg.includes('deleted') && msg.includes('report'))) return 'Report Deleted';
   if (msg.includes('ongoing') || msg.includes('in-progress')) return 'Ongoing';
   if (msg.includes('pending') || msg.includes('submitted') || msg.includes('waiting')) return 'Pending';
 
   switch (t) {
+    case 'report_deleted':
+      return 'Report Deleted';
     case 'account_alert':
       return 'Report Alert';
     case 'account_deleted':
@@ -152,6 +164,9 @@ const getIconClassForNotification = (n) => {
   const t = String(n?.type || '').toLowerCase();
   const message = String(n?.message || '') + ' ' + String(n?.title || '');
   const msg = message.toLowerCase();
+  if (msg.includes('report deleted') || (msg.includes('deleted') && msg.includes('report'))) {
+    return 'icon-delete';
+  }
   if (t === 'report' || t === 'account_alert' || msg.includes('report') || msg.includes('new report') || msg.includes('updated to')) {
     return 'icon-report';
   }
@@ -162,6 +177,21 @@ const getIconClassForNotification = (n) => {
   if (t === 'resolved' || t === 'success') return 'icon-success';
   if (t === 'user') return 'icon-security';
   return 'icon-info';
+};
+
+const getIconClassForActorRole = (actor) => {
+  if (!actor || !actor.role) return 'icon-info';
+  const role = String(actor.role).toLowerCase();
+  switch (role) {
+    case 'admin':
+      return 'icon-admin';
+    case 'barangay official':
+      return 'icon-barangay';
+    case 'responder':
+      return 'icon-responder';
+    default:
+      return 'icon-resident';
+  }
 };
 
 export default function AdminNotifications({ session }) {
@@ -335,7 +365,7 @@ export default function AdminNotifications({ session }) {
         <ul className="notifications-list">
           {filtered.map(n => (
             <li key={n.id} className={`notification-item ${n.is_read ? 'read' : 'unread'}`}>
-              <div className="notif-icon-container">{getMainIcon(n)}</div>
+              <div className={`notif-icon-container ${getIconClassForNotification(n)}`}>{getMainIcon(n)}</div>
               <div className="notif-details">
                 <div className="notif-header">
                   <p className="notif-title"><strong>{n.title}</strong></p>
@@ -354,7 +384,7 @@ export default function AdminNotifications({ session }) {
                 {n.recipient ? (
                   <div className="notif-to" style={{ marginTop: 8, color: '#555', display: 'flex', alignItems: 'center' }}>
                     <span className="recipient-icon small-icon" style={{ marginRight: 8 }}>
-                      <FaUser className={`icon ${getIconClassForNotification(n)}`} />
+                      <FaUser className={`icon ${getIconClassForActorRole(n.recipient)}`} />
                     </span>
                     <span>To: {n.recipient.firstname} {n.recipient.lastname} ({n.recipient.role || 'Resident'}) &lt;{n.recipient.email}&gt;</span>
                   </div>

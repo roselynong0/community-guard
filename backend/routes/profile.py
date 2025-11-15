@@ -42,10 +42,17 @@ def get_profile():
     user_id = request.user_id
     try:
         def fetch_user():
-            return supabase.table("users").select("*").eq("id", user_id).is_("deleted_at", None).execute()
+            # OPTIMIZATION: Select only needed fields instead of *
+            return supabase.table("users").select(
+                "id, firstname, lastname, email, isverified, avatar_url, role, deleted_at"
+            ).eq("id", user_id).is_("deleted_at", None).execute()
 
         def fetch_info():
-            return supabase.table("info").select("*").eq("user_id", user_id).execute()
+            # OPTIMIZATION: Select only needed fields
+            return supabase.table("info").select(
+                "user_id, verified, bio, phone, address_street, "
+                "address_barangay, address_province, address_city, birthdate"
+            ).eq("user_id", user_id).execute()
 
         user_resp = supabase_retry(fetch_user)
         info_resp = supabase_retry(fetch_info)
@@ -68,11 +75,10 @@ def get_profile():
             "avatar_url": with_default(user.get("avatar_url"), "/default-avatar.png"),
             "bio": with_default(info.get("bio"), "No information added yet"),
             "phone": with_default(info.get("phone"), "No contact info yet"),
-            "address": with_default(info.get("address"), ""),
             "address_street": with_default(info.get("address_street"), "No location"),
-            "address_barangay": with_default(info.get("address_barangay"), user.get("address_barangay") or "No barangay selected"),
-            "address_province": with_default(info.get("address_province"), user.get("address_province") or "Zambales"),
-            "address_city": with_default(info.get("address_city"), user.get("address_city") or "Olongapo"),
+            "address_barangay": with_default(info.get("address_barangay"), "No barangay selected"),
+            "address_province": with_default(info.get("address_province"), "Zambales"),
+            "address_city": with_default(info.get("address_city"), "Olongapo"),
             "birthdate": with_default(info.get("birthdate"), "")
         }
 
@@ -138,7 +144,10 @@ def update_profile():
             return supabase.table("users").select("*").eq("id", user_id).execute()
 
         def fetch_updated_info():
-            return supabase.table("info").select("*").eq("user_id", user_id).execute()
+            return supabase.table("info").select(
+                "user_id, verified, bio, phone, address_street, "
+                "address_barangay, address_province, address_city, birthdate"
+            ).eq("user_id", user_id).execute()
 
         user_resp = supabase_retry(fetch_updated_user)
         info_resp = supabase_retry(fetch_updated_info)
@@ -156,9 +165,9 @@ def update_profile():
             "bio": info.get("bio") or "No information added yet",
             "phone": info.get("phone") or "No contact info yet",
             "address_street": info.get("address_street") or "No location",
-            "address_barangay": info.get("address_barangay") or user.get("address_barangay") or "No barangay selected",
-            "address_city": info.get("address_city") or user.get("address_city") or "Olongapo",
-            "address_province": info.get("address_province") or user.get("address_province") or "Zambales",
+            "address_barangay": info.get("address_barangay") or "No barangay selected",
+            "address_city": info.get("address_city") or "Olongapo",
+            "address_province": info.get("address_province") or "Zambales",
             "birthdate": info.get("birthdate") or ""
         }
 

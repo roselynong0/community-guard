@@ -735,9 +735,9 @@ function Reports({ session }) {
 
       {/* Loading Indicator */}
       {loading && (
-        <div className="loading-overlay loading-compact">
+        <div className="loading-overlay">
           {" "}
-          <div className="spinner" /> <p>Loading reports...</p>{" "}
+          <div className="reports-spinner" /> <p>Loading reports...</p>{" "}
         </div>
       )}
 

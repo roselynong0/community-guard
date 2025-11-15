@@ -7,16 +7,25 @@ import {
   FaSyncAlt,
   FaClock,
   FaTrashAlt,
-  FaCheck,
+  FaUser,
+  FaExclamationTriangle,
   FaCheckDouble,
   FaSync,
-  FaExclamationTriangle,
+  FaCheck,
 } from 'react-icons/fa';
 
-// Determine the type of notification
 const getFinalNotificationType = (n) => {
   const textContext = String(n.title || '') + ' ' + String(n.message || '') + ' ' + String(n.type || '');
   const normalizedText = textContext.trim().toLowerCase();
+
+  // Status updates from responders
+  if (normalizedText.includes('status updated') || normalizedText.includes('updated to')) {
+    const msg = normalizedText;
+    if (msg.includes('resolved')) return 'resolved';
+    if (msg.includes('ongoing') || msg.includes('in-progress')) return 'ongoing';
+    if (msg.includes('pending')) return 'pending';
+    return 'status_update';
+  }
 
   if (normalizedText.includes('resolved') || normalizedText.includes('complete') || normalizedText.includes('success')) {
     return 'resolved';
@@ -30,13 +39,8 @@ const getFinalNotificationType = (n) => {
     return 'ongoing';
   }
 
-  // Deleted/removed notifications
-  if (normalizedText.includes('deleted') || normalizedText.includes('removed')) {
-    return 'deleted';
-  }
-
-  // Report related keywords
-  if (normalizedText.includes('report') || normalizedText.includes('alert') || normalizedText.includes('emergency')) {
+  // New post from user in their barangay
+  if (normalizedText.includes('new post') || normalizedText.includes('new report')) {
     return 'report';
   }
 
@@ -45,7 +49,6 @@ const getFinalNotificationType = (n) => {
   return 'info';
 };
 
-// Get notification icon based on type
 const getNotificationIcon = (type) => {
   const t = (type || 'info').toLowerCase();
   switch (t) {
@@ -55,18 +58,17 @@ const getNotificationIcon = (type) => {
     case 'pending':
       return <FaClock className="icon icon-pending" />;
     case 'ongoing':
-      return <FaSyncAlt className="icon icon-warning" />;
+    case 'in-progress':
+      return <FaSyncAlt className="icon icon-ongoing" />;
     case 'report':
       return <FaExclamationTriangle className="icon icon-report" />;
-    case 'deleted':
-    case 'removed':
-      return <FaTrashAlt className="icon icon-warning" />;
+    case 'status_update':
+      return <FaSyncAlt className="icon icon-warning" />;
     default:
       return <FaInfoCircle className="icon icon-info" />;
   }
 };
 
-// Badge helpers
 const getBadgeClass = (input) => {
   let t = '';
   let message = '';
@@ -78,12 +80,13 @@ const getBadgeClass = (input) => {
   }
 
   const msg = message.toLowerCase();
+  if (msg.includes('resolved')) return 'resolved';
   if (msg.includes('ongoing') || msg.includes('in-progress')) return 'ongoing';
-  if (msg.includes('pending') || msg.includes('submitted') || msg.includes('waiting')) return 'pending';
-  if (msg.includes('deleted') || msg.includes('removed')) return 'warning';
+  if (msg.includes('pending')) return 'pending';
 
+  if (t === 'report') return 'report';
+  if (t === 'status_update') return 'ongoing';
   if (t === 'success') return 'resolved';
-  if (t === 'report' || t === 'alert') return 'report';
   return t || 'info';
 };
 
@@ -98,16 +101,14 @@ const getBadgeLabel = (input) => {
   }
 
   const msg = message.toLowerCase();
+  if (msg.includes('resolved')) return 'Resolved';
   if (msg.includes('ongoing') || msg.includes('in-progress')) return 'Ongoing';
-  if (msg.includes('pending') || msg.includes('submitted') || msg.includes('waiting')) return 'Pending';
-  if (msg.includes('deleted') || msg.includes('removed')) return 'Deleted';
+  if (msg.includes('pending')) return 'Pending';
 
   switch (t) {
     case 'report':
-    case 'alert':
-      return 'Report Alert';
-    case 'status update':
-    case 'update':
+      return 'New Post';
+    case 'status_update':
       return 'Status Update';
     case 'pending':
       return 'Pending';
@@ -116,27 +117,38 @@ const getBadgeLabel = (input) => {
     case 'resolved':
     case 'success':
       return 'Resolved';
-    case 'deleted':
-      return 'Deleted';
     default:
       return (t || 'Info').toString();
   }
 };
 
-// Get icon color class for styling
 const getIconClassForNotification = (n) => {
   const t = String(n?.type || '').toLowerCase();
   const message = String(n?.message || '') + ' ' + String(n?.title || '');
   const msg = message.toLowerCase();
   
-  if (t === 'report' || msg.includes('report') || msg.includes('new report')) {
+  if (t === 'report' || msg.includes('new post') || msg.includes('new report')) {
     return 'icon-report';
   }
-  if (msg.includes('deleted') || msg.includes('removed')) return 'icon-warning';
+  if (msg.includes('resolved') || t === 'resolved') return 'icon-success';
   if (msg.includes('ongoing') || msg.includes('in-progress') || t === 'ongoing') return 'icon-ongoing';
-  if (msg.includes('pending') || msg.includes('submitted') || t === 'pending') return 'icon-pending';
-  if (t === 'resolved' || t === 'success') return 'icon-success';
+  if (msg.includes('pending') || t === 'pending') return 'icon-pending';
   return 'icon-info';
+};
+
+const getIconClassForActorRole = (actor) => {
+  if (!actor || !actor.role) return 'icon-info';
+  const role = String(actor.role).toLowerCase();
+  switch (role) {
+    case 'admin':
+      return 'icon-admin';
+    case 'barangay official':
+      return 'icon-barangay';
+    case 'responder':
+      return 'icon-responder';
+    default:
+      return 'icon-resident';
+  }
 };
 
 export default function BarangayOfficialNotifications({ session }) {
@@ -149,9 +161,8 @@ export default function BarangayOfficialNotifications({ session }) {
   const [notifications, setNotifications] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const [statusFilter, setStatusFilter] = useState('All'); // All | Unread | Read
+  const [statusFilter, setStatusFilter] = useState('All');
 
-  // Fetch barangay official notifications
   const fetchNotifications = useCallback(async () => {
     setLoading(true);
     setError('');
@@ -159,190 +170,139 @@ export default function BarangayOfficialNotifications({ session }) {
       const res = await fetch(getApiUrl('/api/barangay/notifications'), { headers });
       if (!res.ok) throw new Error(`Failed to fetch (${res.status})`);
       const data = await res.json();
-      
-      // Process notifications
+
       const notifs = (data.notifications || []).map((n) => {
         const finalType = getFinalNotificationType(n);
         return {
-          id: n.id,
+          id: `barangay-${n.id}`,
           raw_id: n.id,
-          title: n.title || n.type || 'Notification',
+          title: n.title || n.type || 'Barangay Notification',
           message: n.message || '',
           type: finalType,
           created_at: n.created_at || new Date().toISOString(),
-          is_read: Boolean(n.is_read || n.read),
+          is_read: Boolean(n.is_read),
+          actor: n.actor || null,
+          source: 'barangay'
         };
       });
 
       setNotifications(notifs);
-    } catch (err) {
-      console.error('Error fetching notifications:', err);
-      setError(err.message || 'Failed to load notifications');
+    } catch (e) {
+      setError(e.message || 'Failed to load notifications');
     } finally {
       setLoading(false);
     }
   }, [headers]);
 
-  // Fetch on mount
-  useEffect(() => {
-    fetchNotifications();
-  }, [fetchNotifications]);
+  useEffect(() => { fetchNotifications(); }, [fetchNotifications]);
 
-  // Mark single notification as read
-  const markNotificationRead = async (rawId) => {
+  const markBarangayRead = async (rawId) => {
     try {
-      const res = await fetch(getApiUrl(`/api/barangay/notifications/${rawId}/read`), {
-        method: 'POST',
-        headers,
-      });
-      if (res.ok) {
-        setNotifications((prev) =>
-          prev.map((n) => (n.raw_id === rawId ? { ...n, is_read: true } : n))
-        );
+      setNotifications(prev => prev.map(n => (n.raw_id === rawId ? { ...n, is_read: true } : n)));
+      const res = await fetch(getApiUrl(`/api/barangay/notifications/${rawId}/read`), { method: 'POST', headers });
+      if (!res.ok) throw new Error(`Failed to mark read (${res.status})`);
+      const data = await res.json();
+      if (data?.notification) {
+        setNotifications(prev => prev.map(n => (n.raw_id === rawId ? { ...n, is_read: Boolean(data.notification.is_read) } : n)));
       }
-    } catch (err) {
-      console.error('Error marking notification read:', err);
+    } catch (e) {
+      setNotifications(prev => prev.map(n => (n.raw_id === rawId ? { ...n, is_read: false } : n)));
+      setError(e.message || 'Failed to mark barangay notification read');
     }
   };
 
-  // Mark all as read
-  const markAllRead = async () => {
+  const unreadCount = notifications.filter(n => !n.is_read).length;
+
+  const markAllBarangayRead = async () => {
+    if (unreadCount === 0) return;
     try {
-      const res = await fetch(getApiUrl('/api/barangay/notifications/read_all'), {
-        method: 'POST',
-        headers,
-      });
-      if (res.ok) {
-        setNotifications((prev) => prev.map((n) => ({ ...n, is_read: true })));
+      setNotifications(prev => prev.map(n => ({ ...n, is_read: true })));
+      const res = await fetch(getApiUrl('/api/barangay/notifications/read_all'), { method: 'POST', headers });
+      if (!res.ok) throw new Error(`Failed to mark all read (${res.status})`);
+      const data = await res.json();
+      if (data?.status !== 'success' && !data?.updated_count) {
+        throw new Error(data?.message || 'Unexpected response');
       }
-    } catch (err) {
-      console.error('Error marking all as read:', err);
+    } catch (e) {
+      setError(e.message || 'Failed to mark all barangay notifications as read');
+      fetchNotifications();
     }
   };
 
-  // Delete notification
-  const deleteNotification = async (rawId) => {
+  const deleteBarangayNotification = async (rawId) => {
     try {
-      const res = await fetch(getApiUrl(`/api/barangay/notifications/${rawId}`), {
-        method: 'DELETE',
-        headers,
-      });
-      if (res.ok) {
-        setNotifications((prev) => prev.filter((n) => n.raw_id !== rawId));
-      }
-    } catch (err) {
-      console.error('Error deleting notification:', err);
+      setNotifications(prev => prev.filter(n => n.raw_id !== rawId));
+      const res = await fetch(getApiUrl(`/api/barangay/notifications/${rawId}`), { method: 'DELETE', headers });
+      if (!res.ok) throw new Error(`Failed to delete (${res.status})`);
+    } catch (e) {
+      setError(e.message || 'Failed to delete barangay notification');
+      fetchNotifications();
     }
   };
 
-  const unreadCount = notifications.filter((n) => !n.is_read).length;
-
-  // Filter notifications based on status filter
-  const filtered = notifications.filter((n) => {
-    if (statusFilter === 'All') return true;
-    if (statusFilter === 'Unread') return !n.is_read;
-    if (statusFilter === 'Read') return n.is_read;
+  const filtered = notifications.filter(n => {
+    if (statusFilter === 'Unread' && n.is_read) return false;
+    if (statusFilter === 'Read' && !n.is_read) return false;
     return true;
   });
-
-  const formatTime = (isoString) => {
-    const date = new Date(isoString);
-    return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) +
-      ' ' + date.toLocaleDateString();
-  };
 
   return (
     <div className="notifications-container">
       <div className="notifications-header">
-        <div className="left">
-          <h2>
-            Barangay Notifications
-            <span className="badge" aria-label={`${unreadCount} unread`}>
-              {unreadCount}
-            </span>
-          </h2>
-        </div>
+        <div className="left"><h2>Barangay Notifications</h2></div>
         <div className="right">
-          <div className="filter-button-group">
-            <button
-              className={`filter-btn ${statusFilter === 'All' ? 'active' : ''}`}
-              onClick={() => setStatusFilter('All')}
-            >
-              All
-            </button>
-            <button
-              className={`filter-btn ${statusFilter === 'Unread' ? 'active' : ''}`}
-              onClick={() => setStatusFilter('Unread')}
-            >
-              Unread ({unreadCount})
-            </button>
-            <button
-              className={`filter-btn ${statusFilter === 'Read' ? 'active' : ''}`}
-              onClick={() => setStatusFilter('Read')}
-            >
-              Read
-            </button>
+          <div className="filter-controls" style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+            <label style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <span style={{ fontSize: 13, color: '#444' }}>Status</span>
+              <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className="filter-select">
+                <option value="All">All</option>
+                <option value="Unread">Unread ({notifications.filter(n => !n.is_read).length})</option>
+                <option value="Read">Read</option>
+              </select>
+            </label>
           </div>
-
-          <button
-            className="btn icon-btn mark-all"
-            onClick={markAllRead}
-            disabled={loading || unreadCount === 0}
-            title="Mark all as read"
-          >
-            <FaCheckDouble className="icon" /> <span className="btn-text">Mark All Read</span>
+          <button className="btn icon-btn mark-all" onClick={markAllBarangayRead} disabled={loading || unreadCount === 0} title="Mark all as read">
+            <FaCheckDouble className="icon" />
+            <span className="btn-text">Mark All Read</span>
           </button>
-          <button
-            className="btn icon-btn refresh"
-            onClick={fetchNotifications}
-            disabled={loading}
-            title="Refresh notifications"
-          >
-            <FaSync className="icon" /> <span className="btn-text">Refresh</span>
-          </button>
+          <button className="btn icon-btn refresh" onClick={fetchNotifications} disabled={loading}>Refresh</button>
         </div>
       </div>
 
-      {error && <div className="notice error" role="alert">{error}</div>}
+      {error && <div className="notice error">{error}</div>}
 
       {loading ? (
-        <div className="loading loading-block" aria-busy="true" aria-live="polite">
-          <div className="spinner"></div>Loading notifications…
-        </div>
+        <div className="loading-block"><div className="spinner"/><p>Loading notifications…</p></div>
       ) : filtered.length === 0 ? (
-        <div className="empty no-notifications">No notifications to show.</div>
+        <div className="no-notifications">No notifications.</div>
       ) : (
-        <ul className="notifications-list" role="list">
-          {filtered.map((n) => (
+        <ul className="notifications-list">
+          {filtered.map(n => (
             <li key={n.id} className={`notification-item ${n.is_read ? 'read' : 'unread'}`}>
-              <div className={`notif-icon-container ${getIconClassForNotification(n)}`}>
-                {getNotificationIcon(getFinalNotificationType(n))}
-              </div>
+              <div className="notif-icon-container">{getNotificationIcon(n.type)}</div>
               <div className="notif-details">
                 <div className="notif-header">
                   <p className="notif-title"><strong>{n.title}</strong></p>
-                  <span className={`badge badge-${getBadgeClass(n)}`}>
-                    {getBadgeLabel(n)}
-                  </span>
+                  <div className={`notif-badge ${getBadgeClass(n)}`} title={`Status: ${getBadgeLabel(n)}`} aria-hidden>
+                    <span className="badge-icon small-icon">{getNotificationIcon(getBadgeClass(n))}</span>
+                    <span className="badge-text">{getBadgeLabel(n)}</span>
+                  </div>
                 </div>
-                <p className="notif-message">{n.message}</p>
-                <p className="notif-time">{formatTime(n.created_at)}</p>
+
+                <p className="notif-message" style={{ whiteSpace: 'pre-wrap', wordWrap: 'break-word' }}>{n.message}</p>
+                <small className="notif-time">{new Date(n.created_at).toLocaleString()}</small>
+
+                {n.actor ? (
+                  <div style={{ marginTop: 6, color: '#444', fontStyle: 'italic' }}>By: {n.actor.firstname || ''} {n.actor.lastname || ''} ({n.actor.role || 'Resident'})</div>
+                ) : null}
               </div>
               <div className="notification-actions">
                 {!n.is_read && (
-                  <button
-                    className="btn-action mark-read-btn"
-                    onClick={() => markNotificationRead(n.raw_id)}
-                    title="Mark as Read"
-                  >
+                  <button className="btn-action mark-read-btn" onClick={() => markBarangayRead(n.raw_id)} title="Mark as read">
                     <FaCheck />
                   </button>
                 )}
-                <button
-                  className="btn-action delete-notif-btn"
-                  onClick={() => deleteNotification(n.raw_id)}
-                  title="Delete Notification"
-                >
+                <button className="btn-action delete-notif-btn" onClick={() => deleteBarangayNotification(n.raw_id)} title="Delete notification">
                   <FaTrashAlt />
                 </button>
               </div>

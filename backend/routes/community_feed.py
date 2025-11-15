@@ -26,8 +26,11 @@ def get_community_posts():
         
         print(f"📝 Fetching community posts - barangay: {barangay_filter}, type: {post_type_filter}")
         
-        # Build query
-        query = supabase.table("community_posts").select("*").is_("deleted_at", None)
+        # Build query - OPTIMIZATION: Select only needed fields
+        query = supabase.table("community_posts").select(
+            "id, user_id, title, content, post_type, barangay, "
+            "created_at, updated_at, is_pinned, deleted_at"
+        ).is_("deleted_at", None)
         
         if barangay_filter and barangay_filter != "All":
             query = query.eq("barangay", barangay_filter)
@@ -39,28 +42,52 @@ def get_community_posts():
         response = query.order("is_pinned", desc=True).order("created_at", desc=True).limit(limit).execute()
         posts = getattr(response, "data", []) or []
         
-        # Fetch user info for each post
+        # OPTIMIZATION: Batch fetch user info instead of per-post queries
         enriched_posts = []
-        for post in posts:
-            user_resp = supabase.table("users").select("id, firstname, lastname, avatar_url, role").eq("id", post["user_id"]).execute()
-            user_data = getattr(user_resp, "data", [None])[0]
+        if posts:
+            # Get all unique user IDs
+            user_ids = list(set(post["user_id"] for post in posts))
             
-            # Get comment count
-            comment_resp = supabase.table("community_comments").select("id", count="exact").eq("post_id", post["id"]).is_("deleted_at", None).execute()
-            comment_count = len(getattr(comment_resp, "data", []))
+            # Single batch query for all user data
+            users_resp = supabase.table("users").select(
+                "id, firstname, lastname, avatar_url, role"
+            ).in_("id", user_ids).execute()
             
-            post["author"] = user_data or {"id": post["user_id"], "firstname": "Unknown", "lastname": "User", "role": "Resident"}
-            post["comment_count"] = comment_count
-            post["can_edit"] = post["user_id"] == user_id  # User can edit their own posts
-            post["can_delete"] = post["user_id"] == user_id  # User can delete their own posts
+            users_data = getattr(users_resp, "data", []) or []
+            users_lookup = {user["id"]: user for user in users_data}
             
-            enriched_posts.append(post)
+            # Batch fetch comment counts for all posts
+            comments_resp = supabase.table("community_comments").select(
+                "post_id", count="exact"
+            ).in_("post_id", [p["id"] for p in posts]).is_("deleted_at", None).execute()
+            
+            comment_counts = {}
+            if getattr(comments_resp, "data", None):
+                for post_id in [p["id"] for p in posts]:
+                    comment_counts[post_id] = sum(
+                        1 for c in getattr(comments_resp, "data", []) if c.get("post_id") == post_id
+                    )
+            
+            for post in posts:
+                user_data = users_lookup.get(post["user_id"])
+                post["author"] = user_data or {
+                    "id": post["user_id"],
+                    "firstname": "Unknown",
+                    "lastname": "User",
+                    "role": "Resident"
+                }
+                post["comment_count"] = comment_counts.get(post["id"], 0)
+                post["can_edit"] = post["user_id"] == user_id
+                post["can_delete"] = post["user_id"] == user_id
+                enriched_posts.append(post)
         
         print(f"✅ Loaded {len(enriched_posts)} community posts")
         return jsonify({"status": "success", "posts": enriched_posts, "total": len(enriched_posts)}), 200
         
     except Exception as e:
         print(f"❌ Error fetching community posts: {e}")
+        import traceback
+        traceback.print_exc()
         return jsonify({"status": "error", "message": str(e), "posts": []}), 500
 
 

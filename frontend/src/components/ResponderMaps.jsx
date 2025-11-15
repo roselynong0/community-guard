@@ -18,36 +18,65 @@ const OLONGAPO_CENTER = [14.8291, 120.2829];
 const INITIAL_ZOOM = 13;
 
 const barangayColors = {
-  Barretto: "blue",
-  "East Bajac-Bajac": "red",
-  "East Tapinac": "green",
-  "Gordon Heights": "orange",
-  Kalaklan: "violet",
-  Mabayuan: "grey",
-  "New Asinan": "yellow",
-  "New Banicain": "green",
-  "New Cabalan": "orange",
-  "New Ilalim": "blue",
-  "New Kababae": "violet",
-  "New Kalalake": "black",
-  "Old Cabalan": "grey",
-  "Pag-Asa": "yellow",
-  "Santa Rita": "red",
-  "West Bajac-Bajac": "orange",
-  "West Tapinac": "green",
+  Barretto: "#3b82f6",
+  "East Bajac-Bajac": "#ef4444",
+  "East Tapinac": "#10b981",
+  "Gordon Heights": "#f97316",
+  Kalaklan: "#a855f7",
+  Mabayuan: "#6b7280",
+  "New Asinan": "#eab308",
+  "New Banicain": "#10b981",
+  "New Cabalan": "#f97316",
+  "New Ilalim": "#3b82f6",
+  "New Kababae": "#a855f7",
+  "New Kalalake": "#000000",
+  "Old Cabalan": "#6b7280",
+  "Pag-Asa": "#eab308",
+  "Santa Rita": "#ef4444",
+  "West Bajac-Bajac": "#f97316",
+  "West Tapinac": "#10b981",
 };
 
-const createColoredIcon = (color) =>
-  new L.Icon({
-    iconUrl: `https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-${color}.png`,
+const createColoredIcon = (color) => {
+  // Map hex colors to leaflet-color-markers color names
+  const colorMap = {
+    "#3b82f6": "blue",
+    "#ef4444": "red",
+    "#10b981": "green",
+    "#f97316": "orange",
+    "#a855f7": "violet",
+    "#6b7280": "grey",
+    "#eab308": "yellow",
+    "#000000": "black",
+  };
+  
+  const markerColor = colorMap[color] || "gray";
+  
+  return new L.Icon({
+    iconUrl: `https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-${markerColor}.png`,
     shadowUrl: "https://unpkg.com/leaflet@1.7.1/dist/images/marker-shadow.png",
     iconSize: [25, 41],
     iconAnchor: [12, 41],
     popupAnchor: [1, -34],
     shadowSize: [41, 41],
   });
+};
 
 const getColor = (barangay) => barangayColors[barangay?.trim()] || "gray";
+
+const hexToColorName = (hex) => {
+  const colorMap = {
+    "#3b82f6": "blue",
+    "#ef4444": "red",
+    "#10b981": "green",
+    "#f97316": "orange",
+    "#a855f7": "violet",
+    "#6b7280": "grey",
+    "#eab308": "yellow",
+    "#000000": "black",
+  };
+  return colorMap[hex] || "gray";
+};
 
 // Map event handler to add safezone
 function SafezoneCreator({ onSafezoneCreated, isCreating }) {
@@ -73,10 +102,33 @@ function ResponderMaps({ session }) {
   const [reports, setReports] = useState([]);
   const [hotspots, setHotspots] = useState([]);
   const [safezones, setSafezones] = useState([]);
+  const [responderBarangay, setResponderBarangay] = useState(null);
   const [loading, setLoading] = useState(true);
   const [isCreatingSafezone, setIsCreatingSafezone] = useState(false);
   const [safezoneModal, setSafezoneModal] = useState(null);
+  const [selectedBarangay, setSelectedBarangay] = useState('all');
   const mapRef = useRef(null);
+
+  // Fetch responder profile to get barangay
+  useEffect(() => {
+    const fetchResponderBarangay = async () => {
+      try {
+        const token = session?.token || localStorage.getItem("access_token");
+        if (!token) return;
+
+        const response = await fetch(getApiUrl('/api/profile'), {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        const data = await response.json();
+        if (data.status === 'success' && data.profile?.address_barangay) {
+          setResponderBarangay(data.profile.address_barangay);
+        }
+      } catch (error) {
+        console.error('Error fetching responder barangay:', error);
+      }
+    };
+    fetchResponderBarangay();
+  }, [session]);
 
   useEffect(() => {
     const fetchResponderData = async () => {
@@ -90,7 +142,7 @@ function ResponderMaps({ session }) {
           return;
         }
 
-        // Fetch reports
+        // Fetch all reports
         const reportsEndpoint = getApiUrl('/api/map_reports');
         const reportsResponse = await fetch(reportsEndpoint, {
           headers: { Authorization: `Bearer ${token}` },
@@ -103,7 +155,11 @@ function ResponderMaps({ session }) {
             latitude: parseFloat(r.latitude),
             longitude: parseFloat(r.longitude),
           }));
-          setReports(formatted);
+          // Filter to responder's barangay only
+          const filteredByBarangay = responderBarangay 
+            ? formatted.filter(r => r.address_barangay === responderBarangay)
+            : formatted;
+          setReports(filteredByBarangay);
         }
 
         // Fetch hotspots
@@ -128,7 +184,7 @@ function ResponderMaps({ session }) {
           setSafezones(safezonesData.safezones || []);
         }
 
-        console.log(`✅ Loaded responder data: ${reportsData.reports?.length || 0} reports, ${hotspotsData.hotspots?.length || 0} hotspots, ${safezonesData.safezones?.length || 0} safezones`);
+        console.log(`✅ Loaded responder data: ${reportsData.reports?.length || 0} reports${responderBarangay ? ` for ${responderBarangay}` : ''}, ${hotspotsData.hotspots?.length || 0} hotspots, ${safezonesData.safezones?.length || 0} safezones`);
       } catch (err) {
         console.error("Failed to load responder map data:", err);
       } finally {
@@ -137,7 +193,7 @@ function ResponderMaps({ session }) {
     };
 
     fetchResponderData();
-  }, [session]);
+  }, [session, responderBarangay]);
 
   // Group reports by barangay
   const reportsByBarangay = reports.reduce((acc, r) => {
@@ -145,6 +201,19 @@ function ResponderMaps({ session }) {
     acc[r.address_barangay].push(r);
     return acc;
   }, {});
+
+  // Get all unique barangays
+  const allBarangays = Object.keys(reportsByBarangay).sort();
+
+  // Filter reports by selected barangay
+  const filteredReports = selectedBarangay === 'all'
+    ? reports
+    : reports.filter(r => r.address_barangay === selectedBarangay);
+
+  // Filter hotspots by selected barangay (match by proximity if needed)
+  const filteredHotspots = selectedBarangay === 'all'
+    ? hotspots
+    : hotspots;
 
   const handleAddSafezone = (position) => {
     setSafezoneModal({
@@ -196,24 +265,26 @@ function ResponderMaps({ session }) {
 
   return (
     <div className="maps-page">
-      <h2>Responder Operations Map</h2>
-      <p>View all reports, hotspots, and safezones. Click 'Create Safezone' and then click on the map to add a new safezone.</p>
+      <h2>{responderBarangay ? `${responderBarangay} Operations Map` : "Responder Operations Map"}</h2>
+      <p>{responderBarangay ? `Viewing reports and operations in ${responderBarangay} barangay.` : "Viewing all reports, hotspots, and safezones."} Click 'Create Safezone' and then click on the map to add a new safezone.</p>
       
-      <button
-        onClick={() => setIsCreatingSafezone(!isCreatingSafezone)}
-        style={{
-          marginBottom: "10px",
-          padding: "8px 16px",
-          backgroundColor: isCreatingSafezone ? "#ef4444" : "#2563eb",
-          color: "white",
-          border: "none",
-          borderRadius: "6px",
-          cursor: "pointer",
-          fontSize: "14px",
-        }}
-      >
-        {isCreatingSafezone ? "Cancel Safezone Creation" : "Create Safezone"}
-      </button>
+      {/* Control Buttons */}
+      <div style={{ marginBottom: '15px', display: 'flex', gap: '10px', flexWrap: 'wrap', alignItems: 'center' }}>
+        <button
+          onClick={() => setIsCreatingSafezone(!isCreatingSafezone)}
+          style={{
+            padding: '8px 16px',
+            backgroundColor: isCreatingSafezone ? '#ef4444' : '#2563eb',
+            color: 'white',
+            border: 'none',
+            borderRadius: '6px',
+            cursor: 'pointer',
+            fontSize: '14px',
+          }}
+        >
+          {isCreatingSafezone ? "Cancel Safezone Creation" : "Create Safezone"}
+        </button>
+      </div>
 
       <div style={{ position: "relative", height: "80vh" }}>
         <MapContainer
@@ -239,8 +310,8 @@ function ResponderMaps({ session }) {
             key={`safezone-${idx}`}
             center={[sz.center.latitude, sz.center.longitude]}
             radius={sz.radius_meters}
-            color="green"
-            fillColor="lightgreen"
+            color="#06b6d4"
+            fillColor="#06b6d4"
             fillOpacity={0.3}
           >
             <Popup>
@@ -262,9 +333,9 @@ function ResponderMaps({ session }) {
           <Circle
             key={`hotspot-${idx}`}
             center={[hs.centroid.latitude, hs.centroid.longitude]}
-            radius={200} // Default visual radius
-            color="red"
-            fillColor="lightcoral"
+            radius={200}
+            color="#dc2626"
+            fillColor="#dc2626"
             fillOpacity={0.2}
           >
             <Popup>
@@ -283,6 +354,11 @@ function ResponderMaps({ session }) {
 
         {/* Report markers grouped by barangay */}
         {Object.entries(reportsByBarangay).map(([barangay, reportsArray], i) => {
+          // Only show if this barangay is selected or all are selected
+          if (selectedBarangay !== 'all' && barangay !== selectedBarangay) {
+            return null;
+          }
+
           const markerPosition = [
             reportsArray[0].latitude,
             reportsArray[0].longitude,
@@ -319,23 +395,100 @@ function ResponderMaps({ session }) {
         })}
 
         {/* Individual report markers */}
-        {reports.map((r, idx) =>
+        {filteredReports.map((r, idx) =>
           r.latitude && r.longitude ? (
             <CircleMarker
               key={`report-${idx}`}
               center={[r.latitude, r.longitude]}
               radius={6}
-              color={getColor(r.address_barangay)}
-              fillColor={getColor(r.address_barangay)}
+              color={hexToColorName(getColor(r.address_barangay))}
+              fillColor={hexToColorName(getColor(r.address_barangay))}
               fillOpacity={0.8}
             />
           ) : null
         )}
       </MapContainer>
 
+        {/* Control Panel Overlay - Top Right */}
+        {!loading && (
+          <div style={{
+            position: 'absolute',
+            top: '16px',
+            right: '16px',
+            backgroundColor: '#fff',
+            borderRadius: '8px',
+            padding: '16px',
+            boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+            zIndex: 1000,
+            maxWidth: '320px'
+          }}>
+            {/* Toggle Hotspots */}
+            <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', marginBottom: '12px' }}>
+              <input
+                type="checkbox"
+                defaultChecked={true}
+                style={{ cursor: 'pointer', width: '16px', height: '16px', accentColor: '#ef4444' }}
+              />
+              <span style={{ fontSize: '13px', fontWeight: '500', color: '#333' }}>Hotspots ({hotspots.length})</span>
+            </label>
+
+            {/* Toggle Safezones */}
+            <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
+              <input
+                type="checkbox"
+                defaultChecked={true}
+                style={{ cursor: 'pointer', width: '16px', height: '16px', accentColor: '#22c55e' }}
+              />
+              <span style={{ fontSize: '13px', fontWeight: '500', color: '#333' }}>Safezones ({safezones.length})</span>
+            </label>
+          </div>
+        )}
+
+        {/* Statistics Overlay - Bottom Left */}
+        {!loading && (
+          <div style={{
+            position: 'absolute',
+            bottom: '16px',
+            left: '16px',
+            backgroundColor: '#fff',
+            borderRadius: '8px',
+            padding: '16px',
+            boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+            zIndex: 1000,
+            maxWidth: '320px'
+          }}>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', fontSize: '13px' }}>
+              <div style={{ padding: '8px 12px', backgroundColor: '#f3f4f6', borderRadius: '6px' }}>
+                <div style={{ fontSize: '11px', color: '#666', fontWeight: '600', textTransform: 'uppercase', marginBottom: '4px' }}>Total Reports</div>
+                <div style={{ fontSize: '18px', fontWeight: '700', color: '#111' }}>{reports.length}</div>
+              </div>
+              <div style={{ padding: '8px 12px', backgroundColor: '#fef2f2', borderRadius: '6px' }}>
+                <div style={{ fontSize: '11px', color: '#666', fontWeight: '600', textTransform: 'uppercase', marginBottom: '4px' }}>Hotspots</div>
+                <div style={{ fontSize: '18px', fontWeight: '700', color: '#dc2626' }}>{hotspots.length}</div>
+              </div>
+              <div style={{ padding: '8px 12px', backgroundColor: '#f0fdf4', borderRadius: '6px' }}>
+                <div style={{ fontSize: '11px', color: '#666', fontWeight: '600', textTransform: 'uppercase', marginBottom: '4px' }}>Safezones</div>
+                <div style={{ fontSize: '18px', fontWeight: '700', color: '#16a34a' }}>{safezones.length}</div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Loading Overlay */}
         {loading && (
-          <div className="map-loading-overlay">
-            <div className="map-spinner"></div>
+          <div style={{
+            position: 'absolute',
+            top: '50%',
+            left: '50%',
+            transform: 'translate(-50%, -50%)',
+            backgroundColor: 'rgba(255,255,255,0.95)',
+            borderRadius: '8px',
+            padding: '32px',
+            textAlign: 'center',
+            zIndex: 1001
+          }}>
+            <div style={{ width: '40px', height: '40px', border: '4px solid #e5e7eb', borderTop: '4px solid #2563eb', borderRadius: '50%', animation: 'spin 1s linear infinite', margin: '0 auto 16px' }}></div>
+            <p style={{ margin: '0', fontSize: '14px', color: '#666' }}>Loading responder data...</p>
           </div>
         )}
       </div>

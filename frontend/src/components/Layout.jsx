@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import {
   FaHome,
   FaBell,
@@ -14,6 +14,8 @@ import {
 import { Outlet, NavLink, useNavigate } from "react-router-dom";
 import { logout } from "../utils/session";
 import { API_CONFIG } from "../utils/apiConfig";
+import Toast from "./Toast";
+import { registerToastCallback, registerNotificationCountCallback, startNotificationPolling, stopNotificationPolling } from "../utils/notificationService";
 import "./Layout.css";
 import logo from "../assets/logo.png";
 
@@ -24,6 +26,9 @@ function Layout({ session, setSession, setNotification }) {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
+  const [notificationCount, setNotificationCount] = useState(0);
+  const toastRef = useRef(null);
+  const pollingIntervalRef = useRef(null);
 
   const navigate = useNavigate();
 
@@ -60,6 +65,45 @@ function Layout({ session, setSession, setNotification }) {
     loadProfile();
   }, [session, setSession]);
 
+  // 🔹 Setup real-time notifications via SSE
+  useEffect(() => {
+    if (!session?.token) {
+      // Stop polling if token is cleared (logout)
+      if (pollingIntervalRef.current) {
+        stopNotificationPolling(pollingIntervalRef.current);
+        pollingIntervalRef.current = null;
+      }
+      return;
+    }
+
+    // Register toast callback
+    registerToastCallback((message, type) => {
+      if (toastRef.current) {
+        toastRef.current.show(message, type);
+      }
+    });
+
+    // Register notification count callback
+    registerNotificationCountCallback((count) => {
+      setNotificationCount(count);
+    });
+
+    // Start polling only for regular users (User layout only calls /api/notifications)
+    try {
+      // Try SSE first, but layout context only needs /api/notifications
+      pollingIntervalRef.current = startNotificationPolling(session.token, 'User', 10000);
+    } catch (e) {
+      console.warn('Notification polling error:', e);
+    }
+
+    return () => {
+      if (pollingIntervalRef.current) {
+        stopNotificationPolling(pollingIntervalRef.current);
+        pollingIntervalRef.current = null;
+      }
+    };
+  }, [session?.token]);
+
   // 🔹 Update date/time
   useEffect(() => {
     const interval = setInterval(() => setDateTime(new Date()), 1000);
@@ -93,6 +137,7 @@ function Layout({ session, setSession, setNotification }) {
 
   return (
     <div className="home-container">
+      <Toast ref={toastRef} />
       {/* Sidebar */}
       {sidebarOpen && (
         <aside className="sidebar">
@@ -132,6 +177,9 @@ function Layout({ session, setSession, setNotification }) {
             </NavLink>
             <NavLink to="/notifications">
               <FaBell /> Notifications
+              {notificationCount > 0 && (
+                <span className="notification-badge">{notificationCount}</span>
+              )}
             </NavLink>
             <NavLink to="/community-feed">
               <FaUserFriends /> Community Feed

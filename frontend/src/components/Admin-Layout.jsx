@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import {
   FaHome,
   FaPlusCircle,
@@ -13,6 +13,8 @@ import {
   FaComment,
 } from "react-icons/fa";
 import { Outlet, NavLink, useNavigate } from "react-router-dom";
+import Toast from "./Toast";
+import { registerToastCallback, registerNotificationCountCallback, startNotificationPolling, stopNotificationPolling } from "../utils/notificationService";
 import "./Layout.css";
 import logo from "../assets/logo.png";
 
@@ -21,8 +23,11 @@ function AdminLayout({ session, setSession, setNotification }) {
   const [dateTime, setDateTime] = useState(new Date());
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const [user, setUser] = useState(null);
-  // (Community metrics moved to a dedicated page)
   const [loading, setLoading] = useState(true);
+  const [notificationCount, setNotificationCount] = useState(0);
+  const toastRef = useRef(null);
+  const pollingIntervalRef = useRef(null);
+
   const navigate = useNavigate();
 
   // Fetch admin profile if session exists
@@ -84,6 +89,44 @@ function AdminLayout({ session, setSession, setNotification }) {
     loadProfile();
   }, [session, setSession, setNotification, navigate]);
 
+  // 🔹 Setup real-time notifications via SSE for admin
+  useEffect(() => {
+    if (!session?.token) {
+      // Stop polling if token is cleared (logout)
+      if (pollingIntervalRef.current) {
+        stopNotificationPolling(pollingIntervalRef.current);
+        pollingIntervalRef.current = null;
+      }
+      return;
+    }
+
+    // Register toast callback
+    registerToastCallback((message, type) => {
+      if (toastRef.current) {
+        toastRef.current.show(message, type);
+      }
+    });
+
+    // Register notification count callback
+    registerNotificationCountCallback((count) => {
+      setNotificationCount(count);
+    });
+
+    // Start polling only for Admin role (Admin layout only calls /api/admin/admin_notifications)
+    try {
+      pollingIntervalRef.current = startNotificationPolling(session.token, 'Admin', 10000);
+    } catch (e) {
+      console.warn('Notification polling error:', e);
+    }
+
+    return () => {
+      if (pollingIntervalRef.current) {
+        stopNotificationPolling(pollingIntervalRef.current);
+        pollingIntervalRef.current = null;
+      }
+    };
+  }, [session?.token]);
+
   // 🕒 Update date/time every second
   useEffect(() => {
     const interval = setInterval(() => setDateTime(new Date()), 1000);
@@ -137,6 +180,7 @@ function AdminLayout({ session, setSession, setNotification }) {
 
   return (
     <div className="home-container">
+      <Toast ref={toastRef} />
       {/* Sidebar */}
       {sidebarOpen && (
         <aside className="sidebar">
@@ -158,6 +202,9 @@ function AdminLayout({ session, setSession, setNotification }) {
             <NavLink to="/admin/users">
               <FaUsers /> Users
             </NavLink>
+            <NavLink to="/admin/maps">
+              <FaMap /> Maps
+            </NavLink>
             <NavLink to="/admin/reports">
               <FaChartLine /> Reports
             </NavLink>
@@ -166,6 +213,9 @@ function AdminLayout({ session, setSession, setNotification }) {
             </NavLink>
             <NavLink to="/admin/notifications">
               <FaBell /> Notifications
+              {notificationCount > 0 && (
+                <span className="notification-badge">{notificationCount}</span>
+              )}
             </NavLink>
           </nav>
 
@@ -297,6 +347,9 @@ function AdminLayout({ session, setSession, setNotification }) {
       <nav className="bottom-nav">
             <NavLink to="/admin/users">
               <FaUsers />
+            </NavLink>
+            <NavLink to="/admin/maps">
+              <FaMap /> Maps
             </NavLink>
             <NavLink to="/admin/reports">
               <FaChartLine />

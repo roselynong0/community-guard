@@ -211,15 +211,13 @@ h3 {
 .loading-overlay {
   display: flex;
   flex-direction: column;
-  justify-content: flex-start;
+  justify-content: center;
   align-items: center;
-  min-height: 400px;
+  min-height: 53vh;
   gap: 16px;
   background: transparent;
-  padding-top: 100px;
-  padding-bottom: 40px;
-  padding-left: 20px;
-  padding-right: 20px;
+  padding: 20px;
+  margin-top: 100px;
 }
 
 .spinner {

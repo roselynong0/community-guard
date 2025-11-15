@@ -511,7 +511,7 @@ function BarangayReports({ token }) {
     return (
         <div className="admin-container">
             <div className="admin-header-row">
-                <h2>{userBarangay ? `${userBarangay} Reports` : 'Community Reports'}</h2>
+                <h2>{userBarangay ? `${userBarangay} Reports` : 'Loading...'}</h2>
             </div>
 
             {/* IMPROVEMENT: Added ref to the filter container for keyboard navigation */}
@@ -581,9 +581,6 @@ function BarangayReports({ token }) {
                 ) : reports.length === 0 ? (
                     <div style={{ padding: '20px', textAlign: 'center' }}>
                         <p>No reports found.</p>
-                        <button onClick={fetchReports} style={{ marginTop: '10px' }}>
-                            <FaRedo aria-hidden="true" /> Retry Loading Reports
-                        </button>
                     </div>
                 ) : filteredReports.length > 0 ? (
                     filteredReports.map((report, index) => {

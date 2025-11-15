@@ -22,6 +22,11 @@ const getFinalNotificationType = (n) => {
     const textContext = String(n.title || '') + ' ' + String(n.message || '') + ' ' + String(n.type || '');
     const normalizedText = textContext.trim().toLowerCase();
 
+    // Report/post deletion should be detected first
+    if (normalizedText.includes('report deleted') || normalizedText.includes('post deleted') || (normalizedText.includes('deleted') && (normalizedText.includes('report') || normalizedText.includes('post')))) {
+        return 'report_deleted';
+    }
+
     if (normalizedText.includes('resolved') || normalizedText.includes('complete') || normalizedText.includes('success')) {
         return 'resolved';
     }
@@ -59,6 +64,10 @@ const getNotificationIcon = (type) => {
     case 'security':
       return <FaUserShield className="icon icon-security" />;
     // END NEW CASE
+    
+    // Report/post deletion - red trash icon
+    case 'report_deleted':
+      return <FaTrashAlt className="icon icon-delete" />;
       
     case 'warning':
     case 'ongoing':
