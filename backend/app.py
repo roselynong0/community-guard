@@ -39,44 +39,15 @@ def create_app():
     # ✅ Load configuration
     app.config.from_object(Config)
 
-    # ✅ Enable CORS for Vercel frontend
+    # ✅ Enable CORS - Allow all origins for now
     CORS(
         app,
-        origins=[
-            "https://community-guard.vercel.app",  # Production Vercel
-            "https://*.vercel.app",  # Preview deployments
-            "http://localhost:5173",  # Local dev
-            "http://127.0.0.1:5173",
-            "http://localhost:3000",
-            "http://localhost:5000"
-        ],
-        supports_credentials=True,
+        origins="*",  # Allow all origins temporarily
+        supports_credentials=False,  # Must be False with wildcard origins
         allow_headers=["Content-Type", "Authorization", "Accept"],
         methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "HEAD"],
         max_age=3600
     )
-
-    # ✅ Handle OPTIONS requests explicitly (backup)
-    @app.before_request
-    def handle_preflight():
-        from flask import request
-        if request.method == "OPTIONS":
-            response = jsonify({"status": "ok"})
-            response.headers['Access-Control-Allow-Origin'] = request.headers.get('Origin', '*')
-            response.headers['Access-Control-Allow-Methods'] = 'GET, POST, PUT, DELETE, OPTIONS, HEAD'
-            response.headers['Access-Control-Allow-Headers'] = 'Content-Type, Authorization, Accept'
-            response.headers['Access-Control-Max-Age'] = '3600'
-            return response, 200
-
-    # ✅ Add explicit CORS headers to all responses
-    @app.after_request
-    def after_request(response):
-        origin = request.headers.get('Origin', '*')
-        response.headers['Access-Control-Allow-Origin'] = origin
-        response.headers['Access-Control-Allow-Methods'] = 'GET, POST, PUT, DELETE, OPTIONS, HEAD'
-        response.headers['Access-Control-Allow-Headers'] = 'Content-Type, Authorization, Accept'
-        response.headers['Access-Control-Max-Age'] = '3600'
-        return response
 
     # ✅ optional caching + compression
     cache = Cache(app, config={
