@@ -1,0 +1,561 @@
+.home-container {
+  display: flex;
+  height: 100vh;
+  width: 100vw;
+  font-family: "Segoe UI", sans-serif;
+  background: #f2f2f2;
+  color: #11163e;
+}
+
+.sidebar {
+  width: 230px;
+  background: #11163e;
+  color: white;
+  display: flex;
+  flex-direction: column;
+  padding: 1rem;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+/* Custom scrollbar styles for sidebar */
+.sidebar::-webkit-scrollbar {
+  width: 6px;
+}
+
+.sidebar::-webkit-scrollbar-thumb {
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.2), rgba(255, 255, 255, 0.1));
+  border-radius: 3px;
+  transition: background 0.2s ease;
+}
+
+.sidebar::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.3), rgba(255, 255, 255, 0.2));
+}
+
+.sidebar::-webkit-scrollbar-track {
+  background: rgba(0, 0, 0, 0.1);
+  border-radius: 3px;
+}
+
+.sidebar::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+/* Firefox scrollbar fallback for sidebar */
+@supports (scrollbar-width: thin) {
+  .sidebar {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(255, 255, 255, 0.2) rgba(0, 0, 0, 0.1);
+  }
+}
+
+.logo {
+  text-align: center;
+}
+.logo-img {
+  height: 200px;
+  width: auto;
+}
+
+.mobile-logo img {
+  height: 30px;
+  width: auto;
+}
+.logo-placeholder {
+  background: white;
+  border-radius: 10px;
+  font-size: 2rem;
+  margin-bottom: 0.5rem;
+}
+.sidebar h2 {
+  padding-bottom: 20px;
+  font-size: 1.1rem;
+  font-family: Georgia, 'Times New Roman', Times, serif;
+  color: white;
+}
+.sidebar nav {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+.sidebar nav a {
+  display: flex;
+  align-items: center;
+  gap: 0.8rem;
+  padding: 0.8rem;
+  color: white;
+  font-size: 1rem;
+  text-decoration: none;
+  border-radius: 8px;
+  transition: all 0.3s ease;
+  position: relative;
+}
+.sidebar nav a:hover {
+  background: rgba(241, 212, 41, 0.1);
+  color: #f1d429;
+}
+.sidebar nav a.active {
+  background: #0d0f2a; 
+  color: #f1d429;
+  font-weight: bold;
+}
+
+/* Notification badge for nav items */
+.notification-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 6px;
+  margin-left: auto;
+  background: #ff4444;
+  color: white;
+  border-radius: 10px;
+  font-size: 0.75rem;
+  font-weight: bold;
+  flex-shrink: 0;
+}
+.logout-btn {
+  background: none !important;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  padding: 0.4rem;
+  color: white;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  border-radius: 8px;
+  font-size: 1rem;
+  font-weight: 500;
+  transition: all 0.3s ease;
+  margin-top: 1rem;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.logout-btn:hover {
+  background: rgba(241, 212, 41, 0.1) !important;
+  border-color: rgba(241, 212, 41, 0.3) !important;
+  color: #f1d429 !important;
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(241, 212, 41, 0.2);
+}
+
+.logout-btn:active {
+  transform: translateY(0);
+  box-shadow: 0 1px 4px rgba(241, 212, 41, 0.2);
+}
+
+.main-area {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  padding: 1rem 2rem;
+  position: relative;
+  padding-bottom: 1rem; 
+  overflow-y: auto;
+  overflow-x: hidden;
+  scroll-behavior: smooth;
+}
+
+/* Custom scrollbar styles for main content area */
+.main-area::-webkit-scrollbar {
+  width: 8px;
+}
+
+.main-area::-webkit-scrollbar-thumb {
+  background: linear-gradient(135deg, #11163e, #0d0f2a);
+  border-radius: 4px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  transition: background 0.2s ease;
+}
+
+.main-area::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(135deg, #0d0f2a, #090b1f);
+}
+
+.main-area::-webkit-scrollbar-track {
+  background: linear-gradient(to bottom, #f8f9fa, #e9ecef);
+  border-radius: 4px;
+  margin: 4px 0;
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.05);
+}
+
+.main-area::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+/* Firefox scrollbar fallback with better support detection */
+@supports (scrollbar-width: thin) {
+  .main-area {
+    scrollbar-width: thin;
+    scrollbar-color: #11163e #f8f9fa;
+  }
+}
+
+.top-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.5rem 1rem;
+}
+.mobile-logo {
+  display: none; 
+  font-size: 1.1rem;
+  font-weight: bold;
+  color: #11163e;
+}
+.top-left {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.date-time {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.9rem;
+  color: #11163e;
+}
+.top-right {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+.top-user-profile {
+  color: #11163e;
+  font-family: "Poppins", sans-serif;
+}
+
+.top-bar .user img {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 2px solid #11163e;
+}
+
+.top-bar .user span {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #11163e;
+}
+
+.top-user-profile h2 {
+  margin-bottom: 5px;
+  font-size: 1.5rem;
+}
+
+.top-user-profile p {
+  margin: 2px 0;
+  font-size: 1rem;
+}
+.menu-btn {
+  background: none;
+  color: #11163e;
+  border: none;
+  height: 46px;
+  width: auto;
+  padding: 0.6rem 0.8rem;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 1.2rem;
+}
+.menu-btn:hover {
+  background: #b9b9ba9a;
+}
+
+.bottom-nav {
+  display: none;
+}
+.bottom-nav a {
+  background: none;
+  border: none;
+  color: white;
+  font-size: 1.3rem;
+  text-decoration: none;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.bottom-nav a.active {
+  color: #f1d429; 
+}
+
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.65);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 2000;
+  -webkit-backdrop-filter: blur(3px);
+  backdrop-filter: blur(3px);
+  animation: fadeIn 0.2s ease-out;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* Modal box */
+.modal {
+  background: white;
+  padding: 2rem;
+  border-radius: 12px;
+  width: 90%;
+  max-width: 420px;
+  text-align: center;
+  box-shadow: 0 8px 32px rgba(45, 45, 115, 0.2), 0 4px 16px rgba(0, 0, 0, 0.1);
+  border: 1px solid rgba(45, 45, 115, 0.1);
+  animation: slideUp 0.3s ease-out;
+  position: relative;
+}
+
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px) scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.modal h3 {
+  margin-bottom: 0.5rem;
+  color: #11163e;
+}
+
+.modal p {
+  margin: 1rem 0 1.8rem 0;
+  color: #666;
+  font-size: 1rem;
+  line-height: 1.5;
+  padding: 0 0.5rem;
+}
+
+.modal-actions {
+  display: flex;
+  justify-content: space-between;
+  gap: 1.2rem;
+  width: 100%;
+  padding: 0 1rem;
+  box-sizing: border-box;
+}
+
+.cancel-btn, .confirm-btn {
+  padding: 0.9rem 2rem;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 1rem;
+  font-weight: 500;
+  flex: 1;
+  max-width: 200px;
+  min-height: 48px;
+  transition: all 0.2s ease;
+  position: relative;
+  overflow: hidden;
+}
+
+.cancel-btn {
+  background: #f8f9fa;
+  color: #495057;
+  border: 1px solid #dee2e6;
+}
+
+.cancel-btn:hover {
+  background: #e9ecef;
+  border-color: #adb5bd;
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.confirm-btn {
+  background: linear-gradient(135deg, #d9534f, #c9302c);
+  color: white;
+  border: 1px solid transparent;
+}
+
+.confirm-btn:hover {
+  background: linear-gradient(135deg, #c9302c, #b52b27);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 16px rgba(217, 83, 79, 0.3);
+}
+
+.confirm-btn:active {
+  transform: translateY(0);
+  box-shadow: 0 2px 8px rgba(217, 83, 79, 0.3);
+}
+
+.mobile-logout-btn {
+  display: none;
+  position: fixed;
+  bottom: 4.1rem;
+  right: 1.5rem;
+  z-index: 1100;
+  background: linear-gradient(135deg, #11163e, #0d0f2a);
+  color: #fff;
+  border-radius: 50%;
+  width: 52px;
+  height: 52px;
+  box-shadow: 0 4px 15px rgba(17, 22, 62, 0.4);
+  font-size: 1.3rem;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  opacity: 0.9;
+  transition: all 0.3s ease;
+  border: 2px solid rgba(255,255,255,0.2);
+  animation: pulse 2s infinite;
+}
+
+.mobile-logout-btn:hover,
+.mobile-logout-btn:active {
+  opacity: 1;
+  background: linear-gradient(135deg, #d9534f, #c9302c);
+  color: #fff;
+  box-shadow: 0 6px 20px rgba(217,83,79,0.6);
+  transform: scale(1.05);
+}
+
+@keyframes pulse {
+  0% {
+    box-shadow: 0 4px 15px rgba(17, 22, 62, 0.4), 0 0 0 0 rgba(17, 22, 62, 0.4);
+  }
+  70% {
+    box-shadow: 0 4px 15px rgba(17, 22, 62, 0.4), 0 0 0 10px rgba(17, 22, 62, 0);
+  }
+  100% {
+    box-shadow: 0 4px 15px rgba(17, 22, 62, 0.4), 0 0 0 0 rgba(17, 22, 62, 0);
+  }
+}
+/* Admin mobile logout bubble */
+.mobile-logout-bubble {
+  display: none;
+  position: fixed;
+  bottom: 4.1rem;
+  right: 1.5rem;
+  z-index: 1100;
+  background: linear-gradient(135deg, #11163e, #0d0f2a);
+  color: #fff;
+  border-radius: 50%;
+  width: 48px;
+  height: 48px;
+  box-shadow: 0 4px 15px rgba(17, 22, 62, 0.4);
+  font-size: 1.3rem;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  opacity: 0.9;
+  transition: all 0.3s ease;
+  border: 2px solid rgba(255,255,255,0.2);
+  animation: pulse 2s infinite;
+}
+
+.mobile-logout-bubble:hover,
+.mobile-logout-bubble:active {
+  opacity: 1;
+  background: linear-gradient(135deg, #d9534f, #c9302c);
+  color: #fff;
+  box-shadow: 0 6px 20px rgba(217,83,79,0.6);
+  transform: scale(1.05);
+}
+
+@keyframes pulse {
+  0% {
+    box-shadow: 0 4px 15px rgba(217,83,79,0.4), 0 0 0 0 rgba(217,83,79,0.4);
+  }
+  70% {
+    box-shadow: 0 4px 15px rgba(217,83,79,0.4), 0 0 0 10px rgba(217,83,79,0);
+  }
+  100% {
+    box-shadow: 0 4px 15px rgba(217,83,79,0.4), 0 0 0 0 rgba(217,83,79,0);
+  }
+}
+
+@media (max-width: 768px) {
+  .mobile-logout-btn {
+    display: flex;
+  }
+  
+  .mobile-logout-bubble {
+    display: flex;
+  }
+}
+
+@media (max-width: 768px) {
+  .sidebar {
+    display: none;
+  }
+  .top-bar {
+    padding: 0 0 10px;
+  }
+  .top-bar .user img {
+    width: 30px;
+    height: 30px;
+  }
+  .top-bar .user span {
+    font-size: 0.7rem;
+  }
+  .bottom-nav {
+    display: flex;
+    justify-content: space-around;
+    background: #11163e;
+    padding: 0.8rem 0;
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    width: 100%;
+    z-index: 1000;
+  }
+  .main-area {
+    padding-bottom: 4rem; 
+  }
+  .menu-btn {
+    display: none;
+  }
+  .mobile-logo {
+    display: flex;
+  }
+  .date-time {
+    font-size: 0.75rem;
+  }
+  .modal {
+    width: 95%;
+    max-width: 380px;
+    padding: 1.5rem;
+  }
+  
+  .modal-actions {
+    flex-direction: row;
+    gap: 0.8rem;
+    padding: 0;
+    width: 100%;
+  }
+  
+  .cancel-btn, .confirm-btn {
+    padding: 0.8rem 1rem;
+    font-size: 0.9rem;
+    flex: 1;
+    max-width: none;
+    min-height: 44px;
+    border-radius: 8px;
+  }
+}

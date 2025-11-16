@@ -1,0 +1,16 @@
+# Ignore backend folder - it's deployed on Railway, not Vercel
+backend/
+.env.example
+.git
+.gitignore
+deploy-safe.sh
+deploy-railway-fix.sh
+DEPLOYMENT_*.md
+DEPLOY_QUICK_REF.txt
+FINAL_CHECKLIST.txt
+DEPLOYMENT_SUMMARY.txt
+runtime.txt
+Dockerfile
+start.sh
+Procfile
+*.md

@@ -1,0 +1,115 @@
+import os
+import sys
+from flask import Flask, jsonify, send_from_directory
+from flask_caching import Cache
+from flask_compress import Compress
+from werkzeug.exceptions import HTTPException
+import traceback
+
+# Add backend directory to path
+sys.path.insert(0, os.path.dirname(__file__))
+
+try:
+    from config import Config
+    from routes.auth import auth_bp
+    from routes.profile import profile_bp
+    from routes.sessions import sessions_bp
+    from routes.verification import verification_bp
+    from routes.reports import reports_bp
+    from routes.admin import admin_bp
+    from routes.notifications import notifications_bp
+    from routes.community_feed import community_feed_bp
+except ImportError as e:
+    print(f"Import error: {e}")
+    raise
+
+# ✅ Create Flask app factory
+def create_app():
+    app = Flask(__name__)
+    app.config.from_object(Config)
+
+    # ✅ Enable CORS properly - Allow localhost dev and production URLs
+    from flask_cors import CORS
+    
+    # Define allowed origins for both development and production
+    allowed_origins = [
+        "http://localhost:5173",      # Local frontend dev server
+        "http://localhost:3000",      # Alternative local frontend port
+        "http://127.0.0.1:5173",      # Local frontend (127.0.0.1)
+        "http://127.0.0.1:3000",      # Local frontend (127.0.0.1)
+        "https://community-guard.vercel.app",  # Vercel production
+        "https://community-guard-production.up.railway.app",  # Railway backend
+    ]
+    
+    CORS(
+        app,
+        origins=allowed_origins,
+        supports_credentials=True,
+        allow_headers=["Content-Type", "Authorization", "Accept"],
+        methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "HEAD"]
+    )
+
+    # ✅ Optional caching + compression
+    cache = Cache(app, config={
+        'CACHE_TYPE': Config.CACHE_TYPE,
+        'CACHE_DEFAULT_TIMEOUT': Config.CACHE_DEFAULT_TIMEOUT
+    })
+    Compress(app)
+
+    # ✅ Register all blueprints under /api
+    app.register_blueprint(auth_bp, url_prefix='/api')
+    app.register_blueprint(profile_bp, url_prefix='/api')
+    app.register_blueprint(sessions_bp, url_prefix='/api')
+    app.register_blueprint(verification_bp, url_prefix='/api')
+    app.register_blueprint(reports_bp, url_prefix='/api')
+    app.register_blueprint(admin_bp, url_prefix='/api')
+    app.register_blueprint(notifications_bp, url_prefix='/api')
+    app.register_blueprint(community_feed_bp, url_prefix='/api')
+
+    # ✅ Health check
+    @app.route("/api/health")
+    def health_check():
+        return jsonify({"status": "ok", "message": "Community Guard API is running"}), 200
+
+    # ✅ Serve uploaded files
+    @app.route("/api/uploads/<filename>")
+    def uploaded_file(filename):
+        return send_from_directory(Config.UPLOAD_FOLDER, filename)
+
+    @app.route("/uploads/<filename>")
+    def uploaded_file_public(filename):
+        return send_from_directory(Config.UPLOAD_FOLDER, filename)
+
+    # ✅ Global exception handler
+    @app.errorhandler(Exception)
+    def handle_global_exception(e):
+        if isinstance(e, HTTPException):
+            return jsonify({"status": "error", "message": e.description}), e.code
+        print("\n=== Global exception ===")
+        print(traceback.format_exc())
+        return jsonify({"status": "error", "message": "Unexpected error occurred"}), 500
+
+    return app
+
+# ✅ Create app instance
+try:
+    app = create_app()
+    print("✅ Flask app created successfully")
+except Exception as e:
+    print(f"❌ Error creating Flask app: {e}")
+    traceback.print_exc()
+    app = Flask(__name__)
+    @app.route("/")
+    @app.route("/api/<path:path>")
+    def error_fallback(path=""):
+        return jsonify({
+            "status": "error",
+            "message": f"Failed to initialize app: {str(e)}",
+            "error_type": type(e).__name__
+        }), 500
+
+# ✅ Ensure uploads directory exists
+os.makedirs(Config.UPLOAD_FOLDER, exist_ok=True)
+
+if __name__ == "__main__":
+    app.run(debug=Config.DEBUG, port=Config.PORT, host='0.0.0.0')
