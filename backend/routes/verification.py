@@ -34,12 +34,18 @@ def send_email_code():
             "is_used": False
         }, on_conflict="user_id").execute()
 
-        if send_verification_email(email, code):
-            print(f"📧 Verification code resent to {email}")
-            return jsonify({"status": "success", "message": "Verification code sent!"}), 200
-        else:
-            print(f"❌ Resend failed for {email}")
-            return jsonify({"status": "error", "message": "Failed to send email"}), 500
+        try:
+            email_sent = send_verification_email(email, code)
+            if email_sent:
+                print(f"📧 Verification code resent to {email}")
+                return jsonify({"status": "success", "message": "Verification code sent!"}), 200
+            else:
+                print(f"❌ Resend failed for {email} after retries")
+                return jsonify({"status": "error", "message": "Failed to send email after multiple attempts"}), 500
+                
+        except Exception as e:
+            print(f"❌ Email sending error: {str(e)}")
+            return jsonify({"status": "error", "message": "Email service temporarily unavailable"}), 503
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
 

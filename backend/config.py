@@ -17,9 +17,9 @@ class Config:
     
     # Email Configuration
     EMAIL_SECRET_KEY = os.getenv("EMAIL_SECRET_KEY")
-    MAILJET_API_KEY = os.getenv("MAILJET_API_KEY")
-    MAILJET_API_SECRET = os.getenv("MAILJET_API_SECRET")
-    EMAIL_CODE_EXPIRY = int(os.getenv("EMAIL_CODE_EXPIRY_MINUTES", 10))
+    MJ_APIKEY_PUBLIC = os.getenv("MJ_APIKEY_PUBLIC")
+    MJ_APIKEY_SECRET = os.getenv("MJ_APIKEY_SECRET")
+    EMAIL_CODE_EXPIRY = int(os.getenv("EMAIL_CODE_EXPIRY", 10))
     
     # Frontend Configuration
     # Auto-detect: Use localhost for dev, Vercel for production
