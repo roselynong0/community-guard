@@ -3,6 +3,7 @@ import axios from "axios";
 import { FaEdit, FaTrashAlt, FaSearch, FaRedo, FaCheckCircle, FaTimesCircle, FaQuestionCircle, FaTimes } from "react-icons/fa";
 import { MapContainer, TileLayer, Marker, useMap, useMapEvents } from "react-leaflet";
 import { API_CONFIG, getApiUrl } from "../utils/apiConfig";
+import AICategorySelector from "./AICategorySelector";
 import "leaflet/dist/leaflet.css";
 import L from "leaflet";
 import "./Reports.css";
@@ -141,6 +142,7 @@ function Reports({ session }) {
     date: new Date(),
   });
   const [editReportId, setEditReportId] = useState(null);
+  const [editReportOwner, setEditReportOwner] = useState(false);
   const [expandedPosts, setExpandedPosts] = useState([]);
   const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState(null);
@@ -190,7 +192,30 @@ function Reports({ session }) {
   const [appliedSearch, setAppliedSearch] = useState("");
   const [appliedCategory, setAppliedCategory] = useState("All");
   const [appliedBarangay, setAppliedBarangay] = useState("All Barangays");
+  // AI free attempts tracking (3 attempts free by default), persisted in localStorage
+  const [aiAttemptsLeft, setAiAttemptsLeft] = useState(() => {
+    try {
+      const existing = localStorage.getItem('ai_free_attempts');
+      return existing ? parseInt(existing, 10) : 3;
+    } catch (e) {
+      console.debug('ai attempts load error', e);
+      return 3;
+    }
+  });
   const token = session?.token;
+
+  // Helper to decrement an AI attempt and persist to localStorage
+  const handleUseAiAttempt = () => {
+    setAiAttemptsLeft((prev) => {
+      const next = Math.max(0, prev - 1);
+      try {
+        localStorage.setItem('ai_free_attempts', String(next));
+      } catch (err) {
+        console.debug('ai attempts save error', err);
+      }
+      return next;
+    });
+  };
 
   // ⭐ NOTIFICATION HANDLER FUNCTION
   const showNotification = (message, type = "success") => {
@@ -466,6 +491,7 @@ function Reports({ session }) {
     }
     
     setEditReportId(report.id);
+    setEditReportOwner(String(report.user_id) === String(session?.user?.id));
     setNewReport({
       title: report.title || "",
       description: report.description || "",
@@ -670,8 +696,8 @@ function Reports({ session }) {
           tabIndex="0"
         >
           <option value="All">All Categories</option>
-          <option value="Concern">Concern</option>
           <option value="Crime">Crime</option>
+          <option value="Concern">Concern</option>
           <option value="Hazard">Hazard</option>
           <option value="Lost&Found">Lost & Found</option>
           <option value="Others">Others</option>
@@ -1039,8 +1065,10 @@ function Reports({ session }) {
                 </select>
               </div>
 
+              {/* AI Category Suggestions */}
               <label>Category: <span style={{ color: 'red' }}>*</span></label>
-              <select
+              <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start', flexDirection: 'column' }}>
+                <select
                 value={newReport.category}
                 onChange={(e) =>
                   setNewReport({ ...newReport, category: e.target.value })
@@ -1049,12 +1077,29 @@ function Reports({ session }) {
                 required
               >
                 <option value="">Select a category</option>
-                <option value="Concern">Concern</option>
                 <option value="Crime">Crime</option>
+                <option value="Concern">Concern</option>
                 <option value="Hazard">Hazard</option>
                 <option value="Lost&Found">Lost & Found</option>
                 <option value="Others">Others</option>
               </select>
+                <AICategorySelector
+                  description={newReport.description}
+                  selectedCategory={newReport.category}
+                  onSelectCategory={(category) =>
+                    setNewReport({ ...newReport, category })
+                  }
+                  token={token}
+                  /* Only allow the AI helper when the current user is the report owner.
+                     For the 'Add New Report' modal this is always the case, and for
+                     edits we pass owner status in the future if we add per-report owner checks. */
+                  isOwner={editReportId ? editReportOwner : true}
+                  /* Ensure user has provided required fields before AI selection */
+                  allFieldsFilled={Boolean(newReport.title && newReport.description && newReport.barangay && newReport.addressStreet && ((newReport.images && newReport.images.length > 0) || (newReport.existingImages && newReport.existingImages.length > 0)))}
+                  aiAttemptsLeft={aiAttemptsLeft}
+                  onUseAI={handleUseAiAttempt}
+                />
+              </div>
 
               <div className="map-field">
                 <label>

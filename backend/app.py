@@ -19,8 +19,12 @@ try:
     from routes.admin import admin_bp
     from routes.notifications import notifications_bp
     from routes.community_feed import community_feed_bp
+    from routes.ai_endpoints import ai_bp
+    print("✅ All blueprints imported successfully")
+    print(f"✅ AI blueprint: {ai_bp.name}, prefix: {ai_bp.url_prefix}")
 except ImportError as e:
-    print(f"Import error: {e}")
+    print(f"❌ Import error: {e}")
+    traceback.print_exc()
     raise
 
 # ✅ Create Flask app factory
@@ -38,7 +42,7 @@ def create_app():
         "http://127.0.0.1:5173",      # Local frontend (127.0.0.1)
         "http://127.0.0.1:3000",      # Local frontend (127.0.0.1)
         "https://community-guard.vercel.app",  # Vercel production
-        "https://community-guard-production.up.railway.app",  # Railway backend
+        "https://community-guard-backend.onrender.com",  # Render backend
     ]
     
     CORS(
@@ -58,13 +62,23 @@ def create_app():
 
     # ✅ Register all blueprints under /api
     app.register_blueprint(auth_bp, url_prefix='/api')
+    print("✅ Registered: auth_bp")
     app.register_blueprint(profile_bp, url_prefix='/api')
+    print("✅ Registered: profile_bp")
     app.register_blueprint(sessions_bp, url_prefix='/api')
+    print("✅ Registered: sessions_bp")
     app.register_blueprint(verification_bp, url_prefix='/api')
+    print("✅ Registered: verification_bp")
     app.register_blueprint(reports_bp, url_prefix='/api')
+    print("✅ Registered: reports_bp")
     app.register_blueprint(admin_bp, url_prefix='/api')
+    print("✅ Registered: admin_bp")
     app.register_blueprint(notifications_bp, url_prefix='/api')
+    print("✅ Registered: notifications_bp")
     app.register_blueprint(community_feed_bp, url_prefix='/api')
+    print("✅ Registered: community_feed_bp")
+    app.register_blueprint(ai_bp, url_prefix='/api/ai')
+    print("✅ Registered: ai_bp at /api/ai")
 
     # ✅ Health check
     @app.route("/api/health")

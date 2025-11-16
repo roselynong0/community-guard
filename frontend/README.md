@@ -2,32 +2,6 @@
 
 React + Vite frontend for the Community Guard application.
 
-## Structure
-
-```
-frontend/
-├── index.html
-├── package.json
-├── vite.config.js
-├── eslint.config.js
-├── public/              # Static assets
-└── src/
-    ├── main.jsx        # Entry point
-    ├── App.jsx         # Main app component
-    ├── supabaseClient.js
-    ├── assets/         # Images and static files
-    ├── components/     # React components
-    │   ├── Admin-*.jsx       # Admin components
-    │   ├── Layout.jsx        # Layout components
-    │   ├── Auth components   # Login, Register, etc.
-    │   ├── Reports.jsx       # Report components
-    │   └── ...
-    ├── hooks/          # Custom React hooks
-    └── utils/          # Utility functions
-        ├── session.js
-        └── ...
-```
-
 ## Setup
 
 1. Install dependencies:
@@ -36,57 +10,90 @@ cd frontend
 npm install
 ```
 
-2. Configure environment variables:
-Create a `.env` file in the frontend directory:
+2. Configure environment variables (`.env`):
 ```
-VITE_API_URL=http://localhost:5000/api
 VITE_SUPABASE_URL=your_supabase_url
-VITE_SUPABASE_KEY=your_supabase_key
+VITE_SUPABASE_ANON_KEY=your_supabase_anon_key
+VITE_API_URL=http://localhost:5000
 ```
 
 3. Run development server:
 ```bash
 npm run dev
 ```
+App runs on `http://localhost:5173`
 
-The app will be available at `http://localhost:5173`
-
-## Build for Production
+## Build & Deploy
 
 ```bash
-npm run build
+npm run build      # Create production build
+npm run preview    # Preview production build locally
+npm run lint       # Run ESLint
 ```
 
-This will create an optimized production build in the `dist/` folder.
+## Key Features
 
-## Features
+- **User Authentication**: Registration, login, email verification
+- **Interactive Maps**: Location-based incident visualization with grouped markers
+- **Role-Based Dashboards**: Customized views for Admin, Barangay Official, Responder, and Resident
+- **Report Management**: Create and manage incident reports with photos
+- **Optimized Notifications**: Adaptive polling with request deduplication
+- **Session Management**: Track active sessions with revocation control
+- **Community Feed**: View incidents and community updates
+- **Profile Management**: User profile and settings
 
-- User authentication and registration
-- Email verification
-- Profile management
-- Report/incident submission with image upload
-- Real-time notifications
-- Admin dashboard
-- Map view of incidents
-- Community feed
-- Session management
+## Component Organization
 
-## API Integration
+```
+src/
+├── components/
+│   ├── Admin-*.jsx          # Admin features
+│   ├── Barangay-*.jsx       # Barangay official features
+│   ├── Responder-*.jsx      # First responder features
+│   ├── Auth/                # Login, register, password reset
+│   ├── Maps.jsx             # City-wide map view
+│   ├── BarangayMaps.jsx     # Barangay-filtered map
+│   ├── ResponderMaps.jsx    # Responder operations map
+│   ├── Reports.jsx          # Report management
+│   └── ...
+├── hooks/                   # Custom React hooks
+└── utils/
+    ├── notificationService.js  # Optimized notification polling
+    ├── apiConfig.js            # API configuration
+    └── ...
+```
 
-The frontend communicates with the backend API at `/api` endpoints. All API calls should include the authentication token in the `Authorization` header:
+## Notification System
+
+The notification service uses **optimized HTTP polling** with:
+- **Request Deduplication**: Prevents stacking requests
+- **Adaptive Intervals**: Slows down polling when idle
+- **Exponential Backoff**: Reduces retries on errors
+- **Role-Based Endpoints**: Only calls appropriate endpoint per user role
 
 ```javascript
-headers: {
-  'Authorization': `Bearer ${token}`
-}
+// Example usage
+import { startNotificationPolling } from './utils/notificationService';
+
+startNotificationPolling(token, 'Admin', 10000); // 10s polling interval
 ```
 
-## Component Structure
+## Troubleshooting
 
-- **Admin Components**: Admin-specific features (user management, reports)
-- **Auth Components**: Login, registration, password reset
-- **Layout Components**: Main layout, navigation, sidebar
-- **Profile Components**: User profile, settings
-- **Report Components**: Report creation, viewing, management
-- **Notification Components**: Real-time notifications
-- **Map Components**: Interactive map for incident locations
+**Port conflicts:**
+```bash
+# Frontend port 5173 in use
+# Vite will automatically use next available port (5174, 5175, etc.)
+```
+
+**API not connecting:**
+- Verify `VITE_API_URL` in `.env` points to backend
+- Ensure backend is running on correct port
+- Check browser console for CORS errors
+
+**Build errors:**
+```bash
+rm -rf node_modules
+npm install
+npm run build
+```

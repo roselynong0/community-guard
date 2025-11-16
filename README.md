@@ -10,14 +10,13 @@ Community Guard is a full-stack web application designed to enhance community sa
 **🌐 Live Demo:** [https://community-guard.vercel.app](https://community-guard.vercel.app)
 
 ## 🚀 Features
-- **Incident Reporting**: Residents can report safety incidents with location data
-- **Administrative Dashboard**: Admins can manage reports and verify users  
-- **Interactive Maps**: Visual representation of incidents using Leaflet
-- **User Authentication**: Secure login/registration with email verification
-- **Real-time Notifications**: Updates on report status changes
-- **Mobile Responsive**: Optimized for both desktop and mobile devices
-- **Role-Based Access**: Admin, Barangay Official, Responder, and Resident roles
-- **Session Management**: Track and manage active login sessions
+- **Incident Reporting**: Residents report safety incidents with location data and photos
+- **Administrative Dashboard**: Admins manage reports, verify users, and monitor system activity
+- **Interactive Maps**: Location-based visualization with grouped markers and statistics
+- **Role-Based Dashboards**: Customized views for Admin, Barangay Official, Responder, and Resident roles
+- **Optimized Real-time Notifications**: Polling with adaptive intervals and deduplication
+- **Mobile Responsive**: Fully optimized for desktop and mobile devices
+- **Session Management**: Track and manage active login sessions with revocation control
 
 ## 🛠️ Tech Stack
 **Frontend:**
@@ -113,7 +112,7 @@ Frontend will run on `http://localhost:5173`
 
 The application is configured to work seamlessly in both localhost and production:
 - **Localhost**: Frontend uses `http://localhost:5000` for API calls
-- **Vercel**: Automatically detects and uses `https://community-guard.vercel.app`
+- **Vercel/Railway**: Automatically detects and uses production domain
 
 ### Testing Localhost Setup
 
@@ -125,7 +124,9 @@ The application is configured to work seamlessly in both localhost and productio
 
 3. **Test API Connection**: Try registering or logging in
 
-### Production Deployment (Vercel)
+### Production Deployment
+
+#### Option 1: Vercel (Recommended for Frontend)
 
 **Quick Deploy:**
 ```powershell
@@ -143,6 +144,21 @@ vercel --prod
 **Environment Variables for Vercel:**
 Set these in your Vercel Dashboard (Settings → Environment Variables):
 ```
+VITE_SUPABASE_URL=your_supabase_url
+VITE_SUPABASE_ANON_KEY=your_supabase_anon_key
+```
+
+**Note:** Don't set `VITE_API_URL` on Vercel - it auto-detects the production URL.
+
+#### Option 2: Railway (Full Stack)
+
+**Deploy Backend to Railway:**
+
+1. Create a Railway project at [railway.app](https://railway.app)
+2. Connect your GitHub repository
+3. Select the `master` directory as the root
+4. Set environment variables in Railway Dashboard:
+```
 SUPABASE_URL=your_supabase_url
 SUPABASE_KEY=your_supabase_key
 MJ_APIKEY_PUBLIC=your_mailjet_public_key
@@ -150,16 +166,55 @@ MJ_APIKEY_SECRET=your_mailjet_secret_key
 SECRET_KEY=your_secret_key
 EMAIL_CODE_EXPIRY=10
 FLASK_ENV=production
-FRONTEND_URL=https://community-guard.vercel.app
+FRONTEND_URL=https://your-railway-frontend-domain.railway.app
+PORT=5000
 ```
 
-**Frontend Environment Variables:**
+5. Railway will auto-detect `requirements.txt` and deploy Flask backend
+
+**Deploy Frontend to Railway:**
+
+1. Create another Railway project for frontend (or same project, different service)
+2. Configure build command: `cd frontend && npm install && npm run build`
+3. Configure start command: `cd frontend && npm run preview`
+4. Set environment variables:
 ```
 VITE_SUPABASE_URL=your_supabase_url
 VITE_SUPABASE_ANON_KEY=your_supabase_anon_key
+VITE_API_URL=https://your-railway-backend-domain.railway.app
 ```
 
-**Note:** Don't set `VITE_API_URL` on Vercel - it auto-detects the production URL.
+**Alternative: Deploy using Railway CLI**
+```powershell
+# Install Railway CLI
+npm install -g @railway/cli
+
+# Login to Railway
+railway login
+
+# Initialize and deploy
+cd master
+railway init
+railway up
+```
+
+**View Logs:**
+```powershell
+railway logs
+```
+
+#### Environment Configuration by Platform
+
+**Vercel:**
+- Frontend auto-detects production URL
+- Backend can be on Railway, AWS, or other platform
+- Set `VITE_API_URL` to your backend platform URL
+
+**Railway:**
+- Both frontend and backend can be deployed
+- Set `FRONTEND_URL` to your Railway frontend domain
+- Set `VITE_API_URL` to your Railway backend domain
+- All environment variables set in Railway Dashboard
 
 ## 📁 Project Structure
 
@@ -394,8 +449,9 @@ The backend is organized using **Flask Blueprints** for modularity:
 
 ## 🔮 Future Enhancements
 
-### 1. Enhanced Notification System
-- **Real-time Push Notifications**: Implement WebSocket connections for instant notifications
+### 1. WebSocket Real-time Notifications
+- **True Push Notifications**: Replace polling with WebSocket for sub-second latency
+- **Reduced Network Overhead**: Single persistent connection vs. repeated HTTP requests
 
 ### 2. Advanced Security & Verification
 - **ID Verification System**: Users upload valid ID photos for admin verification
@@ -404,13 +460,9 @@ The backend is organized using **Flask Blueprints** for modularity:
 - **Heat Maps**: Visual representation of incident density by barangay
 - **Real-time Report Counter**: Live updates of report counts per location
 
-### 4. Location-Based Enhancements
-- **Barangay-Focused Dashboard**: Users see reports specific to their barangay
-- **Nearby Incidents**: Alert users of incidents in their immediate barangay
-
-### 5. Media & Communication
+### 4. Media & Communication
 - **Video Upload Support**: Allow video attachments for incident reports
-- **Image Compression**: Optimize uploaded media for better performance
+- **Image Compression**: Optimize uploaded media for performance
 
 ## 🐛 Troubleshooting
 

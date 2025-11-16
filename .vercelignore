@@ -1,9 +1,9 @@
-# Ignore backend folder - it's deployed on Railway, not Vercel
+# Ignore backend folder - it's deployed on Render, not Vercel
 backend/
 .env.example
 .git
 .gitignore
-deploy-safe.sh
+railway.toml
 deploy-railway-fix.sh
 DEPLOYMENT_*.md
 DEPLOY_QUICK_REF.txt
