@@ -5,6 +5,7 @@ import {
   Marker,
   Popup,
   CircleMarker,
+  Circle,
 } from "react-leaflet";
 import { API_CONFIG } from "../utils/apiConfig";
 import L from "leaflet";
@@ -80,9 +81,13 @@ const hexToColorName = (hex) => {
 
 function Maps({ session, userRole }) {
   const [reports, setReports] = useState([]);
+  const [hotspots, setHotspots] = useState([]);
+  const [safezones, setSafezones] = useState([]);
   const [userBarangay, setUserBarangay] = useState(null);
   const [loading, setLoading] = useState(true);
   const [selectedBarangay, setSelectedBarangay] = useState('all');
+  const [showHotspots, setShowHotspots] = useState(true);
+  const [showSafezones, setShowSafezones] = useState(true);
 
   useEffect(() => {
     const fetchMapReports = async () => {
@@ -121,6 +126,26 @@ function Maps({ session, userRole }) {
           console.log(`✅ Loaded ${formatted.length} map reports${isBarangayOfficial ? ` for barangay: ${data.barangay}` : ''}`);
         } else {
           console.error("Map reports error:", data.message);
+        }
+
+        // Fetch hotspots
+        const hotspotsEndpoint = getApiUrl('/api/hotspots');
+        const hotspotsResponse = await fetch(hotspotsEndpoint, { headers });
+        const hotspotsData = await hotspotsResponse.json();
+
+        if (hotspotsData.status === "success") {
+          setHotspots(hotspotsData.hotspots || []);
+          console.log(`✅ Loaded ${(hotspotsData.hotspots || []).length} hotspots`);
+        }
+
+        // Fetch safezones
+        const safezonesEndpoint = getApiUrl('/api/safezones');
+        const safezonesResponse = await fetch(safezonesEndpoint, { headers });
+        const safezonesData = await safezonesResponse.json();
+
+        if (safezonesData.status === "success") {
+          setSafezones(safezonesData.safezones || []);
+          console.log(`✅ Loaded ${(safezonesData.safezones || []).length} safezones`);
         }
       } catch (err) {
         console.error("Failed to load map reports:", err);
@@ -164,6 +189,54 @@ function Maps({ session, userRole }) {
             attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
             url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
           />
+
+          {/* Render safezones as circles */}
+          {showSafezones && safezones.map((sz, idx) => (
+            <Circle
+              key={`safezone-${idx}`}
+              center={[sz.center.latitude, sz.center.longitude]}
+              radius={sz.radius_meters}
+              color="#06b6d4"
+              fillColor="#06b6d4"
+              fillOpacity={0.3}
+            >
+              <Popup>
+                <div>
+                  <strong style={{ fontSize: "14px" }}>🛡️ {sz.name}</strong>
+                  <br />
+                  <span style={{ fontSize: "12px" }}>{sz.description}</span>
+                  <br />
+                  <span style={{ fontSize: "11px", color: "#666" }}>
+                    Radius: {sz.radius_meters}m
+                  </span>
+                </div>
+              </Popup>
+            </Circle>
+          ))}
+
+          {/* Render hotspots */}
+          {showHotspots && hotspots.map((hs, idx) => (
+            <Circle
+              key={`hotspot-${idx}`}
+              center={[hs.centroid.latitude, hs.centroid.longitude]}
+              radius={300}
+              color="#dc2626"
+              fillColor="#dc2626"
+              fillOpacity={0.2}
+            >
+              <Popup>
+                <div>
+                  <strong style={{ fontSize: "14px" }}>🔴 Hotspot</strong>
+                  <br />
+                  <span style={{ fontSize: "12px" }}>Reports: {hs.report_count}</span>
+                  <br />
+                  <span style={{ fontSize: "11px", color: "#666" }}>
+                    Last activity: {new Date(hs.last_report_at).toLocaleDateString()}
+                  </span>
+                </div>
+              </Popup>
+            </Circle>
+          ))}
 
           {/* Report markers grouped by barangay */}
           {Object.entries(reportsByBarangay).map(([barangay, reportsArray], i) => {
@@ -266,6 +339,28 @@ function Maps({ session, userRole }) {
                 ))}
               </select>
             </div>
+
+            {/* Toggle Hotspots */}
+            <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', marginBottom: '12px' }}>
+              <input
+                type="checkbox"
+                checked={showHotspots}
+                onChange={(e) => setShowHotspots(e.target.checked)}
+                style={{ cursor: 'pointer', width: '16px', height: '16px', accentColor: '#ef4444' }}
+              />
+              <span style={{ fontSize: '13px', fontWeight: '500', color: '#333' }}>Hotspots ({hotspots.length})</span>
+            </label>
+
+            {/* Toggle Safezones */}
+            <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
+              <input
+                type="checkbox"
+                checked={showSafezones}
+                onChange={(e) => setShowSafezones(e.target.checked)}
+                style={{ cursor: 'pointer', width: '16px', height: '16px', accentColor: '#22c55e' }}
+              />
+              <span style={{ fontSize: '13px', fontWeight: '500', color: '#333' }}>Safezones ({safezones.length})</span>
+            </label>
           </div>
         )}
 
@@ -286,6 +381,14 @@ function Maps({ session, userRole }) {
               <div style={{ padding: '8px 12px', backgroundColor: '#f3f4f6', borderRadius: '6px' }}>
                 <div style={{ fontSize: '11px', color: '#666', fontWeight: '600', textTransform: 'uppercase', marginBottom: '4px' }}>Total Reports</div>
                 <div style={{ fontSize: '18px', fontWeight: '700', color: '#111' }}>{filteredReports.length}</div>
+              </div>
+              <div style={{ padding: '8px 12px', backgroundColor: '#fef2f2', borderRadius: '6px' }}>
+                <div style={{ fontSize: '11px', color: '#666', fontWeight: '600', textTransform: 'uppercase', marginBottom: '4px' }}>Hotspots</div>
+                <div style={{ fontSize: '18px', fontWeight: '700', color: '#dc2626' }}>{hotspots.length}</div>
+              </div>
+              <div style={{ padding: '8px 12px', backgroundColor: '#f0fdf4', borderRadius: '6px' }}>
+                <div style={{ fontSize: '11px', color: '#666', fontWeight: '600', textTransform: 'uppercase', marginBottom: '4px' }}>Safezones</div>
+                <div style={{ fontSize: '18px', fontWeight: '700', color: '#16a34a' }}>{safezones.length}</div>
               </div>
               <div style={{ padding: '8px 12px', backgroundColor: '#f3f4f6', borderRadius: '6px' }}>
                 <div style={{ fontSize: '11px', color: '#666', fontWeight: '600', textTransform: 'uppercase', marginBottom: '4px' }}>Barangays</div>
