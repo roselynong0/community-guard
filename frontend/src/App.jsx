@@ -27,6 +27,7 @@ import VerificationForm from "./components/VerificationForm";
 import LandingPage from "./components/LandingPage";
 import SafetyTips from "./components/SafetyTips";
 import CommunityFeed from "./components/CommunityFeed";
+import CommunityFeedAdmin from "./components/CommunityFeedAdmin";
 import BarangayDashboard from "./components/BarangayDashboard";
 import BarangayReports from "./components/BarangayReports";
 import BarangayNotifications from "./components/BarangayNotifications";
@@ -350,12 +351,12 @@ function App() {
             }
           />
           <Route
-            path="/admin/community-feed"
+            path="/admin/communityfeedadmin"
             element={
               session?.user?.role !== "Admin" ? (
                 <Navigate to="/home" replace />
               ) : (
-                <CommunityFeed />
+                <CommunityFeedAdmin />
               )
             }
           />

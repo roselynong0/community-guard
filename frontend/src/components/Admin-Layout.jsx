@@ -208,7 +208,7 @@ function AdminLayout({ session, setSession, setNotification }) {
             <NavLink to="/admin/reports">
               <FaChartLine /> Reports
             </NavLink>
-            <NavLink to="/admin/community-feed">
+            <NavLink to="/admin/communityfeedadmin">
               <FaComment /> Community Feed
             </NavLink>
             <NavLink to="/admin/notifications">
@@ -349,7 +349,7 @@ function AdminLayout({ session, setSession, setNotification }) {
               <FaUsers />
             </NavLink>
             <NavLink to="/admin/maps">
-              <FaMap /> Maps
+              <FaMap />
             </NavLink>
             <NavLink to="/admin/reports">
               <FaChartLine />

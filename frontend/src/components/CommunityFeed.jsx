@@ -44,6 +44,7 @@ const CommunityFeed = () => {
   const [barangayFilter, setBarangayFilter] = useState("All");
   const [postTypeFilter, setPostTypeFilter] = useState("all");
   const [userBarangay, setUserBarangay] = useState("");
+  const [postingState, setPostingState] = useState(false);
 
   useEffect(() => {
     fetchUserBarangay();
@@ -162,8 +163,6 @@ const CommunityFeed = () => {
     setTimeout(() => setNotification(null), 3000);
   };
 
-
-
   const handleDeletePost = async (postId) => {
     if (!window.confirm("Are you sure you want to delete this post?")) return;
 
@@ -192,9 +191,9 @@ const CommunityFeed = () => {
         type: "error",
         message: "❌ Failed to delete post",
       });
+    } finally {
+      setTimeout(() => setNotification(null), 3000);
     }
-
-    setTimeout(() => setNotification(null), 3000);
   };
 
   const handleAddComment = async (postId, commentText) => {
@@ -434,16 +433,24 @@ const PostCard = ({ post, onAddComment, onDeleteComment, onDeletePost }) => {
         </p>
       )}
 
-      <div className="toggle-comment-container">
-        <button
-          className="toggle-comment-btn"
-          onClick={() => setShowComments(!showComments)}
-        >
-          {showComments ? "Hide Comments" : `View Comments (${post.comment_count || 0})`}
-        </button>
-      </div>
+      {post.status && post.status !== 'approved' && (
+        <p style={{ color: "#f97316", fontSize: "0.9rem", marginTop: "0.5rem" }}>
+          💬 Comments are only available once this post is approved
+        </p>
+      )}
 
-      {showComments && post.allow_comments && (
+      {post.status === 'approved' && post.allow_comments && (
+        <div className="toggle-comment-container">
+          <button
+            className="toggle-comment-btn"
+            onClick={() => setShowComments(!showComments)}
+          >
+            {showComments ? "Hide Comments" : `View Comments (${post.comment_count || 0})`}
+          </button>
+        </div>
+      )}
+
+      {showComments && post.status === 'approved' && post.allow_comments && (
         <div className="comments-box">
           <div className="comments-scroll">
             {(post.comments ?? []).map((c) => (

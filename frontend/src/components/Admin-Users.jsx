@@ -15,20 +15,19 @@ import {
   FaExclamationTriangle,
   FaBell
 } from "react-icons/fa";
-import { API_CONFIG, getApiUrl } from "../utils/apiConfig";
-import "./Admin-Users.css";
+import { API_CONFIG } from "../utils/apiConfig";
+import "./Admin-report.css";
 import "./Notification.css";
 import "./Admin-Users-Performance.css"; 
 
-// Use getApiUrl(...) so VITE_API_URL from env is used in production (Railway) and localhost in dev
+const API_URL = `${API_CONFIG.BASE_URL}/api`;
 
 function AdminUsers({ token }) {
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
-  const [statusFilter, setStatusFilter] = useState("All"); 
-  const [roleFilter, setRoleFilter] = useState("All");
+  const [statusFilter, setStatusFilter] = useState("All");
   const [notification, setNotification] = useState(null);
   
   // Prevent multiple simultaneous fetches
@@ -67,6 +66,10 @@ function AdminUsers({ token }) {
   const [deleteReason, setDeleteReason] = useState("");
   const [deleteReasonOther, setDeleteReasonOther] = useState("");
 
+  // NEW TAB section
+const tabs = ["Residents", "Barangay Officials", "Responders", "Admin"];
+const [activeTab, setActiveTab] = useState("Residents");
+
   // Notification handler
   const showNotification = useCallback((message, type = "success") => {
     setNotification({ message, type });
@@ -98,7 +101,7 @@ function AdminUsers({ token }) {
     try {
       const startTime = performance.now();
       
-      const response = await fetch(getApiUrl('/api/users/verification'), {
+      const response = await fetch(`${API_URL}/users/verification`, {
         headers: { 
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
@@ -180,7 +183,7 @@ function AdminUsers({ token }) {
 
     setInfoLoading(true);
     try {
-      const response = await fetch(getApiUrl(`/api/users/${userId}/info`), {
+      const response = await fetch(`${API_URL}/users/${userId}/info`, {
         headers: { 
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
@@ -278,7 +281,7 @@ function AdminUsers({ token }) {
       
       for (const id of ids) {
         try {
-          const res = await fetch(getApiUrl(`/api/users/${id}`), {
+          const res = await fetch(`${API_URL}/users/${id}`, {
             method: 'DELETE',
             headers: { 
               Authorization: `Bearer ${token}`,
@@ -336,7 +339,7 @@ function AdminUsers({ token }) {
   if ((createRole === 'Barangay Official' || createRole === 'Responder') && createBarangay) formData.append('address_barangay', createBarangay);
       if (createAvatarFile) formData.append('avatar', createAvatarFile);
 
-      const res = await fetch(getApiUrl('/api/users'), {
+      const res = await fetch(`${API_URL}/users`, {
         method: 'POST',
         headers: {
           Authorization: `Bearer ${token}`
@@ -389,7 +392,7 @@ function AdminUsers({ token }) {
     try {
       showNotification('🔄 Verifying user with complete profile...', 'info');
       
-      const response = await fetch(getApiUrl(`/api/users/${selectedUser.id}/full-verification`), {
+      const response = await fetch(`${API_URL}/users/${selectedUser.id}/full-verification`, {
         method: 'PUT',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -485,7 +488,7 @@ function AdminUsers({ token }) {
       showNotification('📧 Sending verification reminder...', 'info');
       
       // This would be a new endpoint to send reminder emails
-      const response = await fetch(getApiUrl(`/api/users/${selectedUser.id}/verification-reminder`), {
+      const response = await fetch(`${API_URL}/users/${selectedUser.id}/verification-reminder`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -507,25 +510,42 @@ function AdminUsers({ token }) {
   // Memoized filtered users to prevent unnecessary re-renders
   const filteredUsers = useMemo(() => {
     return users
-      .filter((u) => (statusFilter === "All" ? true : 
-        statusFilter === "Verified" ? (u.isverified && u.verified) : !(u.isverified && u.verified)))
-      .filter((u) => (roleFilter === "All" ? true : u.role === roleFilter))
-      .filter(
-        (u) =>
-          `${u.firstname} ${u.lastname}`.toLowerCase().includes(debouncedSearch.toLowerCase()) ||
-          u.email.toLowerCase().includes(debouncedSearch.toLowerCase())
+      // tab filter
+      .filter(u => {
+        if (activeTab === "Residents") return u.role === "Resident";
+        if (activeTab === "Barangay Officials") return u.role === "Barangay Official";
+        if (activeTab === "Responders") return u.role === "Responder";
+        if (activeTab === "Admin") return u.role === "Admin";
+        return true;
+      })
+      // status filter
+      .filter(u =>
+        statusFilter === "All"
+          ? true
+          : statusFilter === "Verified"
+          ? (u.isverified && u.verified)
+          : !(u.isverified && u.verified)
+      )
+      // search filter
+      .filter(u =>
+        `${u.firstname} ${u.lastname}`
+          .toLowerCase()
+          .includes(debouncedSearch.toLowerCase()) ||
+        u.email.toLowerCase().includes(debouncedSearch.toLowerCase())
       );
-  }, [users, statusFilter, roleFilter, debouncedSearch]);
+  }, [users, activeTab, statusFilter, debouncedSearch]);
 
   // Memoized stats to calculate counts including barangay officials and responders
   const stats = useMemo(() => ({
     totalUsers: users.length,
     fullyVerifiedUsers: users.filter(u => u.isverified && u.verified).length,
     emailVerifiedUsers: users.filter(u => u.isverified && !u.verified).length,
+    residents: users.filter(u => u.role === "Resident").length,
     adminUsers: users.filter(u => u.role === "Admin").length,
     barangayOfficials: users.filter(u => u.role === "Barangay Official").length,
     responders: users.filter(u => u.role === "Responder").length
   }), [users]);
+
 
   return (
     <div className="admin-container">
@@ -595,6 +615,17 @@ function AdminUsers({ token }) {
           </div>
         </div>
 
+        {/* 1. Total Users */}
+        <div className="admin-stat-card residents">
+          <div className="admin-stat-content">
+            <FaUser className="admin-stat-icon" style={{ color: '#5aecffff' }} />
+            <div className="admin-stat-text">
+              <h4>Residents</h4>
+              <p>{stats.residents}</p>
+            </div>
+          </div>
+        </div>
+
         {/* 4. Admins */}
         <div className="admin-stat-card admin">
           <div className="admin-stat-content">
@@ -629,127 +660,169 @@ function AdminUsers({ token }) {
         </div>
       </div>
 
-      {/* Search & Filter Controls */}
-      <div className="admin-top-controls">
-        <div className="admin-search-container">
-          <input
-            type="text"
-            placeholder="Search users by name or email..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="admin-search-input"
-          />
-          <FaSearch className="admin-search-icon" />
-        </div>
-        <select 
-          value={statusFilter} 
-          onChange={(e) => setStatusFilter(e.target.value)}
-          className="admin-filter-select"
-        >
-          <option value="All">All Status</option>
-          <option value="Verified">Verified</option>
-          <option value="Unverified">Unverified</option>
-        </select>
-        <select 
-          value={roleFilter} 
-          onChange={(e) => setRoleFilter(e.target.value)}
-          className="admin-filter-select"
-        >
-          <option value="All">All Roles</option>
-          <option value="Admin">Admin</option>
-          <option value="Resident">Resident</option>
-          <option value="Barangay Official">Barangay Official</option>
-          <option value="Responder">Responder</option>
-        </select>
-      </div>
+      {/* ✅ USER SECTION */}
+      <div className="admin-users-section">
 
-      {/* Users List */}
-      {(loading || showInitialLoader) ? (
-        <div className="admin-loading-container">
-          <div className="admin-spinner"></div>
-          <p className="admin-loading-text">Loading users...</p>
+        {/* ✅ MODERN USER TABS */}
+        <div className="admin-modern-tabs">
+          <div className="admin-modern-tabs-inner">
+            {tabs.map((t) => (
+              <button
+                key={t}
+                className={`admin-modern-tab ${activeTab === t ? "active" : ""}`}
+                onClick={() => setActiveTab(t)}
+              >
+                {t}
+              </button>
+            ))}
+          </div>
+          <div className="admin-modern-tab-line" />
         </div>
-      ) : filteredUsers.length > 0 ? (
-        <div className="admin-users-grid">
+
+        {/* ✅ SEARCH + STATUS FILTER */}
+        <div className="admin-top-controls inside-tabs">
+          <div className="admin-search-container">
+            <input
+              type="text"
+              placeholder="Search users by name or email..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="admin-search-input"
+            />
+            <FaSearch className="admin-search-icon" />
+          </div>
+
+          <select
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value)}
+            className="admin-filter-select"
+          >
+            <option value="All">All Status</option>
+            <option value="Verified">Verified</option>
+            <option value="Unverified">Unverified</option>
+          </select>
+        </div>
+
+        {/* ✅ USERS LIST */}
+        {(loading || showInitialLoader) ? (
+          <div className="admin-loading-container">
+            <div className="admin-spinner"></div>
+            <p className="admin-loading-text">Loading users...</p>
+          </div>
+        ) : filteredUsers.length > 0 ? (
+          <div className="admin-users-grid">
             {filteredUsers.map((user) => {
               const isSelected = selectedIds.has(user.id);
               return (
-              <div
-                key={user.id}
-                onClick={(e) => {
-                  // If in selection mode, toggle selection. Ignore clicks on buttons inside the card.
-                  if (selectionMode) {
-                    const tag = (e.target && e.target.tagName) || '';
-                    if (tag.toLowerCase() !== 'button' && tag.toLowerCase() !== 'svg' && tag.toLowerCase() !== 'path') {
-                      toggleSelectUser(user.id);
+                <div
+                  key={user.id}
+                  onClick={(e) => {
+                    if (selectionMode) {
+                      const tag = (e.target && e.target.tagName) || "";
+                      if (
+                        tag.toLowerCase() !== "button" &&
+                        tag.toLowerCase() !== "svg" &&
+                        tag.toLowerCase() !== "path"
+                      ) {
+                        toggleSelectUser(user.id);
+                      }
                     }
-                  }
-                }}
-                className={`admin-user-card ${
-                  (user.isverified && user.verified) ? 'fully-verified' :
-                  user.isverified ? 'email-verified' : 'unverified'
-                } ${isSelected ? 'selected-card' : ''}`}
-                style={isSelected ? { outline: '3px solid rgba(239,68,68,0.15)' } : {}}
-              >
-                {selectionMode && (
-                  <div style={{ position: 'absolute', left: 8, top: 8 }}>
-                    <input type="checkbox" checked={isSelected} readOnly onClick={() => toggleSelectUser(user.id)} />
-                  </div>
-                )}
-                <div className="admin-user-header">
-                  <div className="admin-user-info">
-                    <img 
-                      src={user.avatar_url || "/src/assets/profile.png"} 
-                      alt="profile" 
-                      className="admin-user-avatar"
-                    />
-                    <div className="admin-user-details">
-                      <h4>{user.firstname} {user.lastname}</h4>
-                      <p>{user.email}</p>
+                  }}
+                  className={`admin-user-card ${
+                    user.isverified && user.verified
+                      ? "fully-verified"
+                      : user.isverified
+                      ? "email-verified"
+                      : "unverified"
+                  } ${isSelected ? "selected-card" : ""}`}
+                  style={isSelected ? { outline: "3px solid rgba(239,68,68,0.15)" } : {}}
+                >
+                  {selectionMode && (
+                    <div style={{ position: "absolute", left: 8, top: 8 }}>
+                      <input
+                        type="checkbox"
+                        checked={isSelected}
+                        readOnly
+                        onClick={() => toggleSelectUser(user.id)}
+                      />
                     </div>
-                  </div>
-                  <span className={`admin-role-badge ${user.role.toLowerCase().replace(/\s+/g, '-')}`}>
-                    {user.role}
-                  </span>
-                </div>
+                  )}
 
-                <div className="admin-user-body">
-                  <div className="admin-user-meta">
-                    <div className="admin-user-meta-item">
-                      <strong>Joined:</strong> {new Date(user.created_at).toLocaleDateString()}
+                  <div className="admin-user-header">
+                    <div className="admin-user-info">
+                      <img
+                        src={user.avatar_url || "/src/assets/profile.png"}
+                        alt="profile"
+                        className="admin-user-avatar"
+                      />
+                      <div className="admin-user-details">
+                        <h4>
+                          {user.firstname} {user.lastname}
+                        </h4>
+                        <p>{user.email}</p>
+                      </div>
                     </div>
-                    <div className="admin-user-meta-item">
-                      <strong>Address:</strong> {user.address_barangay || 'Not specified'}, {user.address_city || 'Olongapo'}
+
+                    <span
+                      className={`admin-role-badge ${user.role
+                        .toLowerCase()
+                        .replace(/\s+/g, "-")}`}
+                    >
+                      {user.role}
+                    </span>
+                  </div>
+
+                  <div className="admin-user-body">
+                    <div className="admin-user-meta">
+                      <div className="admin-user-meta-item">
+                        <strong>Joined:</strong>{" "}
+                        {new Date(user.created_at).toLocaleDateString()}
+                      </div>
+                      <div className="admin-user-meta-item">
+                        <strong>Address:</strong>{" "}
+                        {user.address_barangay || "Not specified"},{" "}
+                        {user.address_city || "Olongapo"}
+                      </div>
                     </div>
                   </div>
-                </div>
 
-                <div className="admin-user-footer">
-                  <div className={`admin-verification-status ${
-                    (user.isverified && user.verified) ? 'fully-verified' :
-                    user.isverified ? 'email-verified' : 'unverified'
-                  }`}>
-                    {(user.isverified && user.verified) ? (
-                      <><FaCheckCircle />Fully Verified</>
-                    ) : user.isverified ? (
-                      <><FaUserCheck />Email Verified</>
-                    ) : (
-                      <><FaTimesCircle />Unverified</>
+                  <div className="admin-user-footer">
+                    <div
+                      className={`admin-verification-status ${
+                        user.isverified && user.verified
+                          ? "fully-verified"
+                          : user.isverified
+                          ? "email-verified"
+                          : "unverified"
+                      }`}
+                    >
+                      {user.isverified && user.verified ? (
+                        <>
+                          <FaCheckCircle /> Fully Verified
+                        </>
+                      ) : user.isverified ? (
+                        <>
+                          <FaUserCheck /> Email Verified
+                        </>
+                      ) : (
+                        <>
+                          <FaTimesCircle /> Unverified
+                        </>
+                      )}
+                    </div>
+
+                    {user.role !== "Admin" && (
+                      <div className="admin-user-actions">
+                        <button
+                          onClick={() => openVerificationModal(user)}
+                          className="admin-btn admin-btn-primary"
+                          title="Update User Verification Status"
+                        >
+                          <FaEdit /> Update Status
+                        </button>
+                      </div>
                     )}
                   </div>
-                  
-                  <div className="admin-user-actions">
-                    {user.role !== 'Admin' && (
-                      <button
-                        onClick={() => openVerificationModal(user)}
-                        className="admin-btn admin-btn-primary"
-                        title="Update User Verification Status"
-                      >
-                        <FaEdit /> Update Status
-                      </button>
-                    )}
-                  </div>
-                </div>
                 </div>
               );
             })}
@@ -760,6 +833,8 @@ function AdminUsers({ token }) {
             <p>No users match your current search criteria.</p>
           </div>
         )}
+      </div>
+
 
       {/* Create User Modal */}
       {isCreateModalOpen && (

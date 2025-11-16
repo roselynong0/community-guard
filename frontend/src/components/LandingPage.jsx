@@ -36,6 +36,11 @@ const LandingPage = () => {
                             Login
                         </Link>
                     </li>
+                    <li>
+                        <Link to="/register" className="signup-btn">
+                            Sign Up
+                        </Link>
+                    </li>
                 </ul>
             </nav>
 
@@ -48,7 +53,7 @@ const LandingPage = () => {
                     <p>
                         Empowering communities with transparency, safety, and collaboration.
                     </p>
-                    <a href="#about" className="get-started-btn">Learn More</a>
+                    <Link to="/register" className="get-started-btn">Get Started</Link>
                 </div>
             </header>
 
@@ -119,6 +124,7 @@ const LandingPage = () => {
                             <li><a href="#about">About</a></li>
                             <li><a href="#contact">Contact</a></li>
                             <li><Link to="/login">Login</Link></li>
+                            <li><Link to="/signup">Sign Up</Link></li>
                         </ul>
                     </div>
                 </div>
