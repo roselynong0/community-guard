@@ -8,6 +8,8 @@ import {
   FaSignOutAlt,
   FaBars,
   FaCalendarAlt,
+  FaCamera,
+  FaPlay,
 } from 'react-icons/fa';
 import { Outlet, NavLink, useNavigate } from 'react-router-dom';
 import { API_CONFIG } from '../utils/apiConfig';
@@ -152,6 +154,7 @@ export default function ResponderLayout({ session, setSession, setNotification }
             <NavLink to="/responder/home"><FaHome /> Home</NavLink>
             <NavLink to="/responder/reports"><FaExclamationTriangle /> Reports</NavLink>
             <NavLink to="/responder/maps"><FaMap /> Map</NavLink>
+            <NavLink to="/responder/cctv"><FaCamera /> Olongapo CCTV</NavLink>
             <NavLink to="/responder/notifications"><FaBell /> Notifications
               {notificationCount > 0 && (
                 <span className="notification-badge">{notificationCount}</span>

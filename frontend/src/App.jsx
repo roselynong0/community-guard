@@ -36,6 +36,7 @@ import RespondersLayout from "./components/RespondersLayout";
 import RespondersDashboard from "./components/RespondersDashboard";
 import RespondersReports from "./components/RespondersReports"; 
 import RespondersNotifications from "./components/RespondersNotifications";
+import CCTVViewer from "./components/CCTVViewer";
 
 
 // ---------------- LOGIN WRAPPER ----------------
@@ -308,6 +309,7 @@ function App() {
           <Route path="/responder/notifications" element={<Notifications token={session?.token} />} />
           <Route path="/responder/community-feed" element={<CommunityFeedResponder token={session?.token} session={session} />} />
           <Route path="/responder/profile" element={<Profile token={session?.token} />} />
+          <Route path="/responder/cctv" element={<CCTVViewer />} />
         </Route>
 
         {/* --- ADMIN PROTECTED ROUTES --- */}

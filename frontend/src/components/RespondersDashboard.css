@@ -131,14 +131,14 @@ button:hover {
   opacity: 0;
 }
 
-.two-column-section {
+.two-column {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: 1fr;
   gap: 1rem;
 }
 
 @media (max-width: 1024px) {
-  .two-column-section {
+  .two-column {
     grid-template-columns: 1fr;
   }
 }

@@ -7,6 +7,7 @@ import { getApiUrl } from './apiConfig';
 
 // Polling storage
 let pollingIntervalRef = null;
+let eventSourceRef = null;
 let toastCallback = null;
 let notificationCountCallback = null;
 let lastSeenNotifications = {}; // Track last notification ID per role
