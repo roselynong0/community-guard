@@ -12,7 +12,9 @@ import {
   FaExclamationTriangle
 } from 'react-icons/fa';
 
-const API_URL = "http://localhost:5000/api"; 
+import { API_CONFIG, getApiUrl } from "../utils/apiConfig";
+// ... existing code ...
+const API_URL = getApiUrl(API_CONFIG.endpoints.notifications); 
 
 // Determine the type of notification
 const getFinalNotificationType = (n) => {

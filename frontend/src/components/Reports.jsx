@@ -19,14 +19,13 @@ const getImageUrl = (imgUrl) => {
   if (imgUrl && imgUrl.startsWith('data:')) {
     return imgUrl;
   }
-  // If it's an API path, construct full URL via getApiUrl
+  // If it's an API path, construct full URL
   if (imgUrl && imgUrl.startsWith('/api/')) {
-    return getApiUrl(imgUrl);
+    return `${API_CONFIG.BASE_URL}${imgUrl}`;
   }
-  // Default case for relative/relative-API paths
+  // Default case for relative paths
   if (imgUrl) {
-    // If path already looks like /api/..., pass through; otherwise assume relative to /api
-    return imgUrl.startsWith('/') ? getApiUrl(imgUrl.startsWith('/api') ? imgUrl : `/api${imgUrl}`) : getApiUrl(`/api/${imgUrl}`);
+    return `${API_CONFIG.BASE_URL}${imgUrl}`;
   }
   // Fallback for empty/null URLs
   return "/src/assets/placeholder.png";

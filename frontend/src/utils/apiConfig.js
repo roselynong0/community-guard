@@ -7,11 +7,11 @@ const getBaseUrl = () => {
     const hostname = window.location.hostname;
     const origin = window.location.origin;
     
-    // Check for production Vercel deployment - use Railway backend
+    // Check for production Vercel deployment - use Render backend
     if (hostname.includes('vercel.app') || hostname.includes('community-guard.vercel.app')) {
-      const railwayApi = 'https://community-guard-production.up.railway.app';
-      console.log('✅ Detected Vercel deployment, using Railway backend:', railwayApi);
-      return railwayApi;
+      const renderApi = 'https://community-guard-1.onrender.com';
+      console.log('✅ Detected Vercel deployment, using Render backend:', renderApi);
+      return renderApi;
     }
 
     // Local development - use local backend

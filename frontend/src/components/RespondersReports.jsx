@@ -2,7 +2,9 @@ import React, { useState, useEffect, useCallback, useRef } from "react";
 import { FaEdit, FaTrashAlt, FaSearch, FaRedo, FaCheckCircle, FaTimesCircle } from "react-icons/fa";
 import "./Reports.css"; 
 
-const API_URL = "http://localhost:5000/api";
+import { API_CONFIG, getApiUrl } from "../utils/apiConfig";
+// ... existing code ...
+const API_URL = getApiUrl(API_CONFIG.endpoints.reports);
 const REPORT_STATUSES = ["Pending", "Ongoing", "Resolved"];
 
 // Utility Hook for Modal Accessibility (Focus trap and Esc key)
@@ -888,4 +890,4 @@ function RespondersReports({ token }) {
     );
 }
 
-export default RespondersReports; 
+export default RespondersReports;

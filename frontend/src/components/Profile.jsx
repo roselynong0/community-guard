@@ -7,7 +7,7 @@ import DatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css"
 import { format, parseISO } from "date-fns";
 import axios from "axios";
-
+import { API_CONFIG, getApiUrl } from "../utils/apiConfig";
 
 function Profile({ token }) {
     const navigate = useNavigate();
@@ -35,7 +35,7 @@ function Profile({ token }) {
         birthdate: "",
     });
 
-    const API_URL = "http://localhost:5000/api"; // adjust as needed
+    const API_URL = getApiUrl(API_CONFIG.endpoints.profile);
     const barangays = [
         "All", "Barretto", "East Bajac-Bajac", "East Tapinac", "Gordon Heights",
         "Kalaklan", "Mabayuan", "New Asinan", "New Banicain", "New Cabalan",

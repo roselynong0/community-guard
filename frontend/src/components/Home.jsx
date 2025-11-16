@@ -14,7 +14,7 @@ import {
   Legend,
 } from "recharts";
 import MapView from "../components/Mapview";
-import { API_CONFIG } from "../utils/apiConfig";
+import { API_CONFIG, getApiUrl } from "../utils/apiConfig";
 import "./Home.css";
 
 // ----------------- CONSTANTS -----------------
@@ -89,7 +89,7 @@ function Home({ token, session }) {
       try {
         // 1. Fetch dashboard stats
         // Barangay filtering temporarily disabled
-        const statsEndpoint = `${API_CONFIG.BASE_URL}/api/stats`;
+        const statsEndpoint = getApiUrl(API_CONFIG.endpoints.stats);
         const statsRes = await fetchWithToken(statsEndpoint, token);
         if (statsRes.status === "success") {
           // Both admin and users show "Community Reports"
@@ -115,7 +115,7 @@ function Home({ token, session }) {
 
         // 3. Fetch reports by category data
         // For users and admins: get all categories (barangay filtering disabled)
-        const categoryEndpoint = `${API_CONFIG.BASE_URL}/api/reports/categories?filter=all`;
+        const categoryEndpoint = getApiUrl(API_CONFIG.endpoints.reports + `/categories?filter=all`);
         const categoryRes = await fetchWithToken(categoryEndpoint, token);
         if (categoryRes.status === "success" && categoryRes.data && categoryRes.data.length > 0) {
           // Map data to include colors
@@ -130,7 +130,7 @@ function Home({ token, session }) {
         }
 
         // 4. Fetch recent reports - all reports for everyone (barangay filtering disabled)
-        const reportsEndpoint = `${API_CONFIG.BASE_URL}/api/reports?limit=5&sort=desc&filter=all`;
+        const reportsEndpoint = getApiUrl(API_CONFIG.endpoints.reports + `?limit=5&sort=desc&filter=all`);
         const recentRes = await fetchWithToken(reportsEndpoint, token);
         setRecentReports(recentRes.status === "success" ? recentRes.reports : []);
         
