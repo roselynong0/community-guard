@@ -155,13 +155,13 @@ to { transform: translateY(0); opacity: 1; }
 .profile-sidebar {
     display: grid;
     grid-template-columns: 1fr; /* default stack */
-    gap: 20px;
+    gap: 14px;
 }
 
 /* Make cards appear side by side on medium and larger screens */
-@media screen and (min-width: 900px) {
+@media screen and (min-width: 1000px) {
     .profile-sidebar {
-        grid-template-columns: repeat(3, 1fr); /* three equal columns */
+        grid-template-columns: repeat(4, 1fr); /* three equal columns */
     }
 }
 
