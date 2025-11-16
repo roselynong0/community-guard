@@ -76,7 +76,7 @@ function Profile({ token }) {
 
         const fetchProfile = async () => {
             try {
-                const res = await fetch(`${API_URL}/profile`, {
+                const res = await fetch(API_URL, {
                     headers: { Authorization: `Bearer ${token}` },
                 });
                 const data = await res.json();
@@ -161,7 +161,7 @@ function Profile({ token }) {
         const formData = new FormData();
         formData.append("avatar", file);
         try {
-            const res = await fetch(`${API_URL}/profile/upload-avatar`, {
+            const res = await fetch(`${API_URL}/upload-avatar`, {
                 method: "POST",
                 headers: { Authorization: `Bearer ${token}` },
                 body: formData,
@@ -179,7 +179,7 @@ function Profile({ token }) {
     // ------------------- DELETE ACCOUNT -------------------
     const handleDeleteAccount = async () => {
         try {
-            const res = await fetch("http://localhost:5000/api/profile", {
+            const res = await fetch(API_URL, {
                 method: "DELETE",
                 headers: { Authorization: `Bearer ${token}` },
             });
@@ -235,7 +235,7 @@ function Profile({ token }) {
         }
 
         try {
-            const res = await fetch(`${API_URL}/profile`, {
+            const res = await fetch(API_URL, {
                 method: "PUT",
                 headers: {
                     "Content-Type": "application/json",

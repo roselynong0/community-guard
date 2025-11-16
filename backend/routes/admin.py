@@ -656,6 +656,16 @@ def create_user():
         # Force isverified for official roles
         isverified = True if role in ("Barangay Official", "Responder") else False
 
+        # Set role-based default avatar if no custom avatar provided
+        if not avatar_url:
+            avatar_map = {
+                "Resident": "/Resident.jpg",
+                "Responder": "/Responder.jpg",
+                "Barangay Official": "/Official.png",
+                "Admin": "/Official.png"
+            }
+            avatar_url = avatar_map.get(role, "/Resident.jpg")
+
         payload = {
             "firstname": firstname,
             "middlename": middlename,
@@ -664,7 +674,7 @@ def create_user():
             "password": hashed,
             "role": role,
             "isverified": isverified,
-            "avatar_url": avatar_url or "/default-avatar.png",
+            "avatar_url": avatar_url,
         }
 
         def insert_user():

@@ -62,6 +62,15 @@ def register():
         # Hash password
         hashed_pw = hashpw(password.encode(), gensalt()).decode()
 
+        # Set role-based default avatar
+        avatar_map = {
+            "Resident": "/Resident.jpg",
+            "Responder": "/Responder.jpg",
+            "Barangay Official": "/Official.png",
+            "Admin": "/Official.png"
+        }
+        default_avatar = avatar_map.get(role, "/Resident.jpg")
+
         # Insert user
         user_insert = supabase.table("users").insert({
             "firstname": firstname,
@@ -70,7 +79,7 @@ def register():
             "password": hashed_pw,
             "role": role,
             "isverified": False,
-            "avatar_url": "/default-avatar.png",
+            "avatar_url": default_avatar,
         }).execute()
 
         user_data = getattr(user_insert, "data", []) or []

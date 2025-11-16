@@ -12,22 +12,32 @@ mailjet_client = Client(
     version='v3.1'
 )
 
+# Log Mailjet initialization status
+if Config.MJ_APIKEY_PUBLIC and Config.MJ_APIKEY_SECRET:
+    print("✅ Mailjet credentials configured")
+else:
+    print("⚠️ Mailjet credentials NOT configured - email sending will fail")
+
 
 def send_with_retry(mailjet_client, data, max_retries=2, retry_delay=1):
     """Helper function to send email with retry logic"""
     for attempt in range(max_retries + 1):
         try:
             result = mailjet_client.send.create(data=data)
+            # Mailjet returns 200 for success
             if result.status_code == 200:
+                print(f"✅ Mailjet API success (attempt {attempt + 1}): {result.status_code}")
                 return True
             
-            # Log Mailjet API errors
-            print(f"Mailjet API error (attempt {attempt + 1}): {result.status_code}")
+            # Log Mailjet API errors with more details
+            print(f"Mailjet API error (attempt {attempt + 1}): Status {result.status_code}")
+            if hasattr(result, 'json'):
+                print(f"  Response: {result.json()}")
             if attempt < max_retries:
                 time.sleep(retry_delay)
                 
         except Exception as e:
-            print(f"Mailjet send error (attempt {attempt + 1}): {str(e)}")
+            print(f"Mailjet send error (attempt {attempt + 1}): {type(e).__name__}: {str(e)}")
             if attempt < max_retries:
                 time.sleep(retry_delay)
                 

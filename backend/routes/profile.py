@@ -35,11 +35,13 @@ def create_admin_notification(actor_id, user_id=None, report_id=None, title=None
         return None
 
 
-@profile_bp.route("/profile", methods=["GET"])
+@profile_bp.route("/profile", methods=["GET", "OPTIONS"])
 @token_required
 def get_profile():
     """Get user profile"""
     user_id = request.user_id
+    if request.method == "OPTIONS":
+        return jsonify({}), 200
     try:
         def fetch_user():
             # OPTIMIZATION: Select only needed fields instead of *
@@ -90,7 +92,7 @@ def get_profile():
         return jsonify({"status": "error", "message": "Failed to fetch profile"}), 500
 
 
-@profile_bp.route("/profile", methods=["PUT"])
+@profile_bp.route("/profile", methods=["PUT", "OPTIONS"])
 @token_required
 def update_profile():
     """Update user profile"""
@@ -178,7 +180,7 @@ def update_profile():
         return jsonify({"status": "error", "message": str(e)}), 500
 
 
-@profile_bp.route("/profile", methods=["DELETE"])
+@profile_bp.route("/profile", methods=["DELETE", "OPTIONS"])
 @token_required
 def delete_profile():
     """Soft delete user profile"""
@@ -253,7 +255,7 @@ def delete_profile():
         return jsonify({"status": "error", "message": str(e)}), 500
 
 
-@profile_bp.route("/profile/upload-avatar", methods=["POST"])
+@profile_bp.route("/profile/upload-avatar", methods=["POST", "OPTIONS"])
 @token_required
 def upload_avatar():
     """Upload user avatar"""

@@ -20,8 +20,10 @@ try:
     from routes.notifications import notifications_bp
     from routes.community_feed import community_feed_bp
     from routes.ai_endpoints import ai_bp
+    from routes.chatbot import chatbot_bp
     print("✅ All blueprints imported successfully")
     print(f"✅ AI blueprint: {ai_bp.name}, prefix: {ai_bp.url_prefix}")
+    print(f"✅ Chatbot blueprint: {chatbot_bp.name}, prefix: {chatbot_bp.url_prefix}")
 except ImportError as e:
     print(f"❌ Import error: {e}")
     traceback.print_exc()
@@ -79,6 +81,8 @@ def create_app():
     print("✅ Registered: community_feed_bp")
     app.register_blueprint(ai_bp, url_prefix='/api/ai')
     print("✅ Registered: ai_bp at /api/ai")
+    app.register_blueprint(chatbot_bp, url_prefix='/api')
+    print("✅ Registered: chatbot_bp at /api/chat")
 
     # ✅ Health check
     @app.route("/api/health")

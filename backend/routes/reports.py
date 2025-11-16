@@ -16,27 +16,35 @@ reports_bp = Blueprint("reports", __name__)
 # Default reporter for anonymous/missing users
 DEFAULT_REPORTER = {"id": 0, "firstname": "Unknown", "lastname": "User", "avatar_url": None, "isverified": False, "verified": False}
 
-def fetch_reports(limit=10, sort="desc", user_only=False, barangay_filter=False, barangay_param=None, user_id=None):
+def fetch_reports(limit=10, sort="desc", user_only=False, barangay_filter=False, barangay_param=None, user_id=None, current_user_id=None):
     """
     Fetch reports with optimized batch loading of related data.
     Supports filtering by user, barangay, and sorting.
     """
     start_time = time.time()
+    
+    user_role = None
+    if current_user_id:
+        user_role_resp = supabase.table("users").select("role").eq("id", current_user_id).execute()
+        user_role_data = getattr(user_role_resp, "data", [])
+        if user_role_data:
+            user_role = user_role_data[0].get("role")
+
     try:
         # Use retry mechanism for the main reports query
         def fetch_main_reports():
             query = supabase.table("reports").select("*").is_("deleted_at", None)
-            
+
             if user_only and user_id:
                 query = query.eq("user_id", user_id)
             elif barangay_filter and user_id:
                 # Get user's barangay first
                 def get_user_barangay():
                     return supabase.table("info").select("address_barangay").eq("user_id", user_id).execute()
-                
+
                 user_info_resp = supabase_retry(get_user_barangay)
                 user_info = getattr(user_info_resp, "data", [])
-                
+
                 if user_info and user_info[0].get("address_barangay"):
                     user_barangay = user_info[0]["address_barangay"]
                     # Filter reports by same barangay
@@ -44,7 +52,18 @@ def fetch_reports(limit=10, sort="desc", user_only=False, barangay_filter=False,
             elif barangay_param and barangay_param != "all":
                 # Direct barangay filtering for admin
                 query = query.eq("address_barangay", barangay_param)
-                    
+
+            # Apply visibility rules based on user role
+            if user_role in ["Barangay Official", "Admin"]:
+                # Admins and Barangay Officials see all reports that are not rejected
+                query = query.eq("is_rejected", False)
+            elif current_user_id:
+                # Regular users can see their own pending/rejected posts, and other approved posts
+                query = query.or_(f"user_id.eq.{current_user_id},and(is_approved.eq.True,is_rejected.eq.False)")
+            else:
+                # Public/unauthenticated users only see approved and not rejected posts
+                query = query.eq("is_approved", True).eq("is_rejected", False)
+
             query = query.order("created_at", desc=(sort=="desc")).limit(limit)
             return query.execute()
         
@@ -180,7 +199,8 @@ def get_barangay_reports():
             sort=sort,
             barangay_filter=True,
             barangay_param=user_barangay,
-            user_id=user_id
+            user_id=user_id,
+            current_user_id=user_id
         )
         
         print(f"✅ Sent {len(reports_list)} reports for barangay {user_barangay}")
@@ -219,7 +239,8 @@ def get_reports():
             user_only=user_only_filter,
             barangay_filter=barangay_filter,
             barangay_param=barangay_filter_param,
-            user_id=user_id_to_filter
+            user_id=user_id_to_filter,
+            current_user_id=request.user_id
         ) 
         
         print(f"✅ Sent {len(reports_list)} reports to client")

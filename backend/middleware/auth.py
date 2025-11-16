@@ -57,6 +57,9 @@ def token_required(f):
     """Decorator for routes requiring session token"""
     @wraps(f)
     def decorated(*args, **kwargs):
+        # Handle OPTIONS preflight requests without requiring token
+        if request.method == "OPTIONS":
+            return jsonify({}), 200
         auth_header = request.headers.get("Authorization", "")
         if not auth_header:
             return jsonify({"status": "error", "message": "Authorization header required"}), 401

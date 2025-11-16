@@ -131,8 +131,8 @@ export const startNotificationPolling = (token, role, pollInterval = 10000) => {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json',
         },
-        // Add signal for potential future abort functionality
-        signal: AbortSignal.timeout ? AbortSignal.timeout(5000) : undefined,
+        // Set reasonable timeout (10 seconds for notifications)
+        signal: AbortSignal.timeout ? AbortSignal.timeout(10000) : undefined,
       });
 
       if (!res.ok) {
