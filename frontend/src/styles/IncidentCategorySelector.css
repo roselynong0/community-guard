@@ -124,7 +124,14 @@
 }
 
 .error-icon {
-  font-size: 1.2rem;
+  font-size: 1.2rem;.ai-inline-container {
+  width: 100%;
+  max-width: 400px; /* Match input field width */
+  padding: 12px 16px; /* Match input padding */
+  margin-top: 8px;
+  border-radius: 8px; /* Match input border radius */
+}
+
 }
 
 /* Category Grid */

@@ -1,22 +1,22 @@
-# Use an official Python runtime as a parent image
-FROM python:3.11-slim
+# Use Python 3.11.6 slim image explicitly
+FROM python:3.11.6-slim
 
 # Set working directory
 WORKDIR /app
 
-# Copy backend folder (including requirements.txt)
+# Copy backend folder
 COPY backend/ ./backend
 
-# Install dependencies
-RUN pip install --upgrade pip
-RUN pip install -r backend/requirements.txt
-RUN pip install gunicorn
+# Upgrade pip and install dependencies in one layer
+RUN pip install --upgrade pip \
+    && pip install -r backend/requirements.txt \
+    && pip install gunicorn
 
-# Expose the port Railway will use
-EXPOSE 8000
+# Expose Render default port
+EXPOSE 10000
 
 # Set environment variable for Flask (optional)
-ENV FLASK_APP=app
+ENV FLASK_APP=backend.app
 
-# Start the app
-CMD ["gunicorn", "--bind", "0.0.0.0:8000", "backend.app:create_app()"]
+# Start the app using Gunicorn and Flask factory
+CMD ["gunicorn", "--bind", "0.0.0.0:10000", "backend.app:create_app()"]

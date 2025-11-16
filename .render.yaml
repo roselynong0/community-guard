@@ -2,7 +2,7 @@ services:
   - name: community-guard-backend
     type: web
     env: python
-    pythonVersion: 3.11.6           # <- specify the Python version here
+    pythonVersion: 3.11.6
     buildCommand: "cd backend && pip install -r requirements.txt"
     startCommand: "gunicorn --bind 0.0.0.0:$PORT app:create_app()"
     envVars:

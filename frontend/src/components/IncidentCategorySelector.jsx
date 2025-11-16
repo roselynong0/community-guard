@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import '../styles/IncidentCategorySelector.css';
 import { FaSpinner, FaLightbulb, FaCheckCircle } from 'react-icons/fa';
 
@@ -7,14 +7,13 @@ import { FaSpinner, FaLightbulb, FaCheckCircle } from 'react-icons/fa';
  * Provides AI-powered incident categorization suggestions with manual override
  * Integrates with backend ML service for intelligent classification
  */
-function IncidentCategorySelector({ reportDescription, reportImages, onCategorySelect, isOwner = false, allFieldsFilled = false, aiAttemptsLeft = 3, onUseAI = () => {} }) {
+function IncidentCategorySelector({ reportDescription, reportImages, onCategorySelect, allFieldsFilled = false, aiAttemptsLeft = 3, onUseAI = () => {} }) {
   const [suggestedCategory, setSuggestedCategory] = useState(null);
   const [confidence, setConfidence] = useState(0);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [selectedCategory, setSelectedCategory] = useState(null);
   const [showSuggestion, setShowSuggestion] = useState(false);
-  const [inlineValidation, setInlineValidation] = useState(false);
   const [hasAnalyzed, setHasAnalyzed] = useState(false);
 
   // Available incident categories
@@ -33,22 +32,12 @@ function IncidentCategorySelector({ reportDescription, reportImages, onCategoryS
   ];
   // Removed duplicate AI 'lostfound' category from available choices
 
-  /**
-   * Request AI categorization from backend
-   */
-  useEffect(() => {
-    // do not auto-run prediction; user must press Analyze to reveal AI suggestions
-    if (hasAnalyzed && reportDescription && reportDescription.trim().length > 10) {
-      fetchCategoryPrediction(true);
-    }
-  }, [reportDescription, hasAnalyzed]);
-
-  const fetchCategoryPrediction = async (userTriggered = false) => {
+  const fetchCategoryPrediction = useCallback(async (userTriggered = false) => {
     if (!reportDescription) return;
 
     if (!allFieldsFilled) {
-      setInlineValidation(true);
-      setTimeout(() => setInlineValidation(false), 3000);
+      // setInlineValidation(true);
+      // setTimeout(() => setInlineValidation(false), 3000);
       return;
     }
 
@@ -91,7 +80,17 @@ function IncidentCategorySelector({ reportDescription, reportImages, onCategoryS
     } finally {
       setLoading(false);
     }
-  };
+  }, [reportDescription, reportImages, allFieldsFilled, onCategorySelect, onUseAI]);
+
+  /**
+   * Request AI categorization from backend
+   */
+  useEffect(() => {
+    // do not auto-run prediction; user must press Analyze to reveal AI suggestions
+    if (hasAnalyzed && reportDescription && reportDescription.trim().length > 10) {
+      fetchCategoryPrediction(true);
+    }
+  }, [reportDescription, hasAnalyzed, fetchCategoryPrediction]);
 
   const handleCategorySelect = (categoryId) => {
     setSelectedCategory(categoryId);
@@ -121,87 +120,46 @@ function IncidentCategorySelector({ reportDescription, reportImages, onCategoryS
 
       {/* AI Suggestion Banner */}
       {showSuggestion && suggestedCategory && (
-        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
-          <button
-            className="ai-analyze-btn"
-            onClick={() => {
-              setHasAnalyzed(true);
-              fetchCategoryPrediction(true);
-            }}
-            disabled={aiAttemptsLeft <= 0}
-            title={aiAttemptsLeft <= 0 ? 'No AI attempts left' : 'Analyze with AI'}
-            style={{ marginLeft: 8, background: '#7c5cff', color: '#fff', border: 'none', padding: '6px 10px', borderRadius: 8 }}
-          >Analyze</button>
-        </div>
-        <div className="ai-suggestion-banner">
-          <div className="suggestion-content">
-            <FaLightbulb className="suggestion-icon" />
-            <div className="suggestion-text">
-              <span className="suggestion-label">AI Suggestion:</span>
-              <span className="suggestion-category">
-                {categories.find(cat => cat.id === suggestedCategory)?.label}
-              </span>
+        <>
+          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+            <button
+              className="ai-analyze-btn"
+              onClick={() => {
+                setHasAnalyzed(true);
+                fetchCategoryPrediction(true);
+              }}
+              disabled={aiAttemptsLeft <= 0}
+              title={aiAttemptsLeft <= 0 ? 'No AI attempts left' : 'Analyze with AI'}
+              style={{ marginLeft: 8, background: '#7c5cff', color: '#fff', border: 'none', padding: '6px 10px', borderRadius: 8 }}
+            >Analyze</button>
+          </div>
+          <div className="ai-suggestion-banner">
+            <div className="suggestion-content">
+              <span className="suggestion-icon">💡</span>
+              <div className="suggestion-text">
+                <span className="suggestion-label">AI Suggestion:</span>
+                <span className="suggestion-category">
+                  {categories.find(cat => cat.id === suggestedCategory)?.label}
+                </span>
+              </div>
             </div>
-            <div
+            <span
               className="confidence-badge"
               style={{ backgroundColor: getConfidenceColor(confidence) }}
             >
-              {Math.round(confidence * 100)}% Confidence
-            </div>
+              {getConfidenceLabel(confidence)} ({Math.round(confidence * 100)}%)
+            </span>
+            <button
+              className="ai-inline-accept"
+              onClick={() => handleCategorySelect(suggestedCategory)}
+            >
+              Accept
+            </button>
           </div>
-          {loading && <FaSpinner className="spinner" />}
-        </div>
-        {/* Inline AI recommendation block (owner only) */}
-        {isOwner && showSuggestion && (
-          <>
-            {/* Top dots above container */}
-            <div className="ai-top-dots" aria-hidden="true" style={{ marginBottom: 8 }}>
-              <span className="dot" />
-              <span className="dot" />
-              <span className="dot" />
-            </div>
-            <div className="ai-inline-container">
-            <div className="ai-inline-body">
-              {hasAnalyzed ? (
-                <p className="ai-inline-recommend">AI recommends: <strong>{categories.find(c => c.id === suggestedCategory)?.label || suggestedCategory}</strong></p>
-              ) : (
-                <p className="ai-inline-recommend" style={{ fontStyle: 'italic', color: '#555' }}>Press <strong>Analyze</strong> to see AI recommendation</p>
-              )}
-              <p className="ai-inline-note">You have <strong>{aiAttemptsLeft}</strong> free AI attempts left.</p>
-              <div className="ai-inline-actions">
-                <button
-                  onClick={() => {
-                    if (!allFieldsFilled) {
-                      setInlineValidation(true);
-                      setTimeout(() => setInlineValidation(false), 3000);
-                      return;
-                    }
-
-                    // Accept AI suggestion
-                    setSelectedCategory(suggestedCategory);
-                    if (onCategorySelect) onCategorySelect(suggestedCategory, confidence);
-                    if (!hasAnalyzed) {
-                      setInlineValidation(true);
-                      setTimeout(() => setInlineValidation(false), 3000);
-                      return;
-                    }
-                    if (typeof onUseAI === 'function') onUseAI();
-                  }}
-                  className="ai-inline-accept"
-                  disabled={aiAttemptsLeft <= 0}
-                >
-                  Accept AI Suggestion
-                </button>
-              </div>
-              {inlineValidation && (
-                <div className="ai-inline-validation">Please fill all required fields before using the AI helper.</div>
-              )}
-            </div>
-          </div>
-        )}
+        </>
       )}
-
       {/* Error Message */}
+
       {error && (
         <div className="error-message">
           <span className="error-icon">⚠️</span>
@@ -262,10 +220,7 @@ function IncidentCategorySelector({ reportDescription, reportImages, onCategoryS
           {selectedCategory === suggestedCategory && (
             <div className="info-item">
               <span className="label">AI Confidence:</span>
-              <span
-                className="value confidence"
-                style={{ color: getConfidenceColor(confidence) }}
-              >
+              <span className="value confidence" style={{ color: getConfidenceColor(confidence) }}>
                 {getConfidenceLabel(confidence)} ({Math.round(confidence * 100)}%)
               </span>
             </div>
