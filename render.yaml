@@ -2,6 +2,7 @@ services:
   - name: community-guard-backend
     type: web
     env: python
+    pythonVersion: 3.11.6           # <- specify the Python version here
     buildCommand: "cd backend && pip install -r requirements.txt"
     startCommand: "gunicorn --bind 0.0.0.0:$PORT app:create_app()"
     envVars:
@@ -16,28 +17,6 @@ services:
           type: postgres
           envVarKey: DATABASE_KEY
     healthCheckPath: /api/health
-    autoDeploy: true
-    region: oregon
-    plan: free
-
-  - name: community-guard-frontend
-    type: web
-    env: node
-    buildCommand: "cd frontend && npm ci && npm run build"
-    staticPublishPath: "./frontend/dist"
-    envVars:
-      - key: VITE_API_URL
-        value: https://community-guard-backend.onrender.com
-    routes:
-      - path: /assets/*
-        headers:
-          Cache-Control: "public, max-age=31536000, immutable"
-      - path: /*.*
-        headers:
-          Cache-Control: "public, max-age=31536000, immutable"
-      - path: /*
-        headers:
-          Cache-Control: "public, max-age=0, must-revalidate"
     autoDeploy: true
     region: oregon
     plan: free
