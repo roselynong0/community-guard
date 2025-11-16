@@ -110,9 +110,10 @@ def register():
             if email_sent:
                 print(f"📧 Verification email sent to {email}")
             else:
-                print(f"❌ Email send failed for {email}")
+                print(f"❌ Email send failed for {email} - check Mailjet credentials (MJ_APIKEY_PUBLIC, MJ_APIKEY_SECRET)")
         except Exception as e:
             print(f"❌ Email error: {e}")
+            email_sent = False
 
         # Create welcome notification for self-registered user
         try:

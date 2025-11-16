@@ -42,7 +42,7 @@ def create_app():
         "http://127.0.0.1:5173",      # Local frontend (127.0.0.1)
         "http://127.0.0.1:3000",      # Local frontend (127.0.0.1)
         "https://community-guard.vercel.app",  # Vercel production
-        "https://community-guard-backend.onrender.com",  # Render backend
+        "https://community-guard-1.onrender.com",  # Render production
     ]
     
     CORS(

@@ -36,6 +36,8 @@ function Profile({ token }) {
     });
 
     const API_URL = getApiUrl(API_CONFIG.endpoints.profile);
+    const REPORTS_URL = getApiUrl(API_CONFIG.endpoints.reports);
+    const STATS_URL = getApiUrl(API_CONFIG.endpoints.stats);
     const barangays = [
         "All", "Barretto", "East Bajac-Bajac", "East Tapinac", "Gordon Heights",
         "Kalaklan", "Mabayuan", "New Asinan", "New Banicain", "New Cabalan",
@@ -109,7 +111,7 @@ function Profile({ token }) {
 
         const fetchReports = async () => {
             try {
-                const res = await fetch(`${API_URL}/reports`, {
+                const res = await fetch(`${REPORTS_URL}`, {
                     headers: { Authorization: `Bearer ${token}` },
                 });
                 const data = await res.json();
@@ -125,7 +127,7 @@ function Profile({ token }) {
 
         const fetchUserStats = async () => {
             try {
-                const res = await axios.get(`${API_URL}/stats/user`, {
+                const res = await axios.get(`${STATS_URL}`, {
                     headers: { Authorization: `Bearer ${token}` },
                 });
                 if (res.data.status === "success") {
@@ -140,7 +142,7 @@ function Profile({ token }) {
         fetchProfile();
         fetchReports();
         fetchUserStats();
-    }, [token]);
+    }, [token, API_URL, REPORTS_URL, STATS_URL]);
 
     // ------------------- UPDATE REPORTS STATS -------------------
     useEffect(() => {
