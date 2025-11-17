@@ -219,6 +219,168 @@ def get_categories():
     return jsonify({'categories': categories}), 200
 
 
+@ai_bp.route('/log-usage', methods=['POST'])
+@token_required
+def log_ai_usage(current_user):
+    """
+    Log AI Smart Filter usage interaction for barangay official.
+    Calls database function log_ai_interaction() to track and aggregate usage.
+    
+    Request JSON:
+    {
+        "interaction_type": "string - e.g., 'smart_filter_toggle' or 'smart_filter_use'",
+        "duration_seconds": "int - optional, seconds of active usage (default: 0)"
+    }
+    
+    Response:
+    {
+        "status": "success" or "error",
+        "data": {
+            "user_id": "UUID",
+            "week_start": "DATE",
+            "total_seconds": "BIGINT",
+            "usage_percent": "0-100",
+            "interaction_count": "int",
+            "is_premium": "boolean",
+            "hours_remaining": "float - calculated from usage_percent"
+        },
+        "message": "string - status message"
+    }
+    """
+    try:
+        data = request.get_json()
+        
+        # Validate input
+        if not data or 'interaction_type' not in data:
+            return jsonify({
+                'status': 'error',
+                'message': 'Missing required field: interaction_type'
+            }), 400
+        
+        interaction_type = data.get('interaction_type', 'smart_filter_toggle')
+        duration_seconds = data.get('duration_seconds', 0)
+        metadata = data.get('metadata', {})
+        
+        # Get user ID from token (current_user dict has 'id' from token_required)
+        user_id = current_user.get('id')
+        if not user_id:
+            return jsonify({
+                'status': 'error',
+                'message': 'User ID not found in token'
+            }), 401
+        
+        # Import supabase client
+        from config import supabase
+        
+        # Call the PL/pgSQL function via Supabase
+        # log_ai_interaction returns a table with one row
+        response = supabase.rpc('log_ai_interaction', {
+            'p_user_id': user_id,
+            'p_interaction_type': interaction_type,
+            'p_duration_seconds': duration_seconds,
+            'p_metadata': metadata
+        }).execute()
+        
+        if not response.data or len(response.data) == 0:
+            return jsonify({
+                'status': 'error',
+                'message': 'Failed to log AI usage'
+            }), 500
+        
+        # Extract result from first row
+        result = response.data[0]
+        
+        # Calculate hours remaining
+        hours_remaining = max(0, (172800 - result['total_seconds']) / 3600.0)
+        
+        return jsonify({
+            'status': 'success',
+            'data': {
+                'user_id': result['user_id'],
+                'week_start': result['week_start'],
+                'total_seconds': result['total_seconds'],
+                'usage_percent': result['usage_percent'],
+                'interaction_count': result['interaction_count'],
+                'is_premium': result['is_premium'],
+                'hours_remaining': round(hours_remaining, 2)
+            },
+            'message': f'Usage tracked: {result["usage_percent"]}% of weekly limit used'
+        }), 200
+    
+    except Exception as e:
+        logger.error(f"Error logging AI usage: {str(e)}", exc_info=True)
+        return jsonify({
+            'status': 'error',
+            'message': f'Internal server error: {str(e)}'
+        }), 500
+
+
+@ai_bp.route('/current-usage', methods=['GET'])
+@token_required
+def get_current_usage(current_user):
+    """
+    Get current week's AI usage for authenticated user.
+    Queries the vw_ai_current_week_usage view.
+    
+    Response:
+    {
+        "status": "success" or "error",
+        "data": {
+            "user_id": "UUID",
+            "week_start": "DATE",
+            "total_seconds": "BIGINT",
+            "usage_percent": "0-100",
+            "interaction_count": "int",
+            "is_premium": "boolean",
+            "hours_remaining": "float"
+        }
+    }
+    """
+    try:
+        user_id = current_user.get('id')
+        if not user_id:
+            return jsonify({
+                'status': 'error',
+                'message': 'User ID not found in token'
+            }), 401
+        
+        from config import supabase
+        
+        # Query the view
+        response = supabase.table('vw_ai_current_week_usage').select('*').eq('user_id', user_id).execute()
+        
+        if not response.data or len(response.data) == 0:
+            # No usage data yet; return defaults
+            return jsonify({
+                'status': 'success',
+                'data': {
+                    'user_id': user_id,
+                    'week_start': None,
+                    'total_seconds': 0,
+                    'usage_percent': 0,
+                    'interaction_count': 0,
+                    'is_premium': False,
+                    'hours_remaining': 48.0
+                },
+                'message': 'No usage data for this week'
+            }), 200
+        
+        result = response.data[0]
+        
+        return jsonify({
+            'status': 'success',
+            'data': result,
+            'message': 'Current week usage retrieved'
+        }), 200
+    
+    except Exception as e:
+        logger.error(f"Error fetching current usage: {str(e)}", exc_info=True)
+        return jsonify({
+            'status': 'error',
+            'message': f'Internal server error: {str(e)}'
+        }), 500
+
+
 @ai_bp.route('/health', methods=['GET'])
 def ai_health_check():
     """Health check for AI service (No auth required)"""
@@ -229,3 +391,4 @@ def ai_health_check():
         'model_loaded': categorizer.model is not None,
         'method': 'ml' if categorizer.model else 'keyword'
     }), 200
+

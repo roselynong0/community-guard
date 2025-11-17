@@ -43,18 +43,42 @@ class IncidentCategorizer:
         'lostfound': 'Lost&Found',  # Lost & Found -> Lost&Found
     }
 
+    # Severity mapping for frontend display (used for highlight colors)
+    CATEGORY_SEVERITY = {
+        'Crime': 'critical',        # Red: violence, harassment, theft, vandalism
+        'Hazard': 'high',           # Orange: fire, flood, accidents
+        'Concern': 'medium',        # Gray: suspicious, general concerns
+        'Lost&Found': 'low',        # Gray: lost items
+        'Others': 'low',            # Gray: others
+    }
+
     def __init__(self):
+        # Enhanced keyword dictionary with better coverage
         self.categories = {
-            'theft': ['theft', 'robbery', 'burglary', 'shoplifting', 'stealing', 'pickpocket', 'mugging'],
-            'fire': ['fire', 'explosion', 'burn', 'blaze', 'combustion', 'smoke', 'flames'],
-            'flood': ['flood', 'flooding', 'water', 'rain', 'overflow', 'waterlogged', 'inundated'],
-            'accident': ['accident', 'crash', 'collision', 'hit', 'injured', 'wounded', 'emergency'],
-            'violence': ['violence', 'assault', 'attack', 'beating', 'fight', 'stabbed', 'shot', 'gunfire'],
-            'harassment': ['harassment', 'bullying', 'threatening', 'threat', 'intimidation', 'stalking'],
-            'vandalism': ['vandalism', 'damage', 'broken', 'graffiti', 'defaced', 'destroyed'],
-            'suspicious': ['suspicious', 'suspicious activity', 'strange', 'weird', 'unknown person', 'prowler'],
-            'hazard': ['hazard', 'danger', 'hole', 'broken', 'infrastructure', 'streetlight', 'pothole'],
-            'lostfound': ['lost', 'found', 'lost wallet', 'found wallet', 'lost phone', 'found phone', 'lost item', 'found item', 'lost & found'],
+            'theft': ['theft', 'robbery', 'burglary', 'shoplifting', 'stealing', 'pickpocket', 'mugging', 'robbed', 'stole', 'stolen', 'heist', 'larceny'],
+            'fire': ['fire', 'explosion', 'burn', 'blaze', 'combustion', 'smoke', 'flames', 'burning', 'ablaze', 'explosive', 'inferno'],
+            'flood': ['flood', 'flooding', 'water', 'rain', 'overflow', 'waterlogged', 'inundated', 'submerged', 'deluge', 'overflowing'],
+            'accident': ['accident', 'crash', 'collision', 'hit', 'injured', 'wounded', 'emergency', 'wreck', 'trauma', 'casualty'],
+            'violence': ['violence', 'assault', 'attack', 'beating', 'fight', 'stabbed', 'shot', 'gunfire', 'aggressive', 'struck'],
+            'harassment': ['harassment', 'bullying', 'threatening', 'threat', 'intimidation', 'stalking', 'harassed', 'molested', 'pestered'],
+            'vandalism': ['vandalism', 'damage', 'broken', 'graffiti', 'defaced', 'destroyed', 'smashed', 'spray paint'],
+            'suspicious': ['suspicious', 'suspicious activity', 'strange', 'weird', 'unknown person', 'prowler', 'loitering', 'trespassing'],
+            'hazard': ['hazard', 'danger', 'hole', 'broken', 'infrastructure', 'streetlight', 'pothole', 'dangerous', 'unsafe', 'obstruction'],
+            'lostfound': ['lost', 'found', 'lost wallet', 'found wallet', 'lost phone', 'found phone', 'lost item', 'found item', 'lost & found', 'missing', 'located'],
+        }
+        
+        # Multi-word phrases for better context detection
+        self.phrase_patterns = {
+            'theft': ['car theft', 'home theft', 'jewelry stolen', 'bag stolen', 'break in', 'break-in', 'burglary', 'shoplifting', 'grand theft'],
+            'fire': ['house fire', 'car fire', 'building fire', 'gas explosion', 'electrical fire', 'structure fire'],
+            'flood': ['flash flood', 'river flooding', 'water rising', 'flooded area', 'heavy flooding', 'water damage'],
+            'accident': ['car accident', 'traffic accident', 'hit and run', 'car crash', 'pedestrian hit', 'motor accident'],
+            'violence': ['physical assault', 'armed attack', 'violent crime', 'aggravated assault', 'sexual assault'],
+            'harassment': ['sexual harassment', 'workplace harassment', 'online harassment', 'phone harassment', 'threatening behavior'],
+            'vandalism': ['property damage', 'graffiti vandalism', 'car vandalism', 'public property damage', 'tire slashing'],
+            'suspicious': ['suspicious person', 'strange activity', 'unknown individual', 'suspicious vehicle', 'strange behavior'],
+            'hazard': ['street hazard', 'safety hazard', 'infrastructure damage', 'broken utility', 'road obstruction'],
+            'lostfound': ['lost wallet', 'lost phone', 'found wallet', 'found phone', 'lost keys', 'found keys', 'lost dog', 'lost item', 'found item']
         }
 
         self.model = None
@@ -170,17 +194,24 @@ class IncidentCategorizer:
                     training_texts.append(example)
                     training_labels.append(category)
 
-            # Oversample smaller categories (lostfound often scarce in example datasets)
-            if 'lostfound' in training_data:
-                for _ in range(4):  # add additional copies to boost weight
-                    for example in training_data['lostfound']:
-                        training_texts.append(example)
-                        training_labels.append('lostfound')
+            # Oversample smaller/critical categories
+            for category in ['lostfound', 'harassment', 'violence']:
+                if category in training_data:
+                    for _ in range(3):  # Add 3x more copies
+                        for example in training_data[category]:
+                            training_texts.append(example)
+                            training_labels.append(category)
 
-            # Also add individual keywords for better coverage
+            # Add individual keywords for better coverage
             for category, keywords in self.categories.items():
                 for keyword in keywords:
                     training_texts.append(keyword)
+                    training_labels.append(category)
+            
+            # Add phrase patterns for context awareness
+            for category, phrases in self.phrase_patterns.items():
+                for phrase in phrases:
+                    training_texts.append(phrase)
                     training_labels.append(category)
 
             # Train vectorizer and classifier
@@ -198,6 +229,7 @@ class IncidentCategorizer:
     def categorize(self, description: str, num_images: int = 0) -> Dict[str, any]:
         """
         Categorize an incident based on description and images
+        Enhanced with phrase pattern detection and better confidence calibration
         
         Args:
             description (str): Incident description text
@@ -225,10 +257,24 @@ class IncidentCategorizer:
         # Clean and lowercase text
         clean_text = description.lower().strip()
 
-        # Heuristic rules for high-confidence keyword categories
+        # 1. PHRASE PATTERN DETECTION (highest priority for accuracy)
+        # Check multi-word phrases first as they're highly contextual
+        for category, phrases in self.phrase_patterns.items():
+            for phrase in phrases:
+                if phrase.lower() in clean_text:
+                    return {
+                        'category': category,
+                        'frontend_category': self._map_to_frontend_category(category),
+                        'confidence': 0.92,
+                        'alternative_categories': [],
+                        'method': 'phrase_pattern',
+                        'reason': f'Matched phrase pattern: "{phrase}"'
+                    }
+
+        # 2. HEURISTIC RULES for high-confidence keyword categories
         #  - Lost & Found: explicit object words + lost/found indicators
-        lost_indicators = ['lost', 'found', 'missing', 'lost & found', 'lost and found']
-        lost_objects = ['wallet', 'phone', 'bag', 'purse', 'keys', 'backpack', 'id', 'passport']
+        lost_indicators = ['lost', 'found', 'missing', 'lost & found', 'lost and found', 'locate']
+        lost_objects = ['wallet', 'phone', 'bag', 'purse', 'keys', 'backpack', 'id', 'passport', 'dog', 'cat', 'keychain']
         if any(ind in clean_text for ind in lost_indicators) and any(obj in clean_text for obj in lost_objects):
             return {
                 'category': 'lostfound',
@@ -239,14 +285,17 @@ class IncidentCategorizer:
                 'reason': 'Heuristic matched Lost & Found'
             }
 
-        # Quick keyword heuristics for high-confidence event types
+        # 3. QUICK KEYWORD HEURISTICS for other high-confidence event types
         heuristics = [
-            ('theft', ['stole', 'stolen', 'robbery', 'robbed', 'burglary', 'pickpocket', 'shoplifting']),
-            ('fire', ['fire', 'blaze', 'explosion', 'smoke', 'burn', 'on fire']),
-            ('flood', ['flood', 'flooding', 'water everywhere', 'inundated', 'heavy rain', 'flash flood']),
-            ('accident', ['accident', 'crash', 'collision', 'hit and run', 'hit by', 'car crash']),
+            ('theft', ['stole', 'stolen', 'robbery', 'robbed', 'burglary', 'pickpocket', 'shoplifting', 'heist', 'larceny']),
+            ('fire', ['fire', 'blaze', 'explosion', 'smoke', 'burn', 'on fire', 'burning', 'inferno']),
+            ('flood', ['flood', 'flooding', 'water everywhere', 'inundated', 'heavy rain', 'flash flood', 'submerged']),
+            ('accident', ['accident', 'crash', 'collision', 'hit and run', 'hit by', 'car crash', 'wreck']),
             ('hazard', ['pothole', 'hole', 'broken street light', 'dangerous intersection', 'hazardous', 'road hazard']),
-            ('suspicious', ['suspicious', 'strange person', 'unknown person', 'suspicious activity', 'prowler'])
+            ('suspicious', ['suspicious', 'strange person', 'unknown person', 'suspicious activity', 'prowler', 'loitering']),
+            ('violence', ['violence', 'assault', 'attack', 'beating', 'fight', 'stabbed', 'shot', 'gunfire', 'aggressive']),
+            ('harassment', ['harassment', 'bullying', 'threatening', 'threat', 'intimidation', 'stalking', 'harassed']),
+            ('vandalism', ['vandalism', 'graffiti', 'damage', 'smashed', 'spray paint', 'defaced', 'destroyed'])
         ]
 
         for cat, keywords in heuristics:
@@ -254,23 +303,21 @@ class IncidentCategorizer:
                 return {
                     'category': cat,
                     'frontend_category': self._map_to_frontend_category(cat),
-                    'confidence': 0.9,
+                    'confidence': 0.90,
                     'alternative_categories': [],
                     'method': 'keyword',
                     'reason': f'Heuristic matched {cat}'
                 }
 
-        # Try ML-based categorization first
+        # 4. ML-based categorization with keyword fallback
         if HAS_ML and self.model and self.vectorizer:
             ml_result = self._ml_categorize(clean_text, num_images)
-            # Also compute keyword-based result and use it if keyword confidence is significantly higher
             kw_result = self._keyword_categorize(clean_text, num_images)
             try:
+                # Favor keyword classification when confidence gap is significant
                 if (kw_result.get('confidence', 0) - ml_result.get('confidence', 0)) > 0.2:
-                    # Favor keyword classification when it is significantly more confident
                     return kw_result
             except Exception:
-                # Fallback to ml_result if any unexpected structure appears
                 pass
             return ml_result
         else:
@@ -316,30 +363,47 @@ class IncidentCategorizer:
             return self._keyword_categorize(text, num_images)
 
     def _keyword_categorize(self, text: str, num_images: int = 0) -> Dict[str, any]:
-        """Categorize using keyword matching"""
+        """Categorize using keyword matching with weighted scoring"""
         keyword_scores = {category: 0 for category in self.categories}
+        phrase_scores = {category: 0 for category in self.phrase_patterns}
 
-        # Score each category based on keyword matches
+        # Score each category based on keyword matches (weight: 1 point each)
         for category, keywords in self.categories.items():
             for keyword in keywords:
                 if keyword in text:
                     keyword_scores[category] += 1
 
+        # Score phrase patterns more heavily (weight: 3 points each for better accuracy)
+        for category, phrases in self.phrase_patterns.items():
+            for phrase in phrases:
+                if phrase in text:
+                    phrase_scores[category] += 3
+
+        # Combine scores (phrase + keyword)
+        combined_scores = {}
+        for category in self.categories:
+            combined_scores[category] = keyword_scores.get(category, 0) + phrase_scores.get(category, 0)
+
         # Find best match
-        if max(keyword_scores.values()) > 0:
-            best_category = max(keyword_scores, key=keyword_scores.get)
-            confidence = min(0.95, keyword_scores[best_category] / 5.0)  # Cap at 95%
+        if max(combined_scores.values()) > 0:
+            best_category = max(combined_scores, key=combined_scores.get)
+            score_value = combined_scores[best_category]
+            
+            # Confidence calculation: base on weighted score
+            # Phrases are worth more, so max is typically 3+1=4 per hit
+            confidence = min(0.95, 0.4 + (score_value * 0.15))  # Scale 0.4 → 0.95
 
             # Get alternatives
             sorted_categories = sorted(
-                keyword_scores.items(),
+                combined_scores.items(),
                 key=lambda x: x[1],
                 reverse=True
             )
             alternatives = [
                 {
                     'category': cat,
-                    'confidence': min(0.95, score / 5.0)
+                    'frontend_category': self._map_to_frontend_category(cat),
+                    'confidence': min(0.95, 0.4 + (score * 0.15))
                 }
                 for cat, score in sorted_categories[1:3]
                 if score > 0
@@ -347,7 +411,7 @@ class IncidentCategorizer:
 
             # Boost confidence if images provided
             if num_images > 0:
-                confidence = min(1.0, confidence + (0.1 * num_images))
+                confidence = min(1.0, confidence + (0.05 * num_images))
 
             return {
                 'category': best_category,
@@ -355,7 +419,7 @@ class IncidentCategorizer:
                 'confidence': confidence,
                 'alternative_categories': alternatives,
                 'method': 'keyword',
-                'reason': f'Keyword matching: {keyword_scores[best_category]} matches found'
+                'reason': f'Keyword matching: {score_value} scoring points'
             }
         else:
             # No keywords matched, default to "other"

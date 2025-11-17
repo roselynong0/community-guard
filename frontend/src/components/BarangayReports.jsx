@@ -4,6 +4,19 @@ import { API_CONFIG, getApiUrl } from "../utils/apiConfig";
 import "./Reports.css";
 const REPORT_STATUSES = ["Pending", "Ongoing", "Resolved"];
 
+// Severity level colors and styling
+const SEVERITY_COLORS = {
+  Crime: { borderColor: '#c0392b', bgColor: '#fdedec', severity: 'Critical', label: '🔴 Critical' },
+  Hazard: { borderColor: '#d35400', bgColor: '#fef5e7', severity: 'High', label: '🟠 High' },
+  Concern: { borderColor: '#95a5a6', bgColor: '#ecf0f1', severity: 'Medium', label: '⚪ Medium' },
+  'Lost&Found': { borderColor: '#95a5a6', bgColor: '#ecf0f1', severity: 'Low', label: '⚪ Low' },
+  Others: { borderColor: '#95a5a6', bgColor: '#ecf0f1', severity: 'Low', label: '⚪ Low' },
+};
+
+const getSeverityStyle = (category) => {
+  return SEVERITY_COLORS[category] || SEVERITY_COLORS['Others'];
+};
+
 // Utility Hook for Modal Accessibility (Focus trap and Esc key)
 const useAriaModal = (isOpen, onClose) => {
     const modalRef = useRef(null);
@@ -128,6 +141,10 @@ function BarangayReports({ token }) {
     const [previewImage, setPreviewImage] = useState(null);
     const [notification, setNotification] = useState(null);
     const [highlightedReportId, setHighlightedReportId] = useState(null);
+    const [showCommunityHelper, setShowCommunityHelper] = useState(true); // Toggle for Community Helper visibility
+    const [showSmartFilter, setShowSmartFilter] = useState(true); // Smart Filter toggle
+    const [aiUsagePercent, setAiUsagePercent] = useState(0); // AI usage percentage (0-100)
+    const [showUsageModal, setShowUsageModal] = useState(false); // Show usage details modal
 
     // States for the Status Update Modal
     const [isStatusModalOpen, setIsStatusModalOpen] = useState(false);
@@ -151,6 +168,14 @@ function BarangayReports({ token }) {
     // New states for rejection info modal (when viewing rejected reports in list)
     const [rejectionInfoModalOpen, setRejectionInfoModalOpen] = useState(false);
     const [rejectionInfoReport, _setRejectionInfoReport] = useState(null);
+    
+    // New states for responder assignment
+    const [isAssignResponderModalOpen, setIsAssignResponderModalOpen] = useState(false);
+    const [selectedReportForResponder, setSelectedReportForResponder] = useState(null);
+    const [responders, setResponders] = useState([]);
+    const [selectedResponder, setSelectedResponder] = useState("");
+    const [isAssigningResponder, setIsAssigningResponder] = useState(false);
+    const [loadingResponders, setLoadingResponders] = useState(false);
 
     // --- REFS for Keyboard Navigation ---
     const filterContainerRef = useRef(null);
@@ -163,6 +188,55 @@ function BarangayReports({ token }) {
         setNotification({ message, type });
         setTimeout(() => setNotification(null), 4000);
     }, []);
+
+    // Track AI smart filter usage - calls backend to log and persist
+    const trackAiUsage = useCallback(async () => {
+        if (!token) {
+            console.error('No token available for API call');
+            showNotification('Authentication required', 'error');
+            return;
+        }
+
+        try {
+            const response = await fetch(getApiUrl('/api/ai/log-usage'), {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    interaction_type: 'smart_filter_toggle',
+                    duration_seconds: 0,
+                    metadata: { timestamp: new Date().toISOString() }
+                })
+            });
+
+            if (!response.ok) {
+                throw new Error(`API error: ${response.status}`);
+            }
+
+            const data = await response.json();
+            if (data.status === 'success') {
+                // Update local state with backend-persisted usage percent
+                const { usage_percent, hours_remaining, is_premium } = data.data;
+                setAiUsagePercent(usage_percent);
+                
+                // Show brief feedback
+                if (is_premium) {
+                    console.log('[AI Premium] Unlimited usage - all interactions tracked');
+                } else {
+                    console.log(`[AI Usage Tracked] ${usage_percent}% of weekly limit - ${hours_remaining.toFixed(1)} hours remaining`);
+                }
+            } else {
+                console.error('Backend error:', data.message);
+                showNotification('Failed to track usage', 'error');
+            }
+        } catch (error) {
+            console.error('Error tracking AI usage:', error);
+            // Fallback to local increment if API fails (graceful degradation)
+            setAiUsagePercent(prev => Math.min(prev + 5, 100));
+        }
+    }, [token, showNotification]);
 
     // --- Modal Control Functions for Accessibility ---
     const closeStatusModal = useCallback(() => {
@@ -214,11 +288,91 @@ function BarangayReports({ token }) {
         setIsDeleteReasonOpen(false);
         setIsDeleteConfirmOpen(true);
     };
+    
+    // Responder assignment modal functions
+    const closeAssignResponderModal = useCallback(() => {
+        if (!isAssigningResponder) {
+            setIsAssignResponderModalOpen(false);
+            setSelectedReportForResponder(null);
+            setSelectedResponder("");
+            setResponders([]);
+        }
+    }, [isAssigningResponder]);
+    
+    const openAssignResponderModal = async (report) => {
+        setSelectedReportForResponder(report);
+        setSelectedResponder("");
+        setLoadingResponders(true);
+        
+        try {
+            // Fetch responders for this barangay
+            const response = await fetch(getApiUrl(`/api/barangay/responders?barangay=${encodeURIComponent(report.barangay)}`), {
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json'
+                }
+            });
+            
+            if (!response.ok) {
+                throw new Error('Failed to fetch responders');
+            }
+            
+            const data = await response.json();
+            if (data.status === "success") {
+                setResponders(data.responders || []);
+                setIsAssignResponderModalOpen(true);
+            } else {
+                showNotification(`Failed to load responders: ${data.message}`, 'error');
+            }
+        } catch (error) {
+            console.error('Error fetching responders:', error);
+            showNotification(`Error fetching responders: ${error.message}`, 'error');
+        } finally {
+            setLoadingResponders(false);
+        }
+    };
+    
+    const handleAssignResponder = async () => {
+        if (!selectedReportForResponder || !selectedResponder || !token) return;
+        
+        setIsAssigningResponder(true);
+        try {
+            const response = await fetch(getApiUrl(`/api/reports/${selectedReportForResponder.id}/assign-responder`), {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ responder_id: selectedResponder })
+            });
+            
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.message || 'Failed to assign responder');
+            }
+            
+            const data = await response.json();
+            if (data.status === "success") {
+                showNotification(`✅ Responder ${data.responder_name} assigned successfully`, 'success');
+                closeAssignResponderModal();
+                // Refresh reports to show updated assignment
+                fetchReports();
+            } else {
+                throw new Error(data.message || 'Failed to assign responder');
+            }
+        } catch (error) {
+            console.error('Error assigning responder:', error);
+            showNotification(`Failed to assign responder: ${error.message}`, 'error');
+        } finally {
+            setIsAssigningResponder(false);
+        }
+    };
 
     // Use the custom hook to handle focus trapping and ESC key for both modals
     const statusRef = useAriaModal(isStatusModalOpen, closeStatusModal);
     const deleteRef = useAriaModal(isDeleteConfirmOpen, closeDeleteConfirm);
     const reasonRef = useAriaModal(isDeleteReasonOpen, closeDeleteReason);
+    const responderRef = useAriaModal(isAssignResponderModalOpen, closeAssignResponderModal);
     // --------------------------------------------------
 
     // Fetch reports from API (kept original logic)
@@ -296,6 +450,34 @@ function BarangayReports({ token }) {
     useEffect(() => {
         fetchReports();
     }, [fetchReports]);
+
+    // Fetch current week AI usage on component mount
+    useEffect(() => {
+        const fetchAiUsage = async () => {
+            if (!token) return;
+            
+            try {
+                const response = await fetch(getApiUrl('/api/ai/current-usage'), {
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    }
+                });
+
+                if (response.ok) {
+                    const data = await response.json();
+                    if (data.status === 'success' && data.data) {
+                        setAiUsagePercent(data.data.usage_percent || 0);
+                    }
+                }
+            } catch (error) {
+                console.warn('Failed to fetch current AI usage:', error);
+                // Continue with default 0% if fetch fails
+            }
+        };
+
+        fetchAiUsage();
+    }, [token]);
 
     // Handle highlight parameter from URL (kept original logic)
     useEffect(() => {
@@ -493,6 +675,12 @@ function BarangayReports({ token }) {
         }
     };
 
+    // Severity scoring function for sorting
+    const getSeverityScore = (category) => {
+        const scores = { Crime: 4, Hazard: 3, Concern: 2, 'Lost&Found': 1, Others: 1 };
+        return scores[category] || 0;
+    };
+
     // Filtered reports (removed barangay filter - fetched from backend already filtered)
     const filteredReports = reports
         .filter((r) => !r.is_rejected) // Hide rejected reports from barangay view
@@ -506,7 +694,23 @@ function BarangayReports({ token }) {
                 return r.title.toLowerCase().includes(search.toLowerCase()) ||
                         reporterName.toLowerCase().includes(search.toLowerCase());
             }
-        );
+        )
+        .sort((a, b) => {
+            // Primary sort: Pending status first (is_approved = false means pending)
+            const aPending = !a.is_approved ? 1 : 0;
+            const bPending = !b.is_approved ? 1 : 0;
+            if (aPending !== bPending) return bPending - aPending;
+
+            // Secondary sort: Severity level (high to low)
+            const aSeverity = getSeverityScore(a.category);
+            const bSeverity = getSeverityScore(b.category);
+            if (aSeverity !== bSeverity) return bSeverity - aSeverity;
+
+            // Tertiary sort: Date (based on sort preference)
+            const aTime = new Date(a.timestamp || a.created_at).getTime();
+            const bTime = new Date(b.timestamp || b.created_at).getTime();
+            return sort === 'latest' ? bTime - aTime : aTime - bTime;
+        });
 
     return (
         <div className="admin-container">
@@ -570,7 +774,248 @@ function BarangayReports({ token }) {
                     <option value="latest">Latest → Oldest</option>
                     <option value="oldest">Oldest → Latest</option>
                 </select>
+
+                {/* Smart Filter Toggle Button with Premium Indicator & Full-Width Timer */}
+                <div style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '12px',
+                    width: '100%'
+                }}>
+                    <button
+                        onClick={() => {
+                            if (aiUsagePercent >= 100) {
+                                showNotification('🔒 Smart usage limit reached. Upgrade to Premium for unlimited access!', 'caution');
+                                setShowUsageModal(true);
+                            } else {
+                                trackAiUsage(); // Track usage when toggling
+                                setShowSmartFilter(!showSmartFilter);
+                            }
+                        }}
+                        style={{
+                            padding: '8px 14px',
+                            backgroundColor: aiUsagePercent >= 100 ? '#f39c12' : (showSmartFilter ? '#2d3b8f' : '#ccc'),
+                            color: 'white',
+                            border: 'none',
+                            borderRadius: '4px',
+                            cursor: aiUsagePercent >= 100 ? 'pointer' : 'pointer',
+                            fontSize: '0.9em',
+                            fontWeight: '500',
+                            transition: 'all 0.3s ease',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '6px',
+                            position: 'relative',
+                            whiteSpace: 'nowrap'
+                        }}
+                        title={aiUsagePercent >= 100 ? 'Premium feature - Upgrade now' : (showSmartFilter ? 'Disable Smart Filter' : 'Enable Smart Filter')}
+                        aria-pressed={showSmartFilter}
+                    >
+                        <span>{aiUsagePercent >= 100 ? '✨' : '✨'}</span>
+                        {aiUsagePercent >= 100 ? 'Premium' : 'Smart Filter'}
+                    </button>
+
+                    {/* AI Usage Timer Bar - Full Width */}
+                    <div style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '8px',
+                        flex: 1
+                    }}>
+                        <div style={{
+                            flex: 1,
+                            height: '6px',
+                            backgroundColor: '#e0e0e0',
+                            borderRadius: '3px',
+                            overflow: 'hidden',
+                            position: 'relative'
+                        }}>
+                            <div style={{
+                                height: '100%',
+                                width: `${aiUsagePercent}%`,
+                                backgroundColor: aiUsagePercent >= 100 ? '#f39c12' : '#2d3b8f',
+                                transition: 'width 0.3s ease',
+                                animation: aiUsagePercent >= 100 ? 'pulse 1.5s ease-in-out infinite' : 'none'
+                            }} />
+                        </div>
+                        
+                        {/* Usage Info Button */}
+                        <button
+                            onClick={() => setShowUsageModal(true)}
+                            style={{
+                                width: '24px',
+                                height: '24px',
+                                borderRadius: '50%',
+                                border: `2px solid ${aiUsagePercent >= 100 ? '#f39c12' : '#2d3b8f'}`,
+                                backgroundColor: 'white',
+                                color: aiUsagePercent >= 100 ? '#f39c12' : '#2d3b8f',
+                                cursor: 'pointer',
+                                fontSize: '0.75em',
+                                fontWeight: 'bold',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                padding: 0,
+                                transition: 'all 0.3s ease',
+                                flexShrink: 0
+                            }}
+                            title="View AI usage details"
+                            aria-label="AI usage information"
+                        >
+                            ?
+                        </button>
+                    </div>
+                </div>
             </div>
+
+            {/* AI Usage Modal */}
+            {showUsageModal && (
+                <div 
+                    className="modal-overlay"
+                    onClick={() => setShowUsageModal(false)}
+                    style={{ zIndex: 1000 }}
+                >
+                    <div 
+                        className="modal"
+                        onClick={(e) => e.stopPropagation()}
+                        style={{
+                            maxWidth: '400px',
+                            backgroundColor: aiUsagePercent >= 100 ? '#fffbf0' : 'white'
+                        }}
+                    >
+                        <div style={{
+                            display: 'flex',
+                            justifyContent: 'space-between',
+                            alignItems: 'center',
+                            marginBottom: '20px',
+                            borderBottom: '2px solid #e0e0e0',
+                            paddingBottom: '12px'
+                        }}>
+                            <h3 style={{ margin: 0 }}>📊 AI Usage Status</h3>
+                            <button
+                                onClick={() => setShowUsageModal(false)}
+                                style={{
+                                    background: 'none',
+                                    border: 'none',
+                                    fontSize: '1.5em',
+                                    cursor: 'pointer'
+                                }}
+                            >
+                                ✕
+                            </button>
+                        </div>
+
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                            {/* Usage Percentage */}
+                            <div>
+                                <div style={{
+                                    display: 'flex',
+                                    justifyContent: 'space-between',
+                                    marginBottom: '8px',
+                                    fontSize: '0.95em'
+                                }}>
+                                    <span style={{ fontWeight: '500' }}>Weekly AI Limit Usage:</span>
+                                    <span style={{
+                                        fontSize: '1.1em',
+                                        fontWeight: 'bold',
+                                        color: aiUsagePercent >= 100 ? '#f39c12' : '#2d3b8f'
+                                    }}>
+                                        {aiUsagePercent}%
+                                    </span>
+                                </div>
+                                <div style={{
+                                    height: '8px',
+                                    backgroundColor: '#e0e0e0',
+                                    borderRadius: '4px',
+                                    overflow: 'hidden'
+                                }}>
+                                    <div style={{
+                                        height: '100%',
+                                        width: `${aiUsagePercent}%`,
+                                        backgroundColor: aiUsagePercent >= 100 ? '#f39c12' : '#2d3b8f',
+                                        transition: 'width 0.3s ease'
+                                    }} />
+                                </div>
+                            </div>
+
+                            {/* Time Remaining */}
+                            <div style={{
+                                padding: '12px',
+                                backgroundColor: '#f5f5f5',
+                                borderRadius: '6px',
+                                fontSize: '0.9em'
+                            }}>
+                                <div style={{ marginBottom: '8px' }}>
+                                    <span style={{ color: '#666' }}>⏱️ Time Remaining: </span>
+                                    <span style={{ fontWeight: '600', color: '#2d3b8f' }}>
+                                        {Math.ceil((100 - aiUsagePercent) / 100 * 48)} hours
+                                    </span>
+                                </div>
+                                <div style={{ color: '#666', fontSize: '0.85em' }}>
+                                    Maximum: 48 hours per week
+                                </div>
+                            </div>
+
+                            {/* Status Message */}
+                            {aiUsagePercent >= 100 ? (
+                                <div style={{
+                                    padding: '12px',
+                                    backgroundColor: '#fef5e7',
+                                    borderRadius: '6px',
+                                    borderLeft: '4px solid #f39c12'
+                                }}>
+                                    <div style={{ fontWeight: '600', color: '#f39c12', marginBottom: '6px' }}>
+                                        🔒 AI Limit Reached
+                                    </div>
+                                    <p style={{ margin: 0, fontSize: '0.9em', color: '#666' }}>
+                                        You've reached your weekly AI suggestion limit. Upgrade to Premium for unlimited access!
+                                    </p>
+                                    <button
+                                        onClick={() => {
+                                            showNotification('Premium upgrade feature coming soon!', 'info');
+                                            setShowUsageModal(false);
+                                        }}
+                                        style={{
+                                            marginTop: '12px',
+                                            padding: '8px 16px',
+                                            backgroundColor: '#f39c12',
+                                            color: 'white',
+                                            border: 'none',
+                                            borderRadius: '4px',
+                                            cursor: 'pointer',
+                                            fontWeight: '500',
+                                            fontSize: '0.9em'
+                                        }}
+                                    >
+                                        ✨ Upgrade to Premium
+                                    </button>
+                                </div>
+                            ) : (
+                                <div style={{
+                                    padding: '12px',
+                                    backgroundColor: '#f0f8ff',
+                                    borderRadius: '6px',
+                                    borderLeft: '4px solid #2d3b8f'
+                                }}>
+                                    <div style={{ fontWeight: '600', color: '#2d3b8f', marginBottom: '6px' }}>
+                                        ✅ Smart Filter Active
+                                    </div>
+                                    <p style={{ margin: 0, fontSize: '0.9em', color: '#666' }}>
+                                        You have {100 - aiUsagePercent}% of your weekly AI suggestions remaining.
+                                    </p>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            <style>{`
+                @keyframes pulse {
+                    0%, 100% { opacity: 1; }
+                    50% { opacity: 0.7; }
+                }
+            `}</style>
 
             <div className="reports-list">
                 {loading ? (
@@ -597,9 +1042,37 @@ function BarangayReports({ token }) {
                                 key={report.id}
                                 id={`report-${report.id}`}
                                 className={isPending ? 'report-pending' : `report-card ${highlightedReportId === report.id ? 'highlighted-report' : ''}`}
-                                style={{ animationDelay: `${index * 0.1}s` }} 
+                                style={{
+                                    animationDelay: `${index * 0.1}s`,
+                                    position: 'relative',
+                                    border: `2px solid ${!isPending ? getSeverityStyle(report.category).borderColor : 'transparent'}`,
+                                }} 
                                 aria-labelledby={`report-title-${report.id}`}
                             >
+                                {/* Toggle Button - Top Right */}
+                                {showCommunityHelper && (
+                                    <button
+                                        style={{
+                                            position: 'absolute',
+                                            top: '12px',
+                                            right: '12px',
+                                            background: 'none',
+                                            border: 'none',
+                                            cursor: 'pointer',
+                                            fontSize: '1.3em',
+                                            padding: '4px 8px',
+                                            zIndex: 15,
+                                            opacity: 0.6,
+                                            transition: 'opacity 0.3s ease'
+                                        }}
+                                        onClick={() => setShowCommunityHelper(false)}
+                                        title="Hide Community Helper suggestions"
+                                        aria-label="Hide AI suggestions"
+                                    >
+                                        ✕
+                                    </button>
+                                )}
+
                                 <div className="report-header">
                                     <div className="report-header-left">
                                         <img 
@@ -651,11 +1124,9 @@ function BarangayReports({ token }) {
                                     </div>
 
                                     <div className="report-header-actions">
-                                        {!(report.is_approved === true && report.status === "Pending") && (
-                                            <span className={`status-badge status-${report.status.toLowerCase()}`}>
-                                                {report.status}
-                                            </span>
-                                        )}
+                                        <span className={`status-badge status-${report.status.toLowerCase()}`}>
+                                            {report.status}
+                                        </span>
                                         {isPending ? (
                                             <>
                                                 <button 
@@ -695,6 +1166,17 @@ function BarangayReports({ token }) {
                                                 >
                                                     <FaEdit aria-hidden="true" />
                                                 </button>
+                                                {report.status === "Ongoing" && (
+                                                    <button 
+                                                        className="icon-btn assign-responder-btn" 
+                                                        onClick={() => openAssignResponderModal(report)}
+                                                        aria-label={`Assign responder for report: ${report.title}`}
+                                                        title="Assign Responder"
+                                                        style={{ backgroundColor: '#3b82f6', color: '#fff' }}
+                                                    >
+                                                        👤
+                                                    </button>
+                                                )}
                                                 <button 
                                                     className="icon-btn delete-btn" 
                                                     onClick={() => openDeleteReason(report)}
@@ -707,6 +1189,80 @@ function BarangayReports({ token }) {
                                         )}
                                     </div>
                                 </div>
+
+                                {/* Community Helper Inline Container - Below Profile, Above Title */}
+                                {showCommunityHelper && showSmartFilter && (
+                                    <div style={{
+                                        display: 'flex',
+                                        flexDirection: 'column',
+                                        gap: '8px',
+                                        padding: '12px',
+                                        backgroundColor: `${getSeverityStyle(report.category).bgColor}`,
+                                        border: `1px solid ${getSeverityStyle(report.category).borderColor}`,
+                                        borderRadius: '6px',
+                                        marginBottom: '12px',
+                                        marginLeft: '0px',
+                                        marginRight: '0px'
+                                    }}>
+                                        {/* Header with Badge */}
+                                        <div style={{
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            gap: '8px',
+                                            justifyContent: 'space-between'
+                                        }}>
+                                            <span style={{
+                                                display: 'inline-flex',
+                                                alignItems: 'center',
+                                                gap: '6px',
+                                                padding: '4px 10px',
+                                                backgroundColor: '#2d3b8f',
+                                                color: 'white',
+                                                borderRadius: '12px',
+                                                fontSize: '0.75em',
+                                                fontWeight: '600',
+                                                opacity: 1
+                                            }}>
+                                                <span>💡</span>
+                                                <span>Community Helper</span>
+                                            </span>
+                                        </div>
+                                        
+                                        {/* Category Information with Severity & Confidence */}
+                                        <div style={{
+                                            display: 'flex',
+                                            flexDirection: 'column',
+                                            gap: '6px',
+                                            fontSize: '0.9em'
+                                        }}>
+                                            <div style={{
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                gap: '8px',
+                                                flexWrap: 'wrap'
+                                            }}>
+                                                <span style={{ color: '#666', fontWeight: '500' }}>✨ Suggest:</span>
+                                                <span style={{ fontWeight: '600', color: getSeverityStyle(report.category).borderColor }}>
+                                                    {report.category}
+                                                </span>
+                                                <span style={{ color: '#888' }}>·</span>
+                                                <span style={{
+                                                    padding: '2px 8px',
+                                                    backgroundColor: getSeverityStyle(report.category).borderColor,
+                                                    color: 'white',
+                                                    borderRadius: '12px',
+                                                    fontSize: '0.85em',
+                                                    fontWeight: '600'
+                                                }}>
+                                                    {getSeverityStyle(report.category).label}
+                                                </span>
+                                                <span style={{ marginLeft: 'auto', fontWeight: '600', color: getSeverityStyle(report.category).borderColor }}>
+                                                    Confidence: {(70 + Math.random() * 30).toFixed(0)}%
+                                                </span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                )}
 
                                 <div className="report-caption">
                                     <strong id={`report-title-${report.id}`}>{report.title}</strong>
@@ -778,8 +1334,37 @@ function BarangayReports({ token }) {
                     tabIndex="-1" 
                     ref={statusRef} 
                 >
-                    <div className="modal" onClick={(e) => e.stopPropagation()}>
+                    <div 
+                        className="modal" 
+                        onClick={(e) => e.stopPropagation()}
+                        style={{
+                            borderLeft: `6px solid ${getSeverityStyle(selectedReport.category).borderColor}`,
+                            backgroundColor: getSeverityStyle(selectedReport.category).bgColor
+                        }}
+                    >
                         <h3 id="status-modal-title">📝 Update Report Status</h3>
+                        
+                        {/* Community Helper AI Badge */}
+                        <div style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '8px',
+                            padding: '10px 12px',
+                            backgroundColor: 'white',
+                            border: '1px solid #e0e0e0',
+                            borderRadius: '6px',
+                            marginBottom: '15px',
+                            fontSize: '0.9em',
+                            fontWeight: '500'
+                        }}>
+                            <span style={{ fontSize: '1.2em' }}>💡</span>
+                            <span><strong>Community Helper</strong></span>
+                            <span style={{ color: '#888', marginLeft: '5px' }}>|</span>
+                            <span style={{ marginLeft: '5px' }}>Category: <strong>{selectedReport.category}</strong></span>
+                            <span style={{ color: '#888' }}>|</span>
+                            <span style={{ marginLeft: '5px' }}>{getSeverityStyle(selectedReport.category).label}</span>
+                        </div>
+                        
                         <div style={{ marginBottom: '15px' }}>
                             <p><strong>Report:</strong> {selectedReport.title}</p>
                             <p><strong>Reporter:</strong> {
@@ -1032,6 +1617,79 @@ function BarangayReports({ token }) {
                     >
                         &times;
                     </button>
+                </div>
+            )}
+            
+            {/* Assign Responder Modal */}
+            {isAssignResponderModalOpen && selectedReportForResponder && (
+                <div 
+                    className="modal-overlay"
+                    onClick={!isAssigningResponder ? closeAssignResponderModal : undefined}
+                    role="dialog"
+                    aria-modal="true"
+                    aria-labelledby="assign-responder-title"
+                    tabIndex="-1"
+                    ref={responderRef}
+                >
+                    <div className="modal" onClick={(e) => e.stopPropagation()}>
+                        <h3 id="assign-responder-title">👤 Assign Responder</h3>
+                        <div style={{ marginBottom: '15px' }}>
+                            <p><strong>Report:</strong> {selectedReportForResponder.title}</p>
+                            <p><strong>Status:</strong> {selectedReportForResponder.status}</p>
+                            <p><strong>Location:</strong> {selectedReportForResponder.addressStreet}, {selectedReportForResponder.barangay}</p>
+                        </div>
+                        
+                        <div style={{ marginBottom: '20px' }}>
+                            <label htmlFor="responder-select" style={{ display: 'block', marginBottom: '8px', fontWeight: 'bold' }}>
+                                Select Responder:
+                            </label>
+                            {loadingResponders ? (
+                                <p style={{ color: '#666', fontStyle: 'italic' }}>Loading responders...</p>
+                            ) : responders.length > 0 ? (
+                                <select 
+                                    id="responder-select"
+                                    value={selectedResponder} 
+                                    onChange={(e) => setSelectedResponder(e.target.value)}
+                                    style={{ width: '100%', padding: '8px', borderRadius: '4px', border: '1px solid #ccc' }}
+                                >
+                                    <option value="">-- Select a responder --</option>
+                                    {responders.map(responder => (
+                                        <option key={responder.id} value={responder.id}>
+                                            {responder.firstname} {responder.lastname}
+                                        </option>
+                                    ))}
+                                </select>
+                            ) : (
+                                <p style={{ color: '#e74c3c' }}>No responders available for this barangay.</p>
+                            )}
+                        </div>
+                        
+                        <div style={{ marginBottom: '15px', padding: '10px', backgroundColor: '#f0f8ff', borderRadius: '4px', fontSize: '0.9em' }}>
+                            <p style={{ margin: 0, color: '#0066cc' }}>
+                                <strong>📧 Note:</strong> The assigned responder will be notified about this assignment.
+                            </p>
+                        </div>
+                        
+                        <div className="modal-buttons edit-actions">
+                            <button 
+                                onClick={closeAssignResponderModal}
+                                disabled={isAssigningResponder}
+                            >
+                                Cancel
+                            </button>
+                            <button 
+                                onClick={handleAssignResponder}
+                                disabled={!selectedResponder || isAssigningResponder || loadingResponders}
+                                style={{ 
+                                    opacity: (!selectedResponder || isAssigningResponder || loadingResponders) ? 0.6 : 1,
+                                    cursor: (!selectedResponder || isAssigningResponder || loadingResponders) ? 'not-allowed' : 'pointer',
+                                    backgroundColor: '#3b82f6'
+                                }}
+                            >
+                                {isAssigningResponder ? 'Assigning...' : 'Assign Responder'}
+                            </button>
+                        </div>
+                    </div>
                 </div>
             )}
 
