@@ -82,6 +82,7 @@ const getNotificationIcon = (type) => {
   }
 };
 
+
 // main icon shown at the left of each notification item
 // per request: keep the exclamation triangle in front of report posts
 const getMainIcon = (n) => {
@@ -109,17 +110,19 @@ const getBadgeClass = (input) => {
 
   // If message explicitly mentions status, prefer that
   const msg = message.toLowerCase();
-  if (msg.includes('report deleted') || msg.includes('report was deleted') || (msg.includes('deleted') && msg.includes('report'))) return 'report-deleted';
   if (msg.includes('ongoing') || msg.includes('in-progress') || msg.includes('ongoing')) return 'ongoing';
   if (msg.includes('pending') || msg.includes('submitted') || msg.includes('waiting')) return 'pending';
 
   // account / user deleted messages should show account-deleted badge
   if (msg.includes('user deleted') || msg.includes('account deleted') || (msg.includes('deleted') && msg.includes('user'))) return 'account-deleted';
 
-  if (t === 'report_deleted') return 'report-deleted';
+  // report deleted messages should show report-deleted badge
+  if (msg.includes('report deleted') || msg.includes('report was deleted') || (msg.includes('deleted') && msg.includes('report'))) return 'report-deleted';
+
   if (t === 'account_alert') return 'report';
   if (t === 'success') return 'resolved';
   if (t === 'account_deleted' || t === 'user deleted' || t === 'user_deleted') return 'account-deleted';
+  if (t === 'report_deleted') return 'report-deleted';
   return t || 'info';
 };
 
@@ -134,17 +137,16 @@ const getBadgeLabel = (input) => {
   }
 
   const msg = message.toLowerCase();
-  if (msg.includes('report deleted') || msg.includes('report was deleted') || (msg.includes('deleted') && msg.includes('report'))) return 'Report Deleted';
   if (msg.includes('ongoing') || msg.includes('in-progress')) return 'Ongoing';
   if (msg.includes('pending') || msg.includes('submitted') || msg.includes('waiting')) return 'Pending';
 
   switch (t) {
-    case 'report_deleted':
-      return 'Report Deleted';
     case 'account_alert':
       return 'Report Alert';
     case 'account_deleted':
       return 'Account Deleted';
+    case 'report_deleted':
+      return 'Report Deleted';
     case 'report':
       return 'Report';
     case 'pending':
@@ -164,9 +166,6 @@ const getIconClassForNotification = (n) => {
   const t = String(n?.type || '').toLowerCase();
   const message = String(n?.message || '') + ' ' + String(n?.title || '');
   const msg = message.toLowerCase();
-  if (msg.includes('report deleted') || (msg.includes('deleted') && msg.includes('report'))) {
-    return 'icon-delete';
-  }
   if (t === 'report' || t === 'account_alert' || msg.includes('report') || msg.includes('new report') || msg.includes('updated to')) {
     return 'icon-report';
   }
@@ -177,21 +176,6 @@ const getIconClassForNotification = (n) => {
   if (t === 'resolved' || t === 'success') return 'icon-success';
   if (t === 'user') return 'icon-security';
   return 'icon-info';
-};
-
-const getIconClassForActorRole = (actor) => {
-  if (!actor || !actor.role) return 'icon-info';
-  const role = String(actor.role).toLowerCase();
-  switch (role) {
-    case 'admin':
-      return 'icon-admin';
-    case 'barangay official':
-      return 'icon-barangay';
-    case 'responder':
-      return 'icon-responder';
-    default:
-      return 'icon-resident';
-  }
 };
 
 export default function AdminNotifications({ session }) {
@@ -328,7 +312,7 @@ export default function AdminNotifications({ session }) {
       <div className="notifications-header">
         <div className="left"><h2><FaBell /> Admin Notifications</h2></div>
         <div className="right">
-          <div className="filter-controls" style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+          <div className="filter-controls" style={{ display: 'flex', alignItems: 'center' }}>
             <label style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
               <span style={{ fontSize: 13, color: '#444' }}>Status</span>
               <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className="filter-select">
@@ -358,7 +342,7 @@ export default function AdminNotifications({ session }) {
       {error && <div className="notice error">{error}</div>}
 
       {loading ? (
-        <div className="loading-block"><div className="spinner"/><p>Loading notifications…</p></div>
+        <div className="loading loading-block"><div className="spinner"/>Loading…</div>
       ) : filtered.length === 0 ? (
         <div className="no-notifications">No notifications.</div>
       ) : (
@@ -369,40 +353,65 @@ export default function AdminNotifications({ session }) {
               <div className="notif-details">
                 <div className="notif-header">
                   <p className="notif-title"><strong>{n.title}</strong></p>
-                  {/* Badge next to title showing status (Pending/Ongoing/Resolved) */}
-                  {/* Badge uses mapped class/label so account_alert adopts report styling and resolved uses resolved styling */}
-                  <div className={`notif-badge ${getBadgeClass(n)}`} title={`Status: ${getBadgeLabel(n)}`} aria-hidden>
-                    <span className="badge-icon small-icon">{getNotificationIcon(getBadgeClass(n))}</span>
-                    <span className="badge-text">{getBadgeLabel(n)}</span>
+
+                  <div className="notif-right">
+                    <small className="notif-time">
+                      {new Date(n.created_at).toLocaleString()}
+                    </small>
+
+                    <div
+                      className={`notif-badge ${getBadgeClass(n)}`}
+                      title={`Status: ${getBadgeLabel(n)}`}
+                      aria-hidden
+                    >
+                      <span className="badge-icon small-icon">
+                        {getNotificationIcon(getBadgeClass(n))}
+                      </span>
+                      <span className="badge-text">{getBadgeLabel(n)}</span>
+                    </div>
                   </div>
                 </div>
 
+
                 {/* Human-friendly message on the next line - preserve newlines with white-space: pre-wrap */}
-                <p className="notif-message" style={{ whiteSpace: 'pre-wrap', wordWrap: 'break-word' }}>{n.message}</p>
-                <small className="notif-time">{new Date(n.created_at).toLocaleString()}</small>
+                <div className="notif-row">
+                  <p className="notif-message">
+                    {n.message}
+                  </p>
+
+                  <div className="notification-actions">
+                    {!n.is_read && (
+                      <button
+                        className="btn-action mark-read-btn"
+                        onClick={() => markAdminRead(n.raw_id)}
+                        title="Mark as read"
+                      >
+                        <FaCheck />
+                      </button>
+                    )}
+                    <button
+                      className="btn-action delete-notif-btn"
+                      onClick={() => deleteAdminNotification(n.raw_id)}
+                      title="Delete notification"
+                    >
+                      <FaTrashAlt />
+                    </button>
+                  </div>
+                </div>
+
 
                 {n.recipient ? (
                   <div className="notif-to" style={{ marginTop: 8, color: '#555', display: 'flex', alignItems: 'center' }}>
                     <span className="recipient-icon small-icon" style={{ marginRight: 8 }}>
-                      <FaUser className={`icon ${getIconClassForActorRole(n.recipient)}`} />
+                      <FaUser className={`icon ${getIconClassForNotification(n)}`} />
                     </span>
                     <span>To: {n.recipient.firstname} {n.recipient.lastname} ({n.recipient.role || 'Resident'}) &lt;{n.recipient.email}&gt;</span>
                   </div>
                 ) : null}
 
                 {n.actor ? (
-                  <div style={{ marginTop: 6, color: '#444', fontStyle: 'italic' }}>By: {n.actor.firstname || ''} {n.actor.lastname || ''} ({n.actor.role || 'Resident'})</div>
+                  <div style={{ color: '#2d2d73', fontStyle: 'italic', fontSize: '12px' }}>By: {n.actor.firstname || ''} {n.actor.lastname || ''} ({n.actor.role || 'Resident'})</div>
                 ) : null}
-              </div>
-              <div className="notification-actions">
-                {!n.is_read && (
-                  <button className="btn-action mark-read-btn" onClick={() => markAdminRead(n.raw_id)} title="Mark as read">
-                    <FaCheck />
-                  </button>
-                )}
-                <button className="btn-action delete-notif-btn" onClick={() => deleteAdminNotification(n.raw_id)} title="Delete notification">
-                  <FaTrashAlt />
-                </button>
               </div>
             </li>
           ))}

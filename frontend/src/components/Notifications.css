@@ -381,3 +381,404 @@
         font-size: 16px;
     }
 }
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(10px); 
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.notifications-container { 
+    padding: 20px;
+    background-color: #f7f7f7;
+    border-radius: 10px;
+    margin: 20px;
+}
+
+.notifications-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding-bottom: 15px;
+    border-bottom: 1px solid #ddd;
+    margin-bottom: 20px;
+    flex-wrap: wrap; 
+}
+
+.notifications-header .left h2 {
+    color: #2d2d73; 
+    margin: 0;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.notifications-header .right {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    flex-wrap: wrap;
+}
+
+.badge {
+    background-color: #e5231d; 
+    color: white;
+    padding: 3px 8px;
+    border-radius: 12px;
+    font-size: 14px;
+    font-weight: bold;
+}
+
+.btn {
+    padding: 8px 15px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 14px;
+    transition: background-color 0.2s, border-color 0.2s, color 0.2s;
+    border: 1px solid transparent;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+}
+
+.btn.mark-all, .btn.refresh {
+    background-color: #2d2d73;
+    color: white;
+    width: auto;
+}
+
+.btn.mark-all:hover:not(:disabled), .btn.refresh:hover:not(:disabled) {
+    background-color: #1a1a5b;
+}
+
+.btn:disabled {
+    background-color: #ccc;
+    color: #888;
+    cursor: not-allowed;
+}
+
+.btn .icon {
+    font-size: 16px;
+}
+
+.filter-button-group {
+    display: flex;
+    border-radius: 6px;
+    overflow: hidden;
+    border: 1px solid #ddd;
+}
+
+.filter-btn {
+    background: white;
+    border: none;
+    padding: 8px 12px;
+    cursor: pointer;
+    color: #555;
+    transition: all 0.2s;
+    font-size: 14px;
+    margin: 0;
+    border-right: 1px solid #ddd;
+}
+
+.filter-btn:last-child {
+    border-right: none;
+}
+
+.filter-btn.active {
+    background: #5c89bd; 
+    color: white;
+    font-weight: bold;
+}
+
+.filter-btn:not(.active):hover {
+    background: #e9e9e9;
+}
+
+/* Dropdown styles for admin filters */
+.filter-select {
+    padding: 6px 8px;
+    border-radius: 6px;
+    border: 1px solid #ddd;
+    background: #fff;
+    color: #333;
+    font-size: 14px;
+}
+.filter-select:focus {
+    outline: none;
+    box-shadow: 0 0 0 3px rgba(45,45,115,0.06);
+    border-color: #2d2d73;
+}
+
+.notifications-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+
+.notification-item {
+    display: flex;
+    align-items: center;
+    gap: 15px; 
+    padding: 15px;
+    margin-bottom: 10px;
+    background: #fff;
+    border-radius: 8px;
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08);
+    transition: background-color 0.2s;
+    position: relative;
+    opacity: 0;
+    animation: fadeIn 0.4s ease-out forwards; 
+}
+
+.notification-item:hover {
+    background-color: #f6f8fa;
+}
+
+.notification-item.unread {
+    border-left: 4px solid #5c89bd; 
+    background-color: #eff5fd;
+    font-weight: 500;
+}
+
+.notification-item.unread:hover {
+    background-color: #e3effc;
+}
+
+.notif-icon-container {
+    font-size: 24px; 
+    min-width: 30px;
+    text-align: center;
+    line-height: 1;
+    display: flex; 
+    align-items: center;
+}
+
+.icon-success { color: #2a9d62; } 
+.icon-warning { color: #f40014; } 
+.icon-pending { color: #f4b761; } 
+.icon-security { color: #2d2d73; }
+.icon-info { color: #6c757d; } 
+
+/* dashboard-aligned icon colors */
+.icon-report { color: #2d2d73; } /* total reports / primary */
+.icon-ongoing { color: #ef4444; } /* ongoing cases red (Home used #f40014ff/ef4444) */
+
+/* red delete icon for account deletions */
+.icon-delete { color: #ef4444; }
+
+
+.notif-details {
+    flex-grow: 1;
+    overflow: hidden;
+}
+
+.notif-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+    width: 100%;
+}
+
+.notif-title {
+    flex: 1;
+    margin: 0 0 6px 0;
+    font-size: 15px;
+    color: #222;
+}
+
+.notif-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 8px;
+    border-radius: 999px;
+    font-size: 12px;
+    font-weight: 600;
+}
+
+.notif-badge .small-icon { font-size: 14px; display: inline-flex; align-items: center; }
+
+/* Ensure the SVG icon inside the badge inherits the badge color so pending/ongoing match resolved */
+.notif-badge .small-icon,
+.notif-badge .small-icon svg {
+    color: inherit;
+    fill: currentColor; /* react-icons use currentColor, ensure fill follows */
+}
+
+/* Badge color variants */
+.notif-badge.resolved { background: rgba(42,157,98,0.08); color: #2a9d62; border: 1px solid rgba(42,157,98,0.12);} 
+.notif-badge.pending { background: rgba(244,183,97,0.08); color: #f4b761; border: 1px solid rgba(244,183,97,0.12);} 
+.notif-badge.ongoing { background: rgba(244,0,20,0.06); color: #f40014; border: 1px solid rgba(244,0,20,0.08);} 
+.notif-badge.report { background: rgba(45,45,115,0.06); color: #2d2d73; border: 1px solid rgba(45,45,115,0.08);} 
+/* account deletion badge - red */
+.notif-badge.account-deleted { background: rgba(244,0,20,0.06); color: #f40014; border: 1px solid rgba(244,0,20,0.08); }
+
+.notif-message { margin: 6px 0 0 0; color: #333; }
+
+.notif-to { font-size: 13px; color: #555; }
+.recipient-icon { font-size: 14px; }
+
+.notif-message {
+    margin: 0;
+    line-height: 1.4;
+    color: #333;
+}
+
+.notif-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+  gap: 10px;
+}
+
+.notif-message {
+  flex: 1;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+}
+
+.notification-actions {
+  display: flex;
+  gap: 6px;
+}
+
+.notif-time {
+    margin: 4px 0 0 0;
+    font-size: 12px;
+    color: #888;
+}
+
+/* Date + badge container right */
+.notif-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* Notification Actions */
+.notification-actions {
+    margin-left: auto; 
+    padding-left: 10px;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    flex-shrink: 0; 
+}
+
+.btn-action {
+    background: none;
+    border: none;
+    font-size: 18px; 
+    padding: 8px;
+    cursor: pointer;
+    border-radius: 50%;
+    transition: all 0.2s;
+    line-height: 1;
+    color: #999; 
+}
+
+.mark-read-btn:hover {
+    color: #2d2d73; 
+    background-color: #e9e9ff;
+}
+
+.delete-notif-btn {
+    color: #999; 
+}
+
+.delete-notif-btn:hover {
+    color: #e5231d; 
+    background-color: #ffeaea;
+}
+
+/* --- Loading and Empty States --- */
+.loading-block {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 30px 0;
+}
+
+.spinner {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    border: 4px solid rgba(45,45,115,0.15);
+    border-top-color: #2d2d73;
+    animation: spin 1s linear infinite;
+    margin-bottom: 12px;
+}
+
+@keyframes spin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+}
+
+.no-notifications {
+    text-align: center;
+    padding: 30px;
+    color: #666;
+    font-style: italic;
+}
+
+
+@media (max-width: 768px) {
+    .notifications-header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 15px;
+    }
+    
+    .notifications-header .right {
+        flex-wrap: wrap;
+        justify-content: space-between;
+        width: 100%;
+    }
+
+    .notifications-container {
+        margin: 0;
+    }
+
+    .btn.icon-btn .btn-text {
+        display: none; 
+    }
+
+    .btn.icon-btn {
+        padding: 8px; 
+    }
+
+    .filter-button-group {
+        flex-grow: 1;
+        width: 100%;
+        order: -1; 
+    }
+
+    .notification-item {
+        flex-wrap: nowrap; 
+    }
+    
+    .notification-actions {
+        gap: 2px;
+    }
+    
+    .btn-action {
+        padding: 6px;
+        font-size: 16px;
+    }
+}
+
+@media (max-width: 480px) {
+    .notif-header {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0;
+    }
+}

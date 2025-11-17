@@ -450,13 +450,14 @@
   position: relative;
 }
 
-.modal-header {
+.modal-content .modal-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
   margin-bottom: 20px;
-  border-bottom: 2px solid #f0f0f0;
+  border-bottom: 2px solid #2d2d73;
   padding-bottom: 12px;
+  background: white;
 }
 
 .modal-header h2 {
@@ -722,7 +723,6 @@
 .guidelines-content {
   display: flex;
   flex-direction: column;
-  gap: 20px;
 }
 
 .skip-guidelines-checkbox {
@@ -747,6 +747,7 @@
   width: 18px;
   height: 18px;
   margin-top: 2px;
+  margin-bottom: 0;
   cursor: pointer;
   flex-shrink: 0;
   accent-color: #2d2d73;
@@ -764,17 +765,15 @@
 }
 
 .post-card.pending::before {
-  content: "⏳ Awaiting Approval";
+  /* Use the existing left indicator pseudo-element to show pending as light gray */
+  content: "";
   position: absolute;
-  top: 12px;
-  right: 12px;
-  background: #ffb74d;
-  color: #333;
-  padding: 4px 10px;
-  border-radius: 6px;
-  font-size: 12px;
-  font-weight: 600;
-  box-shadow: 0 2px 6px rgba(255, 183, 77, 0.3);
+  left: 0;
+  top: 0;
+  width: 4px;
+  height: 100%;
+  background: #d1d5db; /* light gray */
+  border-radius: 12px 0 0 12px;
 }
 
 .post-card.pending .post-title {
@@ -951,7 +950,6 @@
   display: flex;
   gap: 8px;
   flex-wrap: wrap;
-  margin: 10px 0;
   align-items: center;
 }
 

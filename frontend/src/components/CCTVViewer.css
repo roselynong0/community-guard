@@ -1,0 +1,86 @@
+.cctv-viewer-main {
+  display: flex;
+  flex-direction: column;
+  height: calc(100vh - 100px);
+  background: #f0f1f5;
+  padding: 1.5rem;
+  gap: 1rem;
+}
+
+.cctv-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: white;
+  padding: 1.5rem;
+  border-radius: 12px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+}
+
+.cctv-header h1 {
+  margin: 0;
+  font-size: 1.75rem;
+  color: #11163e;
+  font-weight: 700;
+}
+
+.cctv-status {
+  margin: 0;
+  font-size: 1rem;
+  color: #22c55e;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.youtube-container {
+  flex: 1;
+  background: #000;
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.youtube-player {
+  border: none;
+  border-radius: 12px;
+}
+
+.cctv-info {
+  background: white;
+  padding: 1rem 1.5rem;
+  border-radius: 12px;
+  text-align: center;
+  color: #666;
+  font-size: 0.95rem;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+}
+
+.cctv-info p {
+  margin: 0;
+  font-weight: 500;
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+  .cctv-viewer-main {
+    padding: 0.5rem;
+    height: calc(100vh - 60px);
+  }
+
+  .cctv-header {
+    flex-direction: column;
+    gap: 0.5rem;
+    padding: 1rem;
+  }
+
+  .cctv-header h1 {
+    font-size: 1.3rem;
+  }
+
+  .youtube-container {
+    height: 300px;
+  }
+}
+

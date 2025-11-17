@@ -11,6 +11,8 @@ import { API_CONFIG, getApiUrl } from "../utils/apiConfig";
 import L from "leaflet";
 import "./Maps.css";
 import "leaflet/dist/leaflet.css";
+import SafezoneModal from "./SafezoneModal";
+import HotspotModal from "./HotspotModal";
 
 // Olongapo Center for map initialization
 const OLONGAPO_CENTER = [14.8291, 120.2829];
@@ -85,6 +87,9 @@ function AdminMaps({ session }) {
   const [selectedBarangay, setSelectedBarangay] = useState('all');
   const [showHotspots, setShowHotspots] = useState(true);
   const [showSafezones, setShowSafezones] = useState(true);
+  const [showSafezoneModal, setShowSafezoneModal] = useState(false);
+  const [showHotspotModal, setShowHotspotModal] = useState(false);
+  const [selectedMapLocation, setSelectedMapLocation] = useState({ lat: null, lng: null });
 
   useEffect(() => {
     const fetchAdminMapData = async () => {
@@ -150,6 +155,29 @@ function AdminMaps({ session }) {
 
     fetchAdminMapData();
   }, [session]);
+
+  // Handle safezone modal close
+  const handleCloseSafezoneModal = () => {
+    setShowSafezoneModal(false);
+    setSelectedMapLocation({ lat: null, lng: null });
+  };
+
+  // Handle safezone creation
+  const handleSafezoneCreated = (newSafezone) => {
+    setSafezones([...safezones, newSafezone]);
+    handleCloseSafezoneModal();
+  };
+
+  // Handle hotspot modal close
+  const handleCloseHotspotModal = () => {
+    setShowHotspotModal(false);
+  };
+
+  // Handle hotspot refresh
+  const handleHotspotRefreshed = (hotspotsData) => {
+    setHotspots(hotspotsData);
+    handleCloseHotspotModal();
+  };
 
   // Group reports by barangay
   const reportsByBarangay = reports.reduce((acc, r) => {
@@ -353,7 +381,7 @@ function AdminMaps({ session }) {
             </label>
 
             {/* Toggle Safezones */}
-            <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
+            <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', marginBottom: '12px' }}>
               <input
                 type="checkbox"
                 checked={showSafezones}
@@ -362,6 +390,48 @@ function AdminMaps({ session }) {
               />
               <span style={{ fontSize: '13px', fontWeight: '500', color: '#333' }}>Safezones ({safezones.length})</span>
             </label>
+
+            {/* Create/Manage Buttons */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', paddingTop: '12px', borderTop: '1px solid #d1d5db' }}>
+              <button
+                onClick={() => setShowSafezoneModal(true)}
+                style={{
+                  width: '100%',
+                  padding: '8px 12px',
+                  backgroundColor: '#06b6d4',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '6px',
+                  fontSize: '12px',
+                  fontWeight: '600',
+                  cursor: 'pointer',
+                  transition: 'background-color 0.2s',
+                }}
+                onMouseEnter={(e) => e.target.style.backgroundColor = '#0891b2'}
+                onMouseLeave={(e) => e.target.style.backgroundColor = '#06b6d4'}
+              >
+                + Create Safezone
+              </button>
+              <button
+                onClick={() => setShowHotspotModal(true)}
+                style={{
+                  width: '100%',
+                  padding: '8px 12px',
+                  backgroundColor: '#f59e0b',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '6px',
+                  fontSize: '12px',
+                  fontWeight: '600',
+                  cursor: 'pointer',
+                  transition: 'background-color 0.2s',
+                }}
+                onMouseEnter={(e) => e.target.style.backgroundColor = '#d97706'}
+                onMouseLeave={(e) => e.target.style.backgroundColor = '#f59e0b'}
+              >
+                ⟳ Refresh Hotspots
+              </button>
+            </div>
           </div>
         )}
 
@@ -417,6 +487,20 @@ function AdminMaps({ session }) {
           </div>
         )}
       </div>
+
+      {/* Modals */}
+      <SafezoneModal
+        isOpen={showSafezoneModal}
+        onClose={handleCloseSafezoneModal}
+        onSave={handleSafezoneCreated}
+        defaultLat={selectedMapLocation.lat}
+        defaultLng={selectedMapLocation.lng}
+      />
+      <HotspotModal
+        isOpen={showHotspotModal}
+        onClose={handleCloseHotspotModal}
+        onSave={handleHotspotRefreshed}
+      />
     </div>
   );
 }

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { FaEye, FaEyeSlash } from "react-icons/fa";
+import { FaEye, FaEyeSlash, FaArrowLeft } from "react-icons/fa";
 import TermsModal from "./TermsModal";
 import "./RegistrationForm.css";
 import "./Notification.css";
@@ -175,6 +175,28 @@ function RegistrationForm() {
 
   return (
 	<div className="background">
+	  <button 
+        className="back-button-top-left" 
+        onClick={() => navigate(-1)}
+        title="Go back"
+        style={{
+          position: 'absolute',
+          top: '20px',
+          left: '20px',
+          background: 'none',
+          border: 'none',
+          fontSize: '20px',
+          color: '#2563eb',
+          cursor: 'pointer',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '6px',
+		  padding: 0,
+          zIndex: 10
+        }}
+      >
+        <FaArrowLeft />
+      </button>
 	  {notification.message && (
 		<div className={`notif notif-${notification.type}`}>
 		  <span>{notification.message}</span>

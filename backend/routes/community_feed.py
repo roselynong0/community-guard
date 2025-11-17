@@ -14,6 +14,89 @@ POST_TYPES = ["incident", "safety", "suggestion", "recommendation", "general"]
 
 # ============ GET POSTS ============
 
+@community_feed_bp.route("/community/posts/all", methods=["GET"])
+@token_required
+def get_all_community_posts_admin():
+    """Admin-only: Get all community posts (including pending) for moderation"""
+    try:
+        user_id = request.user_id
+        barangay_filter = request.args.get("barangay")
+        post_type_filter = request.args.get("post_type")
+        limit = int(request.args.get("limit", 50))
+        
+        # Verify role
+        user_resp = supabase.table("users").select("role").eq("id", user_id).execute()
+        user_data = getattr(user_resp, "data", [None])[0]
+        if not user_data or user_data.get("role") != "Admin":
+            return jsonify({"status": "error", "message": "Forbidden"}), 403
+
+        print(f"📝 Admin fetching all community posts - barangay: {barangay_filter}, type: {post_type_filter}")
+        
+        # Build query - OPTIMIZATION: Select only needed fields
+        query = supabase.table("community_posts").select(
+            "id, user_id, title, content, post_type, barangay, status, "
+            "created_at, updated_at, is_pinned, deleted_at"
+        ).is_("deleted_at", None)
+
+        if barangay_filter and barangay_filter != "All":
+            query = query.eq("barangay", barangay_filter)
+
+        if post_type_filter and post_type_filter in POST_TYPES:
+            query = query.eq("post_type", post_type_filter)
+
+        # Order by pending first, then pinned, then by created_at
+        response = query.order("status", desc=False).order("is_pinned", desc=True).order("created_at", desc=True).limit(limit).execute()
+        posts = getattr(response, "data", []) or []
+        
+        # OPTIMIZATION: Batch fetch user info instead of per-post queries
+        enriched_posts = []
+        if posts:
+            # Get all unique user IDs
+            user_ids = list(set(post["user_id"] for post in posts))
+            
+            # Single batch query for all user data
+            users_resp = supabase.table("users").select(
+                "id, firstname, lastname, avatar_url, role"
+            ).in_("id", user_ids).execute()
+            
+            users_data = getattr(users_resp, "data", []) or []
+            users_lookup = {user["id"]: user for user in users_data}
+            
+            # Batch fetch comment counts for all posts
+            comments_resp = supabase.table("community_comments").select(
+                "post_id", count="exact"
+            ).in_("post_id", [p["id"] for p in posts]).is_("deleted_at", None).execute()
+            
+            comment_counts = {}
+            if getattr(comments_resp, "data", None):
+                for post_id in [p["id"] for p in posts]:
+                    comment_counts[post_id] = sum(
+                        1 for c in getattr(comments_resp, "data", []) if c.get("post_id") == post_id
+                    )
+            
+            for post in posts:
+                user_data = users_lookup.get(post["user_id"])
+                post["author"] = user_data or {
+                    "id": post["user_id"],
+                    "firstname": "Unknown",
+                    "lastname": "User",
+                    "role": "Resident"
+                }
+                post["comment_count"] = comment_counts.get(post["id"], 0)
+                post["can_edit"] = post["user_id"] == user_id
+                post["can_delete"] = post["user_id"] == user_id
+                enriched_posts.append(post)
+        
+        print(f"✅ Loaded {len(enriched_posts)} community posts for admin")
+        return jsonify({"status": "success", "posts": enriched_posts, "total": len(enriched_posts)}), 200
+        
+    except Exception as e:
+        print(f"❌ Error fetching admin community posts: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({"status": "error", "message": str(e), "posts": []}), 500
+
+
 @community_feed_bp.route("/community/posts", methods=["GET"])
 @token_required
 def get_community_posts():
@@ -28,19 +111,23 @@ def get_community_posts():
         
         # Build query - OPTIMIZATION: Select only needed fields
         query = supabase.table("community_posts").select(
-            "id, user_id, title, content, post_type, barangay, "
+            "id, user_id, title, content, post_type, barangay, status, "
             "created_at, updated_at, is_pinned, deleted_at"
         ).is_("deleted_at", None)
-        
+
         if barangay_filter and barangay_filter != "All":
             query = query.eq("barangay", barangay_filter)
-        
+
         if post_type_filter and post_type_filter in POST_TYPES:
             query = query.eq("post_type", post_type_filter)
-        
+
         # Order by pinned first, then by created_at
         response = query.order("is_pinned", desc=True).order("created_at", desc=True).limit(limit).execute()
         posts = getattr(response, "data", []) or []
+
+        # Filter out pending posts that do not belong to the requesting user.
+        # Keep posts that are approved OR authored by the requester.
+        posts = [p for p in posts if (p.get("status") == "approved") or (p.get("user_id") == user_id)]
         
         # OPTIMIZATION: Batch fetch user info instead of per-post queries
         enriched_posts = []
@@ -184,6 +271,7 @@ def create_community_post():
             "content": data.get("content").strip(),
             "post_type": data.get("post_type"),
             "barangay": data.get("barangay"),
+            "status": "pending",
             "allow_comments": True,
             "created_at": datetime.now(timezone.utc).isoformat()
         }
@@ -308,6 +396,10 @@ def add_comment(post_id):
         
         if not post:
             return jsonify({"status": "error", "message": "Post not found"}), 404
+        
+        # Prevent comments on pending posts; only allow on approved posts
+        if post.get("status") != "approved":
+            return jsonify({"status": "error", "message": "Comments are only allowed on approved posts"}), 403
         
         if not post["allow_comments"]:
             return jsonify({"status": "error", "message": "Comments are disabled for this post"}), 403
@@ -506,3 +598,117 @@ def get_barangay_posts():
     except Exception as e:
         print(f"❌ Error fetching barangay posts: {e}")
         return jsonify({"status": "error", "message": str(e)}), 500
+
+
+# ============ ADMIN MODERATION ============
+
+@community_feed_bp.route("/community/posts/<post_id>/approve", methods=["PUT"])
+@token_required
+def approve_post(post_id):
+    """Admin-only: Approve a pending post"""
+    try:
+        user_id = request.user_id
+
+        # Verify role
+        user_resp = supabase.table("users").select("role").eq("id", user_id).execute()
+        user_data = getattr(user_resp, "data", [None])[0]
+        if not user_data or user_data.get("role") != "Admin":
+            return jsonify({"status": "error", "message": "Forbidden"}), 403
+
+        # Fetch post
+        post_resp = supabase.table("community_posts").select("*").eq("id", post_id).is_("deleted_at", None).execute()
+        post = getattr(post_resp, "data", [None])[0]
+
+        if not post:
+            return jsonify({"status": "error", "message": "Post not found"}), 404
+
+        # Update post status to approved
+        update_data = {
+            "status": "approved",
+            "updated_at": datetime.now(timezone.utc).isoformat()
+        }
+
+        response = supabase.table("community_posts").update(update_data).eq("id", post_id).execute()
+        updated_post = getattr(response, "data", [None])[0]
+
+        print(f"✅ Post {post_id} approved by admin {user_id}")
+        return jsonify({"status": "success", "post": updated_post, "message": "Post approved"}), 200
+
+    except Exception as e:
+        print(f"❌ Error approving post: {e}")
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+
+@community_feed_bp.route("/community/posts/<post_id>/reject", methods=["PUT"])
+@token_required
+def reject_post(post_id):
+    """Admin-only: Reject a pending post (soft delete)"""
+    try:
+        user_id = request.user_id
+
+        # Verify role
+        user_resp = supabase.table("users").select("role").eq("id", user_id).execute()
+        user_data = getattr(user_resp, "data", [None])[0]
+        if not user_data or user_data.get("role") != "Admin":
+            return jsonify({"status": "error", "message": "Forbidden"}), 403
+
+        # Fetch post
+        post_resp = supabase.table("community_posts").select("*").eq("id", post_id).is_("deleted_at", None).execute()
+        post = getattr(post_resp, "data", [None])[0]
+
+        if not post:
+            return jsonify({"status": "error", "message": "Post not found"}), 404
+
+        # Soft delete the post (mark as rejected by setting deleted_at)
+        supabase.table("community_posts").update({"deleted_at": datetime.now(timezone.utc).isoformat()}).eq("id", post_id).execute()
+
+        print(f"✅ Post {post_id} rejected by admin {user_id}")
+        return jsonify({"status": "success", "message": "Post rejected"}), 200
+
+    except Exception as e:
+        print(f"❌ Error rejecting post: {e}")
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+
+@community_feed_bp.route("/community/posts/<post_id>/toggle-comments", methods=["PUT"])
+@token_required
+def toggle_post_comments(post_id):
+    """Admin-only: Toggle allow_comments on a post"""
+    try:
+        user_id = request.user_id
+        data = request.get_json()
+
+        # Verify role
+        user_resp = supabase.table("users").select("role").eq("id", user_id).execute()
+        user_data = getattr(user_resp, "data", [None])[0]
+        if not user_data or user_data.get("role") != "Admin":
+            return jsonify({"status": "error", "message": "Forbidden"}), 403
+
+        # Fetch post
+        post_resp = supabase.table("community_posts").select("*").eq("id", post_id).is_("deleted_at", None).execute()
+        post = getattr(post_resp, "data", [None])[0]
+
+        if not post:
+            return jsonify({"status": "error", "message": "Post not found"}), 404
+
+        # Toggle allow_comments
+        allow_comments = data.get("allow_comments")
+        if allow_comments is None:
+            allow_comments = not post.get("allow_comments", True)
+
+        update_data = {
+            "allow_comments": allow_comments,
+            "updated_at": datetime.now(timezone.utc).isoformat()
+        }
+
+        response = supabase.table("community_posts").update(update_data).eq("id", post_id).execute()
+        updated_post = getattr(response, "data", [None])[0]
+
+        status_text = "enabled" if allow_comments else "disabled"
+        print(f"✅ Comments {status_text} for post {post_id} by admin {user_id}")
+        return jsonify({"status": "success", "post": updated_post, "message": f"Comments {status_text}"}), 200
+
+    except Exception as e:
+        print(f"❌ Error toggling post comments: {e}")
+        return jsonify({"status": "error", "message": str(e)}), 500
+

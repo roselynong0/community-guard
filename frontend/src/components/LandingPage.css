@@ -63,7 +63,7 @@
     color: #f1d429;
 }
 
-.login-btn {
+.signup-btn {
     display: inline-block; 
     text-decoration: none; 
     background-color: #f1d429;
@@ -77,7 +77,7 @@
     white-space: nowrap;
 }
 
-.login-btn:hover {
+.signup-btn:hover {
     background-color: #0095b6;
 }
 

@@ -21,45 +21,125 @@ import {
 } from "recharts";
 
 import MapView from "../components/Mapview";
+import { getApiUrl } from "../utils/apiConfig";
 import "./RespondersDashboard.css";
 
-// Dummy trend data for monthly report
-const defaultTrendData = [
-  { month: "Jan", count: 12 },
-  { month: "Feb", count: 18 },
-  { month: "Mar", count: 10 },
-  { month: "Apr", count: 20 },
-  { month: "May", count: 16 },
-];
+// Utility function to calculate average response time in days and hours
+const calculateAvgResponseTime = (reports) => {
+  const resolvedReports = reports.filter(r => r.status === "Resolved" && r.created_at && r.updated_at);
+  
+  if (resolvedReports.length === 0) return "0h";
+  
+  const totalMs = resolvedReports.reduce((sum, report) => {
+    const createdTime = new Date(report.created_at).getTime();
+    const resolvedTime = new Date(report.updated_at).getTime();
+    return sum + (resolvedTime - createdTime);
+  }, 0);
+  
+  const avgMs = totalMs / resolvedReports.length;
+  const avgHours = avgMs / (1000 * 60 * 60);
+  const days = Math.floor(avgHours / 24);
+  const hours = Math.round(avgHours % 24);
+  
+  if (days > 0) {
+    return hours > 0 ? `${days}d ${hours}h` : `${days}d`;
+  }
+  return `${Math.round(avgHours)}h`;
+};
 
-// Dummy high incident areas
-const highIncidentAreas = [
-  { area: "Brgy. 12", total: 12 },
-  { area: "Brgy. 3", total: 9 },
-  { area: "Brgy. 8", total: 7 },
-  { area: "Brgy. 5", total: 6 },
-  { area: "Brgy. 10", total: 5 },
-];
-
-// Dummy active reports table data
-const dummyActiveReports = [
-  { id: 1, title: "Burglary", location: "East Tapinac", status: "Ongoing" },
-  { id: 2, title: "Traffic Accident", location: "Kalaklan", status: "Pending" },
-  { id: 3, title: "Medical Emergency", location: "Gordon Heights", status: "Ongoing" },
-  { id: 4, title: "Fire Incident", location: "Pag Asa", status: "Pending" },
-  { id: 5, title: "Hazard", location: "Santa Rita", status: "Ongoing" },
-];
+// Utility function to extract barangay from report
+const extractBarangay = (report) => {
+  const barangay = report.address_barangay || report.barangay || "Unknown";
+  return barangay.includes("Brgy") ? barangay : `Brgy. ${barangay}`;
+};
 
 export default function RespondersDashboard() {
   const [stats, setStats] = useState([
-    { title: "Active Reports", value: 4, icon: <FaExclamationTriangle />, color: "#f40014ff" },
-    { title: "Resolved Reports", value: 12, icon: <FaCheckCircle />, color: "#2a9d62ff" },
-    { title: "Pending Reports", value: 3, icon: <FaTasks />, color: "#f4b761ff" },
-    { title: "Avg Response Time", value: "24 hrs", icon: <FaClock />, color: "#2d2d73" },
+    { title: "Active Reports", value: 0, icon: <FaExclamationTriangle />, color: "#f40014ff" },
+    { title: "Resolved Reports", value: 0, icon: <FaCheckCircle />, color: "#2a9d62ff" },
+    { title: "Pending Reports", value: 0, icon: <FaTasks />, color: "#f4b761ff" },
+    { title: "Avg Response Time", value: "0 hrs", icon: <FaClock />, color: "#2d2d73" },
   ]);
 
-  const [activeReports, setActiveReports] = useState(dummyActiveReports);
-  const [trendData, setTrendData] = useState(defaultTrendData);
+  const [activeReports, setActiveReports] = useState([]);
+  const [trendData, setTrendData] = useState([]);
+  const [allReports, setAllReports] = useState([]);
+  const [highIncidentAreas, setHighIncidentAreas] = useState([]);
+
+  // Fetch reports on component mount
+  useEffect(() => {
+    const fetchReports = async () => {
+      try {
+        const token = localStorage.getItem("token");
+        if (!token) return;
+
+        const response = await fetch(getApiUrl("/api/reports?limit=100&sort=desc"), {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+
+        if (!response.ok) throw new Error("Failed to fetch reports");
+
+        const data = await response.json();
+        const reports = data.reports || [];
+        setAllReports(reports);
+
+        // Calculate stats
+        const pending = reports.filter(r => r.status === "Pending").length;
+        const ongoing = reports.filter(r => r.status === "Ongoing").length;
+        const resolved = reports.filter(r => r.status === "Resolved").length;
+        const avgResponseTime = calculateAvgResponseTime(reports);
+
+        setStats([
+          { title: "Active Reports", value: ongoing, icon: <FaExclamationTriangle />, color: "#f40014ff" },
+          { title: "Resolved Reports", value: resolved, icon: <FaCheckCircle />, color: "#2a9d62ff" },
+          { title: "Pending Reports", value: pending, icon: <FaTasks />, color: "#f4b761ff" },
+          { title: "Avg Response Time", value: avgResponseTime, icon: <FaClock />, color: "#2d2d73" },
+        ]);
+
+        // Set active reports (only ongoing for the table)
+        const active = reports.filter(r => r.status === "Ongoing").slice(0, 10);
+        setActiveReports(active);
+
+        // Generate trend data by month
+        const monthlyData = {};
+        const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+        
+        reports.forEach(report => {
+          if (report.created_at) {
+            const date = new Date(report.created_at);
+            const monthKey = months[date.getMonth()];
+            monthlyData[monthKey] = (monthlyData[monthKey] || 0) + 1;
+          }
+        });
+
+        const trendArray = months
+          .filter(month => monthlyData[month])
+          .map(month => ({ month, count: monthlyData[month] }));
+        
+        setTrendData(trendArray.length > 0 ? trendArray : [{ month: "No Data", count: 0 }]);
+
+        // Generate high incident areas by barangay
+        const barangayData = {};
+        reports.forEach(report => {
+          const barangay = extractBarangay(report);
+          barangayData[barangay] = (barangayData[barangay] || 0) + 1;
+        });
+
+        const incidentAreas = Object.entries(barangayData)
+          .map(([area, total]) => ({ area, total }))
+          .sort((a, b) => b.total - a.total)
+          .slice(0, 5);
+
+        setHighIncidentAreas(incidentAreas.length > 0 ? incidentAreas : [{ area: "No Data", total: 0 }]);
+      } catch (error) {
+        console.error("Error fetching reports:", error);
+        setTrendData([{ month: "No Data", count: 0 }]);
+        setHighIncidentAreas([{ area: "No Data", total: 0 }]);
+      }
+    };
+
+    fetchReports();
+  }, []);
 
   // Handle Mark as Resolved
   const handleResolve = (reportId) => {
@@ -104,7 +184,7 @@ export default function RespondersDashboard() {
           <h3>Active Reports</h3>
 
           <NavLink
-            to="/responders/reports"
+            to="/responder/reports"
             style={{
               fontSize: "0.85rem",
               color: "#2d2d73",
@@ -119,7 +199,7 @@ export default function RespondersDashboard() {
         <table>
           <thead>
             <tr>
-              <th>No.</th>
+              <th>Date Reported</th>
               <th>Title</th>
               <th>Location</th>
               <th>Status</th>
@@ -129,32 +209,17 @@ export default function RespondersDashboard() {
           <tbody>
             {activeReports.map((report) => (
               <tr key={report.id}>
-                <td>{report.id}</td>
+                <td>{new Date(report.created_at).toLocaleDateString()}</td>
                 <td>{report.title}</td>
-                <td>{report.location}</td>
+                <td>{extractBarangay(report)}</td>
                 <td>{report.status}</td>
                 <td>
-                  {report.status === "Pending" ? (
-                    <button
-                      className="ongoing-btn"
-                      onClick={() =>
-                        setActiveReports((prev) =>
-                          prev.map((r) =>
-                            r.id === report.id ? { ...r, status: "Ongoing" } : r
-                          )
-                        )
-                      }
-                    >
-                      Mark as Ongoing
-                    </button>
-                  ) : (
-                    <button
-                      className="resolve-btn"
-                      onClick={() => handleResolve(report.id)}
-                    >
-                      Mark as Resolved
-                    </button>
-                  )}
+                  <button
+                    className="resolve-btn"
+                    onClick={() => handleResolve(report.id)}
+                  >
+                    Mark as Resolved
+                  </button>
                 </td>
               </tr>
             ))}
@@ -163,23 +228,7 @@ export default function RespondersDashboard() {
       </div>
 
       {/* Monthly Trend + High Incident Areas */}
-      <div className="two-column-section">
-        <div className="trend-section animate-up">
-          <h3>Monthly Report Summary</h3>
-          <div className="chart-container">
-            <ResponsiveContainer width="100%" height={260}>
-              <LineChart data={trendData}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="month" />
-                <YAxis />
-                <Tooltip />
-                <Legend />
-                <Line type="monotone" dataKey="count" stroke="#2d2d73" strokeWidth={2} />
-              </LineChart>
-            </ResponsiveContainer>
-          </div>
-        </div>
-
+      <div className="two-column">
         <div className="section-card animate-up">
           <h3>High Incident Areas</h3>
           <div className="chart-container">
@@ -195,13 +244,29 @@ export default function RespondersDashboard() {
             </ResponsiveContainer>
           </div>
         </div>
+
+        <div className="trend-section animate-up">
+          <h3>Monthly Report Summary</h3>
+          <div className="chart-container">
+            <ResponsiveContainer width="100%" height={260}>
+              <LineChart data={trendData}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey="month" />
+                <YAxis />
+                <Tooltip />
+                <Legend />
+                <Line type="monotone" dataKey="count" stroke="#2d2d73" strokeWidth={2} />
+              </LineChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
       </div>
 
-      {/* HIGH RISK ZONE MAP */}
+      {/* HOTSPOTS MAP */}
       <div className="map-section animate-up">
-        <h3>High Risk Zone Map</h3>
+        <h3>Hotspots</h3>
         <div className="map-placeholder">
-          <MapView reports={highIncidentAreas} />
+          <MapView />
         </div>
       </div>
     </div>

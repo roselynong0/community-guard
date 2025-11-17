@@ -7,6 +7,7 @@ import { getApiUrl } from './apiConfig';
 
 // Polling storage
 let pollingIntervalRef = null;
+let eventSourceRef = null;
 let toastCallback = null;
 let notificationCountCallback = null;
 let lastSeenNotifications = {}; // Track last notification ID per role
@@ -131,8 +132,8 @@ export const startNotificationPolling = (token, role, pollInterval = 10000) => {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json',
         },
-        // Set reasonable timeout (10 seconds for notifications)
-        signal: AbortSignal.timeout ? AbortSignal.timeout(10000) : undefined,
+        // Add signal for potential future abort functionality
+        signal: AbortSignal.timeout ? AbortSignal.timeout(5000) : undefined,
       });
 
       if (!res.ok) {

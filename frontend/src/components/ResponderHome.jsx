@@ -1,9 +1,7 @@
 import React from 'react';
-import Home from './Home';
+import RespondersDashboard from './RespondersDashboard';
 
-// ResponderHome simply reuses the main Home dashboard but can be extended
-// to show responder-specific widgets in the future. We pass session/token
-// through as-is so Home can fetch the correct stats.
+// ResponderHome displays the responder-specific dashboard
 export default function ResponderHome(props) {
-  return <Home {...props} />;
+  return <RespondersDashboard {...props} />;
 }

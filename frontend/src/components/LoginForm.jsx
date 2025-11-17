@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { FaEye, FaEyeSlash } from "react-icons/fa";
+import { FaEye, FaEyeSlash, FaArrowLeft } from "react-icons/fa";
 import VerificationRenewalModal from "./VerificationRenewalModal";
 import { API_CONFIG } from "../utils/apiConfig";
 import "./RegistrationForm.css";
@@ -194,6 +194,28 @@ function LoginForm({ setSession, setNotification }) {
     <>
       {/* Main content */}
       <div className="background">
+        <button 
+          className="back-button-top-left" 
+          onClick={() => navigate(-1)}
+          title="Go back"
+          style={{
+            position: 'absolute',
+            top: '20px',
+            left: '20px',
+            background: 'none',
+            border: 'none',
+            fontSize: '20px',
+            color: '#2563eb',
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '6px',
+            padding: 0, 
+            zIndex: 10
+          }}
+        >
+          <FaArrowLeft />
+        </button>
         <div className="wrapper">
           <div className="top-section">
             <h1>Community Guard</h1>

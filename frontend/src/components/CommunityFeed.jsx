@@ -15,14 +15,36 @@ const ROLE_COLORS = {
   "Resident": { bg: "rgba(59, 130, 246, 0.1)", text: "#3b82f6" },
 };
 
+// ✅ BARANGAYS (Olongapo City)
+const BARANGAYS = [
+  "Barretto",
+  "East Bajac-Bajac",
+  "East Tapinac",
+  "Gordon Heights",
+  "Kalaklan",
+  "Mabayuan",
+  "New Asinan",
+  "New Banicain",
+  "New Cabalan",
+  "New Ilalim",
+  "New Kababae",
+  "New Kalalake",
+  "Old Cabalan",
+  "Pag-Asa",
+  "Santa Rita",
+  "West Bajac-Bajac",
+  "West Tapinac",
+];
 const CommunityFeed = () => {
   const [posts, setPosts] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [openModal, setOpenModal] = useState(false);
   const [notification, setNotification] = useState(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [barangayFilter, setBarangayFilter] = useState("All");
   const [postTypeFilter, setPostTypeFilter] = useState("all");
   const [userBarangay, setUserBarangay] = useState("");
+  const [postingState, setPostingState] = useState(false);
 
   useEffect(() => {
     fetchUserBarangay();
@@ -53,6 +75,7 @@ const CommunityFeed = () => {
   };
 
   const fetchPosts = useCallback(async () => {
+    setLoading(true);
     try {
       const token = localStorage.getItem("token");
       if (!token) return;
@@ -81,6 +104,8 @@ const CommunityFeed = () => {
       }
     } catch (error) {
       console.error("Error fetching posts:", error);
+    } finally {
+      setLoading(false);
     }
   }, [barangayFilter, postTypeFilter]);
 
@@ -109,6 +134,7 @@ const CommunityFeed = () => {
         // Clear saved form data on success
         localStorage.removeItem("postFormDraft");
         setOpenModal(false);
+        return true;
       } else {
         const error = await response.json();
         
@@ -119,6 +145,7 @@ const CommunityFeed = () => {
           type: "error",
           message: `❌ Error: ${error.message}`,
         });
+        return false;
       }
     } catch (error) {
       console.error("Error creating post:", error);
@@ -130,12 +157,11 @@ const CommunityFeed = () => {
         type: "error",
         message: "❌ Failed to create post",
       });
+      return false;
     }
 
     setTimeout(() => setNotification(null), 3000);
   };
-
-
 
   const handleDeletePost = async (postId) => {
     if (!window.confirm("Are you sure you want to delete this post?")) return;
@@ -165,9 +191,9 @@ const CommunityFeed = () => {
         type: "error",
         message: "❌ Failed to delete post",
       });
+    } finally {
+      setTimeout(() => setNotification(null), 3000);
     }
-
-    setTimeout(() => setNotification(null), 3000);
   };
 
   const handleAddComment = async (postId, commentText) => {
@@ -271,10 +297,9 @@ const CommunityFeed = () => {
             onChange={(e) => setBarangayFilter(e.target.value)}
           >
             <option value="All">All Barangays</option>
-            <option value="Barangay 1">Barangay 1</option>
-            <option value="Barangay 2">Barangay 2</option>
-            <option value="Barangay 3">Barangay 3</option>
-            {/* Add more barangays as needed */}
+            {BARANGAYS.map((b) => (
+              <option key={b} value={b}>{b}</option>
+            ))}
           </select>
 
           <select
@@ -293,17 +318,26 @@ const CommunityFeed = () => {
       </div>
 
       <div className="feed-list">
-        {filteredPosts.length === 0 && <p>No posts found.</p>}
+        {loading ? (
+          <div className="feed-loading">
+            <div className="spinner" />
+            <p>Loading posts...</p>
+          </div>
+        ) : (
+          <> 
+            {filteredPosts.length === 0 && <p>No posts found.</p>}
 
-        {filteredPosts.map((post) => (
-          <PostCard
-            key={post.id}
-            post={post}
-            onAddComment={handleAddComment}
-            onDeleteComment={handleDeleteComment}
-            onDeletePost={handleDeletePost}
-          />
-        ))}
+            {filteredPosts.map((post) => (
+              <PostCard
+                key={post.id}
+                post={post}
+                onAddComment={handleAddComment}
+                onDeleteComment={handleDeleteComment}
+                onDeletePost={handleDeletePost}
+              />
+            ))}
+          </>
+        )}
       </div>
 
       {openModal && (
@@ -330,12 +364,15 @@ const PostCard = ({ post, onAddComment, onDeleteComment, onDeletePost }) => {
   const authorName = `${post.author?.firstname} ${post.author?.lastname}`;
   const postedDate = new Date(post.created_at).toLocaleDateString();
 
+  const isPending = (post.status && post.status !== 'approved') || post.is_pending;
+
   return (
-    <div className={`post-card ${post.is_pinned ? "post-pinned" : ""}`}>
+    <div className={`post-card ${post.is_pinned ? "post-pinned" : ""} ${isPending ? 'pending' : ''}`}>
       <div className="post-header">
         <div className="post-title-section">
           <h3>{post.title}</h3>
-          {post.is_pinned && <span className="badge-pinned">📌 Pinned</span>}
+            {post.is_pinned && <span className="badge-pinned">📌 Pinned</span>}
+            {isPending && <span className="badge-pending">⏳ Pending</span>}
         </div>
         <div className="post-header-right">
           <div className="post-meta">
@@ -356,14 +393,14 @@ const PostCard = ({ post, onAddComment, onDeleteComment, onDeletePost }) => {
             {post.can_delete && (
               <span className="user-post-label">Your Post</span>
             )}
+            {post.can_delete && (
+              <FaTrash
+                className="post-delete-btn"
+                onClick={() => onDeletePost(post.id)}
+                title="Delete post"
+              />
+            )}
           </div>
-          {post.can_delete && (
-            <FaTrash
-              className="post-delete-btn"
-              onClick={() => onDeletePost(post.id)}
-              title="Delete post"
-            />
-          )}
         </div>
       </div>
 
@@ -396,16 +433,24 @@ const PostCard = ({ post, onAddComment, onDeleteComment, onDeletePost }) => {
         </p>
       )}
 
-      <div className="toggle-comment-container">
-        <button
-          className="toggle-comment-btn"
-          onClick={() => setShowComments(!showComments)}
-        >
-          {showComments ? "Hide Comments" : `View Comments (${post.comment_count || 0})`}
-        </button>
-      </div>
+      {post.status && post.status !== 'approved' && (
+        <p style={{ color: "#f97316", fontSize: "0.9rem", marginTop: "0.5rem" }}>
+          💬 Comments are only available once this post is approved
+        </p>
+      )}
 
-      {showComments && post.allow_comments && (
+      {post.status === 'approved' && post.allow_comments && (
+        <div className="toggle-comment-container">
+          <button
+            className="toggle-comment-btn"
+            onClick={() => setShowComments(!showComments)}
+          >
+            {showComments ? "Hide Comments" : `View Comments (${post.comment_count || 0})`}
+          </button>
+        </div>
+      )}
+
+      {showComments && post.status === 'approved' && post.allow_comments && (
         <div className="comments-box">
           <div className="comments-scroll">
             {(post.comments ?? []).map((c) => (
@@ -479,7 +524,14 @@ const PostModal = ({ onClose, onSubmit, userBarangay }) => {
   const [content, setContent] = useState(savedDraft?.content || "");
   const [postType, setPostType] = useState(savedDraft?.post_type || "general");
   const [barangay, setBarangay] = useState(savedDraft?.barangay || userBarangay);
-  const [skipGuidelinesChecked, setSkipGuidelinesChecked] = useState(false);
+  const [skipGuidelinesChecked, setSkipGuidelinesChecked] = useState(() => {
+    try {
+      return localStorage.getItem("skipGuidelinesNextPost") === 'true';
+    } catch {
+      return false;
+    }
+  });
+  const [posting, setPosting] = useState(false);
   const [barangayOptions] = useState([
     "Barretto",
     "East Bajac-Bajac",
@@ -503,7 +555,7 @@ const PostModal = ({ onClose, onSubmit, userBarangay }) => {
   useEffect(() => {
     setBarangay(userBarangay);
     checkIfFirstTimePost();
-    
+
     // ✅ Show notification if draft was recovered
     if (savedDraft) {
       console.log("📝 Recovered unsaved form data from previous error");
@@ -548,16 +600,9 @@ const PostModal = ({ onClose, onSubmit, userBarangay }) => {
       return;
     }
 
-    if (isFirstTimePost) {
-      // First-time user: show guidelines on Tab 2
-      setCurrentTab(2);
-    } else if (skipGuidelinesChecked) {
-      // Returning user with skip preference: go directly to confirmation
-      setCurrentTab(3);
-    } else {
-      // Returning user without skip preference: show guidelines
-      setCurrentTab(2);
-    }
+    // Move to the next visible tab: if guidelines should appear they are tab 2,
+    // otherwise tab 2 is the confirmation. Simpler mapping keeps indices consistent.
+    setCurrentTab(2);
   };
 
   const handleTabChange = (tabNumber) => {
@@ -569,7 +614,7 @@ const PostModal = ({ onClose, onSubmit, userBarangay }) => {
     setCurrentTab(1);
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
 
     if (!title.trim() || !content.trim()) {
@@ -592,14 +637,26 @@ const PostModal = ({ onClose, onSubmit, userBarangay }) => {
     // Save skip preference to localStorage
     localStorage.setItem("skipGuidelinesNextPost", skipGuidelinesChecked);
 
-    onSubmit(newPost);
-    
-    // Reset form
-    setTitle("");
-    setContent("");
-    setPostType("general");
-    setBarangay(userBarangay);
-    setCurrentTab(1);
+    // Show posting state and await parent's onSubmit result
+    try {
+      setPosting(true);
+      const success = await onSubmit(newPost);
+      setPosting(false);
+
+      if (success) {
+        // Parent will close modal and show a notification; clear form locally
+        setTitle("");
+        setContent("");
+        setPostType("general");
+        setBarangay(userBarangay);
+        setCurrentTab(1);
+      } else {
+        // Keep modal open to allow retry; parent's notification will show error
+      }
+    } catch (err) {
+      console.error("Error submitting post:", err);
+      setPosting(false);
+    }
   };
 
   // Determine if we should show guidelines tab
@@ -882,8 +939,16 @@ const PostModal = ({ onClose, onSubmit, userBarangay }) => {
                 type="button"
                 className="btn-success"
                 onClick={handleSubmit}
+                disabled={posting}
               >
-                ✓ Post
+                {posting ? (
+                  <span style={{display: 'inline-flex', alignItems: 'center', gap: 8}}>
+                    <div className="spinner" style={{width: 16, height: 16, borderWidth: '2px'}} />
+                    Posting...
+                  </span>
+                ) : (
+                  '✓ Post'
+                )}
               </button>
             </div>
           </div>

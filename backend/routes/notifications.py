@@ -492,6 +492,149 @@ def get_user_notifications(user_id, role):
         return []
 
 
+
+
+# Responder Notifications
+@notifications_bp.route("/responder/notifications", methods=["GET"])
+@token_required
+def responder_get_notifications():
+    """
+    Responder-only endpoint: Get notifications for responder
+    Fetches all notifications for the current responder user
+    """
+    user_id = request.user_id
+    
+    try:
+        # Verify that the user is a Responder
+        current_user_resp = supabase.table("users").select("role, id").eq("id", user_id).single().execute()
+        current_user = current_user_resp.data if current_user_resp.data else {}
+        
+        if current_user.get("role") != "Responder":
+            return jsonify({"status": "error", "message": "Responder access required"}), 403
+        
+        # Fetch all notifications for this responder
+        resp = supabase.table("notifications").select("*").eq("user_id", user_id).order("created_at", desc=True).execute()
+        notifications = getattr(resp, "data", []) or []
+        
+        # Normalize created_at timestamps
+        normalized = []
+        for n in notifications:
+            item = dict(n)
+            item["read"] = bool(item.get("is_read") or item.get("read"))
+            ca = item.get("created_at")
+            if hasattr(ca, "isoformat"):
+                item["created_at"] = ca.isoformat()
+            elif ca is not None:
+                item["created_at"] = str(ca)
+            normalized.append(item)
+        
+        return jsonify({
+            "status": "success",
+            "notifications": normalized
+        }), 200
+    
+    except Exception as e:
+        print(f"Error in responder_get_notifications: {e}")
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+
+@notifications_bp.route("/responder/notifications/<int:notif_id>/read", methods=["POST"])
+@token_required
+def responder_mark_notification_read(notif_id):
+    """
+    Mark a responder notification as read (responder only)
+    """
+    user_id = request.user_id
+    
+    try:
+        # Verify responder role
+        current_user_resp = supabase.table("users").select("role").eq("id", user_id).single().execute()
+        current_user = current_user_resp.data if current_user_resp.data else {}
+        
+        if current_user.get("role") != "Responder":
+            return jsonify({"status": "error", "message": "Responder access required"}), 403
+        
+        # Update notification
+        updated = supabase.table("notifications").update({"is_read": True}).eq("id", notif_id).execute()
+        
+        if updated.data:
+            return jsonify({
+                "status": "success",
+                "notification": updated.data[0] if updated.data else {}
+            }), 200
+        else:
+            return jsonify({"status": "error", "message": "Notification not found"}), 404
+    
+    except Exception as e:
+        print(f"Error in responder_mark_notification_read: {e}")
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+
+@notifications_bp.route("/responder/notifications/read_all", methods=["POST"])
+@token_required
+def responder_mark_all_read():
+    """
+    Mark all responder notifications as read (responder only)
+    """
+    user_id = request.user_id
+    
+    try:
+        # Verify responder role
+        current_user_resp = supabase.table("users").select("role").eq("id", user_id).single().execute()
+        current_user = current_user_resp.data if current_user_resp.data else {}
+        
+        if current_user.get("role") != "Responder":
+            return jsonify({"status": "error", "message": "Responder access required"}), 403
+        
+        # Get unread notifications for this responder
+        resp = supabase.table("notifications").select("id").eq("user_id", user_id).eq("is_read", False).execute()
+        unread_ids = [n["id"] for n in (getattr(resp, "data", []) or [])]
+        
+        if unread_ids:
+            updated = supabase.table("notifications").update({"is_read": True}).in_("id", unread_ids).execute()
+            count = len(updated.data) if updated.data else 0
+        else:
+            count = 0
+        
+        return jsonify({
+            "status": "success",
+            "updated_count": count
+        }), 200
+    
+    except Exception as e:
+        print(f"Error in responder_mark_all_read: {e}")
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+
+@notifications_bp.route("/responder/notifications/<int:notif_id>", methods=["DELETE"])
+@token_required
+def responder_delete_notification(notif_id):
+    """
+    Delete a responder notification (responder only)
+    """
+    user_id = request.user_id
+    
+    try:
+        # Verify responder role
+        current_user_resp = supabase.table("users").select("role").eq("id", user_id).single().execute()
+        current_user = current_user_resp.data if current_user_resp.data else {}
+        
+        if current_user.get("role") != "Responder":
+            return jsonify({"status": "error", "message": "Responder access required"}), 403
+        
+        # Delete notification
+        supabase.table("notifications").delete().eq("id", notif_id).eq("user_id", user_id).execute()
+        
+        return jsonify({
+            "status": "success",
+            "message": "Notification deleted successfully"
+        }), 200
+    
+    except Exception as e:
+        print(f"Error in responder_delete_notification: {e}")
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+
 @notifications_bp.route("/notifications/stream", methods=["GET"])
 @token_required
 def notifications_stream():
