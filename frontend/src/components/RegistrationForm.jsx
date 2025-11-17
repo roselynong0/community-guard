@@ -4,6 +4,7 @@ import { FaEye, FaEyeSlash, FaArrowLeft } from "react-icons/fa";
 import TermsModal from "./TermsModal";
 import "./RegistrationForm.css";
 import "./Notification.css";
+import { getApiUrl, API_CONFIG } from "../utils/apiConfig";
 
 function RegistrationForm() {
   const navigate = useNavigate();
@@ -112,7 +113,7 @@ function RegistrationForm() {
 	}
 
 	try {
-	  const res = await fetch("http://localhost:5000/api/register", {
+	  const res = await fetch(getApiUrl(API_CONFIG.endpoints.register), {
 		method: "POST",
 		headers: { "Content-Type": "application/json" },
 		body: JSON.stringify({
