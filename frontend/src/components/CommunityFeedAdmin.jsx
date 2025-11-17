@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from "react";
 import "./CommunityFeed.css";
 import "./Notifications.css";
-import { FaUsers, FaTrash, FaCheck, FaTimes } from "react-icons/fa";
+import { FaUsers, FaTrash, FaCheck, FaTimes, FaComments } from "react-icons/fa";
 import { getApiUrl, API_CONFIG } from "../utils/apiConfig";
 
 // ✅ BARANGAYS (Olongapo City)
@@ -73,24 +73,40 @@ const CommunityFeedAdmin = () => {
 
       if (response.ok) {
         const data = await response.json();
-        setPosts(data.posts || []);
+        // Sort posts: latest on top (by created_at descending)
+        const sortedPosts = (data.posts || []).sort((a, b) => {
+          const dateA = new Date(a.created_at);
+          const dateB = new Date(b.created_at);
+          return dateB - dateA; // Latest first
+        });
+        setPosts(sortedPosts);
+        // Clear any previous error notifications on success
+        setNotification(null);
       } else {
         console.error("Error fetching posts:", response.statusText);
+        // Only show error if we don't already have posts
+        if (posts.length === 0) {
+          setNotification({
+            type: "error",
+            message: "❌ Failed to fetch posts",
+          });
+          setTimeout(() => setNotification(null), 3000);
+        }
+      }
+    } catch (error) {
+      console.error("Error fetching posts:", error);
+      // Only show error if we don't already have posts
+      if (posts.length === 0) {
         setNotification({
           type: "error",
           message: "❌ Failed to fetch posts",
         });
+        setTimeout(() => setNotification(null), 3000);
       }
-    } catch (error) {
-      console.error("Error fetching posts:", error);
-      setNotification({
-        type: "error",
-        message: "❌ Failed to fetch posts",
-      });
     } finally {
       setLoading(false);
     }
-  }, [barangayFilter, postTypeFilter]);
+  }, [barangayFilter, postTypeFilter, posts.length]);
 
   const handleApprovePost = async (postId) => {
     try {
@@ -103,12 +119,12 @@ const CommunityFeedAdmin = () => {
       if (response.ok) {
         setPosts((prev) =>
           prev.map((p) =>
-            p.id === postId ? { ...p, status: "approved" } : p
+            p.id === postId ? { ...p, status: "approved", allow_comments: true } : p
           )
         );
         setNotification({
           type: "success",
-          message: "✅ Post approved successfully!",
+          message: "✅ Post approved successfully! Comments enabled.",
         });
       } else {
         const error = await response.json();
@@ -198,19 +214,22 @@ const CommunityFeedAdmin = () => {
   const handleToggleComments = async (postId, currentAllow) => {
     try {
       const token = localStorage.getItem("token");
+      const newAllowComments = !currentAllow;
       const response = await fetch(getApiUrl(`/api/community/posts/${postId}/toggle-comments`), {
         method: "PUT",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ allow_comments: !currentAllow }),
+        body: JSON.stringify({ allow_comments: newAllowComments }),
       });
 
       if (response.ok) {
+        const data = await response.json();
+        const actualAllowComments = data.post?.allow_comments ?? newAllowComments;
         setPosts((prev) =>
           prev.map((p) =>
-            p.id === postId ? { ...p, allow_comments: !currentAllow } : p
+            p.id === postId ? { ...p, allow_comments: actualAllowComments } : p
           )
         );
-        const status = !currentAllow ? "enabled" : "disabled";
+        const status = actualAllowComments ? "enabled" : "disabled";
         setNotification({
           type: "success",
           message: `✅ Comments ${status}!`,
@@ -466,7 +485,7 @@ const AdminPostCard = ({ post, onApprove, onReject, onDelete, onToggleComments }
             alignItems: 'center',
             gap: '6px',
             padding: '8px 12px',
-            background: post.allow_comments ? '#8b5cf6' : '#6366f1',
+            background: post.allow_comments ? '#3b82f6' : '#9ca3af',
             color: 'white',
             border: 'none',
             borderRadius: '6px',
@@ -475,10 +494,11 @@ const AdminPostCard = ({ post, onApprove, onReject, onDelete, onToggleComments }
             fontWeight: '500',
             transition: 'background 0.2s',
           }}
-          onMouseEnter={(e) => e.target.style.background = post.allow_comments ? '#7c3aed' : '#4f46e5'}
-          onMouseLeave={(e) => e.target.style.background = post.allow_comments ? '#8b5cf6' : '#6366f1'}
+          onMouseEnter={(e) => e.target.style.background = post.allow_comments ? '#2563eb' : '#6b7280'}
+          onMouseLeave={(e) => e.target.style.background = post.allow_comments ? '#3b82f6' : '#9ca3af'}
+          title={post.allow_comments ? 'Click to disable comments' : 'Click to enable comments'}
         >
-          💬 {post.allow_comments ? 'Disable' : 'Enable'} Comments
+          <FaComments /> {post.allow_comments ? 'Comments Enabled' : 'Comments Disabled'}
         </button>
         <button
           className="admin-delete-btn"

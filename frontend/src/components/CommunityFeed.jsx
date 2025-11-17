@@ -45,6 +45,7 @@ const CommunityFeed = () => {
   const [postTypeFilter, setPostTypeFilter] = useState("all");
   const [userBarangay, setUserBarangay] = useState("");
   const [postingState, setPostingState] = useState(false);
+  const [currentUserId, setCurrentUserId] = useState(null);
 
   useEffect(() => {
     fetchUserBarangay();
@@ -61,16 +62,22 @@ const CommunityFeed = () => {
 
       if (response.ok) {
         const data = await response.json();
-        // Same pattern as Profile component - extract address_barangay from profile
         const barangay = data.profile?.address_barangay || data.address_barangay || "Barretto";
         setUserBarangay(barangay);
+        
+        // Set current user ID for draft storage
+        if (data.profile?.id) {
+          setCurrentUserId(data.profile.id);
+        } else if (data.id) {
+          setCurrentUserId(data.id);
+        }
       } else {
         console.error("Error fetching user info:", response.statusText);
-        setUserBarangay("Barretto"); // Fallback
+        setUserBarangay("Barretto");
       }
     } catch (error) {
       console.error("Error fetching user info:", error);
-      setUserBarangay("Barretto"); // Fallback
+      setUserBarangay("Barretto");
     }
   };
 
@@ -131,36 +138,40 @@ const CommunityFeed = () => {
           message: "✅ Post published successfully!",
         });
         
-        // Clear saved form data on success
-        localStorage.removeItem("postFormDraft");
+        // Clear saved form data on success (user-specific)
+        const draftKey = currentUserId ? `postFormDraft_${currentUserId}` : "postFormDraft";
+        localStorage.removeItem(draftKey);
         setOpenModal(false);
+        setTimeout(() => setNotification(null), 3000);
         return true;
       } else {
         const error = await response.json();
         
-        // ✅ Save form data for recovery on error
-        localStorage.setItem("postFormDraft", JSON.stringify(newPost));
+        // ✅ Save form data for recovery on error (user-specific)
+        const draftKey = currentUserId ? `postFormDraft_${currentUserId}` : "postFormDraft";
+        localStorage.setItem(draftKey, JSON.stringify(newPost));
         
         setNotification({
           type: "error",
           message: `❌ Error: ${error.message}`,
         });
+        setTimeout(() => setNotification(null), 3000);
         return false;
       }
     } catch (error) {
       console.error("Error creating post:", error);
       
-      // ✅ Save form data for recovery on error
-      localStorage.setItem("postFormDraft", JSON.stringify(newPost));
+      // ✅ Save form data for recovery on error (user-specific)
+      const draftKey = currentUserId ? `postFormDraft_${currentUserId}` : "postFormDraft";
+      localStorage.setItem(draftKey, JSON.stringify(newPost));
       
       setNotification({
         type: "error",
         message: "❌ Failed to create post",
       });
+      setTimeout(() => setNotification(null), 3000);
       return false;
     }
-
-    setTimeout(() => setNotification(null), 3000);
   };
 
   const handleDeletePost = async (postId) => {
@@ -179,11 +190,13 @@ const CommunityFeed = () => {
           type: "success",
           message: "✅ Post deleted successfully!",
         });
+        setTimeout(() => setNotification(null), 3000);
       } else {
         setNotification({
           type: "error",
           message: "❌ Failed to delete post",
         });
+        setTimeout(() => setNotification(null), 3000);
       }
     } catch (error) {
       console.error("Error deleting post:", error);
@@ -191,7 +204,6 @@ const CommunityFeed = () => {
         type: "error",
         message: "❌ Failed to delete post",
       });
-    } finally {
       setTimeout(() => setNotification(null), 3000);
     }
   };
@@ -341,7 +353,7 @@ const CommunityFeed = () => {
       </div>
 
       {openModal && (
-        <PostModal onClose={() => setOpenModal(false)} onSubmit={handleNewPost} userBarangay={userBarangay} />
+        <PostModal onClose={() => setOpenModal(false)} onSubmit={handleNewPost} userBarangay={userBarangay} currentUserId={currentUserId} />
       )}
     </div>
   );
@@ -352,12 +364,41 @@ const CommunityFeed = () => {
 const PostCard = ({ post, onAddComment, onDeleteComment, onDeletePost }) => {
   const [comment, setComment] = useState("");
   const [showComments, setShowComments] = useState(false);
+  const [commentsLoading, setCommentsLoading] = useState(false);
+  const [postData, setPostData] = useState(post);
 
   const handleCommentKey = (e) => {
     if (e.key === "Enter" && comment.trim()) {
       onAddComment(post.id, comment);
       setComment("");
     }
+  };
+
+  const handleViewComments = async () => {
+    if (!showComments) {
+      if (!postData.comments || postData.comments.length === 0) {
+        setCommentsLoading(true);
+        try {
+          const token = localStorage.getItem("token");
+          if (!token) return;
+          const response = await fetch(
+            `${import.meta.env.VITE_API_URL || "http://localhost:5000"}/api/community/posts/${post.id}`,
+            { headers: { Authorization: `Bearer ${token}` } }
+          );
+          if (response.ok) {
+            const data = await response.json();
+            if (data.status === "success") {
+              setPostData(data.post);
+            }
+          }
+        } catch (error) {
+          console.error("Error loading comments:", error);
+        } finally {
+          setCommentsLoading(false);
+        }
+      }
+    }
+    setShowComments(!showComments);
   };
 
   const roleColor = ROLE_COLORS[post.author?.role] || ROLE_COLORS["Resident"];
@@ -443,9 +484,10 @@ const PostCard = ({ post, onAddComment, onDeleteComment, onDeletePost }) => {
         <div className="toggle-comment-container">
           <button
             className="toggle-comment-btn"
-            onClick={() => setShowComments(!showComments)}
+            onClick={handleViewComments}
+            disabled={commentsLoading}
           >
-            {showComments ? "Hide Comments" : `View Comments (${post.comment_count || 0})`}
+            {commentsLoading ? "Loading..." : showComments ? "Hide Comments" : `View Comments (${post.comment_count || 0})`}
           </button>
         </div>
       )}
@@ -453,7 +495,12 @@ const PostCard = ({ post, onAddComment, onDeleteComment, onDeletePost }) => {
       {showComments && post.status === 'approved' && post.allow_comments && (
         <div className="comments-box">
           <div className="comments-scroll">
-            {(post.comments ?? []).map((c) => (
+            {(!postData.comments || postData.comments.length === 0) && (
+              <p style={{ color: "#9ca3af", textAlign: "center", padding: "1rem" }}>
+                No comments yet. Be the first to comment!
+              </p>
+            )}
+            {(postData.comments ?? []).map((c) => (
               <div key={c.id} className="comment-item">
                 <div className="comment-header">
                   <span className="comment-author">
@@ -506,14 +553,15 @@ const PostCard = ({ post, onAddComment, onDeleteComment, onDeletePost }) => {
 export default CommunityFeed;
 
 // ✅ POST MODAL WITH 3-TAB SYSTEM
-const PostModal = ({ onClose, onSubmit, userBarangay }) => {
+const PostModal = ({ onClose, onSubmit, userBarangay, currentUserId }) => {
   const [currentTab, setCurrentTab] = useState(1);
   const [isFirstTimePost, setIsFirstTimePost] = useState(false);
   
-  // ✅ Load saved draft from localStorage if available
+  // ✅ Load saved draft from localStorage if available (user-specific)
   const savedDraft = (() => {
     try {
-      const draft = localStorage.getItem("postFormDraft");
+      const draftKey = currentUserId ? `postFormDraft_${currentUserId}` : "postFormDraft";
+      const draft = localStorage.getItem(draftKey);
       return draft ? JSON.parse(draft) : null;
     } catch {
       return null;
@@ -526,7 +574,8 @@ const PostModal = ({ onClose, onSubmit, userBarangay }) => {
   const [barangay, setBarangay] = useState(savedDraft?.barangay || userBarangay);
   const [skipGuidelinesChecked, setSkipGuidelinesChecked] = useState(() => {
     try {
-      return localStorage.getItem("skipGuidelinesNextPost") === 'true';
+      const skipKey = currentUserId ? `skipGuidelinesNextPost_${currentUserId}` : "skipGuidelinesNextPost";
+      return localStorage.getItem(skipKey) === 'true';
     } catch {
       return false;
     }
@@ -574,7 +623,15 @@ const PostModal = ({ onClose, onSubmit, userBarangay }) => {
 
       if (response.ok) {
         const data = await response.json();
-        setIsFirstTimePost((data.posts || []).length === 0);
+        const isFirst = (data.posts || []).length === 0;
+        setIsFirstTimePost(isFirst);
+        // If it's the first time, force skipGuidelinesChecked to false
+        if (isFirst) {
+          setSkipGuidelinesChecked(false);
+          // Also clear any saved skip preference for this user
+          const skipKey = currentUserId ? `skipGuidelinesNextPost_${currentUserId}` : "skipGuidelinesNextPost";
+          localStorage.removeItem(skipKey);
+        }
       }
     } catch (error) {
       console.error("Error checking posts:", error);
@@ -582,9 +639,10 @@ const PostModal = ({ onClose, onSubmit, userBarangay }) => {
   };
 
   const handleModalClose = () => {
-    // ✅ Save form data as draft if user is closing with unsaved content
+    // ✅ Save form data as draft if user is closing with unsaved content (user-specific)
     if (title.trim() || content.trim()) {
-      localStorage.setItem("postFormDraft", JSON.stringify({
+      const draftKey = currentUserId ? `postFormDraft_${currentUserId}` : "postFormDraft";
+      localStorage.setItem(draftKey, JSON.stringify({
         title,
         content,
         post_type: postType,
@@ -634,8 +692,9 @@ const PostModal = ({ onClose, onSubmit, userBarangay }) => {
       barangay,
     };
 
-    // Save skip preference to localStorage
-    localStorage.setItem("skipGuidelinesNextPost", skipGuidelinesChecked);
+    // Save skip preference to localStorage (user-specific)
+    const skipKey = currentUserId ? `skipGuidelinesNextPost_${currentUserId}` : "skipGuidelinesNextPost";
+    localStorage.setItem(skipKey, skipGuidelinesChecked);
 
     // Show posting state and await parent's onSubmit result
     try {

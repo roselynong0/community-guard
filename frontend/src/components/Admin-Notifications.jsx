@@ -1,6 +1,8 @@
 import React, { useEffect, useMemo, useState, useCallback } from 'react';
-import { API_CONFIG, getApiUrl } from "../utils/apiConfig";
+import { API_CONFIG } from "../utils/apiConfig";
 import './Notifications.css';
+
+const API_URL = `${API_CONFIG.BASE_URL}/api`;
 import {
   FaInfoCircle,
   FaCheckCircle,
@@ -19,10 +21,6 @@ const getFinalNotificationType = (n) => {
   const textContext = String(n.title || '') + ' ' + String(n.message || '') + ' ' + String(n.type || '');
   const normalizedText = textContext.trim().toLowerCase();
 
-  // Report deletion should be detected first
-  if (normalizedText.includes('report deleted') || normalizedText.includes('report was deleted') || (normalizedText.includes('deleted') && normalizedText.includes('report'))) {
-    return 'report_deleted';
-  }
   if (normalizedText.includes('resolved') || normalizedText.includes('complete') || normalizedText.includes('success')) {
     return 'resolved';
   }
@@ -50,52 +48,40 @@ const getFinalNotificationType = (n) => {
 
 const getNotificationIcon = (type) => {
   const t = (type || 'info').toLowerCase();
+
   switch (t) {
+    case 'pending':
+      return <FaClock className="icon icon-pending" />;
+
+    case 'ongoing':
+      return <FaSyncAlt className="icon icon-ongoing" />;
+
     case 'resolved':
     case 'success':
       return <FaCheckCircle className="icon icon-success" />;
-    case 'account_alert':
-      // treat account_alert like a new report visually (exclamation icon)
-      return <FaExclamationTriangle className="icon icon-report" />;
-    case 'user':
-      return <FaUser className="icon icon-security" />; // user icon for account actions
+
     case 'report':
-      // new report posts use the exclamation triangle like the home dashboard
+    case 'account_alert':
       return <FaExclamationTriangle className="icon icon-report" />;
-    case 'report_deleted':
-      // red trash icon for deleted reports
-      return <FaTrashAlt className="icon icon-delete" />;
-    case 'warning':
-    case 'ongoing':
-      // ongoing status uses the sync/refresh icon (matching Home)
-      return <FaSyncAlt className="icon icon-ongoing" />;
-    case 'pending':
-      return <FaClock className="icon icon-pending" />;
-    case 'deleted':
-    case 'report deleted':
-      return <FaTrashAlt className="icon icon-warning" />;
+
     case 'account_deleted':
-      // red trash icon for account deletions
       return <FaTrashAlt className="icon icon-delete" />;
+
+    case 'user':
+      return <FaUser className="icon icon-security" />;
+
     default:
       return <FaInfoCircle className="icon icon-info" />;
   }
 };
 
-
 // main icon shown at the left of each notification item
 // per request: keep the exclamation triangle in front of report posts
 const getMainIcon = (n) => {
-  // if the notification relates to a report or is an account_alert, show the exclamation triangle
-  const t = String(n?.type || '').toLowerCase();
-  const message = String(n?.message || '') + ' ' + String(n?.title || '');
-  const msg = message.toLowerCase();
-  if (t === 'report' || t === 'account_alert' || msg.includes('report') || msg.includes("updated to") || msg.includes('new report')) {
-    return <FaExclamationTriangle className="icon icon-report" />;
-  }
-  // fallback to the type-based icon
-  return getNotificationIcon(t || 'info');
+  const status = getBadgeClass(n);   // use final interpreted status
+  return getNotificationIcon(status);
 };
+
 
 // badge helpers accept either a type string or the full notification object
 const getBadgeClass = (input) => {
@@ -116,13 +102,9 @@ const getBadgeClass = (input) => {
   // account / user deleted messages should show account-deleted badge
   if (msg.includes('user deleted') || msg.includes('account deleted') || (msg.includes('deleted') && msg.includes('user'))) return 'account-deleted';
 
-  // report deleted messages should show report-deleted badge
-  if (msg.includes('report deleted') || msg.includes('report was deleted') || (msg.includes('deleted') && msg.includes('report'))) return 'report-deleted';
-
   if (t === 'account_alert') return 'report';
   if (t === 'success') return 'resolved';
   if (t === 'account_deleted' || t === 'user deleted' || t === 'user_deleted') return 'account-deleted';
-  if (t === 'report_deleted') return 'report-deleted';
   return t || 'info';
 };
 
@@ -145,8 +127,6 @@ const getBadgeLabel = (input) => {
       return 'Report Alert';
     case 'account_deleted':
       return 'Account Deleted';
-    case 'report_deleted':
-      return 'Report Deleted';
     case 'report':
       return 'Report';
     case 'pending':
@@ -195,7 +175,7 @@ export default function AdminNotifications({ session }) {
     setLoading(true);
     setError('');
     try {
-      const res = await fetch(getApiUrl('/api/admin/admin_notifications'), { headers });
+      const res = await fetch(`${API_URL}/admin/admin_notifications`, { headers });
       if (!res.ok) throw new Error(`Failed to fetch (${res.status})`);
       const data = await res.json();
       // Only admin-focused notifications (admin_notifications endpoint)
@@ -229,7 +209,7 @@ export default function AdminNotifications({ session }) {
     try {
       // optimistic update
       setNotifications(prev => prev.map(n => (n.raw_id === rawId ? { ...n, is_read: true } : n)));
-      const res = await fetch(getApiUrl(`/api/admin/admin_notifications/${rawId}/read`), { method: 'POST', headers });
+      const res = await fetch(`${API_URL}/admin/admin_notifications/${rawId}/read`, { method: 'POST', headers });
       if (!res.ok) throw new Error(`Failed to mark read (${res.status})`);
       const data = await res.json();
       if (data?.notification) {
@@ -249,7 +229,7 @@ export default function AdminNotifications({ session }) {
     try {
       // optimistic
       setNotifications(prev => prev.map(n => ({ ...n, is_read: true })));
-      const res = await fetch(getApiUrl('/api/admin/admin_notifications/read_all'), { method: 'POST', headers });
+      const res = await fetch(`${API_URL}/admin/admin_notifications/read_all`, { method: 'POST', headers });
       if (!res.ok) throw new Error(`Failed to mark all read (${res.status})`);
       const data = await res.json();
       if (data?.status !== 'success' && !data?.updated_count) {
@@ -268,7 +248,7 @@ export default function AdminNotifications({ session }) {
     try {
       // optimistic remove
       setNotifications(prev => prev.filter(n => n.raw_id !== rawId));
-      const res = await fetch(getApiUrl(`/api/admin/admin_notifications/${rawId}`), { method: 'DELETE', headers });
+      const res = await fetch(`${API_URL}/admin/admin_notifications/${rawId}`, { method: 'DELETE', headers });
       if (!res.ok) throw new Error(`Failed to delete (${res.status})`);
       // Optionally validate response
     } catch (e) {
@@ -349,7 +329,7 @@ export default function AdminNotifications({ session }) {
         <ul className="notifications-list">
           {filtered.map(n => (
             <li key={n.id} className={`notification-item ${n.is_read ? 'read' : 'unread'}`}>
-              <div className={`notif-icon-container ${getIconClassForNotification(n)}`}>{getMainIcon(n)}</div>
+              <div className="notif-icon-container">{getMainIcon(n)}</div>
               <div className="notif-details">
                 <div className="notif-header">
                   <p className="notif-title"><strong>{n.title}</strong></p>

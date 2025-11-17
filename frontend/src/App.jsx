@@ -21,6 +21,7 @@ import BarangayHome from "./components/BarangayHome";
 import CommunityFeedBarangay from "./components/CommunityFeedBarangay";
 import ResponderLayout from "./components/ResponderLayout";
 import ResponderHome from "./components/ResponderHome";
+import ResponderReports from "./components/ResponderReports";
 import CommunityFeedResponder from "./components/CommunityFeedResponder";
 import { fetchSession } from "./utils/session";
 import VerificationForm from "./components/VerificationForm";
@@ -288,6 +289,7 @@ function App() {
           <Route path="/barangay/reports" element={<BarangayReports token={session?.token} />} />
           <Route path="/barangay/notifications" element={<Notifications token={session?.token} />} />
           <Route path="/barangay/community-feed" element={<CommunityFeedBarangay token={session?.token} session={session} />} />
+          <Route path="/barangay/cctv" element={<CCTVViewer />} />
           <Route path="/barangay/profile" element={<Profile token={session?.token} />} />
         </Route>
 
@@ -305,7 +307,7 @@ function App() {
         >
           <Route path="/responder/home" element={<ResponderHome token={session?.token} session={session} />} />
           <Route path="/responder/maps" element={<Maps session={session} userRole="Responder" />} />
-          <Route path="/responder/reports" element={<AdminReports token={session?.token} />} />
+          <Route path="/responder/reports" element={<ResponderReports token={session?.token} />} />
           <Route path="/responder/notifications" element={<Notifications token={session?.token} />} />
           <Route path="/responder/community-feed" element={<CommunityFeedResponder token={session?.token} session={session} />} />
           <Route path="/responder/profile" element={<Profile token={session?.token} />} />

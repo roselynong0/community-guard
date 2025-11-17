@@ -10,7 +10,8 @@ import {
   FaSync,       
   FaCheck,      
   FaTrashAlt,
-  FaUserShield    
+  FaUserShield,
+  FaTimes
 } from 'react-icons/fa';
 
 import { getApiUrl } from "../utils/apiConfig";
@@ -22,7 +23,12 @@ const getFinalNotificationType = (n) => {
     const textContext = String(n.title || '') + ' ' + String(n.message || '') + ' ' + String(n.type || '');
     const normalizedText = textContext.trim().toLowerCase();
 
-    // Report/post deletion should be detected first
+    // Report/post rejection should be detected first
+    if (normalizedText.includes('report rejected') || normalizedText.includes('post rejected') || (normalizedText.includes('rejected') && (normalizedText.includes('report') || normalizedText.includes('post')))) {
+        return 'rejected';
+    }
+
+    // Report/post deletion should be detected
     if (normalizedText.includes('report deleted') || normalizedText.includes('post deleted') || (normalizedText.includes('deleted') && (normalizedText.includes('report') || normalizedText.includes('post')))) {
         return 'report_deleted';
     }
@@ -64,6 +70,10 @@ const getNotificationIcon = (type) => {
     case 'security':
       return <FaUserShield className="icon icon-security" />;
     // END NEW CASE
+    
+    // Rejection notification - red X icon
+    case 'rejected':
+      return <FaTimes className="icon icon-rejected" />;
     
     // Report/post deletion - red trash icon
     case 'report_deleted':

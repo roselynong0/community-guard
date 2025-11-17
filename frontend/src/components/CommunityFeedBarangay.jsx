@@ -1,12 +1,32 @@
 import React, { useState, useEffect, useCallback } from "react";
-import { useOutletContext } from "react-router-dom";
 import "./CommunityFeed.css";
 import "./Notifications.css";
-import { FaPaperPlane, FaUsers, FaTrash, FaExclamationTriangle } from "react-icons/fa";
+import { FaPaperPlane, FaUsers, FaTrash } from "react-icons/fa";
 import { getApiUrl, API_CONFIG } from "../utils/apiConfig";
 
 // ✅ POST TYPES
 const POST_TYPES = ["incident", "safety", "suggestion", "recommendation", "general"];
+
+// ✅ BARANGAYS (Olongapo City)
+const BARANGAYS = [
+  "Barretto",
+  "East Bajac-Bajac",
+  "East Tapinac",
+  "Gordon Heights",
+  "Kalaklan",
+  "Mabayuan",
+  "New Asinan",
+  "New Banicain",
+  "New Cabalan",
+  "New Ilalim",
+  "New Kababae",
+  "New Kalalake",
+  "Old Cabalan",
+  "Pag-Asa",
+  "Santa Rita",
+  "West Bajac-Bajac",
+  "West Tapinac",
+];
 
 // ✅ ROLE COLORS
 const ROLE_COLORS = {
@@ -17,80 +37,86 @@ const ROLE_COLORS = {
 };
 
 const CommunityFeedBarangay = ({ session, token }) => {
-  const outlet = useOutletContext?.() || {};
-  const selectedBarangay = outlet.selectedBarangay || "All";
-
   const [posts, setPosts] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [openModal, setOpenModal] = useState(false);
   const [notification, setNotification] = useState(null);
   const [searchTerm, setSearchTerm] = useState("");
-  const [userInfo, setUserInfo] = useState(null);
-  const [isOfficialUser, setIsOfficialUser] = useState(false);
+  const [barangayFilter, setBarangayFilter] = useState("All");
+  const [postTypeFilter, setPostTypeFilter] = useState("all");
+  const [userBarangay, setUserBarangay] = useState("");
+  const [currentUserId, setCurrentUserId] = useState(null);
 
   const authToken = token || session?.token || localStorage.getItem("token") || "";
 
-  const fetchUserInfo = useCallback(async () => {
-    if (!authToken) return;
+  useEffect(() => {
+    fetchUserBarangay();
+  }, []);
+
+  const fetchUserBarangay = async () => {
     try {
+      const tokenToUse = authToken || localStorage.getItem("token");
+      if (!tokenToUse) return;
+
       const response = await fetch(getApiUrl(API_CONFIG.endpoints.profile), {
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${authToken}` },
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${tokenToUse}` },
       });
 
       if (response.ok) {
         const data = await response.json();
-        setUserInfo(data);
-        setIsOfficialUser(data.role === "Barangay Official" || data.role === "Admin");
+        const barangay = data.profile?.address_barangay || data.address_barangay || "Barretto";
+        setUserBarangay(barangay);
+        
+        // Set current user ID for draft storage
+        if (data.profile?.id) {
+          setCurrentUserId(data.profile.id);
+        } else if (data.id) {
+          setCurrentUserId(data.id);
+        }
+      } else {
+        console.error("Error fetching user info:", response.statusText);
+        setUserBarangay("Barretto");
       }
     } catch (error) {
       console.error("Error fetching user info:", error);
+      setUserBarangay("Barretto");
     }
-  }, [authToken]);
-
-  useEffect(() => {
-    fetchUserInfo();
-  }, [fetchUserInfo]);
+  };
 
   const fetchPosts = useCallback(async () => {
-    if (!authToken) return;
-
+    setLoading(true);
     try {
-      // Use barangay-specific endpoint which returns only approved posts for barangay officials
-  let url = getApiUrl('/api/community/posts/barangay');
+      const tokenToUse = authToken || localStorage.getItem("token");
+      if (!tokenToUse) return;
+
+      let url = getApiUrl('/api/community/posts');
       const params = new URLSearchParams();
 
-      // If userInfo is loaded, use role to determine filter
-      if (userInfo && userInfo.role === "Admin") {
-        // Admins can optionally pass a barangay to filter; otherwise they'll get approved posts across barangays
-        if (selectedBarangay && selectedBarangay !== "All") {
-          params.append("barangay", selectedBarangay);
-        }
-      } else if (userInfo && userInfo.role === "Barangay Official") {
-        // Barangay officials will be scoped server-side to their own address_barangay; no param required
-      } else {
-        // Residents can optionally view a specific barangay (selectedBarangay)
-        if (selectedBarangay && selectedBarangay !== "All") {
-          params.append("barangay", selectedBarangay);
-        }
+      if (barangayFilter && barangayFilter !== "All") {
+        params.append("barangay", barangayFilter);
+      }
+
+      if (postTypeFilter && postTypeFilter !== "all") {
+        params.append("post_type", postTypeFilter);
       }
 
       // Append params to the full URL returned by getApiUrl
       const response = await fetch(url + (params.toString() ? `?${params.toString()}` : ''), {
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${authToken}` },
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${tokenToUse}` },
       });
 
       if (response.ok) {
         const data = await response.json();
         setPosts(data.posts || []);
-      } else if (response.status === 403) {
-        setPosts([]);
-        console.warn("Not authorized to view pending posts or that barangay's posts");
       } else {
         console.error("Error fetching posts:", response.statusText);
       }
     } catch (error) {
       console.error("Error fetching posts:", error);
+    } finally {
+      setLoading(false);
     }
-  }, [selectedBarangay, authToken, userInfo]);
+  }, [barangayFilter, postTypeFilter, authToken]);
 
   useEffect(() => {
     fetchPosts();
@@ -98,9 +124,10 @@ const CommunityFeedBarangay = ({ session, token }) => {
 
   const handleNewPost = async (newPost) => {
     try {
+      const tokenToUse = authToken || localStorage.getItem("token");
       const response = await fetch(getApiUrl('/api/community/posts'), {
         method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${authToken}` },
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${tokenToUse}` },
         body: JSON.stringify(newPost),
       });
 
@@ -112,32 +139,51 @@ const CommunityFeedBarangay = ({ session, token }) => {
           type: "success",
           message: "✅ Post published successfully!",
         });
+        
+        // Clear saved form data on success (user-specific)
+        const draftKey = currentUserId ? `postFormDraft_${currentUserId}` : "postFormDraft";
+        localStorage.removeItem(draftKey);
         setOpenModal(false);
+        setTimeout(() => setNotification(null), 3000);
+        return true;
       } else {
         const error = await response.json();
+        
+        // ✅ Save form data for recovery on error (user-specific)
+        const draftKey = currentUserId ? `postFormDraft_${currentUserId}` : "postFormDraft";
+        localStorage.setItem(draftKey, JSON.stringify(newPost));
+        
         setNotification({
           type: "error",
           message: `❌ Error: ${error.message}`,
         });
+        setTimeout(() => setNotification(null), 3000);
+        return false;
       }
     } catch (error) {
       console.error("Error creating post:", error);
+      
+      // ✅ Save form data for recovery on error (user-specific)
+      const draftKey = currentUserId ? `postFormDraft_${currentUserId}` : "postFormDraft";
+      localStorage.setItem(draftKey, JSON.stringify(newPost));
+      
       setNotification({
         type: "error",
         message: "❌ Failed to create post",
       });
+      setTimeout(() => setNotification(null), 3000);
+      return false;
     }
-
-    setTimeout(() => setNotification(null), 3000);
   };
 
   const handleDeletePost = async (postId) => {
     if (!window.confirm("Are you sure you want to delete this post?")) return;
 
     try {
+      const tokenToUse = authToken || localStorage.getItem("token");
       const response = await fetch(getApiUrl(`/api/community/posts/${postId}`), {
         method: "DELETE",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${authToken}` },
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${tokenToUse}` },
       });
 
       if (response.ok) {
@@ -146,6 +192,13 @@ const CommunityFeedBarangay = ({ session, token }) => {
           type: "success",
           message: "✅ Post deleted successfully!",
         });
+        setTimeout(() => setNotification(null), 3000);
+      } else {
+        setNotification({
+          type: "error",
+          message: "❌ Failed to delete post",
+        });
+        setTimeout(() => setNotification(null), 3000);
       }
     } catch (error) {
       console.error("Error deleting post:", error);
@@ -153,18 +206,18 @@ const CommunityFeedBarangay = ({ session, token }) => {
         type: "error",
         message: "❌ Failed to delete post",
       });
+      setTimeout(() => setNotification(null), 3000);
     }
-
-    setTimeout(() => setNotification(null), 3000);
   };
 
   const handleAddComment = async (postId, commentText) => {
     if (!commentText.trim()) return;
 
     try {
+      const tokenToUse = authToken || localStorage.getItem("token");
       const response = await fetch(getApiUrl(`/api/community/posts/${postId}/comments`), {
         method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${authToken}` },
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${tokenToUse}` },
         body: JSON.stringify({ content: commentText }),
       });
 
@@ -173,6 +226,12 @@ const CommunityFeedBarangay = ({ session, token }) => {
         setNotification({
           type: "success",
           message: "✅ Comment added!",
+        });
+      } else {
+        const error = await response.json();
+        setNotification({
+          type: "error",
+          message: `❌ ${error.message}`,
         });
       }
     } catch (error) {
@@ -190,9 +249,10 @@ const CommunityFeedBarangay = ({ session, token }) => {
     if (!window.confirm("Delete this comment?")) return;
 
     try {
+      const tokenToUse = authToken || localStorage.getItem("token");
       const response = await fetch(getApiUrl(`/api/community/comments/${commentId}`), {
         method: "DELETE",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${authToken}` },
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${tokenToUse}` },
       });
 
       if (response.ok) {
@@ -214,10 +274,6 @@ const CommunityFeedBarangay = ({ session, token }) => {
     );
   });
 
-  const feedTitle = isOfficialUser
-    ? `Barangay Official Feed — ${selectedBarangay || "All"}`
-    : "Community Feed";
-
   return (
     <div className="feed-container">
       {notification && (
@@ -229,7 +285,7 @@ const CommunityFeedBarangay = ({ session, token }) => {
       <div className="feed-header">
         <h2 className="feed-title">
           <FaUsers className="feed-icon" />
-          {feedTitle}
+          Community Feed
         </h2>
 
         {/* ✅ SEARCH + NEW POST ROW */}
@@ -246,30 +302,60 @@ const CommunityFeedBarangay = ({ session, token }) => {
             + New Post
           </button>
         </div>
+
+        {/* ✅ FILTERS ROW */}
+        <div className="feed-filters">
+          <select
+            className="feed-filter-select"
+            value={barangayFilter}
+            onChange={(e) => setBarangayFilter(e.target.value)}
+          >
+            <option value="All">All Barangays</option>
+            {BARANGAYS.map((b) => (
+              <option key={b} value={b}>{b}</option>
+            ))}
+          </select>
+
+          <select
+            className="feed-filter-select"
+            value={postTypeFilter}
+            onChange={(e) => setPostTypeFilter(e.target.value)}
+          >
+            <option value="all">All Types</option>
+            <option value="incident">Incident</option>
+            <option value="safety">Safety</option>
+            <option value="suggestion">Suggestion</option>
+            <option value="recommendation">Recommendation</option>
+            <option value="general">General</option>
+          </select>
+        </div>
       </div>
 
       <div className="feed-list">
-        {filteredPosts.length === 0 && <p>No posts found.</p>}
+        {loading ? (
+          <div className="feed-loading">
+            <div className="spinner" />
+            <p>Loading posts...</p>
+          </div>
+        ) : (
+          <>
+            {filteredPosts.length === 0 && <p>No posts found.</p>}
 
-        {filteredPosts.map((post) => (
-          <PostCard
-            key={post.id}
-            post={post}
-            onAddComment={handleAddComment}
-            onDeleteComment={handleDeleteComment}
-            onDeletePost={handleDeletePost}
-          />
-        ))}
+            {filteredPosts.map((post) => (
+              <PostCard
+                key={post.id}
+                post={post}
+                onAddComment={handleAddComment}
+                onDeleteComment={handleDeleteComment}
+                onDeletePost={handleDeletePost}
+              />
+            ))}
+          </>
+        )}
       </div>
 
       {openModal && (
-        <PostModal 
-          onClose={() => setOpenModal(false)} 
-          onSubmit={handleNewPost}
-          userBarangay={userInfo?.address_barangay}
-          selectedBarangay={selectedBarangay}
-          isOfficialUser={isOfficialUser}
-        />
+        <PostModal onClose={() => setOpenModal(false)} onSubmit={handleNewPost} userBarangay={userBarangay} currentUserId={currentUserId} />
       )}
     </div>
   );
@@ -279,12 +365,41 @@ const CommunityFeedBarangay = ({ session, token }) => {
 const PostCard = ({ post, onAddComment, onDeleteComment, onDeletePost }) => {
   const [comment, setComment] = useState("");
   const [showComments, setShowComments] = useState(false);
+  const [commentsLoading, setCommentsLoading] = useState(false);
+  const [postData, setPostData] = useState(post);
 
   const handleCommentKey = (e) => {
     if (e.key === "Enter" && comment.trim()) {
       onAddComment(post.id, comment);
       setComment("");
     }
+  };
+
+  const handleViewComments = async () => {
+    if (!showComments) {
+      if (!postData.comments || postData.comments.length === 0) {
+        setCommentsLoading(true);
+        try {
+          const token = localStorage.getItem("token");
+          if (!token) return;
+          const response = await fetch(
+            `${import.meta.env.VITE_API_URL || "http://localhost:5000"}/api/community/posts/${post.id}`,
+            { headers: { Authorization: `Bearer ${token}` } }
+          );
+          if (response.ok) {
+            const data = await response.json();
+            if (data.status === "success") {
+              setPostData(data.post);
+            }
+          }
+        } catch (error) {
+          console.error("Error loading comments:", error);
+        } finally {
+          setCommentsLoading(false);
+        }
+      }
+    }
+    setShowComments(!showComments);
   };
 
   const roleColor = ROLE_COLORS[post.author?.role] || ROLE_COLORS["Resident"];
@@ -298,33 +413,51 @@ const PostCard = ({ post, onAddComment, onDeleteComment, onDeletePost }) => {
           <h3>{post.title}</h3>
           {post.is_pinned && <span className="badge-pinned">📌 Pinned</span>}
         </div>
-        <div className="post-actions">
-          {post.can_delete && (
-            <FaTrash
-              className="post-delete-btn"
-              onClick={() => onDeletePost(post.id)}
-              title="Delete post"
-            />
-          )}
+        <div className="post-header-right">
+          <div className="post-meta">
+            <span
+              className="role-badge"
+              style={{
+                backgroundColor: roleColor.bg,
+                color: roleColor.text,
+                padding: "0.25rem 0.75rem",
+                borderRadius: "20px",
+                fontSize: "0.75rem",
+                fontWeight: "600",
+                textTransform: "uppercase",
+              }}
+            >
+              {post.author?.role || "Resident"}
+            </span>
+            {post.can_delete && (
+              <span className="user-post-label">Your Post</span>
+            )}
+            {post.can_delete && (
+              <FaTrash
+                className="post-delete-btn"
+                onClick={() => onDeletePost(post.id)}
+                title="Delete post"
+              />
+            )}
+          </div>
         </div>
       </div>
 
-      <div className="post-meta">
-        <span
-          className="role-badge"
+      <div className="post-type-container">
+        <span 
+          className="post-type-badge"
           style={{
-            backgroundColor: roleColor.bg,
-            color: roleColor.text,
+            backgroundColor: "rgba(156, 163, 175, 0.15)",
+            color: "#6b7280",
             padding: "0.25rem 0.75rem",
             borderRadius: "20px",
             fontSize: "0.75rem",
             fontWeight: "600",
-            textTransform: "uppercase",
+            textTransform: "capitalize",
           }}
         >
-          {post.author?.role || "Resident"}
+          {post.post_type}
         </span>
-        <span className="post-type-badge">{post.post_type}</span>
       </div>
 
       <p className="post-content">{post.content}</p>
@@ -339,19 +472,27 @@ const PostCard = ({ post, onAddComment, onDeleteComment, onDeletePost }) => {
         </p>
       )}
 
-      <div className="toggle-comment-container">
-        <button
-          className="toggle-comment-btn"
-          onClick={() => setShowComments(!showComments)}
-        >
-          {showComments ? "Hide Comments" : `View Comments (${post.comment_count || 0})`}
-        </button>
-      </div>
+      {post.allow_comments && (
+        <div className="toggle-comment-container">
+          <button
+            className="toggle-comment-btn"
+            onClick={handleViewComments}
+            disabled={commentsLoading}
+          >
+            {commentsLoading ? "Loading..." : showComments ? "Hide Comments" : `View Comments (${post.comment_count || 0})`}
+          </button>
+        </div>
+      )}
 
       {showComments && post.allow_comments && (
         <div className="comments-box">
           <div className="comments-scroll">
-            {(post.comments ?? []).map((c) => (
+            {(!postData.comments || postData.comments.length === 0) && (
+              <p style={{ color: "#9ca3af", textAlign: "center", padding: "1rem" }}>
+                No comments yet. Be the first to comment!
+              </p>
+            )}
+            {(postData.comments ?? []).map((c) => (
               <div key={c.id} className="comment-item">
                 <div className="comment-header">
                   <span className="comment-author">
@@ -402,14 +543,47 @@ const PostCard = ({ post, onAddComment, onDeleteComment, onDeletePost }) => {
 };
 
 // ✅ POST MODAL
-const PostModal = ({ onClose, onSubmit, userBarangay, isOfficialUser }) => {
+const PostModal = ({ onClose, onSubmit, userBarangay, currentUserId }) => {
   const [title, setTitle] = useState("");
   const [content, setContent] = useState("");
   const [postType, setPostType] = useState("general");
   const [barangay, setBarangay] = useState(userBarangay || "");
-  const [showWarning, setShowWarning] = useState(false);
+  const [posting, setPosting] = useState(false);
 
-  const handleSubmit = (e) => {
+  // ✅ Recover unsaved draft if it exists (user-specific)
+  const [savedDraft] = useState(() => {
+    try {
+      const draftKey = currentUserId ? `postFormDraft_${currentUserId}` : "postFormDraft";
+      const draft = localStorage.getItem(draftKey);
+      if (draft) {
+        const parsed = JSON.parse(draft);
+        setTitle(parsed.title || "");
+        setContent(parsed.content || "");
+        setPostType(parsed.post_type || "general");
+        setBarangay(parsed.barangay || userBarangay || "");
+        return parsed;
+      }
+    } catch (err) {
+      console.warn("Failed to recover draft:", err);
+    }
+    return null;
+  });
+
+  const handleModalClose = () => {
+    // ✅ Save form data as draft if user is closing with unsaved content (user-specific)
+    if (title.trim() || content.trim()) {
+      const draftKey = currentUserId ? `postFormDraft_${currentUserId}` : "postFormDraft";
+      localStorage.setItem(draftKey, JSON.stringify({
+        title,
+        content,
+        post_type: postType,
+        barangay,
+      }));
+    }
+    onClose();
+  };
+
+  const handleSubmit = async (e) => {
     e.preventDefault();
 
     if (!title.trim() || !content.trim()) {
@@ -429,11 +603,22 @@ const PostModal = ({ onClose, onSubmit, userBarangay, isOfficialUser }) => {
       barangay,
     };
 
-    onSubmit(newPost);
-    setTitle("");
-    setContent("");
-    setPostType("general");
-    setBarangay(userBarangay || "");
+    try {
+      setPosting(true);
+      const success = await onSubmit(newPost);
+      setPosting(false);
+
+      if (success) {
+        // Clear form locally
+        setTitle("");
+        setContent("");
+        setPostType("general");
+        setBarangay(userBarangay);
+      }
+    } catch (err) {
+      console.error("Error submitting post:", err);
+      setPosting(false);
+    }
   };
 
   return (
@@ -441,76 +626,71 @@ const PostModal = ({ onClose, onSubmit, userBarangay, isOfficialUser }) => {
       <div className="modal-content" onClick={(e) => e.stopPropagation()}>
         <div className="modal-header">
           <h2>Create Community Post</h2>
-          <button className="modal-close" onClick={onClose}>
+          <button className="modal-close" onClick={handleModalClose}>
             ✕
           </button>
         </div>
 
-        {showWarning && (
-          <div className="warning-section">
-            <FaExclamationTriangle className="warning-icon" />
-            <h4>Community Guidelines</h4>
-            <p>
-              Please ensure your post is related to community safety, incidents, or
-              constructive suggestions. Posts must be respectful and factual.
-            </p>
-            <button
-              className="warning-dismiss-btn"
-              onClick={() => setShowWarning(false)}
-            >
-              I Understand
-            </button>
-          </div>
-        )}
-
         <form onSubmit={handleSubmit} className="post-form">
           <div className="form-group">
-            <label>Post Type *</label>
+            <label>Post Type * <span className="required">(Required)</span></label>
             <select
               value={postType}
               onChange={(e) => setPostType(e.target.value)}
               className="form-select"
             >
-              {POST_TYPES.map((type) => (
-                <option key={type} value={type}>
-                  {type.charAt(0).toUpperCase() + type.slice(1)}
-                </option>
-              ))}
+              <option value="">-- Select Post Type --</option>
+              <option value="incident">🚨 Incident Report</option>
+              <option value="safety">🛡️ Safety Concern</option>
+              <option value="suggestion">💡 Suggestion</option>
+              <option value="recommendation">⭐ Recommendation</option>
+              <option value="general">📢 General Information</option>
             </select>
+            <small className="form-help-text">
+              Choose the category that best describes your post
+            </small>
           </div>
 
           <div className="form-group">
             <label>Barangay *</label>
-            <input
-              type="text"
+            <select
               value={barangay}
               onChange={(e) => setBarangay(e.target.value)}
-              placeholder="Your barangay"
-              className="form-input"
-              disabled={!isOfficialUser}
-            />
+              className="form-select"
+            >
+              <option value="">-- Select Barangay --</option>
+              {BARANGAYS.map((b, idx) => (
+                <option key={idx} value={b}>
+                  {b}
+                </option>
+              ))}
+            </select>
+            <small className="form-help-text">
+              Select the barangay where you are reporting
+            </small>
           </div>
 
           <div className="form-group">
-            <label>Title *</label>
+            <label>Title * <span className="required">(Max 255 characters)</span></label>
             <input
               type="text"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
-              placeholder="Post title..."
+              placeholder="Give your post a clear, concise title..."
               className="form-input"
               maxLength="255"
             />
+            <small className="char-count">{title.length}/255</small>
           </div>
 
           <div className="form-group">
-            <label>Content *</label>
+            <label>Message *</label>
             <textarea
               value={content}
               onChange={(e) => setContent(e.target.value)}
-              placeholder="Share your thoughts, incident report, or suggestion..."
+              placeholder="Describe in detail. Include what, when, where, and why if applicable..."
               className="form-textarea"
-              rows="5"
+              rows="6"
             />
           </div>
 
@@ -518,16 +698,23 @@ const PostModal = ({ onClose, onSubmit, userBarangay, isOfficialUser }) => {
             <button
               type="button"
               className="btn-secondary"
-              onClick={onClose}
+              onClick={handleModalClose}
             >
               Cancel
             </button>
             <button
               type="submit"
-              className="btn-primary"
-              onClick={() => !showWarning && setShowWarning(true)}
+              className="btn-success"
+              disabled={posting}
             >
-              Post to Feed
+              {posting ? (
+                <span style={{display: 'inline-flex', alignItems: 'center', gap: 8}}>
+                  <div className="spinner" style={{width: 16, height: 16, borderWidth: '2px'}} />
+                  Posting...
+                </span>
+              ) : (
+                '✓ Post'
+              )}
             </button>
           </div>
         </form>

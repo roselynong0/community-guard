@@ -132,7 +132,11 @@ function Home({ token, session }) {
         // 4. Fetch recent reports - all reports for everyone (barangay filtering disabled)
         const reportsEndpoint = getApiUrl(API_CONFIG.endpoints.reports + `?limit=5&sort=desc&filter=all`);
         const recentRes = await fetchWithToken(reportsEndpoint, token);
-        setRecentReports(recentRes.status === "success" ? recentRes.reports : []);
+        // Filter to only include approved reports (not pending, not rejected)
+        const filteredRecentReports = recentRes.status === "success" 
+          ? (recentRes.reports || []).filter(report => report.is_approved !== false && !report.is_rejected)
+          : [];
+        setRecentReports(filteredRecentReports);
         
       } catch (err) {
         console.error("Dashboard fetch error:", err);
@@ -233,7 +237,9 @@ function Home({ token, session }) {
           <h3>Recent Reports</h3>
           <ul>
             {recentReports.length ? (
-              recentReports.map(report => (
+              recentReports
+                .filter(report => !report.is_rejected)
+                .map(report => (
                 <li 
                   key={report.id} 
                   onClick={() => handleReportClick(report.id)}

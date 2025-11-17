@@ -6,9 +6,10 @@ import {
   FaCalendarAlt,
   FaMap,
   FaUserFriends,
-  FaUsers,
+  FaUser,
   FaBell,
   FaChartLine,
+  FaCamera,
 } from "react-icons/fa";
 import { Outlet, NavLink, useNavigate } from "react-router-dom";
 import { API_CONFIG } from "../utils/apiConfig";
@@ -195,6 +196,9 @@ function BarangayLayout({ session, setSession, setNotification }) {
             <NavLink to="/barangay/maps">
               <FaMap /> Maps
             </NavLink>
+            <NavLink to="/barangay/cctv">
+              <FaCamera /> Olongapo CCTV
+            </NavLink>
             <NavLink to="/barangay/notifications">
               <FaBell /> Notifications
               {notificationCount > 0 && (
@@ -205,7 +209,7 @@ function BarangayLayout({ session, setSession, setNotification }) {
               <FaUserFriends /> Community Feed
             </NavLink>
             <NavLink to="/barangay/profile">
-              <FaUsers /> Profile
+              <FaUser /> Profile
             </NavLink>
           </nav>
 
@@ -343,6 +347,9 @@ function BarangayLayout({ session, setSession, setNotification }) {
         <NavLink to="/barangay/maps">
           <FaMap />
         </NavLink>
+        <NavLink to="/barangay/cctv">
+          <FaCamera />
+        </NavLink>
         <NavLink to="/barangay/notifications">
           <FaBell />
         </NavLink>
@@ -350,7 +357,7 @@ function BarangayLayout({ session, setSession, setNotification }) {
           <FaUserFriends />
         </NavLink>
         <NavLink to="/barangay/profile">
-          <FaUsers />
+          <FaUser />
         </NavLink>
       </nav>
 

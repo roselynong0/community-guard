@@ -151,6 +151,14 @@ function BarangayReports({ token }) {
     // New states for rejection info modal (when viewing rejected reports in list)
     const [rejectionInfoModalOpen, setRejectionInfoModalOpen] = useState(false);
     const [rejectionInfoReport, _setRejectionInfoReport] = useState(null);
+    
+    // New states for responder assignment
+    const [isAssignResponderModalOpen, setIsAssignResponderModalOpen] = useState(false);
+    const [selectedReportForResponder, setSelectedReportForResponder] = useState(null);
+    const [responders, setResponders] = useState([]);
+    const [selectedResponder, setSelectedResponder] = useState("");
+    const [isAssigningResponder, setIsAssigningResponder] = useState(false);
+    const [loadingResponders, setLoadingResponders] = useState(false);
 
     // --- REFS for Keyboard Navigation ---
     const filterContainerRef = useRef(null);
@@ -214,11 +222,91 @@ function BarangayReports({ token }) {
         setIsDeleteReasonOpen(false);
         setIsDeleteConfirmOpen(true);
     };
+    
+    // Responder assignment modal functions
+    const closeAssignResponderModal = useCallback(() => {
+        if (!isAssigningResponder) {
+            setIsAssignResponderModalOpen(false);
+            setSelectedReportForResponder(null);
+            setSelectedResponder("");
+            setResponders([]);
+        }
+    }, [isAssigningResponder]);
+    
+    const openAssignResponderModal = async (report) => {
+        setSelectedReportForResponder(report);
+        setSelectedResponder("");
+        setLoadingResponders(true);
+        
+        try {
+            // Fetch responders for this barangay
+            const response = await fetch(getApiUrl(`/api/barangay/responders?barangay=${encodeURIComponent(report.barangay)}`), {
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json'
+                }
+            });
+            
+            if (!response.ok) {
+                throw new Error('Failed to fetch responders');
+            }
+            
+            const data = await response.json();
+            if (data.status === "success") {
+                setResponders(data.responders || []);
+                setIsAssignResponderModalOpen(true);
+            } else {
+                showNotification(`Failed to load responders: ${data.message}`, 'error');
+            }
+        } catch (error) {
+            console.error('Error fetching responders:', error);
+            showNotification(`Error fetching responders: ${error.message}`, 'error');
+        } finally {
+            setLoadingResponders(false);
+        }
+    };
+    
+    const handleAssignResponder = async () => {
+        if (!selectedReportForResponder || !selectedResponder || !token) return;
+        
+        setIsAssigningResponder(true);
+        try {
+            const response = await fetch(getApiUrl(`/api/reports/${selectedReportForResponder.id}/assign-responder`), {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ responder_id: selectedResponder })
+            });
+            
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.message || 'Failed to assign responder');
+            }
+            
+            const data = await response.json();
+            if (data.status === "success") {
+                showNotification(`✅ Responder ${data.responder_name} assigned successfully`, 'success');
+                closeAssignResponderModal();
+                // Refresh reports to show updated assignment
+                fetchReports();
+            } else {
+                throw new Error(data.message || 'Failed to assign responder');
+            }
+        } catch (error) {
+            console.error('Error assigning responder:', error);
+            showNotification(`Failed to assign responder: ${error.message}`, 'error');
+        } finally {
+            setIsAssigningResponder(false);
+        }
+    };
 
     // Use the custom hook to handle focus trapping and ESC key for both modals
     const statusRef = useAriaModal(isStatusModalOpen, closeStatusModal);
     const deleteRef = useAriaModal(isDeleteConfirmOpen, closeDeleteConfirm);
     const reasonRef = useAriaModal(isDeleteReasonOpen, closeDeleteReason);
+    const responderRef = useAriaModal(isAssignResponderModalOpen, closeAssignResponderModal);
     // --------------------------------------------------
 
     // Fetch reports from API (kept original logic)
@@ -651,11 +739,9 @@ function BarangayReports({ token }) {
                                     </div>
 
                                     <div className="report-header-actions">
-                                        {!(report.is_approved === true && report.status === "Pending") && (
-                                            <span className={`status-badge status-${report.status.toLowerCase()}`}>
-                                                {report.status}
-                                            </span>
-                                        )}
+                                        <span className={`status-badge status-${report.status.toLowerCase()}`}>
+                                            {report.status}
+                                        </span>
                                         {isPending ? (
                                             <>
                                                 <button 
@@ -695,6 +781,17 @@ function BarangayReports({ token }) {
                                                 >
                                                     <FaEdit aria-hidden="true" />
                                                 </button>
+                                                {report.status === "Ongoing" && (
+                                                    <button 
+                                                        className="icon-btn assign-responder-btn" 
+                                                        onClick={() => openAssignResponderModal(report)}
+                                                        aria-label={`Assign responder for report: ${report.title}`}
+                                                        title="Assign Responder"
+                                                        style={{ backgroundColor: '#3b82f6', color: '#fff' }}
+                                                    >
+                                                        👤
+                                                    </button>
+                                                )}
                                                 <button 
                                                     className="icon-btn delete-btn" 
                                                     onClick={() => openDeleteReason(report)}
@@ -1032,6 +1129,79 @@ function BarangayReports({ token }) {
                     >
                         &times;
                     </button>
+                </div>
+            )}
+            
+            {/* Assign Responder Modal */}
+            {isAssignResponderModalOpen && selectedReportForResponder && (
+                <div 
+                    className="modal-overlay"
+                    onClick={!isAssigningResponder ? closeAssignResponderModal : undefined}
+                    role="dialog"
+                    aria-modal="true"
+                    aria-labelledby="assign-responder-title"
+                    tabIndex="-1"
+                    ref={responderRef}
+                >
+                    <div className="modal" onClick={(e) => e.stopPropagation()}>
+                        <h3 id="assign-responder-title">👤 Assign Responder</h3>
+                        <div style={{ marginBottom: '15px' }}>
+                            <p><strong>Report:</strong> {selectedReportForResponder.title}</p>
+                            <p><strong>Status:</strong> {selectedReportForResponder.status}</p>
+                            <p><strong>Location:</strong> {selectedReportForResponder.addressStreet}, {selectedReportForResponder.barangay}</p>
+                        </div>
+                        
+                        <div style={{ marginBottom: '20px' }}>
+                            <label htmlFor="responder-select" style={{ display: 'block', marginBottom: '8px', fontWeight: 'bold' }}>
+                                Select Responder:
+                            </label>
+                            {loadingResponders ? (
+                                <p style={{ color: '#666', fontStyle: 'italic' }}>Loading responders...</p>
+                            ) : responders.length > 0 ? (
+                                <select 
+                                    id="responder-select"
+                                    value={selectedResponder} 
+                                    onChange={(e) => setSelectedResponder(e.target.value)}
+                                    style={{ width: '100%', padding: '8px', borderRadius: '4px', border: '1px solid #ccc' }}
+                                >
+                                    <option value="">-- Select a responder --</option>
+                                    {responders.map(responder => (
+                                        <option key={responder.id} value={responder.id}>
+                                            {responder.firstname} {responder.lastname}
+                                        </option>
+                                    ))}
+                                </select>
+                            ) : (
+                                <p style={{ color: '#e74c3c' }}>No responders available for this barangay.</p>
+                            )}
+                        </div>
+                        
+                        <div style={{ marginBottom: '15px', padding: '10px', backgroundColor: '#f0f8ff', borderRadius: '4px', fontSize: '0.9em' }}>
+                            <p style={{ margin: 0, color: '#0066cc' }}>
+                                <strong>📧 Note:</strong> The assigned responder will be notified about this assignment.
+                            </p>
+                        </div>
+                        
+                        <div className="modal-buttons edit-actions">
+                            <button 
+                                onClick={closeAssignResponderModal}
+                                disabled={isAssigningResponder}
+                            >
+                                Cancel
+                            </button>
+                            <button 
+                                onClick={handleAssignResponder}
+                                disabled={!selectedResponder || isAssigningResponder || loadingResponders}
+                                style={{ 
+                                    opacity: (!selectedResponder || isAssigningResponder || loadingResponders) ? 0.6 : 1,
+                                    cursor: (!selectedResponder || isAssigningResponder || loadingResponders) ? 'not-allowed' : 'pointer',
+                                    backgroundColor: '#3b82f6'
+                                }}
+                            >
+                                {isAssigningResponder ? 'Assigning...' : 'Assign Responder'}
+                            </button>
+                        </div>
+                    </div>
                 </div>
             )}
 

@@ -16,35 +16,30 @@ reports_bp = Blueprint("reports", __name__)
 # Default reporter for anonymous/missing users
 DEFAULT_REPORTER = {"id": 0, "firstname": "Unknown", "lastname": "User", "avatar_url": None, "isverified": False, "verified": False}
 
-def fetch_reports(limit=10, sort="desc", user_only=False, barangay_filter=False, barangay_param=None, user_id=None, current_user_id=None):
+def fetch_reports(limit=10, sort="desc", user_only=False, barangay_filter=False, barangay_param=None, user_id=None, responder_id=None):
     """
     Fetch reports with optimized batch loading of related data.
-    Supports filtering by user, barangay, and sorting.
+    Supports filtering by user, barangay, responder assignment, and sorting.
     """
     start_time = time.time()
-    
-    user_role = None
-    if current_user_id:
-        user_role_resp = supabase.table("users").select("role").eq("id", current_user_id).execute()
-        user_role_data = getattr(user_role_resp, "data", [])
-        if user_role_data:
-            user_role = user_role_data[0].get("role")
-
     try:
         # Use retry mechanism for the main reports query
         def fetch_main_reports():
             query = supabase.table("reports").select("*").is_("deleted_at", None)
-
-            if user_only and user_id:
+            
+            if responder_id:
+                # Filter reports assigned to the specific responder
+                query = query.eq("assigned_responder_id", responder_id)
+            elif user_only and user_id:
                 query = query.eq("user_id", user_id)
             elif barangay_filter and user_id:
                 # Get user's barangay first
                 def get_user_barangay():
                     return supabase.table("info").select("address_barangay").eq("user_id", user_id).execute()
-
+                
                 user_info_resp = supabase_retry(get_user_barangay)
                 user_info = getattr(user_info_resp, "data", [])
-
+                
                 if user_info and user_info[0].get("address_barangay"):
                     user_barangay = user_info[0]["address_barangay"]
                     # Filter reports by same barangay
@@ -52,18 +47,7 @@ def fetch_reports(limit=10, sort="desc", user_only=False, barangay_filter=False,
             elif barangay_param and barangay_param != "all":
                 # Direct barangay filtering for admin
                 query = query.eq("address_barangay", barangay_param)
-
-            # Apply visibility rules based on user role
-            if user_role in ["Barangay Official", "Admin"]:
-                # Admins and Barangay Officials see all reports that are not rejected
-                query = query.eq("is_rejected", False)
-            elif current_user_id:
-                # Regular users can see their own pending/rejected posts, and other approved posts
-                query = query.or_(f"user_id.eq.{current_user_id},and(is_approved.eq.True,is_rejected.eq.False)")
-            else:
-                # Public/unauthenticated users only see approved and not rejected posts
-                query = query.eq("is_approved", True).eq("is_rejected", False)
-
+                    
             query = query.order("created_at", desc=(sort=="desc")).limit(limit)
             return query.execute()
         
@@ -199,8 +183,7 @@ def get_barangay_reports():
             sort=sort,
             barangay_filter=True,
             barangay_param=user_barangay,
-            user_id=user_id,
-            current_user_id=user_id
+            user_id=user_id
         )
         
         print(f"✅ Sent {len(reports_list)} reports for barangay {user_barangay}")
@@ -222,15 +205,18 @@ def get_reports():
     try:
         limit = int(request.args.get("limit", 10))
         sort = request.args.get("sort", "desc").lower()
-        filter_type = request.args.get("filter", "all").lower()  # 'all', 'my', or 'barangay'
+        filter_type = request.args.get("filter", "all").lower()  # 'all', 'my', 'responder', or 'barangay'
         barangay_filter_param = request.args.get("barangay")
+        responder_id_param = request.args.get("responder_id")
         
-        print(f"📊 Fetching reports: filter={filter_type}, limit={limit}")
+        print(f"📊 Fetching reports: filter={filter_type}, limit={limit}, responder_id={responder_id_param}")
         
         # Determine filtering options
         user_only_filter = filter_type == "my"
         barangay_filter = filter_type == "barangay"
+        responder_filter = filter_type == "responder" or responder_id_param is not None
         user_id_to_filter = request.user_id if user_only_filter else None
+        responder_id_to_filter = responder_id_param or (request.user_id if responder_filter else None)
 
         # Pass the filtering options to fetch_reports
         reports_list = fetch_reports(
@@ -240,7 +226,7 @@ def get_reports():
             barangay_filter=barangay_filter,
             barangay_param=barangay_filter_param,
             user_id=user_id_to_filter,
-            current_user_id=request.user_id
+            responder_id=responder_id_to_filter
         ) 
         
         print(f"✅ Sent {len(reports_list)} reports to client")
@@ -778,11 +764,25 @@ def get_map_report_counts():
 def get_stats():
     """Get report statistics by status"""
     try:
+        user_id = request.user_id
         barangay_filter = request.args.get("barangay")
+        
+        # Check if user is admin
+        def get_user_role():
+            return supabase.table("users").select("role").eq("id", user_id).execute()
+        
+        user_resp = supabase_retry(get_user_role)
+        user_data = getattr(user_resp, "data", [])
+        is_admin = user_data and user_data[0].get("role") == "Admin"
         
         # Use retry mechanism for stats query
         def fetch_stats():
             query = supabase.table("reports").select("status").is_("deleted_at", None)
+            
+            # For residents, only show approved reports
+            if not is_admin:
+                query = query.eq("is_approved", True)
+            
             if barangay_filter and barangay_filter != "all":
                 query = query.eq("address_barangay", barangay_filter)
             return query.execute()
@@ -828,6 +828,10 @@ def get_report_categories():
         # Use retry mechanism for Supabase query
         def fetch_categories():
             query = supabase.table("reports").select("category").is_("deleted_at", None)
+            
+            # For residents, only show approved reports
+            if not is_admin:
+                query = query.eq("is_approved", True)
             
             # Apply filtering logic
             if filter_type == "all":
@@ -935,6 +939,8 @@ def get_barangay_dashboard_stats():
         now = dt.now(timezone.utc)
         date_filter = None
         
+        # By default, show all reports (no date filtering) for accurate dashboards
+        # This ensures ongoing and resolved reports are always visible regardless of when they were created
         if time_filter == "today":
             date_filter = now.replace(hour=0, minute=0, second=0, microsecond=0)
             print(f"🕐 Filtering for today: {date_filter}")
@@ -949,11 +955,13 @@ def get_barangay_dashboard_stats():
             date_filter = now.replace(month=1, day=1, hour=0, minute=0, second=0, microsecond=0)
             print(f"🕐 Filtering for this year: {date_filter}")
         else:
-            date_filter = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)  # Default to this month
+            # Default: no date filtering (show all reports for accurate stats)
+            date_filter = None
+            print(f"🕐 No date filter - showing all reports")
         
         # Fetch reports with barangay and date filters
         def fetch_reports_for_stats():
-            query = supabase.table("reports").select("status, created_at, address_barangay").is_("deleted_at", None)
+            query = supabase.table("reports").select("status, created_at, address_barangay, is_approved").is_("deleted_at", None)
             if filter_barangay:
                 query = query.eq("address_barangay", filter_barangay)
                 print(f"📊 Filtering reports by barangay: {filter_barangay}")
@@ -969,15 +977,25 @@ def get_barangay_dashboard_stats():
         
         # Calculate stats
         stats = {
-            "totalReports": len(reports_list),
+            "totalReports": 0,
             "pending": 0,
             "ongoing": 0,
             "resolved": 0
         }
         
-        # Count by status
+        # Count by status - ONLY count approved pending reports (not unapproved ones)
         for report in reports_list:
             status = (report.get("status") or "").lower()
+            is_approved = report.get("is_approved", False)
+            
+            # Skip unapproved pending reports
+            if status == "pending" and not is_approved:
+                print(f"↩️ Skipping unapproved pending report")
+                continue
+            
+            # Count this report
+            stats["totalReports"] += 1
+            
             if status == "pending":
                 stats["pending"] += 1
             elif status == "ongoing":
@@ -985,10 +1003,10 @@ def get_barangay_dashboard_stats():
             elif status == "resolved":
                 stats["resolved"] += 1
         
-        # Calculate barangay counts from ALL reports (lifetime data)
+        # Calculate barangay counts from APPROVED reports only
         # This shows trends across ALL barangays with NO date filtering for lifetime view
         def fetch_all_barangay_reports():
-            query = supabase.table("reports").select("address_barangay").is_("deleted_at", None)
+            query = supabase.table("reports").select("address_barangay").is_("deleted_at", None).eq("is_approved", True)
             return query.execute()
         
         barangay_reports_resp = supabase_retry(fetch_all_barangay_reports)
@@ -1010,9 +1028,9 @@ def get_barangay_dashboard_stats():
         
         print(f"✅ Stats (for user's barangay): {stats}, Total Barangays (all barangays): {len(all_barangays_sorted)}")
         
-        # Calculate monthly trends ONLY for the barangay official's own barangay
+        # Calculate monthly trends ONLY for APPROVED reports in the barangay official's own barangay
         def fetch_barangay_reports_for_trends():
-            query = supabase.table("reports").select("created_at").is_("deleted_at", None)
+            query = supabase.table("reports").select("created_at").is_("deleted_at", None).eq("is_approved", True)
             if user_barangay:
                 query = query.eq("address_barangay", user_barangay)
             return query.execute()
@@ -1080,7 +1098,7 @@ def get_monthly_trends():
             
             # Fallback to manual query
             def fetch_monthly():
-                query = supabase.table("reports").select("created_at").is_("deleted_at", None)
+                query = supabase.table("reports").select("created_at").is_("deleted_at", None).eq("is_approved", True)
                 if barangay_filter and barangay_filter != "All":
                     query = query.eq("address_barangay", barangay_filter)
                 return query.execute()
@@ -1122,7 +1140,7 @@ def get_top_barangays():
             
             # Fallback to manual query
             def fetch_all_barangays():
-                return supabase.table("reports").select("address_barangay").is_("deleted_at", None).execute()
+                return supabase.table("reports").select("address_barangay").is_("deleted_at", None).eq("is_approved", True).execute()
             
             resp = supabase_retry(fetch_all_barangays)
             reports = getattr(resp, "data", []) or []
@@ -1258,4 +1276,151 @@ def reject_report(report_id):
         
     except Exception as e:
         print(f"❌ Failed to reject report {report_id}: {str(e)}")
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+
+# Responder Assignment Endpoints
+@reports_bp.route("/barangay/responders", methods=["GET"])
+@token_required
+def get_barangay_responders():
+    """
+    Get all responders for a specific barangay
+    Used to populate the responder selection dropdown when assigning responders to reports
+    """
+    try:
+        user_id = request.user_id
+        barangay_param = request.args.get("barangay")
+        
+        # Get user's barangay from info table
+        def get_user_info():
+            return supabase.table("info").select("address_barangay").eq("user_id", user_id).single().execute()
+        
+        try:
+            user_info_resp = supabase_retry(get_user_info)
+            user_barangay = getattr(user_info_resp, "data", {}).get("address_barangay")
+        except:
+            user_barangay = None
+        
+        # Use provided barangay or fall back to user's barangay
+        filter_barangay = barangay_param if barangay_param and barangay_param != "All" else user_barangay
+        
+        if not filter_barangay:
+            return jsonify({"status": "error", "message": "Barangay not found"}), 400
+        
+        print(f"🔍 Fetching responders for barangay: {filter_barangay}")
+        
+        # Fetch all responders from this barangay
+        def fetch_responders():
+            # Get responder IDs from info table filtered by barangay
+            info_resp = supabase.table("info").select("user_id").eq("address_barangay", filter_barangay).execute()
+            responder_ids = [info.get("user_id") for info in getattr(info_resp, "data", []) if info.get("user_id")]
+            
+            if not responder_ids:
+                return {"data": []}
+            
+            # Now fetch user details for those with Responder role
+            users_resp = supabase.table("users").select("id, firstname, lastname, avatar_url").in_("id", responder_ids).eq("role", "Responder").execute()
+            return users_resp
+        
+        responders_resp = supabase_retry(fetch_responders)
+        responders = getattr(responders_resp, "data", []) or []
+        
+        print(f"✅ Found {len(responders)} responders in {filter_barangay}")
+        
+        return jsonify({
+            "status": "success",
+            "responders": responders,
+            "barangay": filter_barangay,
+            "total": len(responders)
+        }), 200
+        
+    except Exception as e:
+        print(f"❌ Error fetching barangay responders: {e}")
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+
+@reports_bp.route("/reports/<report_id>/assign-responder", methods=["POST"])
+@token_required
+def assign_responder(report_id):
+    """
+    Assign a responder to an ongoing report
+    Only barangay officials and admins can assign responders
+    """
+    try:
+        user_id = request.user_id
+        data = request.get_json() or {}
+        responder_id = data.get("responder_id")
+        
+        if not responder_id:
+            return jsonify({"status": "error", "message": "Responder ID is required"}), 400
+        
+        # Verify user role (Admin or Barangay Official)
+        def get_user_role():
+            return supabase.table("users").select("role").eq("id", user_id).execute()
+        
+        user_resp = supabase_retry(get_user_role)
+        user_data = getattr(user_resp, "data", [None])[0]
+        user_role = user_data.get("role") if user_data else None
+        
+        if user_role not in ["Admin", "Barangay Official"]:
+            print(f"❌ User {user_id} with role {user_role} not authorized to assign responders")
+            return jsonify({"status": "error", "message": "Only Admin and Barangay Official can assign responders"}), 403
+        
+        # Fetch report
+        def get_report():
+            return supabase.table("reports").select("id, status, assigned_responder_id, title").eq("id", report_id).execute()
+        
+        report_resp = supabase_retry(get_report)
+        report = getattr(report_resp, "data", [None])[0]
+        
+        if not report:
+            return jsonify({"status": "error", "message": "Report not found"}), 404
+        
+        # Report must be "Ongoing" to assign responder
+        if report.get("status") != "Ongoing":
+            return jsonify({"status": "error", "message": "Can only assign responders to Ongoing reports"}), 400
+        
+        # Verify responder exists and is a Responder
+        def get_responder():
+            return supabase.table("users").select("id, firstname, lastname").eq("id", responder_id).eq("role", "Responder").execute()
+        
+        responder_resp = supabase_retry(get_responder)
+        responder = getattr(responder_resp, "data", [None])[0]
+        
+        if not responder:
+            return jsonify({"status": "error", "message": "Invalid responder or responder not found"}), 404
+        
+        # Update report with assigned responder
+        supabase.table("reports").update({
+            "assigned_responder_id": responder_id,
+            "assigned_at": datetime.now(timezone.utc).isoformat()
+        }).eq("id", report_id).execute()
+        
+        print(f"✅ Report {report_id} assigned to responder {responder_id}")
+        
+        # Create notification for responder
+        try:
+            from utils.notifications import create_notification
+            responder_name = f"{responder.get('firstname', '')} {responder.get('lastname', '')}".strip()
+            report_title = report.get('title', 'Unknown Report')
+            
+            create_notification(
+                responder_id,
+                "Report Assigned to You",
+                f'You have been assigned to report: "{report_title}". Please proceed to the location and address the issue.',
+                "Report Assignment"
+            )
+        except Exception as e:
+            print(f"⚠️ Failed to create notification for responder: {e}")
+        
+        return jsonify({
+            "status": "success",
+            "message": "Responder assigned successfully",
+            "report_id": report_id,
+            "responder_id": responder_id,
+            "responder_name": f"{responder.get('firstname', '')} {responder.get('lastname', '')}".strip()
+        }), 200
+        
+    except Exception as e:
+        print(f"❌ Failed to assign responder to report {report_id}: {str(e)}")
         return jsonify({"status": "error", "message": str(e)}), 500

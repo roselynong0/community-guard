@@ -589,6 +589,16 @@ function Reports({ session }) {
         ? String(r.user_id) === String(session?.user?.id) // My Reports
         : true // All Reports
     )
+    .filter((r) => {
+      // Hide pending and rejected reports from other users (only show if user is the owner)
+      const isPending = r.is_approved === false;
+      const isRejected = r.is_rejected === true;
+      
+      if ((isPending || isRejected) && String(r.user_id) !== String(session?.user?.id)) {
+        return false; // Hide reports that are pending or rejected and don't belong to current user
+      }
+      return true; // Show all other reports
+    })
     .filter((r) => appliedCategory === "All" || r.category === appliedCategory)
     .filter(
       (r) => appliedBarangay === "All Barangays" || r.address_barangay === appliedBarangay
@@ -887,15 +897,21 @@ function Reports({ session }) {
                       </>
                     )}
 
-                    {/* Hide PENDING badge if is_approved is TRUE or report is rejected */}
-                    {!(report.is_approved === true && report.status === "Pending") && !isRejected && (
-                      <span
-                        className={`status-badge status-${(
-                          report.status || "pending"
-                        ).toLowerCase()}`}
-                      >
-                        {report.status || "Pending"}
-                      </span>
+                    {/* Show PENDING badge for approved pending reports, or regular status badge */}
+                    {!isRejected && (
+                      report.is_approved === true && report.status === "Pending" ? (
+                        <span className="status-badge status-pending">
+                          PENDING
+                        </span>
+                      ) : (
+                        <span
+                          className={`status-badge status-${(
+                            report.status || "pending"
+                          ).toLowerCase()}`}
+                        >
+                          {report.status || "Pending"}
+                        </span>
+                      )
                     )}
 
                     {/* Show edit/delete for non-rejected reports only if user is owner */}

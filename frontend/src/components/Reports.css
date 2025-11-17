@@ -1415,7 +1415,6 @@ p.report-description-text {
     padding: 15px !important;
     border-radius: 12px !important;
     box-shadow: 0 2px 6px rgba(0, 0, 0, 0.08) !important;
-    margin-bottom: 15px !important;
     display: flex !important;
     flex-direction: column !important;
     opacity: 2 !important;

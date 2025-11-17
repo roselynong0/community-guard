@@ -116,13 +116,13 @@ function ResponderReports({ token }) {
     const [loading, setLoading] = useState(true);
     const [search, setSearch] = useState("");
     const [category, setCategory] = useState("All");
-    const [barangay, setBarangay] = useState("All");
     const [statusFilter, setStatusFilter] = useState("All"); 
     const [sort, setSort] = useState("latest");
     const [previewImage, setPreviewImage] = useState(null);
     const [notification, setNotification] = useState(null);
     const [highlightedReportId, setHighlightedReportId] = useState(null);
     const [responderBarangay, setResponderBarangay] = useState(null);
+    const [responderUserId, setResponderUserId] = useState(null);
 
     // States for the Status Update Modal
     const [isStatusModalOpen, setIsStatusModalOpen] = useState(false);
@@ -137,15 +137,7 @@ function ResponderReports({ token }) {
     const [isDeleteReasonOpen, setIsDeleteReasonOpen] = useState(false);
     const [deleteReason, setDeleteReason] = useState('');
     const [deleteReasonOther, setDeleteReasonOther] = useState('');
-    
-    const barangays = [
-        "All Barangay", "Barretto", "East Bajac-Bajac", "East Tapinac", "Gordon Heights",
-        "Kalaklan", "Mabayuan", "New Asinan", "New Banicain", "New Cabalan",
-        "New Ilalim", "New Kababae", "New Kalalake", "Old Cabalan", "Pag-Asa",
-        "Santa Rita", "West Bajac-Bajac", "West Tapinac",
-    ];
 
-    // --- REFS for Keyboard Navigation ---
     const filterContainerRef = useRef(null);
     const filterSelector = 'input.admin-search-input, .admin-top-controls .admin-filter-select, .reports-list button:first-child'; 
     useKeyboardNavigation(filterContainerRef, filterSelector);
@@ -211,7 +203,7 @@ function ResponderReports({ token }) {
 
     // Fetch reports from API
     const fetchReports = useCallback(async () => {
-        if (!token) {
+        if (!token || !responderUserId) {
             setLoading(false);
             return;
         }
@@ -219,7 +211,7 @@ function ResponderReports({ token }) {
         setLoading(true);
         try {
             const sortParam = sort === "latest" ? "desc" : "asc";
-            const response = await fetch(getApiUrl(`/api/reports?limit=50&sort=${sortParam}`), {
+            const response = await fetch(getApiUrl(`/api/reports?limit=50&sort=${sortParam}&responder_id=${responderUserId}`), {
                 headers: { 
                     'Authorization': `Bearer ${token}`,
                     'Content-Type': 'application/json'
@@ -270,13 +262,13 @@ function ResponderReports({ token }) {
         } finally {
             setLoading(false);
         }
-    }, [token, sort]);
+    }, [token, sort, responderUserId]);
 
     useEffect(() => {
         fetchReports();
     }, [fetchReports]);
 
-    // Fetch responder's barangay
+    // Fetch responder's barangay and user ID
     useEffect(() => {
         const fetchResponderBarangay = async () => {
             if (!token) return;
@@ -285,8 +277,13 @@ function ResponderReports({ token }) {
                     headers: { Authorization: `Bearer ${token}` }
                 });
                 const data = await response.json();
-                if (data.status === 'success' && data.profile?.address_barangay) {
-                    setResponderBarangay(data.profile.address_barangay);
+                if (data.status === 'success' && data.profile) {
+                    if (data.profile.address_barangay) {
+                        setResponderBarangay(data.profile.address_barangay);
+                    }
+                    if (data.profile.id) {
+                        setResponderUserId(data.profile.id);
+                    }
                 }
             } catch (error) {
                 console.error('Error fetching responder barangay:', error);
@@ -427,7 +424,6 @@ function ResponderReports({ token }) {
             return false;
         })
         .filter((r) => (category === "All" ? true : r.category === category))
-        .filter((r) => (barangay === "All" ? true : r.barangay === barangay))
         .filter((r) => (statusFilter === "All" ? true : r.status === statusFilter))
         .filter(
             (r) => {
@@ -476,19 +472,6 @@ function ResponderReports({ token }) {
                     <option value="Others">Others</option>
                 </select>
                 
-                <label htmlFor="barangay-filter" className="sr-only">Filter by Barangay</label>
-                <select 
-                    id="barangay-filter"
-                    value={barangay} 
-                    onChange={(e) => setBarangay(e.target.value)}
-                    className="admin-filter-select"
-                    aria-label="Filter reports by barangay"
-                >
-                    {barangays.map((b) => (
-                        <option key={b} value={b === "All Barangay" ? "All" : b}>{b}</option>
-                    ))}
-                </select>
-                
                 <label htmlFor="status-filter" className="sr-only">Filter by Status</label>
                 <select 
                     id="status-filter"
@@ -522,6 +505,11 @@ function ResponderReports({ token }) {
                     <div className="loading-container" role="status" aria-live="polite">
                         <div className="spinner"></div>
                         <p>Loading reports...</p>
+                    </div>
+                ) : reports.length === 0 ? (
+                    <div style={{ padding: '40px 20px', textAlign: 'center' }}>
+                        <p style={{ fontSize: '1.1em', color: '#666' }}>No reports assigned</p>
+                        <p style={{ color: '#999', marginTop: '10px' }}>You don't have any assigned reports yet.</p>
                     </div>
                 ) : filteredReports.length > 0 ? (
                     filteredReports.map((report, index) => {
@@ -653,7 +641,6 @@ function ResponderReports({ token }) {
                             onClick={() => {
                                 setSearch("");
                                 setCategory("All");
-                                setBarangay("All");
                                 setStatusFilter("All");
                             }}
                             style={{ marginTop: '10px' }}

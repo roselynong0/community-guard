@@ -110,7 +110,7 @@ export default function BarangayDashboard({ token }) {
         if (response.status === "success") {
           console.log("✅ Dashboard data loaded:", response);
           
-          // Update stats
+          // Update stats from real API data
           if (response.stats) {
             setStats([
               {

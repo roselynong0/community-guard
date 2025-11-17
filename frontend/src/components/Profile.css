@@ -161,7 +161,7 @@ to { transform: translateY(0); opacity: 1; }
 /* Make cards appear side by side on medium and larger screens */
 @media screen and (min-width: 1000px) {
     .profile-sidebar {
-        grid-template-columns: repeat(4, 1fr); /* three equal columns */
+        grid-template-columns: repeat(3, 1fr); /* three equal columns */
     }
 }
 

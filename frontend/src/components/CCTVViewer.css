@@ -3,8 +3,8 @@
   flex-direction: column;
   height: calc(100vh - 100px);
   background: #f0f1f5;
-  padding: 1.5rem;
-  gap: 1rem;
+  padding: 0 0.75rem;
+  gap: 0.5rem;
 }
 
 .cctv-header {
@@ -12,17 +12,17 @@
   justify-content: space-between;
   align-items: center;
   background: white;
-  padding: 1.5rem;
+  padding: 0.75rem 1rem;
   border-radius: 12px;
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
 }
 
 .cctv-header h1 {
   margin: 0;
-  font-size: 1.75rem;
+  font-size: 1.4rem;
   color: #11163e;
   font-weight: 700;
-}
+} 
 
 .cctv-status {
   margin: 0;
@@ -32,6 +32,55 @@
   display: flex;
   align-items: center;
   gap: 0.5rem;
+}
+
+/* CCTV Tabs Styling - Match Admin Modern Tabs */
+.cctv-tabs {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.5rem;
+  background: transparent;
+  padding: 0;
+  border-radius: 0;
+  box-shadow: none;
+  margin-bottom: 0.5rem;
+}
+
+.cctv-tabs::-webkit-scrollbar {
+  display: none;
+}
+
+.cctv-tab {
+  text-align: center;
+  padding: 0.75rem;
+  border: none;
+  border-radius: 8px 8px 0 0;
+  background: #f1f5f9;
+  color: #64748b;
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.25s ease;
+}
+
+.cctv-tab:hover {
+  background: #e2e8f0;
+}
+
+.cctv-tab.active {
+  background: #2d2d73;
+  color: white;
+}
+
+.cctv-tabs::after {
+  content: '';
+  display: block;
+  width: 100%;
+  height: 3px;
+  background-color: #2d2d73;
+  border-radius: 3px;
+  margin-top: -3px;
+  grid-column: 1 / -1;
 }
 
 .youtube-container {
@@ -49,11 +98,11 @@
 
 .cctv-info {
   background: white;
-  padding: 1rem 1.5rem;
+  padding: 0.5rem 1rem;
   border-radius: 12px;
   text-align: center;
   color: #666;
-  font-size: 0.95rem;
+  font-size: 0.85rem;
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
 }
 

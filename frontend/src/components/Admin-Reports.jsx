@@ -674,7 +674,11 @@ function AdminReports({ token, reportTitle = 'All Community Reports', showTitle 
                                     </div>
 
                                     <div className="report-header-actions">
-                                        {!(report.is_approved === true && report.status === "Pending") && (
+                                        {report.is_approved === true && report.status === "Pending" ? (
+                                            <span className="status-badge status-pending">
+                                                PENDING
+                                            </span>
+                                        ) : (
                                             <span className={`status-badge status-${report.status.toLowerCase()}`}>
                                                 {report.status}
                                             </span>

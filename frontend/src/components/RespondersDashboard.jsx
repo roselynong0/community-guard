@@ -65,29 +65,55 @@ export default function RespondersDashboard() {
   const [trendData, setTrendData] = useState([]);
   const [allReports, setAllReports] = useState([]);
   const [highIncidentAreas, setHighIncidentAreas] = useState([]);
+  const [responderUserId, setResponderUserId] = useState(null);
+
+  // Fetch responder's user ID
+  useEffect(() => {
+    const fetchResponderInfo = async () => {
+      try {
+        const token = localStorage.getItem("token");
+        if (!token) return;
+
+        const response = await fetch(getApiUrl("/api/profile"), {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+
+        if (!response.ok) throw new Error("Failed to fetch profile");
+
+        const data = await response.json();
+        if (data.status === "success" && data.profile?.id) {
+          setResponderUserId(data.profile.id);
+        }
+      } catch (error) {
+        console.error("Error fetching responder info:", error);
+      }
+    };
+
+    fetchResponderInfo();
+  }, []);
 
   // Fetch reports on component mount
   useEffect(() => {
     const fetchReports = async () => {
       try {
         const token = localStorage.getItem("token");
-        if (!token) return;
+        if (!token || !responderUserId) return;
 
-        const response = await fetch(getApiUrl("/api/reports?limit=100&sort=desc"), {
+        // Fetch assigned reports for stats and active reports table
+        const assignedResponse = await fetch(getApiUrl(`/api/reports?limit=100&sort=desc&responder_id=${responderUserId}`), {
           headers: { Authorization: `Bearer ${token}` },
         });
 
-        if (!response.ok) throw new Error("Failed to fetch reports");
+        if (!assignedResponse.ok) throw new Error("Failed to fetch assigned reports");
 
-        const data = await response.json();
-        const reports = data.reports || [];
-        setAllReports(reports);
+        const assignedData = await assignedResponse.json();
+        const assignedReports = assignedData.reports || [];
 
-        // Calculate stats
-        const pending = reports.filter(r => r.status === "Pending").length;
-        const ongoing = reports.filter(r => r.status === "Ongoing").length;
-        const resolved = reports.filter(r => r.status === "Resolved").length;
-        const avgResponseTime = calculateAvgResponseTime(reports);
+        // Calculate stats - show only reports assigned to this responder
+        const pending = assignedReports.filter(r => r.status === "Pending").length;
+        const ongoing = assignedReports.filter(r => r.status === "Ongoing").length;
+        const resolved = assignedReports.filter(r => r.status === "Resolved").length;
+        const avgResponseTime = calculateAvgResponseTime(assignedReports);
 
         setStats([
           { title: "Active Reports", value: ongoing, icon: <FaExclamationTriangle />, color: "#f40014ff" },
@@ -96,15 +122,31 @@ export default function RespondersDashboard() {
           { title: "Avg Response Time", value: avgResponseTime, icon: <FaClock />, color: "#2d2d73" },
         ]);
 
-        // Set active reports (only ongoing for the table)
-        const active = reports.filter(r => r.status === "Ongoing").slice(0, 10);
+        // Set active reports (only ongoing status, assigned to this responder)
+        const active = assignedReports.filter(r => r.status === "Ongoing").slice(0, 10);
         setActiveReports(active);
 
-        // Generate trend data by month
+        // Fetch all reports for analytics (high incident areas and monthly trends)
+        const allResponse = await fetch(getApiUrl("/api/reports?limit=100&sort=desc"), {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+
+        if (!allResponse.ok) throw new Error("Failed to fetch all reports");
+
+        const allData = await allResponse.json();
+        const allReports = allData.reports || [];
+        setAllReports(allReports);
+
+        // Filter all reports to only approved ones for analytics
+        const approvedReports = allReports.filter(
+          report => report.is_approved !== false && !report.is_rejected
+        );
+
+        // Generate trend data by month from APPROVED reports
         const monthlyData = {};
         const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
         
-        reports.forEach(report => {
+        approvedReports.forEach(report => {
           if (report.created_at) {
             const date = new Date(report.created_at);
             const monthKey = months[date.getMonth()];
@@ -118,9 +160,9 @@ export default function RespondersDashboard() {
         
         setTrendData(trendArray.length > 0 ? trendArray : [{ month: "No Data", count: 0 }]);
 
-        // Generate high incident areas by barangay
+        // Generate high incident areas by barangay from APPROVED reports
         const barangayData = {};
-        reports.forEach(report => {
+        approvedReports.forEach(report => {
           const barangay = extractBarangay(report);
           barangayData[barangay] = (barangayData[barangay] || 0) + 1;
         });
@@ -139,7 +181,7 @@ export default function RespondersDashboard() {
     };
 
     fetchReports();
-  }, []);
+  }, [responderUserId]);
 
   // Handle Mark as Resolved
   const handleResolve = (reportId) => {

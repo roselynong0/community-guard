@@ -7,7 +7,7 @@ import DatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css"
 import { format, parseISO } from "date-fns";
 import axios from "axios";
-import { API_CONFIG, getApiUrl } from "../utils/apiConfig";
+
 
 function Profile({ token }) {
     const navigate = useNavigate();
@@ -35,9 +35,7 @@ function Profile({ token }) {
         birthdate: "",
     });
 
-    const API_URL = getApiUrl(API_CONFIG.endpoints.profile);
-    const REPORTS_URL = getApiUrl(API_CONFIG.endpoints.reports);
-    const STATS_URL = getApiUrl(API_CONFIG.endpoints.stats);
+    const API_URL = "http://localhost:5000/api"; // adjust as needed
     const barangays = [
         "All", "Barretto", "East Bajac-Bajac", "East Tapinac", "Gordon Heights",
         "Kalaklan", "Mabayuan", "New Asinan", "New Banicain", "New Cabalan",
@@ -76,7 +74,7 @@ function Profile({ token }) {
 
         const fetchProfile = async () => {
             try {
-                const res = await fetch(API_URL, {
+                const res = await fetch(`${API_URL}/profile`, {
                     headers: { Authorization: `Bearer ${token}` },
                 });
                 const data = await res.json();
@@ -111,7 +109,7 @@ function Profile({ token }) {
 
         const fetchReports = async () => {
             try {
-                const res = await fetch(`${REPORTS_URL}`, {
+                const res = await fetch(`${API_URL}/reports`, {
                     headers: { Authorization: `Bearer ${token}` },
                 });
                 const data = await res.json();
@@ -127,7 +125,7 @@ function Profile({ token }) {
 
         const fetchUserStats = async () => {
             try {
-                const res = await axios.get(`${STATS_URL}`, {
+                const res = await axios.get(`${API_URL}/stats/user`, {
                     headers: { Authorization: `Bearer ${token}` },
                 });
                 if (res.data.status === "success") {
@@ -142,7 +140,7 @@ function Profile({ token }) {
         fetchProfile();
         fetchReports();
         fetchUserStats();
-    }, [token, API_URL, REPORTS_URL, STATS_URL]);
+    }, [token]);
 
     // ------------------- UPDATE REPORTS STATS -------------------
     useEffect(() => {
@@ -161,7 +159,7 @@ function Profile({ token }) {
         const formData = new FormData();
         formData.append("avatar", file);
         try {
-            const res = await fetch(`${API_URL}/upload-avatar`, {
+            const res = await fetch(`${API_URL}/profile/upload-avatar`, {
                 method: "POST",
                 headers: { Authorization: `Bearer ${token}` },
                 body: formData,
@@ -179,7 +177,7 @@ function Profile({ token }) {
     // ------------------- DELETE ACCOUNT -------------------
     const handleDeleteAccount = async () => {
         try {
-            const res = await fetch(API_URL, {
+            const res = await fetch("http://localhost:5000/api/profile", {
                 method: "DELETE",
                 headers: { Authorization: `Bearer ${token}` },
             });
@@ -235,7 +233,7 @@ function Profile({ token }) {
         }
 
         try {
-            const res = await fetch(API_URL, {
+            const res = await fetch(`${API_URL}/profile`, {
                 method: "PUT",
                 headers: {
                     "Content-Type": "application/json",
