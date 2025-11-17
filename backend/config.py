@@ -33,6 +33,14 @@ class Config:
     CACHE_TYPE = 'SimpleCache'
     CACHE_DEFAULT_TIMEOUT = 300
     
+    # Ollama Configuration
+    OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
+    LLM_MODEL = os.getenv("LLM_MODEL", "phi4:mini-q4_0")
+    EMBED_MODEL = os.getenv("EMBED_MODEL", "bge-m3")
+    
+    # Vector Database Configuration
+    CHROMA_DB_PATH = os.getenv("CHROMA_DB_PATH", None)  # Uses default if not set
+    
     # Upload Configuration
     # Get the backend directory path regardless of where the script is run from
     BACKEND_DIR = os.path.dirname(os.path.abspath(__file__))

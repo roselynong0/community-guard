@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
-import { FaTimes, FaComments, FaPaperPlane, FaSpinner } from "react-icons/fa";
+import { X, MessageCircle, Send, Loader, Sparkles } from "lucide-react";
 import "./ChatBot.css";
 
 function ChatBot({ isOpen, onClose, token }) {
@@ -7,6 +7,7 @@ function ChatBot({ isOpen, onClose, token }) {
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [isMinimized, setIsMinimized] = useState(false);
+  const [selectedModel, setSelectedModel] = useState("community-helper"); // "community-helper" or "community-patrol"
   const messagesEndRef = useRef(null);
 
   // Scroll to bottom when messages update
@@ -17,17 +18,18 @@ function ChatBot({ isOpen, onClose, token }) {
   // Add welcome message on first open
   useEffect(() => {
     if (isOpen && messages.length === 0) {
+      const modelName = selectedModel === "community-patrol" ? "Community Patrol" : "Community Helper";
       setMessages([
         {
           id: 1,
           type: "bot",
-          text: "👋 Hello! I'm the Community Helper. I can help you understand our system, answer questions about features, and provide insights about incident reports. What would you like to know?",
+          text: `👋 Hello! I'm ${modelName}. ${selectedModel === "community-patrol" ? "✨ I'm powered by advanced AI (Ollama) for enhanced incident analysis. " : ""}I can help you understand our system, answer questions about features, and provide insights about incident reports. What would you like to know?`,
           timestamp: new Date(),
         },
       ]);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isOpen]);
+  }, [isOpen, selectedModel]);
 
   const formatText = (text) => {
     // Remove markdown-style bold (**text**) markers
@@ -62,13 +64,21 @@ function ChatBot({ isOpen, onClose, token }) {
     setLoading(true);
 
     try {
-      const response = await fetch("http://localhost:5000/api/chat", {
+      let apiEndpoint = "http://localhost:5000/api/chat";
+      let requestBody = { message: messageText };
+
+      // For Community Patrol (Ollama), use enhanced endpoint with emergency search
+      if (selectedModel === "community-patrol") {
+        requestBody.search_emergency = messageText.toLowerCase().includes("emergency");
+      }
+
+      const response = await fetch(apiEndpoint, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({ message: messageText }),
+        body: JSON.stringify(requestBody),
       });
 
       if (!response.ok) throw new Error("Failed to get response");
@@ -81,6 +91,8 @@ function ChatBot({ isOpen, onClose, token }) {
         type: "bot",
         text: formatText(data.response || data.answer || "I'm not sure how to respond to that."),
         timestamp: new Date(),
+        model: selectedModel,
+        sources: data.sources || [], // For Ollama responses
       };
       setMessages((prev) => [...prev, botMessage]);
     } catch (error) {
@@ -104,9 +116,32 @@ function ChatBot({ isOpen, onClose, token }) {
       {/* Chat Header */}
       <div className="chatbot-header">
         <div className="chatbot-title">
-          <FaComments className="chatbot-icon" />
-          <span>Community Helper</span>
+          <MessageCircle className="chatbot-icon" size={18} />
+          <span>
+            {selectedModel === "community-patrol" ? (
+              <>
+                <Sparkles className="sparkle-icon" size={14} />
+                Community Patrol
+              </>
+            ) : (
+              "Community Helper"
+            )}
+          </span>
         </div>
+        
+        {/* Model Selector */}
+        <div className="chatbot-model-selector">
+          <select 
+            value={selectedModel} 
+            onChange={(e) => setSelectedModel(e.target.value)}
+            className="model-dropdown"
+            title="Switch between AI models"
+          >
+            <option value="community-helper">Community Helper (Fast)</option>
+            <option value="community-patrol">Community Patrol (✨ Premium)</option>
+          </select>
+        </div>
+
         <div className="chatbot-actions">
           <button
             className="chatbot-minimize-btn"
@@ -116,7 +151,7 @@ function ChatBot({ isOpen, onClose, token }) {
             {isMinimized ? "+" : "−"}
           </button>
           <button className="chatbot-close-btn" onClick={onClose} title="Close">
-            <FaTimes />
+            <X size={16} />
           </button>
         </div>
       </div>
@@ -147,9 +182,7 @@ function ChatBot({ isOpen, onClose, token }) {
                 <div className="message-avatar"><img src="/CommunityHelper.png" alt="Bot" className="avatar-image" /></div>
                 <div className="message-content">
                   <div className="loading-dots">
-                    <span></span>
-                    <span></span>
-                    <span></span>
+                    <Loader className="spinner-icon" size={16} />
                   </div>
                 </div>
               </div>
@@ -174,7 +207,7 @@ function ChatBot({ isOpen, onClose, token }) {
               className="chatbot-send-btn"
               title="Send message"
             >
-              {loading ? <FaSpinner className="spinner" /> : <FaPaperPlane />}
+              {loading ? <Loader className="spinner" size={16} /> : <Send size={16} />}
             </button>
           </div>
         </>

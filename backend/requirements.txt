@@ -31,5 +31,16 @@ gunicorn==23.0.0
 # AI / ML (compatible with Python 3.11)
 numpy==1.26.4
 scikit-learn==1.3.2
+pandas==2.1.3
+matplotlib==3.8.2
 
-# Build timestamp: 2025-11-14
+# LLM & RAG Integration
+langchain==0.1.0
+langchain-community==0.0.10
+langchain-ollama==0.1.0
+chromadb==0.4.22
+
+# HTTP Client (required by multiple services)
+requests==2.31.0
+
+# Build timestamp: 2025-11-17 (Ollama integration)

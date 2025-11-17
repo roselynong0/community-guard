@@ -21,6 +21,16 @@ try:
     from routes.community_feed import community_feed_bp
     from routes.ai_endpoints import ai_bp
     from routes.chatbot import chatbot_bp
+    
+    # Import Ollama-enhanced chatbot (will override regular chatbot if available)
+    try:
+        from routes.chatbot_ollama import chatbot_bp as chatbot_ollama_bp
+        OLLAMA_CHATBOT_AVAILABLE = True
+        print("✅ Ollama-enhanced chatbot imported successfully")
+    except ImportError as e:
+        OLLAMA_CHATBOT_AVAILABLE = False
+        print(f"⚠️  Ollama chatbot not available: {e}")
+    
     print("✅ All blueprints imported successfully")
     print(f"✅ AI blueprint: {ai_bp.name}, prefix: {ai_bp.url_prefix}")
     print(f"✅ Chatbot blueprint: {chatbot_bp.name}, prefix: {chatbot_bp.url_prefix}")
@@ -81,8 +91,15 @@ def create_app():
     print("✅ Registered: community_feed_bp")
     app.register_blueprint(ai_bp, url_prefix='/api/ai')
     print("✅ Registered: ai_bp at /api/ai")
-    app.register_blueprint(chatbot_bp, url_prefix='/api')
-    print("✅ Registered: chatbot_bp at /api/chat")
+    
+    # Register appropriate chatbot - use Ollama version if available
+    if OLLAMA_CHATBOT_AVAILABLE:
+        app.register_blueprint(chatbot_ollama_bp, url_prefix='/api')
+        print("✅ Registered: chatbot_ollama_bp at /api/chat (Ollama-enhanced)")
+    else:
+        app.register_blueprint(chatbot_bp, url_prefix='/api')
+        print("✅ Registered: chatbot_bp at /api/chat (Legacy)")
+
 
     # ✅ Health check
     @app.route("/api/health")
