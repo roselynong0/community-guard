@@ -160,15 +160,26 @@ def register():
 
 @auth_bp.route("/login", methods=["POST"])
 def login():
-    """User login endpoint"""
+    """User login endpoint with connection retry logic"""
     data = request.json
     email = data.get("email")
     password = data.get("password")
     requested_role = data.get("role", "Resident")
 
-    # Find user
-    resp = supabase.table("users").select("*").eq("email", email).is_("deleted_at", None).execute()
-    users = getattr(resp, "data", []) or []
+    # Find user with retry logic
+    try:
+        def fetch_user():
+            return supabase.table("users").select("*").eq("email", email).is_("deleted_at", None).execute()
+        
+        resp = supabase_retry(fetch_user)
+        users = getattr(resp, "data", []) or []
+    except Exception as e:
+        print(f"❌ Login error - database connection failed: {e}")
+        return jsonify({
+            "status": "error",
+            "message": "Database connection error. Please try again."
+        }), 503
+    
     if not users:
         return jsonify({"status": "not_found"}), 404
 
