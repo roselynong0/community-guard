@@ -45,6 +45,74 @@ def get_notifications():
     }), 200
 
 
+@notifications_bp.route("/notifications/new-reports", methods=["GET"])
+@token_required
+def get_new_approved_reports():
+    """Get new approved reports posted in the user's barangay (for polling)"""
+    user_id = request.user_id
+    try:
+        # Get user's barangay from info table
+        user_info_resp = supabase.table("info").select("address_barangay").eq("user_id", user_id).single().execute()
+        user_info = getattr(user_info_resp, "data", None)
+        
+        if not user_info or not user_info.get("address_barangay"):
+            print(f"⚠️ User {user_id} has no barangay info")
+            return jsonify({
+                "status": "success",
+                "new_reports": []
+            }), 200
+        
+        user_barangay = user_info.get("address_barangay")
+        
+        # Get the user's last check timestamp from query params (optional)
+        last_check = request.args.get("last_check")
+        
+        # Fetch approved reports in the user's barangay
+        query = supabase.table("reports").select(
+            "id, title, created_at, user_id, address_barangay, is_approved"
+        ).eq("address_barangay", user_barangay).eq("is_approved", True).is_("deleted_at", None).order("created_at", desc=True)
+        
+        if last_check:
+            # Only get reports created after the last check time
+            query = query.gt("created_at", last_check)
+        
+        # Limit to last 10 new reports
+        reports_resp = query.execute()
+        new_reports = getattr(reports_resp, "data", []) or []
+        
+        # Filter out reports created by the current user
+        new_reports = [r for r in new_reports if str(r.get("user_id")) != str(user_id)]
+        
+        # Check if there are corresponding notifications marked as read
+        for report in new_reports:
+            report_id = report.get("id")
+            try:
+                notif_resp = supabase.table("notifications").select("id, is_read").eq("report_id", report_id).eq("user_id", user_id).execute()
+                notif_data = getattr(notif_resp, "data", []) or []
+                # If there's a notification and it's marked as read, flag the report
+                if notif_data and notif_data[0].get("is_read"):
+                    report["is_read"] = True
+                else:
+                    report["is_read"] = False
+            except Exception as e:
+                print(f"⚠️ Error checking notification status for report {report_id}: {e}")
+                report["is_read"] = False
+        
+        print(f"✅ Found {len(new_reports)} new approved reports in {user_barangay}")
+        
+        return jsonify({
+            "status": "success",
+            "new_reports": new_reports
+        }), 200
+        
+    except Exception as e:
+        print(f"Error fetching new reports: {e}")
+        return jsonify({
+            "status": "error",
+            "message": str(e),
+            "new_reports": []
+        }), 500
+
 @notifications_bp.route("/notifications/<int:notif_id>/read", methods=["POST"])
 @token_required
 def mark_notification_read(notif_id):

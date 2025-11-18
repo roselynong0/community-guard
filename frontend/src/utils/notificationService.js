@@ -208,22 +208,23 @@ export const startNotificationPolling = (token, role, pollInterval = 10000) => {
  * @param {string} role - User role
  */
 const processNewNotifications = (notifications, role) => {
-  // Get previously seen notification IDs from sessionStorage
-  const storageKey = `lastSeenNotifications_${role || 'user'}`;
-  const lastSeenStr = sessionStorage.getItem(storageKey) || '[]';
-  let lastSeenIds = [];
+  // Get previously SHOWN notification IDs from sessionStorage (to avoid duplicate toasts in same session)
+  const storageKey = `shownNotifications_${role || 'user'}`;
+  const shownStr = sessionStorage.getItem(storageKey) || '[]';
+  let shownIds = [];
   
   try {
-    lastSeenIds = JSON.parse(lastSeenStr);
+    shownIds = JSON.parse(shownStr);
   } catch {
-    lastSeenIds = [];
+    shownIds = [];
   }
 
-  // Filter new notifications
-  const newNotifications = notifications.filter(n => !lastSeenIds.includes(n.id));
-
-  // Get unread notifications only
-  const unreadNotifications = newNotifications.filter(n => !n.is_read);
+  // Filter notifications that are unread AND haven't been shown as a toast in this session
+  const unreadNotifications = notifications.filter(n => {
+    const isUnread = !n.is_read && !n.read;
+    const hasBeenShown = shownIds.includes(n.id);
+    return isUnread && !hasBeenShown;
+  });
 
   // Show toasts sequentially with 4 second delay between them
   const toastDelay = 4000; // 4 seconds delay between toasts
@@ -232,13 +233,13 @@ const processNewNotifications = (notifications, role) => {
       const toastData = generateToastMessage(notification, role);
       if (toastData) {
         showToast(toastData.message, toastData.type);
+        
+        // Add to shown list after displaying
+        shownIds.push(notification.id);
+        sessionStorage.setItem(storageKey, JSON.stringify(shownIds));
       }
     }, index * toastDelay);
   });
-
-  // Update seen IDs
-  const allIds = notifications.map(n => n.id);
-  sessionStorage.setItem(storageKey, JSON.stringify(allIds));
 };
 
 /**
@@ -262,6 +263,13 @@ const generateToastMessage = (notification, role) => {
     }
     if (content.includes('rejected') || content.includes('post rejected')) {
       return { message: '❌ Your post has been rejected!', type: 'error' };
+    }
+    if (content.includes('update your information') || content.includes('verification needed')) {
+      return { message: '📝 Please update your profile information to get verified.', type: 'warning' };
+    }
+    if (content.includes('new report in your barangay')) {
+      const reportTitle = notification.title?.split(':')[0] || 'A new report';
+      return { message: `📍 ${reportTitle} has been posted in your barangay!`, type: 'info' };
     }
     if (content.includes('status updated') || content.includes('updated to')) {
       if (content.includes('resolved')) {
@@ -300,6 +308,9 @@ const generateToastMessage = (notification, role) => {
   }
   // Responder Messages
   if (role === 'Responder') {
+    if (content.includes('assigned to you')) {
+      return { message: '📍 A new report has been assigned to you!', type: 'info' };
+    }
     if (content.includes('approved') || content.includes('post accepted')) {
       return { message: '✅ Your post has been approved by the Barangay Official!', type: 'approved' };
     }
@@ -329,7 +340,7 @@ const generateToastMessage = (notification, role) => {
     if (content.includes('user deleted') || content.includes('account deleted')) {
       return { message: '👤 A user account has been deleted!', type: 'deleted' };
     }
-    if (content.includes('verified')) {
+    if (content.includes('verified') || content.includes('verification')) {
       return { message: '✔️ A user has been verified!', type: 'info' };
     }
     return null;

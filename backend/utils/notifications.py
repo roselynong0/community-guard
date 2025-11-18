@@ -432,3 +432,105 @@ def create_report_approval_notification(user_id, report_id, report_title, approv
     except Exception as e:
         print(f"❌ Failed to create report approval notification: {e}")
         return None
+
+
+def notify_residents_of_approved_report(report_id, report_title, barangay):
+    """
+    Notify all residents in a barangay about a new approved report in their area.
+    """
+    if not report_id or not barangay:
+        print("⚠️ notify_residents_of_approved_report called with missing parameters")
+        return
+
+    try:
+        # Get all residents (role is "Resident" or empty/null which defaults to Resident)
+        # Query all users and filter by role being null or "Resident"
+        all_users_resp = supabase.table("users").select("id, role").execute()
+        all_users = getattr(all_users_resp, "data", []) or []
+        
+        # Get their info to filter by barangay
+        resident_ids_in_barangay = []
+        for user in all_users:
+            user_id = user.get("id")
+            user_role = user.get("role")
+            
+            # Skip if user is not a resident (check if role is "Resident" or None/empty)
+            if user_role and user_role not in ["Resident", None, ""]:
+                continue
+            
+            try:
+                info_resp = supabase.table("info").select("address_barangay").eq("user_id", user_id).single().execute()
+                info_data = getattr(info_resp, "data", None)
+                if info_data and info_data.get("address_barangay") == barangay:
+                    resident_ids_in_barangay.append(user_id)
+            except:
+                pass
+        
+        if not resident_ids_in_barangay:
+            print(f"ℹ️ No residents found in barangay {barangay}")
+            return
+        
+        # Create notification for each resident
+        title = "New Report in Your Barangay"
+        message = f'A new report "{report_title}" has been posted in {barangay}.'
+        type_label = "New Report"
+        
+        for resident_id in resident_ids_in_barangay:
+            try:
+                supabase.table("notifications").insert({
+                    "user_id": resident_id,
+                    "report_id": report_id,
+                    "type": type_label,
+                    "title": title,
+                    "message": message,
+                    "is_read": False,
+                    "created_at": datetime.now(timezone.utc).isoformat()
+                }).execute()
+            except Exception as e:
+                print(f"⚠️ Failed to notify resident {resident_id}: {e}")
+        
+        print(f"✅ Notified {len(resident_ids_in_barangay)} residents in {barangay} about new report")
+    
+    except Exception as e:
+        print(f"❌ Failed to notify residents: {e}")
+
+
+def create_verification_notification(user_id, user_name, admin_id=None):
+    """
+    Create a notification prompting user to update their information to get verified.
+    Called from Admin-Users when a user hasn't completed verification yet.
+    """
+    if not user_id:
+        print("⚠️ create_verification_notification called without user_id")
+        return None
+
+    try:
+        title = "Update Your Information"
+        type_label = "Verification Needed"
+        message = f"Please update your information in your profile to get verified as a trusted community member."
+        
+        print(f"📧 Creating verification notification for user {user_id}")
+        
+        res = supabase.table("notifications").insert({
+            "user_id": user_id,
+            "type": type_label,
+            "title": title,
+            "message": message,
+            "is_read": False,
+            "created_at": datetime.now(timezone.utc).isoformat()
+        }).execute()
+
+        inserted = getattr(res, "data", []) or []
+        inserted_row = inserted[0] if inserted else None
+        
+        if inserted_row:
+            print(f"✅ Verification notification created: id={inserted_row.get('id')}")
+            return inserted_row
+        else:
+            print("❌ Verification notification insert returned no row")
+            return None
+    
+    except Exception as e:
+        print(f"❌ Failed to create verification notification: {e}")
+        return None
+

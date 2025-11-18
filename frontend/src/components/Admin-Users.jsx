@@ -487,8 +487,8 @@ const [activeTab, setActiveTab] = useState("Residents");
     try {
       showNotification('📧 Sending verification reminder...', 'info');
       
-      // This would be a new endpoint to send reminder emails
-      const response = await fetch(`${API_URL}/users/${selectedUser.id}/verification-reminder`, {
+      // Call the backend endpoint to send verification notification
+      const response = await fetch(`${API_URL}/users/${selectedUser.id}/send-verification-notification`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,

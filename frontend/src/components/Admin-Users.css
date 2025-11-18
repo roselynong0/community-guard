@@ -436,6 +436,16 @@ input.admin-search-input {
     transform: translateY(-1px);
 }
 
+.admin-btn-secondary {
+    background: #8b5cf6;
+    color: white;
+}
+
+.admin-btn-secondary:hover {
+    background: #7c3aed;
+    transform: translateY(-1px);
+}
+
 .admin-btn-success {
     background: #10b981;
     color: white;

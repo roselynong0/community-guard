@@ -1181,7 +1181,7 @@ def approve_report(report_id):
             return jsonify({"status": "error", "message": "Not authorized to approve reports"}), 403
         
         # Check if report exists and get reporter info
-        report_resp = supabase.table("reports").select("id, user_id, title, is_approved").eq("id", report_id).execute()
+        report_resp = supabase.table("reports").select("id, user_id, title, is_approved, address_barangay").eq("id", report_id).execute()
         report = getattr(report_resp, "data", [None])[0]
         
         if not report:
@@ -1206,9 +1206,14 @@ def approve_report(report_id):
         # Create notification for the reporter
         reporter_id = report.get("user_id")
         report_title = report.get("title")
+        barangay = report.get("address_barangay")
         if reporter_id:
-            from utils.notifications import create_report_approval_notification
+            from utils.notifications import create_report_approval_notification, notify_residents_of_approved_report
             create_report_approval_notification(reporter_id, report_id, report_title, user_id)
+            
+            # Notify all residents in the barangay about the new approved report
+            if barangay:
+                notify_residents_of_approved_report(report_id, report_title, barangay)
         
         return jsonify({"status": "success", "message": "Report approved successfully"}), 200
         

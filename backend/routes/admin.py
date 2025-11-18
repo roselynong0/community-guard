@@ -355,6 +355,46 @@ def update_full_verification(user_id):
         return jsonify({"status": "error", "message": str(e)}), 500
 
 
+@admin_bp.route("/users/<user_id>/send-verification-notification", methods=["POST"])
+@token_required
+def send_verification_notification(user_id):
+    """Send a notification to user to update their information for verification"""
+    try:
+        # Check if requester is admin
+        current_user_id = request.user_id
+        current_user_resp = supabase.table("users").select("role").eq("id", current_user_id).single().execute()
+        current_user = current_user_resp.data if current_user_resp.data else {}
+        
+        if current_user.get("role") != "Admin":
+            return jsonify({"status": "error", "message": "Admin access required"}), 403
+
+        # Get user info
+        user_resp = supabase.table("users").select(
+            "firstname, lastname, email, role"
+        ).eq("id", user_id).is_("deleted_at", None).execute()
+        
+        user = getattr(user_resp, "data", [None])[0]
+        if not user:
+            return jsonify({"status": "error", "message": "User not found"}), 404
+
+        # Don't allow notifications for admin users
+        if user.get("role") == "Admin":
+            return jsonify({"status": "error", "message": "Cannot send notification to admin user"}), 400
+
+        # Create verification notification using the utility function
+        from utils.notifications import create_verification_notification
+        create_verification_notification(user_id, f"{user.get('firstname')} {user.get('lastname')}", current_user_id)
+
+        return jsonify({
+            "status": "success", 
+            "message": "Verification notification sent successfully"
+        }), 200
+
+    except Exception as e:
+        print(f"Error sending verification notification: {e}")
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+
 @admin_bp.route("/reports/<report_id>/status", methods=["PUT"])
 @token_required
 def admin_update_report_status(report_id):

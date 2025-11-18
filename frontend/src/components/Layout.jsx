@@ -33,6 +33,7 @@ function Layout({ session, setSession, setNotification }) {
   const toastRef = useRef(null);
   const pollingIntervalRef = useRef(null);
   const chatBotToastTimeoutRef = useRef(null);
+  const newReportsIntervalRef = useRef(null);
 
   const navigate = useNavigate();
 
@@ -135,6 +136,97 @@ function Layout({ session, setSession, setNotification }) {
       if (pollingIntervalRef.current) {
         stopNotificationPolling(pollingIntervalRef.current);
         pollingIntervalRef.current = null;
+      }
+    };
+  }, [session?.token]);
+
+  // 🔹 Poll for new approved reports in user's barangay
+  useEffect(() => {
+    if (!session?.token) {
+      if (newReportsIntervalRef.current) {
+        clearInterval(newReportsIntervalRef.current);
+        newReportsIntervalRef.current = null;
+      }
+      return;
+    }
+
+    // Track dismissed report IDs in localStorage so they don't show again
+    const getDismissedReports = () => {
+      try {
+        const stored = localStorage.getItem('dismissedNewReports');
+        return new Set(stored ? JSON.parse(stored) : []);
+      } catch {
+        return new Set();
+      }
+    };
+
+    const markReportDismissed = (reportId) => {
+      try {
+        const dismissed = getDismissedReports();
+        dismissed.add(reportId);
+        localStorage.setItem('dismissedNewReports', JSON.stringify(Array.from(dismissed)));
+      } catch (e) {
+        console.warn('Failed to save dismissed report:', e);
+      }
+    };
+
+    let dismissedReports = getDismissedReports();
+
+    const pollNewReports = async () => {
+      try {
+        const response = await fetch(`${API_CONFIG.BASE_URL}/api/notifications/new-reports`, {
+          headers: { Authorization: `Bearer ${session.token}` },
+        });
+
+        if (!response.ok) {
+          return;
+        }
+
+        const data = await response.json();
+        if (data.status === "success" && data.new_reports) {
+          const newReports = data.new_reports || [];
+
+          // Show toast for each new report that hasn't been dismissed or marked as read
+          newReports.forEach((report) => {
+            const isDismissed = dismissedReports.has(report.id);
+            const isRead = report.is_read || report.read;
+            
+            if (!isDismissed && !isRead) {
+              const message = `📍 New report in your barangay: "${report.title}"`;
+              if (toastRef.current) {
+                const toastId = toastRef.current.show(message, 'info');
+                // Override the close handler to track dismissals
+                const originalRemove = toastRef.current.remove;
+                toastRef.current.remove = function(id) {
+                  if (id === toastId) {
+                    markReportDismissed(report.id);
+                    dismissedReports.add(report.id);
+                  }
+                  return originalRemove.call(this, id);
+                };
+              }
+            } else if (isRead) {
+              // Also mark as dismissed so we don't keep checking it
+              markReportDismissed(report.id);
+              dismissedReports.add(report.id);
+            }
+          });
+        }
+      } catch (error) {
+        console.error('Error polling new reports:', error);
+      }
+    };
+
+    // Initial poll
+    pollNewReports();
+
+    // Poll every 10 seconds for new reports
+    newReportsIntervalRef.current = setInterval(pollNewReports, 10000);
+
+    return () => {
+      if (newReportsIntervalRef.current) {
+        clearInterval(newReportsIntervalRef.current);
+        newReportsIntervalRef.current = null;
       }
     };
   }, [session?.token]);
