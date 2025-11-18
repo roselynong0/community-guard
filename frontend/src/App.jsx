@@ -121,17 +121,15 @@ function App() {
       
       // Start staged transition: play loading exit, then success, then finish
       setLoaderStage('exit');
-      // Wait for exit animation to play before showing success
+      // Immediately show success while exit animation plays
+      setShowSuccess(true);
+      setLoaderStage('success');
+      // Show success for ~2000ms, then complete
       setTimeout(() => {
-        setShowSuccess(true);
-        setLoaderStage('success');
-        // Show success for ~2000ms, then complete
-        setTimeout(() => {
-          setShowSuccess(false);
-          setLoaderStage('done');
-          setLoading(false);
-        }, 2000);
-      }, 600);
+        setShowSuccess(false);
+        setLoaderStage('done');
+        setLoading(false);
+      }, 2000);
     };
     initSession();
   }, []);
