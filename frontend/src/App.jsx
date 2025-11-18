@@ -113,7 +113,7 @@ function App() {
       
       // Ensure minimum loading time for better UX
       const elapsed = Date.now() - startTime;
-      const minLoadTime = 2000; // Minimum 2s total loading time
+      const minLoadTime = 2500; // Minimum 2.5s total loading time
       
       if (elapsed < minLoadTime) {
         await new Promise(resolve => setTimeout(resolve, minLoadTime - elapsed));
@@ -125,13 +125,13 @@ function App() {
       setTimeout(() => {
         setShowSuccess(true);
         setLoaderStage('success');
-        // Show success for ~1500ms, then complete
+        // Show success for ~2000ms, then complete
         setTimeout(() => {
           setShowSuccess(false);
           setLoaderStage('done');
           setLoading(false);
-        }, 1500);
-      }, 800);
+        }, 2000);
+      }, 600);
     };
     initSession();
   }, []);
