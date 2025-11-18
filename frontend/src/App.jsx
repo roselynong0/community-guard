@@ -62,6 +62,27 @@ function App() {
 
   // 🔹 Fetch session on mount with retry logic for Vercel cold starts
   useEffect(() => {
+    let cancelled = false;
+    let successTimeout = null;
+
+    const completeLoading = (reason = 'default') => {
+      if (cancelled) {
+        return;
+      }
+      console.log(`🎉 Showing success screen [${reason}]`);
+      setShowSuccess(true);
+      setLoaderStage('success');
+      successTimeout = setTimeout(() => {
+        if (cancelled) {
+          return;
+        }
+        console.log(`✅ Completed loading [${reason}]`);
+        setShowSuccess(false);
+        setLoaderStage('done');
+        setLoading(false);
+      }, 2000);
+    };
+
     const initSession = async () => {
       const startTime = Date.now();
       const token = localStorage.getItem("token");
@@ -74,12 +95,11 @@ function App() {
         if (elapsed < minLoadTime) {
           await new Promise(resolve => setTimeout(resolve, minLoadTime - elapsed));
         }
-        
+
+        // Ensure the success overlay is mounted before playing loader exit
+        setShowSuccess(true);
         setLoaderStage('exit');
-        setTimeout(() => {
-          setLoaderStage('done');
-          setLoading(false);
-        }, 800);
+        completeLoading('no-token');
         return;
       }
       
@@ -119,19 +139,19 @@ function App() {
         await new Promise(resolve => setTimeout(resolve, minLoadTime - elapsed));
       }
       
-      // Start staged transition: play loading exit, then success, then finish
-      setLoaderStage('exit');
-      // Immediately show success while exit animation plays
+      // Start staged transition: mount success overlay first, then play loading exit
       setShowSuccess(true);
-      setLoaderStage('success');
-      // Show success for ~2000ms, then complete
-      setTimeout(() => {
-        setShowSuccess(false);
-        setLoaderStage('done');
-        setLoading(false);
-      }, 2000);
+      setLoaderStage('exit');
+      completeLoading('session-loaded');
     };
     initSession();
+
+    return () => {
+      cancelled = true;
+      if (successTimeout) {
+        clearTimeout(successTimeout);
+      }
+    };
   }, []);
 
   // 🔹 Auto-hide notifications
@@ -144,7 +164,14 @@ function App() {
 
   // Show loader stages until done: loading -> exit -> success -> done
   if (loaderStage !== 'done') {
-    if (showSuccess) return <SuccessRedirect />;
+    console.log('📊 Loader state:', { loaderStage, showSuccess, loading });
+    
+    if (showSuccess) {
+      console.log('🎉 RENDERING SUCCESS SCREEN');
+      return <SuccessRedirect message="Success! Loading your workspace..." />;
+    }
+    
+    console.log('⏳ RENDERING LOADING SCREEN');
     return (
       <LoadingScreen
         title="Starting Community Guard"
