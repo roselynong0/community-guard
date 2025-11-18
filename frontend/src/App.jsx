@@ -108,13 +108,13 @@ function App() {
       setTimeout(() => {
         setShowSuccess(true);
         setLoaderStage('success');
-        // Show success for ~900ms, then complete
+        // Show success for ~1500ms, then complete
         setTimeout(() => {
           setShowSuccess(false);
           setLoaderStage('done');
           setLoading(false);
-        }, 900);
-      }, 420);
+        }, 1500);
+      }, 800);
     };
     initSession();
   }, []);
