@@ -435,6 +435,47 @@
   transform: scale(1.05);
 }
 
+/* Professional Chat Button */
+.chat-button {
+  position: fixed;
+  bottom: 1.5rem;
+  right: 1.5rem;
+  z-index: 1050;
+  background: linear-gradient(135deg, #007bff, #0056b3);
+  color: #fff;
+  border-radius: 50%;
+  width: 56px;
+  height: 56px;
+  box-shadow: 0 4px 20px rgba(0, 123, 255, 0.4);
+  font-size: 1.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  border: none;
+  transition: all 0.3s ease;
+  animation: float 3s ease-in-out infinite;
+}
+
+.chat-button:hover {
+  background: linear-gradient(135deg, #0056b3, #003d82);
+  box-shadow: 0 6px 25px rgba(0, 123, 255, 0.6);
+  transform: scale(1.1);
+}
+
+.chat-button:active {
+  transform: scale(0.95);
+}
+
+@keyframes float {
+  0%, 100% {
+    transform: translateY(0px);
+  }
+  50% {
+    transform: translateY(-10px);
+  }
+}
+
 @keyframes pulse {
   0% {
     box-shadow: 0 4px 15px rgba(17, 22, 62, 0.4), 0 0 0 0 rgba(17, 22, 62, 0.4);

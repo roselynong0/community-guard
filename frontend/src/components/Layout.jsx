@@ -10,6 +10,7 @@ import {
   FaUserFriends,
   FaMap,
   FaChartLine,
+  FaComments,
 } from "react-icons/fa";
 import { Outlet, NavLink, useNavigate } from "react-router-dom";
 import { logout } from "../utils/session";
@@ -29,10 +30,8 @@ function Layout({ session, setSession, setNotification }) {
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const [notificationCount, setNotificationCount] = useState(0);
   const [showChatBot, setShowChatBot] = useState(false);
-  const [showChatBotToast, setShowChatBotToast] = useState(false);
   const toastRef = useRef(null);
   const pollingIntervalRef = useRef(null);
-  const chatBotToastTimeoutRef = useRef(null);
 
   const navigate = useNavigate();
 
@@ -68,37 +67,6 @@ function Layout({ session, setSession, setNotification }) {
 
     loadProfile();
   }, [session, setSession]);
-
-  // 🔹 Show ChatBot toast after 10 seconds if user is logged in
-  useEffect(() => {
-    if (!session?.token || !user) return;
-
-    // Check if user has already dismissed this toast
-    const chatBotToastDismissed = localStorage.getItem("chatbot-toast-dismissed");
-    if (chatBotToastDismissed) return;
-
-    // Show toast after 10 seconds
-    chatBotToastTimeoutRef.current = setTimeout(() => {
-      setShowChatBotToast(true);
-    }, 10000);
-
-    return () => {
-      if (chatBotToastTimeoutRef.current) {
-        clearTimeout(chatBotToastTimeoutRef.current);
-      }
-    };
-  }, [session?.token, user]);
-
-  // Handle ChatBot toast Yes/No
-  const handleChatBotYes = () => {
-    setShowChatBot(true);
-    setShowChatBotToast(false);
-  };
-
-  const handleChatBotNo = () => {
-    setShowChatBotToast(false);
-    localStorage.setItem("chatbot-toast-dismissed", "true");
-  };
 
   // 🔹 Setup real-time notifications via SSE
   useEffect(() => {
@@ -319,7 +287,7 @@ function Layout({ session, setSession, setNotification }) {
       </nav>
 
       {/* Mobile logout - Hide when modal is open */}
-      {!showLogoutConfirm && !showAuthModal && !showChatBotToast && (
+      {!showLogoutConfirm && !showAuthModal && (
         <div
           className="mobile-logout-btn"
           onClick={() => setShowLogoutConfirm(true)}
@@ -327,6 +295,18 @@ function Layout({ session, setSession, setNotification }) {
         >
           <FaSignOutAlt />
         </div>
+      )}
+
+      {/* Chat Button - Always visible */}
+      {session?.token && (
+        <button
+          className="chat-button"
+          onClick={() => setShowChatBot(!showChatBot)}
+          title="Open Chat Helper"
+          aria-label="Open Chat Helper"
+        >
+          <FaComments />
+        </button>
       )}
 
       {/* Logout Confirmation */}
@@ -371,29 +351,6 @@ function Layout({ session, setSession, setNotification }) {
                 className="confirm-btn"
               >
                 Sign In
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ChatBot Toast Notification */}
-      {showChatBotToast && (
-        <div className="chatbot-toast-notification">
-          <div className="chatbot-toast-content">
-            <p>Would you like to know what our system can provide?</p>
-            <div className="chatbot-toast-actions">
-              <button
-                onClick={handleChatBotYes}
-                className="chatbot-toast-yes"
-              >
-                Yes
-              </button>
-              <button
-                onClick={handleChatBotNo}
-                className="chatbot-toast-no"
-              >
-                Dismiss
               </button>
             </div>
           </div>

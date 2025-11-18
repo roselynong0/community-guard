@@ -73,6 +73,15 @@ export default function BarangayDashboard({ token }) {
   const [topBarangays, setTopBarangays] = useState([]);
   const [loading, setLoading] = useState(true);
   const [reportView, setReportView] = useState("barangay"); // Toggle between "barangay" and "monthly"
+  const [onpremium, setOnpremium] = useState(false); // Premium status
+  const [showPremiumModal, setShowPremiumModal] = useState(false); // Premium upgrade modal
+  const [notification, setNotification] = useState(null); // Toast notification
+
+  // Notification handler
+  const showNotification = (message, type = "success") => {
+    setNotification({ message, type });
+    setTimeout(() => setNotification(null), 4000);
+  };
 
   // ✅ Single useEffect to fetch profile and dashboard data
   useEffect(() => {
@@ -84,7 +93,7 @@ export default function BarangayDashboard({ token }) {
     const fetchAllData = async () => {
       setLoading(true);
       try {
-        // 1. Fetch profile first to get barangay
+        // 1. Fetch profile first to get barangay and premium status
         const profileResponse = await fetchWithToken(getApiUrl('/api/profile'), token);
         if (profileResponse.status !== "success") {
           console.error("Failed to load profile:", profileResponse);
@@ -93,6 +102,11 @@ export default function BarangayDashboard({ token }) {
         }
         
         const profile = profileResponse.profile;
+        
+        // Set premium status
+        const isPremium = profile?.onpremium === true;
+        setOnpremium(isPremium);
+        console.log('📊 User premium status:', isPremium);
         
         const selectedBarangay = profile?.address_barangay || "All";
         console.log("🔄 Fetching dashboard data for barangay:", selectedBarangay);
@@ -216,7 +230,17 @@ export default function BarangayDashboard({ token }) {
             {/* Report View Toggle */}
             <select
               value={reportView}
-              onChange={(e) => setReportView(e.target.value)}
+              onChange={(e) => {
+                const newView = e.target.value;
+                // Check premium status before allowing monthly view
+                if (newView === "monthly" && !onpremium) {
+                  console.log('📊 Monthly reports require premium - showing upgrade modal');
+                  showNotification('✨ Premium feature - Please upgrade to unlock Monthly Reports', 'warning');
+                  setShowPremiumModal(true);
+                  return; // Don't change view
+                }
+                setReportView(newView);
+              }}
               style={{
                 padding: "0.5rem 0.75rem",
                 borderRadius: "6px",
@@ -230,7 +254,7 @@ export default function BarangayDashboard({ token }) {
               }}
             >
               <option value="barangay">Barangay Trends</option>
-              <option value="monthly">Monthly Reports</option>
+              <option value="monthly">✨ Monthly Reports</option>
             </select>
           </div>
         </div>
@@ -269,6 +293,135 @@ export default function BarangayDashboard({ token }) {
           <MapView reports={topBarangays} />
         </div>
       </div>
+
+      {/* --- PREMIUM UPGRADE MODAL --- */}
+      {showPremiumModal && (
+        <div 
+          className="modal-overlay"
+          onClick={() => setShowPremiumModal(false)}
+          style={{ zIndex: 1000 }}
+        >
+          <div 
+            className="modal"
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              maxWidth: "450px",
+              borderLeft: "6px solid #f39c12",
+              backgroundColor: "#fffbf0"
+            }}
+          >
+            <div style={{
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+              marginBottom: "16px",
+              borderBottom: "2px solid #f39c12",
+              paddingBottom: "12px"
+            }}>
+              <h3 style={{ margin: 0, color: "#f39c12" }}>✨ Premium Feature</h3>
+              <button
+                onClick={() => setShowPremiumModal(false)}
+                style={{
+                  background: "none",
+                  border: "none",
+                  fontSize: "1.5em",
+                  cursor: "pointer",
+                  color: "#666"
+                }}
+              >
+                ✕
+              </button>
+            </div>
+
+            <div style={{ display: "flex", flexDirection: "column", gap: "16px", marginBottom: "20px" }}>
+              <div style={{
+                padding: "14px",
+                backgroundColor: "#fff9e6",
+                borderRadius: "6px",
+                borderLeft: "4px solid #f39c12"
+              }}>
+                <div style={{ fontWeight: "600", color: "#f39c12", marginBottom: "8px" }}>
+                  📊 Monthly Report Summary
+                </div>
+                <p style={{ margin: 0, fontSize: "0.95em", color: "#666", lineHeight: "1.4" }}>
+                  Access detailed monthly report analytics and trends. This feature is reserved for Premium subscribers.
+                </p>
+              </div>
+
+              <div style={{
+                padding: "14px",
+                backgroundColor: "#f5f5f5",
+                borderRadius: "6px"
+              }}>
+                <div style={{ fontWeight: "600", marginBottom: "8px", color: "#333" }}>
+                  ✨ Premium Benefits
+                </div>
+                <ul style={{ margin: 0, paddingLeft: "20px", fontSize: "0.95em", color: "#666", lineHeight: "1.5" }}>
+                  <li>📊 Monthly report summaries</li>
+                  <li>⏱️ Unlimited Smart Filter usage</li>
+                  <li>📈 Advanced analytics</li>
+                  <li>🚀 Priority support</li>
+                </ul>
+              </div>
+            </div>
+
+            <div style={{ display: "flex", gap: "10px", justifyContent: "flex-end" }}>
+              <button 
+                onClick={() => setShowPremiumModal(false)}
+                style={{
+                  padding: "10px 20px",
+                  backgroundColor: "#ccc",
+                  color: "#333",
+                  border: "none",
+                  borderRadius: "4px",
+                  cursor: "pointer",
+                  fontWeight: "500",
+                  fontSize: "0.95em",
+                  transition: "all 0.3s ease"
+                }}
+                onMouseEnter={(e) => e.target.style.backgroundColor = "#bbb"}
+                onMouseLeave={(e) => e.target.style.backgroundColor = "#ccc"}
+              >
+                Close
+              </button>
+              <button 
+                onClick={() => {
+                  console.log('User clicked upgrade button');
+                  showNotification('🚀 Redirecting to Premium upgrade page...', 'info');
+                  setShowPremiumModal(false);
+                  // TODO: Navigate to upgrade page or show payment modal
+                }}
+                style={{
+                  padding: "10px 20px",
+                  backgroundColor: "#f39c12",
+                  color: "white",
+                  border: "none",
+                  borderRadius: "4px",
+                  cursor: "pointer",
+                  fontWeight: "600",
+                  fontSize: "0.95em",
+                  transition: "all 0.3s ease"
+                }}
+                onMouseEnter={(e) => e.target.style.backgroundColor = "#e67e22"}
+                onMouseLeave={(e) => e.target.style.backgroundColor = "#f39c12"}
+              >
+                ✨ Upgrade Now
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Toast Notification */}
+      {notification && (
+        <div 
+          className={`notification ${notification.type}`}
+          role="alert" 
+          aria-live="assertive"
+        >
+          {notification.message}
+        </div>
+      )}
 
     </div>
   );

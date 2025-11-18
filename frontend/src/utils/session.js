@@ -4,15 +4,26 @@ import { API_CONFIG, getApiUrl } from './apiConfig';
 export async function fetchSession() {
   try {
     const token = localStorage.getItem("token");
-    if (!token) return null;
+    if (!token) {
+      console.log("🔐 No token found in localStorage");
+      return null;
+    }
 
-    // PRIMARY: Fetch from backend API (fresh, authoritative source)
+    console.log("🔐 Token found, validating session...");
+
+    // PRIMARY: Try to fetch from backend API (fresh, authoritative source)
     try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 5000); // 5 second timeout
+      
       const res = await fetch(getApiUrl(API_CONFIG.endpoints.sessions), {
         headers: {
           Authorization: `Bearer ${token}`,
         },
+        signal: controller.signal,
       });
+
+      clearTimeout(timeoutId);
 
       if (res.ok) {
         const data = await res.json();
@@ -25,6 +36,7 @@ export async function fetchSession() {
             // Check expiry on frontend
             const now = new Date();
             if (new Date(currentSession.expires_at) < now) {
+              console.log("⏰ Stored session expired");
               localStorage.removeItem("token");
               localStorage.removeItem("session");
               return null;
@@ -32,15 +44,26 @@ export async function fetchSession() {
 
             // Update localStorage with fresh session data
             localStorage.setItem("session", JSON.stringify(currentSession));
+            console.log("✅ Session validated from backend");
             return currentSession;
           }
         }
+      } else if (res.status === 401) {
+        // Token is invalid on backend
+        console.log("❌ Token rejected by backend (401)");
+        localStorage.removeItem("token");
+        localStorage.removeItem("session");
+        return null;
       }
     } catch (apiErr) {
-      console.warn("Failed to fetch from /api/sessions, falling back to localStorage:", apiErr);
+      if (apiErr.name === 'AbortError') {
+        console.warn("⏱️ API timeout - backend may be starting up, using cached session");
+      } else {
+        console.warn("⚠️ Failed to fetch from /api/sessions, falling back to localStorage:", apiErr.message);
+      }
     }
 
-    // FALLBACK: Use localStorage if API fails
+    // FALLBACK: Use localStorage if API fails or times out
     const storedSession = localStorage.getItem("session");
     if (storedSession) {
       try {
@@ -49,21 +72,23 @@ export async function fetchSession() {
         // Check expiry on frontend
         const now = new Date();
         if (new Date(session.expires_at) < now) {
+          console.log("⏰ Cached session expired");
           localStorage.removeItem("token");
           localStorage.removeItem("session");
           return null;
         }
         
-        console.warn("Using cached session from localStorage (API was unavailable)");
+        console.log("💾 Using cached session from localStorage (API unavailable or slow)");
         return session;
       } catch (parseErr) {
-        console.warn("Failed to parse stored session:", parseErr);
+        console.warn("❌ Failed to parse stored session:", parseErr);
       }
     }
 
+    console.log("❌ No valid session found");
     return null;
   } catch (err) {
-    console.error("Failed to fetch session:", err);
+    console.error("❌ Failed to fetch session:", err);
     return null;
   }
 }

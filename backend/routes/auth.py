@@ -269,6 +269,7 @@ def login():
             "role": user.get("role", "Resident"),
             "isverified": user.get("isverified", False),
             "avatar_url": user.get("avatar_url", "/default-avatar.png"),
+            "onpremium": user.get("onpremium", False),
         },
         "token": token,
         "expires_at": expires_at

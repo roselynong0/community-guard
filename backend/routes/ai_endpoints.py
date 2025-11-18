@@ -252,6 +252,7 @@ def log_ai_usage(current_user):
         
         # Validate input
         if not data or 'interaction_type' not in data:
+            logger.warning("[AI Usage] ⚠️ Missing interaction_type in request")
             return jsonify({
                 'status': 'error',
                 'message': 'Missing required field: interaction_type'
@@ -264,27 +265,35 @@ def log_ai_usage(current_user):
         # Get user ID from token (current_user dict has 'id' from token_required)
         user_id = current_user.get('id')
         if not user_id:
+            logger.error("[AI Usage] ❌ User ID not found in token")
             return jsonify({
                 'status': 'error',
                 'message': 'User ID not found in token'
             }), 401
+        
+        logger.info(f"[AI Usage] 📝 Logging interaction - Type: {interaction_type}, Duration: {duration_seconds}s, User: {user_id[:8]}...")
         
         # Import supabase client
         from config import supabase
         
         # Call the PL/pgSQL function via Supabase
         # log_ai_interaction returns a table with one row
-        response = supabase.rpc('log_ai_interaction', {
-            'p_user_id': user_id,
-            'p_interaction_type': interaction_type,
-            'p_duration_seconds': duration_seconds,
-            'p_metadata': metadata
-        }).execute()
+        try:
+            response = supabase.rpc('log_ai_interaction', {
+                'p_user_id': user_id,
+                'p_interaction_type': interaction_type,
+                'p_duration_seconds': duration_seconds,
+                'p_metadata': metadata
+            }).execute()
+        except Exception as rpc_error:
+            logger.error(f"[AI Usage] ❌ RPC call failed: {str(rpc_error)}", exc_info=True)
+            raise
         
         if not response.data or len(response.data) == 0:
+            logger.error(f"[AI Usage] ❌ Empty response from RPC - Response: {response}")
             return jsonify({
                 'status': 'error',
-                'message': 'Failed to log AI usage'
+                'message': 'Failed to log AI usage - no data returned'
             }), 500
         
         # Extract result from first row
@@ -292,6 +301,8 @@ def log_ai_usage(current_user):
         
         # Calculate hours remaining
         hours_remaining = max(0, (172800 - result['total_seconds']) / 3600.0)
+        
+        logger.info(f"[AI Usage] ✅ Successfully logged - Total: {result['total_seconds']}s ({result['usage_percent']}%), Hours remaining: {hours_remaining:.2f}h")
         
         return jsonify({
             'status': 'success',
@@ -308,7 +319,7 @@ def log_ai_usage(current_user):
         }), 200
     
     except Exception as e:
-        logger.error(f"Error logging AI usage: {str(e)}", exc_info=True)
+        logger.error(f"[AI Usage] ❌ Error logging AI usage: {str(e)}", exc_info=True)
         return jsonify({
             'status': 'error',
             'message': f'Internal server error: {str(e)}'
@@ -339,18 +350,26 @@ def get_current_usage(current_user):
     try:
         user_id = current_user.get('id')
         if not user_id:
+            logger.error("[AI Usage] ❌ User ID not found in token for current-usage")
             return jsonify({
                 'status': 'error',
                 'message': 'User ID not found in token'
             }), 401
         
-        from config import supabase
+        logger.info(f"[AI Usage] 📊 Fetching current usage for user: {user_id[:8]}...")
+        
+        from utils import supabase
         
         # Query the view
-        response = supabase.table('vw_ai_current_week_usage').select('*').eq('user_id', user_id).execute()
+        try:
+            response = supabase.table('vw_ai_current_week_usage').select('*').eq('user_id', user_id).execute()
+        except Exception as query_error:
+            logger.error(f"[AI Usage] ❌ Query error: {str(query_error)}", exc_info=True)
+            raise
         
         if not response.data or len(response.data) == 0:
             # No usage data yet; return defaults
+            logger.info(f"[AI Usage] ℹ️ No usage data this week - returning defaults (0% used, 48h remaining)")
             return jsonify({
                 'status': 'success',
                 'data': {
@@ -366,6 +385,7 @@ def get_current_usage(current_user):
             }), 200
         
         result = response.data[0]
+        logger.info(f"[AI Usage] ✅ Retrieved usage - {result['usage_percent']}% used ({result['total_seconds']}s), {result['hours_remaining']}h remaining, Premium: {result['is_premium']}")
         
         return jsonify({
             'status': 'success',
@@ -374,7 +394,7 @@ def get_current_usage(current_user):
         }), 200
     
     except Exception as e:
-        logger.error(f"Error fetching current usage: {str(e)}", exc_info=True)
+        logger.error(f"[AI Usage] ❌ Error fetching current usage: {str(e)}", exc_info=True)
         return jsonify({
             'status': 'error',
             'message': f'Internal server error: {str(e)}'

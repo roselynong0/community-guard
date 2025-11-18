@@ -142,7 +142,7 @@ function BarangayReports({ token }) {
     const [notification, setNotification] = useState(null);
     const [highlightedReportId, setHighlightedReportId] = useState(null);
     const [showCommunityHelper, setShowCommunityHelper] = useState(true); // Toggle for Community Helper visibility
-    const [showSmartFilter, setShowSmartFilter] = useState(true); // Smart Filter toggle
+    const [showSmartFilter, setShowSmartFilter] = useState(false); // Smart Filter toggle - starts GREY (inactive)
     const [aiUsagePercent, setAiUsagePercent] = useState(0); // AI usage percentage (0-100)
     const [showUsageModal, setShowUsageModal] = useState(false); // Show usage details modal
 
@@ -156,6 +156,13 @@ function BarangayReports({ token }) {
     const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false);
     const [deleteTarget, setDeleteTarget] = useState(null);
     const [isDeleting, setIsDeleting] = useState(false);
+    
+    // States for Smart Filter time tracking and warning
+    const [smartFilterStartTime, setSmartFilterStartTime] = useState(null);
+    const [hasAcceptedAiWarning, setHasAcceptedAiWarning] = useState(false);
+    const [showSmartFilterWarning, setShowSmartFilterWarning] = useState(false);
+    const [liveSessionSeconds, setLiveSessionSeconds] = useState(0); // Real-time session duration
+    
     // New states for deletion reason flow
     const [isDeleteReasonOpen, setIsDeleteReasonOpen] = useState(false);
     const [deleteReason, setDeleteReason] = useState('');
@@ -189,15 +196,39 @@ function BarangayReports({ token }) {
         setTimeout(() => setNotification(null), 4000);
     }, []);
 
-    // Track AI smart filter usage - calls backend to log and persist
-    const trackAiUsage = useCallback(async () => {
+    // Component initialization logging
+    useEffect(() => {
+        console.log('🔷 BarangayReports component mounted');
+        console.log('[Smart Filter Init] 🟢 Component Initialized:');
+        console.log('  - showSmartFilter:', false);
+        console.log('  - hasAcceptedAiWarning:', false);
+        console.log('  - smartFilterStartTime:', null);
+        console.log('  - aiUsagePercent:', aiUsagePercent);
+        console.log('[Smart Filter Init] ⏳ Now fetching current AI usage from backend...');
+        
+        return () => {
+            console.log('🔴 BarangayReports component unmounting');
+        };
+    }, []);
+
+    // Track AI smart filter usage - logs duration when Smart Filter turns off
+    const trackAiUsage = useCallback(async (durationSeconds = 0) => {
         if (!token) {
-            console.error('No token available for API call');
+            console.warn('[Smart Filter] ⚠️ No token available - skipping usage tracking');
             showNotification('Authentication required', 'error');
             return;
         }
 
+        console.log(`[Smart Filter] 📊 Session ended - Duration: ${durationSeconds}s (${(durationSeconds / 60).toFixed(2)} minutes)`);
+
         try {
+            console.log('[Smart Filter] 📤 Sending to backend: POST /api/ai/log-usage');
+            console.log(`[Smart Filter] Payload:`, {
+                interaction_type: 'smart_filter_session',
+                duration_seconds: durationSeconds,
+                metadata: { timestamp: new Date().toISOString() }
+            });
+
             const response = await fetch(getApiUrl('/api/ai/log-usage'), {
                 method: 'POST',
                 headers: {
@@ -205,38 +236,137 @@ function BarangayReports({ token }) {
                     'Content-Type': 'application/json'
                 },
                 body: JSON.stringify({
-                    interaction_type: 'smart_filter_toggle',
-                    duration_seconds: 0,
+                    interaction_type: 'smart_filter_session',
+                    duration_seconds: durationSeconds,
                     metadata: { timestamp: new Date().toISOString() }
                 })
             });
 
             if (!response.ok) {
+                console.error(`[Smart Filter] ❌ API error: ${response.status}`);
+                if (response.status === 404) {
+                    console.warn('[Smart Filter] ⚠️ Endpoint not found - Migration may not be applied yet');
+                } else if (response.status === 500) {
+                    console.error('[Smart Filter] ❌ Server error - Check backend logs');
+                    const errorData = await response.json().catch(() => ({}));
+                    console.error('[Smart Filter] Server response:', errorData);
+                }
                 throw new Error(`API error: ${response.status}`);
             }
 
             const data = await response.json();
+            console.log('[Smart Filter] ✅ Backend response:', data);
+
             if (data.status === 'success') {
                 // Update local state with backend-persisted usage percent
-                const { usage_percent, hours_remaining, is_premium } = data.data;
+                const { usage_percent, hours_remaining, is_premium, total_seconds } = data.data;
                 setAiUsagePercent(usage_percent);
                 
-                // Show brief feedback
+                console.log(`[Smart Filter] 📈 Usage Updated:`);
+                console.log(`  Total this week: ${total_seconds}s (${(total_seconds / 3600).toFixed(2)}h)`);
+                console.log(`  Usage percent: ${usage_percent}%`);
+                console.log(`  Hours remaining: ${hours_remaining}h`);
+                console.log(`  Premium: ${is_premium ? 'Yes (unlimited)' : 'No (48h/week limit)'}`);
+                
+                // Show feedback
                 if (is_premium) {
-                    console.log('[AI Premium] Unlimited usage - all interactions tracked');
+                    showNotification('✨ Smart Filter session logged (Premium - unlimited)', 'success');
                 } else {
-                    console.log(`[AI Usage Tracked] ${usage_percent}% of weekly limit - ${hours_remaining.toFixed(1)} hours remaining`);
+                    const hoursUsedThisWeek = (total_seconds / 3600).toFixed(1);
+                    showNotification(`📊 Session logged: ${hoursUsedThisWeek}h used this week, ${hours_remaining.toFixed(1)}h remaining`, 'success');
                 }
             } else {
-                console.error('Backend error:', data.message);
-                showNotification('Failed to track usage', 'error');
+                console.error('[Smart Filter] Backend error:', data.message);
+                showNotification(data.message || 'Failed to log usage', 'error');
             }
         } catch (error) {
-            console.error('Error tracking AI usage:', error);
-            // Fallback to local increment if API fails (graceful degradation)
-            setAiUsagePercent(prev => Math.min(prev + 5, 100));
+            console.error('[Smart Filter] ❌ Error tracking AI usage:', error);
+            showNotification('Failed to log session - will retry on next sync', 'warning');
+            // Fallback: Don't modify local state on error, let user retry
         }
     }, [token, showNotification]);
+
+    // Handle Smart Filter toggle with warning and time tracking
+    const handleSmartFilterToggle = useCallback(() => {
+        console.log('[Smart Filter Toggle] Current state:', {
+            showSmartFilter,
+            hasAcceptedAiWarning,
+            smartFilterStartTime: smartFilterStartTime ? new Date(smartFilterStartTime).toISOString() : null,
+            liveSessionSeconds
+        });
+
+        // If turning ON for the first time, show warning
+        if (!showSmartFilter && !hasAcceptedAiWarning) {
+            console.log('[Smart Filter] 🔔 First time activation - showing warning modal');
+            setShowSmartFilterWarning(true);
+            return;
+        }
+
+        // If turning OFF, log the duration
+        if (showSmartFilter && smartFilterStartTime && hasAcceptedAiWarning) {
+            const durationSeconds = Math.floor((Date.now() - smartFilterStartTime) / 1000);
+            console.log(`[Smart Filter] 🛑 Turning OFF - Duration: ${durationSeconds}s (${(durationSeconds / 60).toFixed(2)}m)`);
+            trackAiUsage(durationSeconds);
+            setSmartFilterStartTime(null);
+            setLiveSessionSeconds(0);
+        }
+        // If turning ON and already accepted warning, start timer
+        else if (!showSmartFilter && hasAcceptedAiWarning) {
+            const startTime = Date.now();
+            console.log(`[Smart Filter] 🟢 Turning ON - Start time: ${new Date(startTime).toISOString()}`);
+            setSmartFilterStartTime(startTime);
+        }
+
+        setShowSmartFilter(!showSmartFilter);
+    }, [showSmartFilter, smartFilterStartTime, hasAcceptedAiWarning, liveSessionSeconds, trackAiUsage]);
+
+    // Handle Smart Filter warning acceptance
+    const handleAcceptSmartFilterWarning = useCallback(() => {
+        const startTime = Date.now();
+        console.log('[Smart Filter] ✅ Warning accepted');
+        console.log('[Smart Filter] 🕐 Session timer started at:', new Date(startTime).toISOString());
+        
+        setHasAcceptedAiWarning(true);
+        setShowSmartFilterWarning(false);
+        setShowSmartFilter(true);
+        setSmartFilterStartTime(startTime);
+        setLiveSessionSeconds(0); // Reset timer to 0
+    }, []);
+
+    // Handle Smart Filter warning rejection
+    const handleRejectSmartFilterWarning = useCallback(() => {
+        console.log('[Smart Filter] ❌ Warning rejected - Smart Filter OFF');
+        setShowSmartFilterWarning(false);
+        // Don't turn on Smart Filter, keep it OFF
+    }, []);
+
+    // Real-time countdown timer for active Smart Filter session
+    useEffect(() => {
+        if (!showSmartFilter || !smartFilterStartTime) {
+            setLiveSessionSeconds(0);
+            return;
+        }
+
+        // Log session start
+        console.log('[Smart Filter] ⏱️ Session timer started - tracking real-time usage');
+
+        const timer = setInterval(() => {
+            const elapsed = Math.floor((Date.now() - smartFilterStartTime) / 1000);
+            setLiveSessionSeconds(elapsed);
+            
+            // Log progress every 30 seconds
+            if (elapsed > 0 && elapsed % 30 === 0) {
+                const minutes = Math.floor(elapsed / 60);
+                const seconds = elapsed % 60;
+                console.log(`[Smart Filter] ⏳ Session in progress: ${minutes}m ${seconds}s elapsed`);
+            }
+        }, 100); // Update every 100ms for smooth progress bar animation
+
+        return () => {
+            clearInterval(timer);
+            console.log('[Smart Filter] ⏱️ Session timer interval cleared');
+        };
+    }, [showSmartFilter, smartFilterStartTime]);
 
     // --- Modal Control Functions for Accessibility ---
     const closeStatusModal = useCallback(() => {
@@ -454,8 +584,12 @@ function BarangayReports({ token }) {
     // Fetch current week AI usage on component mount
     useEffect(() => {
         const fetchAiUsage = async () => {
-            if (!token) return;
+            if (!token) {
+                console.log('[Smart Filter Init] ⏭️  Skipping AI usage fetch - no token');
+                return;
+            }
             
+            console.log('[Smart Filter Init] 📊 Fetching current AI usage from backend...');
             try {
                 const response = await fetch(getApiUrl('/api/ai/current-usage'), {
                     headers: {
@@ -467,12 +601,33 @@ function BarangayReports({ token }) {
                 if (response.ok) {
                     const data = await response.json();
                     if (data.status === 'success' && data.data) {
-                        setAiUsagePercent(data.data.usage_percent || 0);
+                        const usagePercent = data.data.usage_percent || 0;
+                        const totalSeconds = data.data.total_seconds || 0;
+                        const isPremium = data.data.is_premium || false;
+                        
+                        console.log('[Smart Filter Init] ✅ Successfully fetched AI usage:');
+                        console.log(`  Usage: ${usagePercent}%`);
+                        console.log(`  Total seconds this week: ${totalSeconds}s (${(totalSeconds / 3600).toFixed(2)}h)`);
+                        console.log(`  Premium: ${isPremium ? 'Yes (unlimited)' : 'No (48h/week limit)'}`);
+                        
+                        setAiUsagePercent(usagePercent);
                     }
+                } else if (response.status === 404) {
+                    console.warn('[Smart Filter Init] ⚠️  Endpoint not found - Migration may not be applied');
+                    console.log('[Smart Filter Init] ℹ️  AI usage tracking not yet available');
+                    setAiUsagePercent(0);
+                } else if (response.status === 500) {
+                    console.error('[Smart Filter Init] ❌ Server error fetching AI usage (500)');
+                    setAiUsagePercent(0);
+                } else {
+                    console.warn(`[Smart Filter Init] ⚠️  Unexpected status: ${response.status}`);
+                    setAiUsagePercent(0);
                 }
             } catch (error) {
-                console.warn('Failed to fetch current AI usage:', error);
-                // Continue with default 0% if fetch fails
+                console.warn('[Smart Filter Init] ⚠️  Failed to fetch current AI usage:', error.message);
+                console.log('[Smart Filter Init] ℹ️  Will continue without AI usage data');
+                // Continue with default 0% if fetch fails - Smart Filter starts grey
+                setAiUsagePercent(0);
             }
         };
 
@@ -788,8 +943,7 @@ function BarangayReports({ token }) {
                                 showNotification('🔒 Smart usage limit reached. Upgrade to Premium for unlimited access!', 'caution');
                                 setShowUsageModal(true);
                             } else {
-                                trackAiUsage(); // Track usage when toggling
-                                setShowSmartFilter(!showSmartFilter);
+                                handleSmartFilterToggle();
                             }
                         }}
                         style={{
@@ -815,58 +969,224 @@ function BarangayReports({ token }) {
                         {aiUsagePercent >= 100 ? 'Premium' : 'Smart Filter'}
                     </button>
 
-                    {/* AI Usage Timer Bar - Full Width */}
+                    {/* AI Usage Timer Bar - Full Width with Live Countdown */}
                     <div style={{
                         display: 'flex',
                         alignItems: 'center',
                         gap: '8px',
-                        flex: 1
+                        flex: 1,
+                        flexDirection: 'column'
                     }}>
+                        {/* Progress bar with real-time update */}
                         <div style={{
-                            flex: 1,
-                            height: '6px',
-                            backgroundColor: '#e0e0e0',
-                            borderRadius: '3px',
-                            overflow: 'hidden',
-                            position: 'relative'
+                            width: '100%',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '8px'
                         }}>
                             <div style={{
-                                height: '100%',
-                                width: `${aiUsagePercent}%`,
-                                backgroundColor: aiUsagePercent >= 100 ? '#f39c12' : '#2d3b8f',
-                                transition: 'width 0.3s ease',
-                                animation: aiUsagePercent >= 100 ? 'pulse 1.5s ease-in-out infinite' : 'none'
-                            }} />
+                                flex: 1,
+                                height: '8px',
+                                backgroundColor: '#e0e0e0',
+                                borderRadius: '4px',
+                                overflow: 'hidden',
+                                position: 'relative'
+                            }}>
+                                <div style={{
+                                    height: '100%',
+                                    width: `${aiUsagePercent}%`,
+                                    backgroundColor: aiUsagePercent >= 100 ? '#f39c12' : '#2d3b8f',
+                                    transition: showSmartFilter ? 'none' : 'width 0.3s ease',
+                                    animation: aiUsagePercent >= 100 ? 'pulse 1.5s ease-in-out infinite' : 'none'
+                                }} />
+                            </div>
+                            
+                            {/* Usage Info Button */}
+                            <button
+                                onClick={() => setShowUsageModal(true)}
+                                style={{
+                                    width: '28px',
+                                    height: '28px',
+                                    borderRadius: '50%',
+                                    border: `2px solid ${aiUsagePercent >= 100 ? '#f39c12' : '#2d3b8f'}`,
+                                    backgroundColor: 'white',
+                                    color: aiUsagePercent >= 100 ? '#f39c12' : '#2d3b8f',
+                                    cursor: 'pointer',
+                                    fontSize: '0.75em',
+                                    fontWeight: 'bold',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    padding: 0,
+                                    transition: 'all 0.3s ease',
+                                    flexShrink: 0
+                                }}
+                                title="View AI usage details"
+                                aria-label="AI usage information"
+                            >
+                                ?
+                            </button>
                         </div>
-                        
-                        {/* Usage Info Button */}
-                        <button
-                            onClick={() => setShowUsageModal(true)}
-                            style={{
-                                width: '24px',
-                                height: '24px',
-                                borderRadius: '50%',
-                                border: `2px solid ${aiUsagePercent >= 100 ? '#f39c12' : '#2d3b8f'}`,
-                                backgroundColor: 'white',
-                                color: aiUsagePercent >= 100 ? '#f39c12' : '#2d3b8f',
-                                cursor: 'pointer',
-                                fontSize: '0.75em',
-                                fontWeight: 'bold',
+
+                        {/* Live countdown timer - shows when Smart Filter is ON */}
+                        {showSmartFilter && hasAcceptedAiWarning && (
+                            <div style={{
+                                width: '100%',
                                 display: 'flex',
+                                justifyContent: 'space-between',
                                 alignItems: 'center',
-                                justifyContent: 'center',
-                                padding: 0,
-                                transition: 'all 0.3s ease',
-                                flexShrink: 0
-                            }}
-                            title="View AI usage details"
-                            aria-label="AI usage information"
-                        >
-                            ?
-                        </button>
+                                fontSize: '0.85em',
+                                fontWeight: '500',
+                                color: '#2d3b8f',
+                                padding: '4px 0'
+                            }}>
+                                <span>🕐 Session: {Math.floor(liveSessionSeconds / 60)}m {liveSessionSeconds % 60}s</span>
+                                <span>
+                                    {aiUsagePercent}% used | {Math.max(0, 48 - Math.round(aiUsagePercent / 100 * 48))}h {Math.max(0, 60 - Math.round((aiUsagePercent % 1) * 60))}m remaining
+                                </span>
+                            </div>
+                        )}
                     </div>
                 </div>
             </div>
+
+            {/* Smart Filter Warning Modal - Show on first activation */}
+            {showSmartFilterWarning && (
+                <div 
+                    className="modal-overlay"
+                    onClick={handleRejectSmartFilterWarning}
+                    style={{ zIndex: 1100 }}
+                >
+                    <div 
+                        className="modal"
+                        onClick={(e) => e.stopPropagation()}
+                        style={{
+                            maxWidth: '450px',
+                            borderLeft: '6px solid #2d3b8f',
+                            backgroundColor: '#f0f8ff'
+                        }}
+                    >
+                        <div style={{
+                            display: 'flex',
+                            justifyContent: 'space-between',
+                            alignItems: 'center',
+                            marginBottom: '16px',
+                            borderBottom: '2px solid #2d3b8f',
+                            paddingBottom: '12px'
+                        }}>
+                            <h3 style={{ margin: 0, color: '#2d3b8f' }}>✨ Smart Filter Usage Limit</h3>
+                            <button
+                                onClick={handleRejectSmartFilterWarning}
+                                style={{
+                                    background: 'none',
+                                    border: 'none',
+                                    fontSize: '1.5em',
+                                    cursor: 'pointer',
+                                    color: '#666'
+                                }}
+                            >
+                                ✕
+                            </button>
+                        </div>
+
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', marginBottom: '20px' }}>
+                            {/* Warning Header */}
+                            <div style={{
+                                padding: '14px',
+                                backgroundColor: '#fff9e6',
+                                borderRadius: '6px',
+                                borderLeft: '4px solid #f39c12'
+                            }}>
+                                <div style={{ fontWeight: '600', color: '#f39c12', marginBottom: '8px' }}>
+                                    ⏱️ Free Usage Policy
+                                </div>
+                                <p style={{ margin: 0, fontSize: '0.95em', color: '#666', lineHeight: '1.4' }}>
+                                    You have <strong>48 free hours per week</strong> to use the Smart Filter for AI-powered incident categorization.
+                                </p>
+                            </div>
+
+                            {/* How It Works */}
+                            <div style={{
+                                padding: '14px',
+                                backgroundColor: '#f5f5f5',
+                                borderRadius: '6px'
+                            }}>
+                                <div style={{ fontWeight: '600', marginBottom: '8px', color: '#333' }}>
+                                    ⏲️ How It Works
+                                </div>
+                                <ul style={{ margin: 0, paddingLeft: '20px', fontSize: '0.95em', color: '#666', lineHeight: '1.5' }}>
+                                    <li>Time counting starts when you turn ON Smart Filter (button turns blue)</li>
+                                    <li>Time stops when you turn OFF Smart Filter (button turns gray)</li>
+                                    <li>All usage is tracked and aggregated weekly</li>
+                                    <li>Upgrade to Premium for unlimited access</li>
+                                </ul>
+                            </div>
+
+                            {/* Current Usage */}
+                            <div style={{
+                                padding: '12px',
+                                backgroundColor: '#e8f4f8',
+                                borderRadius: '6px'
+                            }}>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '6px' }}>
+                                    <span style={{ fontWeight: '500' }}>Your Weekly Usage:</span>
+                                    <span style={{ fontWeight: 'bold', color: '#2d3b8f' }}>{aiUsagePercent}%</span>
+                                </div>
+                                <div style={{ height: '6px', backgroundColor: '#d0e0f0', borderRadius: '3px', overflow: 'hidden' }}>
+                                    <div style={{
+                                        height: '100%',
+                                        width: `${aiUsagePercent}%`,
+                                        backgroundColor: '#2d3b8f',
+                                        transition: 'width 0.3s ease'
+                                    }} />
+                                </div>
+                                <div style={{ marginTop: '6px', fontSize: '0.85em', color: '#666' }}>
+                                    {Math.ceil((100 - aiUsagePercent) / 100 * 48)} hours remaining this week
+                                </div>
+                            </div>
+                        </div>
+
+                        <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
+                            <button 
+                                onClick={handleRejectSmartFilterWarning}
+                                style={{
+                                    padding: '10px 20px',
+                                    backgroundColor: '#ccc',
+                                    color: '#333',
+                                    border: 'none',
+                                    borderRadius: '4px',
+                                    cursor: 'pointer',
+                                    fontWeight: '500',
+                                    fontSize: '0.95em',
+                                    transition: 'all 0.3s ease'
+                                }}
+                                onMouseEnter={(e) => e.target.style.backgroundColor = '#bbb'}
+                                onMouseLeave={(e) => e.target.style.backgroundColor = '#ccc'}
+                            >
+                                ✕ Cancel
+                            </button>
+                            <button 
+                                onClick={handleAcceptSmartFilterWarning}
+                                style={{
+                                    padding: '10px 20px',
+                                    backgroundColor: '#2d3b8f',
+                                    color: 'white',
+                                    border: 'none',
+                                    borderRadius: '4px',
+                                    cursor: 'pointer',
+                                    fontWeight: '600',
+                                    fontSize: '0.95em',
+                                    transition: 'all 0.3s ease'
+                                }}
+                                onMouseEnter={(e) => e.target.style.backgroundColor = '#1a2555'}
+                                onMouseLeave={(e) => e.target.style.backgroundColor = '#2d3b8f'}
+                            >
+                                ✅ Accept & Enable Smart Filter
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
 
             {/* AI Usage Modal */}
             {showUsageModal && (
@@ -906,6 +1226,26 @@ function BarangayReports({ token }) {
                         </div>
 
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                            {/* Live Session Timer - shows when Smart Filter is ON */}
+                            {showSmartFilter && hasAcceptedAiWarning && (
+                                <div style={{
+                                    padding: '12px',
+                                    backgroundColor: '#e8f4ff',
+                                    borderRadius: '6px',
+                                    borderLeft: '4px solid #2d3b8f'
+                                }}>
+                                    <div style={{ fontWeight: '600', color: '#2d3b8f', marginBottom: '6px' }}>
+                                        🕐 Live Session Timer
+                                    </div>
+                                    <div style={{ fontSize: '1.2em', fontWeight: 'bold', color: '#2d3b8f', marginBottom: '6px' }}>
+                                        {Math.floor(liveSessionSeconds / 60)}m {liveSessionSeconds % 60}s
+                                    </div>
+                                    <div style={{ fontSize: '0.9em', color: '#666' }}>
+                                        This session is being tracked in real-time and will be logged when you disable Smart Filter.
+                                    </div>
+                                </div>
+                            )}
+
                             {/* Usage Percentage */}
                             <div>
                                 <div style={{
@@ -933,7 +1273,7 @@ function BarangayReports({ token }) {
                                         height: '100%',
                                         width: `${aiUsagePercent}%`,
                                         backgroundColor: aiUsagePercent >= 100 ? '#f39c12' : '#2d3b8f',
-                                        transition: 'width 0.3s ease'
+                                        transition: showSmartFilter ? 'none' : 'width 0.3s ease'
                                     }} />
                                 </div>
                             </div>
@@ -1045,7 +1385,8 @@ function BarangayReports({ token }) {
                                 style={{
                                     animationDelay: `${index * 0.1}s`,
                                     position: 'relative',
-                                    border: `2px solid ${!isPending ? getSeverityStyle(report.category).borderColor : 'transparent'}`,
+                                    // Smart Filter ON: Show severity border | OFF: Hide border for accepted posts
+                                    border: `2px solid ${!isPending ? (showSmartFilter ? getSeverityStyle(report.category).borderColor : 'transparent') : 'transparent'}`,
                                 }} 
                                 aria-labelledby={`report-title-${report.id}`}
                             >

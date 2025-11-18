@@ -75,7 +75,8 @@ def list_sessions():
                         "email": user_data.get("email", ""),
                         "role": user_data.get("role", "Resident"),
                         "isverified": user_data.get("isverified", False),
-                        "avatar_url": user_data.get("avatar_url", "/default-avatar.png")
+                        "avatar_url": user_data.get("avatar_url", "/default-avatar.png"),
+                        "onpremium": user_data.get("onpremium", False)
                     }
                 })
 

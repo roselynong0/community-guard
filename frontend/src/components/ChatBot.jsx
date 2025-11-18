@@ -1,13 +1,13 @@
 import React, { useState, useEffect, useRef } from "react";
-import { FaTimes, FaComments, FaPaperPlane, FaSpinner, FaStar } from "react-icons/fa";
+import { FaTimes, FaComments, FaPaperPlane, FaSpinner } from "react-icons/fa";
 import "./ChatBot.css";
+import { API_CONFIG } from "../utils/apiConfig";
 
 function ChatBot({ isOpen, onClose, token }) {
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [isMinimized, setIsMinimized] = useState(false);
-  const [aiMode, setAiMode] = useState("helper"); // "helper" (free) or "patrol" (premium)
   const messagesEndRef = useRef(null);
 
   // Scroll to bottom when messages update
@@ -15,12 +15,10 @@ function ChatBot({ isOpen, onClose, token }) {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
-  // Add welcome message on first open or mode change
+  // Add welcome message on first open
   useEffect(() => {
     if (isOpen && messages.length === 0) {
-      const welcomeText = aiMode === "helper"
-        ? "👋 Hello! I'm Community Helper. I provide basic support and system information. My knowledge is limited but I respond quickly.\n\nTip: Try 'Community Patrol' for advanced analytics and AI insights!"
-        : "✨ Welcome to Community Patrol! I'm your premium AI assistant with full access to system analytics, risk prediction, and real-time insights.\n\nWhat would you like to know?";
+      const welcomeText = "👋 Hello! I'm your Community Helper. I'm here to provide support and answer questions about the Community Guard system.\n\nHow can I help you today?";
       
       setMessages([
         {
@@ -32,7 +30,7 @@ function ChatBot({ isOpen, onClose, token }) {
       ]);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isOpen, aiMode]);
+  }, [isOpen]);
 
   const formatText = (text) => {
     return text.replace(/\*\*/g, '');
@@ -64,52 +62,22 @@ function ChatBot({ isOpen, onClose, token }) {
     setLoading(true);
 
     try {
-      let response;
+      // Use Flask chatbot endpoint only
+      const body = JSON.stringify({ message: messageText });
       
-      if (aiMode === "patrol") {
-        // Premium: Use conversational endpoint for natural conversation
-        const body = JSON.stringify({
-          text: messageText,
-          user_role: "Barangay Official", // or from context
-          include_analytics: true
-        });
-        
-        response = await fetch("http://localhost:8000/api/ai/chat/converse", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
-          },
-          body: body,
-        });
-      } else {
-        // Free: Use existing Flask chatbot
-        const body = JSON.stringify({ message: messageText });
-        
-        response = await fetch("http://localhost:5000/api/chat", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
-          },
-          body: body,
-        });
-      }
+      const response = await fetch(`${API_CONFIG.BASE_URL}/api/chat`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: body,
+      });
 
       if (!response.ok) throw new Error("Failed to get response");
 
       const data = await response.json();
-
-      // Format response based on mode
-      let responseText = "";
-      
-      if (aiMode === "patrol") {
-        // Premium conversational response
-        responseText = data.message || data.response || "Analysis complete.";
-      } else {
-        // Helper response
-        responseText = data.response || data.answer || "I'm not sure how to respond to that.";
-      }
+      const responseText = data.response || data.answer || "I'm not sure how to respond to that.";
 
       // Add bot response
       const botMessage = {
@@ -141,9 +109,7 @@ function ChatBot({ isOpen, onClose, token }) {
       <div className="chatbot-header">
         <div className="chatbot-title">
           <FaComments className="chatbot-icon" />
-          <span>
-            {aiMode === "patrol" ? "🔮 Community Patrol" : "👤 Community Helper"}
-          </span>
+          <span>Community Helper</span>
         </div>
         <div className="chatbot-actions">
           <button
@@ -159,29 +125,6 @@ function ChatBot({ isOpen, onClose, token }) {
         </div>
       </div>
 
-      {/* Mode Selector Dropdown */}
-      {!isMinimized && (
-        <div className="chatbot-mode-selector">
-          <label htmlFor="ai-mode">AI Mode:</label>
-          <select
-            id="ai-mode"
-            value={aiMode}
-            onChange={(e) => {
-              setAiMode(e.target.value);
-              setMessages([]); // Clear messages on mode change
-            }}
-            className="mode-select"
-          >
-            <option value="helper">
-              👤 Community Helper (Free - Limited)
-            </option>
-            <option value="patrol">
-              ✨ Community Patrol (Premium - Full Analytics)
-            </option>
-          </select>
-        </div>
-      )}
-
       {/* Chat Messages */}
       {!isMinimized && (
         <>
@@ -190,7 +133,7 @@ function ChatBot({ isOpen, onClose, token }) {
               <div key={msg.id} className={`message message-${msg.type}`}>
                 {msg.type === "bot" && (
                   <div className="message-avatar">
-                    {aiMode === "patrol" ? "🔮" : <img src="/CommunityHelper.png" alt="Bot" className="avatar-image" />}
+                    <img src="/CommunityHelper.png" alt="Bot" className="avatar-image" />
                   </div>
                 )}
                 <div className="message-content">
@@ -209,7 +152,9 @@ function ChatBot({ isOpen, onClose, token }) {
             ))}
             {loading && (
               <div className="message message-bot">
-                <div className="message-avatar">{aiMode === "patrol" ? "🔮" : <img src="/CommunityHelper.png" alt="Bot" className="avatar-image" />}</div>
+                <div className="message-avatar">
+                  <img src="/CommunityHelper.png" alt="Bot" className="avatar-image" />
+                </div>
                 <div className="message-content">
                   <div className="loading-dots">
                     <span></span>

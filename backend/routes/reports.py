@@ -776,13 +776,13 @@ def get_map_report_counts():
 @reports_bp.route("/stats", methods=["GET"])
 @token_required
 def get_stats():
-    """Get report statistics by status"""
+    """Get report statistics by status (excluding rejected reports)"""
     try:
         barangay_filter = request.args.get("barangay")
         
         # Use retry mechanism for stats query
         def fetch_stats():
-            query = supabase.table("reports").select("status").is_("deleted_at", None)
+            query = supabase.table("reports").select("status").is_("deleted_at", None).eq("is_rejected", False)
             if barangay_filter and barangay_filter != "all":
                 query = query.eq("address_barangay", barangay_filter)
             return query.execute()
@@ -953,7 +953,7 @@ def get_barangay_dashboard_stats():
         
         # Fetch reports with barangay and date filters
         def fetch_reports_for_stats():
-            query = supabase.table("reports").select("status, created_at, address_barangay").is_("deleted_at", None)
+            query = supabase.table("reports").select("status, created_at, address_barangay").is_("deleted_at", None).eq("is_rejected", False)
             if filter_barangay:
                 query = query.eq("address_barangay", filter_barangay)
                 print(f"📊 Filtering reports by barangay: {filter_barangay}")
@@ -988,7 +988,7 @@ def get_barangay_dashboard_stats():
         # Calculate barangay counts from ALL reports (lifetime data)
         # This shows trends across ALL barangays with NO date filtering for lifetime view
         def fetch_all_barangay_reports():
-            query = supabase.table("reports").select("address_barangay").is_("deleted_at", None)
+            query = supabase.table("reports").select("address_barangay").is_("deleted_at", None).eq("is_rejected", False)
             return query.execute()
         
         barangay_reports_resp = supabase_retry(fetch_all_barangay_reports)
@@ -1012,7 +1012,7 @@ def get_barangay_dashboard_stats():
         
         # Calculate monthly trends ONLY for the barangay official's own barangay
         def fetch_barangay_reports_for_trends():
-            query = supabase.table("reports").select("created_at").is_("deleted_at", None)
+            query = supabase.table("reports").select("created_at").is_("deleted_at", None).eq("is_rejected", False)
             if user_barangay:
                 query = query.eq("address_barangay", user_barangay)
             return query.execute()

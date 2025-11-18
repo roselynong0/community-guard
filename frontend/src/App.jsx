@@ -56,10 +56,23 @@ function App() {
   const [loading, setLoading] = useState(true);
   const [notification, setNotification] = useState({ message: "", type: "" });
 
-  // 🔹 Fetch session on mount
+  // 🔹 Fetch session on mount with retry logic for Vercel cold starts
   useEffect(() => {
     const initSession = async () => {
-      const currentSession = await fetchSession();
+      let currentSession = null;
+      let retries = 3;
+      
+      while (retries > 0 && !currentSession) {
+        currentSession = await fetchSession();
+        if (!currentSession && retries > 1) {
+          // Wait before retrying (helps with backend cold starts)
+          await new Promise(resolve => setTimeout(resolve, 1000));
+          retries--;
+        } else {
+          break;
+        }
+      }
+      
       if (!currentSession) {
         localStorage.removeItem("token");
         setSession(null);
