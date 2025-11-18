@@ -47,6 +47,12 @@ export const API_CONFIG = {
   },
 
   endpoints: {
+    // Maps endpoints
+    hotspots: '/api/hotspots',  // Now available via maps_bp
+    safezones: '/api/safezones',
+    map_reports: '/api/map_reports',
+    hotspotsRefresh: '/api/hotspots/refresh',
+    // Authentication
     login: '/api/login',
     register: '/api/register',
     logout: '/api/logout',

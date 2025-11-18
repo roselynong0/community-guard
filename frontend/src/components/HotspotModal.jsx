@@ -115,7 +115,7 @@ const HotspotModal = ({ isOpen, onClose, onSave }) => {
         body.center_longitude = parseFloat(longitude);
       }
 
-      const response = await fetch(getApiUrl("/api/hotspots/refresh"), {
+      const response = await fetch(getApiUrl(API_CONFIG.endpoints.hotspotsRefresh), {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

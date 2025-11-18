@@ -63,6 +63,18 @@ function App() {
   // 🔹 Fetch session on mount with retry logic for Vercel cold starts
   useEffect(() => {
     const initSession = async () => {
+      const token = localStorage.getItem("token");
+      
+      if (!token) {
+        // No token stored, skip to done
+        setLoaderStage('exit');
+        setTimeout(() => {
+          setLoaderStage('done');
+          setLoading(false);
+        }, 420);
+        return;
+      }
+      
       let currentSession = null;
       let retries = 3;
       
@@ -70,7 +82,7 @@ function App() {
         currentSession = await fetchSession();
         if (!currentSession && retries > 1) {
           // Wait before retrying (helps with backend cold starts)
-          await new Promise(resolve => setTimeout(resolve, 1000));
+          await new Promise(resolve => setTimeout(resolve, 1500));
           retries--;
         } else {
           break;
@@ -78,7 +90,14 @@ function App() {
       }
       
       if (!currentSession) {
-        localStorage.removeItem("token");
+        // Only clear token if we're certain it's invalid (not just network issues)
+        const storedSession = localStorage.getItem("session");
+        if (!storedSession) {
+          console.log("🔐 No valid session - clearing token");
+          localStorage.removeItem("token");
+        } else {
+          console.log("⚠️ Backend unavailable but cached session exists - keeping user logged in");
+        }
         setSession(null);
       } else {
         setSession(currentSession);

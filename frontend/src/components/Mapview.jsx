@@ -30,7 +30,7 @@ export default function MapView() {
         const token = localStorage.getItem("token");
         if (!token) return;
 
-        const response = await fetch(getApiUrl("/api/hotspots"), {
+        const response = await fetch(getApiUrl(API_CONFIG.endpoints.hotspots), {
           headers: { Authorization: `Bearer ${token}` },
         });
 

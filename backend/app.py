@@ -22,6 +22,7 @@ try:
     from routes.ai_endpoints import ai_bp
     from routes.chatbot import chatbot_bp
     from routes.ollama_internal import ollama_internal_bp  # Internal API for Ollama
+    from routes.maps import maps_bp  # Maps, hotspots, and safezones
     
     print("✅ All blueprints imported successfully")
     print(f"✅ AI blueprint: {ai_bp.name}, prefix: {ai_bp.url_prefix}")
@@ -83,6 +84,8 @@ def create_app():
     print("✅ Registered: community_feed_bp")
     app.register_blueprint(ai_bp, url_prefix='/api/ai')
     print("✅ Registered: ai_bp at /api/ai")
+    app.register_blueprint(maps_bp, url_prefix='/api')
+    print("✅ Registered: maps_bp at /api (hotspots, safezones)")
     
     # Register Ollama internal API (for Premium AI to access system data)
     app.register_blueprint(ollama_internal_bp, url_prefix='/api/ollama')

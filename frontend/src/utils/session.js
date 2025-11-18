@@ -11,10 +11,33 @@ export async function fetchSession() {
 
     console.log("🔐 Token found, validating session...");
 
+    // Check cached session first for instant access
+    const storedSession = localStorage.getItem("session");
+    let cachedSession = null;
+    
+    if (storedSession) {
+      try {
+        cachedSession = JSON.parse(storedSession);
+        const now = new Date();
+        const expiresAt = new Date(cachedSession.expires_at);
+        
+        // If cached session is expired, clear it
+        if (expiresAt < now) {
+          console.log("⏰ Cached session expired");
+          localStorage.removeItem("token");
+          localStorage.removeItem("session");
+          return null;
+        }
+      } catch (parseErr) {
+        console.warn("❌ Failed to parse stored session:", parseErr);
+        cachedSession = null;
+      }
+    }
+
     // PRIMARY: Try to fetch from backend API (fresh, authoritative source)
     try {
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 5000); // 5 second timeout
+      const timeoutId = setTimeout(() => controller.abort(), 8000); // 8 second timeout for better cold start tolerance
       
       const res = await fetch(getApiUrl(API_CONFIG.endpoints.sessions), {
         headers: {
@@ -36,7 +59,7 @@ export async function fetchSession() {
             // Check expiry on frontend
             const now = new Date();
             if (new Date(currentSession.expires_at) < now) {
-              console.log("⏰ Stored session expired");
+              console.log("⏰ Backend session expired");
               localStorage.removeItem("token");
               localStorage.removeItem("session");
               return null;
@@ -46,46 +69,47 @@ export async function fetchSession() {
             localStorage.setItem("session", JSON.stringify(currentSession));
             console.log("✅ Session validated from backend");
             return currentSession;
+          } else {
+            console.log("⚠️ Token not found in backend sessions list");
+            // Don't immediately clear - might be a sync issue
+            if (cachedSession) {
+              console.log("💾 Using cached session while backend syncs");
+              return cachedSession;
+            }
           }
         }
       } else if (res.status === 401) {
-        // Token is invalid on backend
-        console.log("❌ Token rejected by backend (401)");
+        // Token is definitely invalid on backend
+        console.log("❌ Token rejected by backend (401) - clearing session");
         localStorage.removeItem("token");
         localStorage.removeItem("session");
         return null;
+      } else if (res.status === 404) {
+        // Backend route not found - keep cached session to avoid clearing on deployment issues
+        console.warn("⚠️ Backend /api/sessions returned 404 - using cached session");
+        if (cachedSession) {
+          return cachedSession;
+        }
+      } else {
+        console.warn(`⚠️ Backend returned status ${res.status} - using cached session if available`);
+        if (cachedSession) {
+          return cachedSession;
+        }
       }
     } catch (apiErr) {
       if (apiErr.name === 'AbortError') {
         console.warn("⏱️ API timeout - backend may be starting up, using cached session");
       } else {
-        console.warn("⚠️ Failed to fetch from /api/sessions, falling back to localStorage:", apiErr.message);
+        console.warn("⚠️ Failed to fetch from /api/sessions:", apiErr.message);
+      }
+      // On network errors, use cached session to keep user logged in
+      if (cachedSession) {
+        console.log("💾 Using cached session (backend unavailable)");
+        return cachedSession;
       }
     }
 
-    // FALLBACK: Use localStorage if API fails or times out
-    const storedSession = localStorage.getItem("session");
-    if (storedSession) {
-      try {
-        const session = JSON.parse(storedSession);
-        
-        // Check expiry on frontend
-        const now = new Date();
-        if (new Date(session.expires_at) < now) {
-          console.log("⏰ Cached session expired");
-          localStorage.removeItem("token");
-          localStorage.removeItem("session");
-          return null;
-        }
-        
-        console.log("💾 Using cached session from localStorage (API unavailable or slow)");
-        return session;
-      } catch (parseErr) {
-        console.warn("❌ Failed to parse stored session:", parseErr);
-      }
-    }
-
-    console.log("❌ No valid session found");
+    console.log("❌ No valid session found (backend and cache unavailable)");
     return null;
   } catch (err) {
     console.error("❌ Failed to fetch session:", err);

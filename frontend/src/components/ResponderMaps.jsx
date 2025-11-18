@@ -163,7 +163,7 @@ function ResponderMaps({ session }) {
         }
 
         // Fetch hotspots
-        const hotspotsEndpoint = getApiUrl('/api/hotspots');
+        const hotspotsEndpoint = getApiUrl(API_CONFIG.endpoints.hotspots);
         const hotspotsResponse = await fetch(hotspotsEndpoint, {
           headers: { Authorization: `Bearer ${token}` },
         });
