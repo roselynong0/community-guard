@@ -109,6 +109,26 @@ def create_app():
     def uploaded_file_public(filename):
         return send_from_directory(Config.UPLOAD_FOLDER, filename)
 
+    # ✅ Serve frontend static files (SPA fallback) when the built frontend exists
+    # This prevents 404s when refreshing client-side routes (React Router BrowserRouter)
+    try:
+        frontend_dist = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'frontend', 'dist'))
+        if os.path.isdir(frontend_dist):
+            print(f"📦 Serving frontend from: {frontend_dist}")
+
+            @app.route('/', defaults={'path': ''})
+            @app.route('/<path:path>')
+            def serve_frontend(path):
+                # If the requested resource exists in the dist, serve it directly
+                requested = os.path.join(frontend_dist, path)
+                if path and os.path.exists(requested) and os.path.isfile(requested):
+                    return send_from_directory(frontend_dist, path)
+                # Otherwise return index.html so the client-side router can handle the route
+                return send_from_directory(frontend_dist, 'index.html')
+    except Exception:
+        # Non-fatal: if something goes wrong, don't break the API
+        print("⚠️ Failed to enable frontend static serving (frontend build may be missing)")
+
     # ✅ Global exception handler
     @app.errorhandler(Exception)
     def handle_global_exception(e):
