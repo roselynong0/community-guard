@@ -63,15 +63,23 @@ function App() {
   // 🔹 Fetch session on mount with retry logic for Vercel cold starts
   useEffect(() => {
     const initSession = async () => {
+      const startTime = Date.now();
       const token = localStorage.getItem("token");
       
       if (!token) {
-        // No token stored, skip to done
+        // No token stored, but still show loading for minimum time
+        const elapsed = Date.now() - startTime;
+        const minLoadTime = 1500; // Minimum 1.5s to show loading
+        
+        if (elapsed < minLoadTime) {
+          await new Promise(resolve => setTimeout(resolve, minLoadTime - elapsed));
+        }
+        
         setLoaderStage('exit');
         setTimeout(() => {
           setLoaderStage('done');
           setLoading(false);
-        }, 420);
+        }, 800);
         return;
       }
       
@@ -102,6 +110,15 @@ function App() {
       } else {
         setSession(currentSession);
       }
+      
+      // Ensure minimum loading time for better UX
+      const elapsed = Date.now() - startTime;
+      const minLoadTime = 2000; // Minimum 2s total loading time
+      
+      if (elapsed < minLoadTime) {
+        await new Promise(resolve => setTimeout(resolve, minLoadTime - elapsed));
+      }
+      
       // Start staged transition: play loading exit, then success, then finish
       setLoaderStage('exit');
       // Wait for exit animation to play before showing success
