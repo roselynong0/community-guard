@@ -43,26 +43,29 @@ def get_profile():
     if request.method == "OPTIONS":
         return jsonify({}), 200
     try:
-        def fetch_user():
-            # OPTIMIZATION: Select only needed fields instead of *
-            return supabase.table("users").select(
-                "id, firstname, lastname, email, isverified, avatar_url, role, deleted_at"
-            ).eq("id", user_id).is_("deleted_at", None).execute()
+        # Prefer the user row attached by token_required middleware, if available
+        user = getattr(request, 'user_record', None)
+        if not user:
+            # Fallback to querying the users table
+            def fetch_user():
+                return supabase.table("users").select(
+                    "id, firstname, lastname, email, isverified, avatar_url, role, deleted_at"
+                ).eq("id", user_id).is_("deleted_at", None).execute()
 
+            user_resp = supabase_retry(fetch_user)
+            if not getattr(user_resp, 'data', None):
+                return jsonify({"status": "not_found", "message": "User not found or deleted"}), 404
+
+            user = user_resp.data[0]
+
+        # Fetch user info as before
         def fetch_info():
-            # OPTIMIZATION: Select only needed fields
             return supabase.table("info").select(
                 "user_id, verified, bio, phone, address_street, "
                 "address_barangay, address_province, address_city, birthdate"
             ).eq("user_id", user_id).execute()
 
-        user_resp = supabase_retry(fetch_user)
         info_resp = supabase_retry(fetch_info)
-
-        if not user_resp.data:
-            return jsonify({"status": "not_found", "message": "User not found or deleted"}), 404
-
-        user = user_resp.data[0]
         info = info_resp.data[0] if info_resp.data else {}
 
         profile = {

@@ -127,5 +127,16 @@ def token_required(f):
         request.user_id = session["user_id"]
         request.session = session
 
+        # Also fetch the application user row from the `users` table and attach it
+        # This ensures downstream routes read from your app's users table (not gotrue/auth table)
+        try:
+            user_resp = supabase.table("users").select("id, firstname, lastname, email, isverified, avatar_url, role, onpremium").eq("id", request.user_id).execute()
+            user_rows = getattr(user_resp, "data", []) or []
+            request.user_record = user_rows[0] if user_rows else None
+        except Exception as e:
+            # Non-fatal: keep going without user_record but log for diagnostics
+            print(f"⚠️ Failed to fetch user record for user_id {request.user_id}: {e}")
+            request.user_record = None
+
         return f(*args, **kwargs)
     return decorated

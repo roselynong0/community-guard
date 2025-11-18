@@ -174,7 +174,14 @@ def login():
         resp = supabase_retry(fetch_user)
         users = getattr(resp, "data", []) or []
     except Exception as e:
-        print(f"❌ Login error - database connection failed: {e}")
+        # Log full traceback and masked request info for debugging
+        try:
+            import traceback as _tb
+            print(f"❌ Login error - database connection failed for email (masked): {email[:2]}***@*** - exception: {e}")
+            _tb.print_exc()
+        except Exception:
+            print(f"❌ Login error and failed to print traceback: {e}")
+
         return jsonify({
             "status": "error",
             "message": "Database connection error. Please try again."
