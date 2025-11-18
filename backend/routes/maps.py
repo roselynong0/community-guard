@@ -6,8 +6,60 @@ from flask import Blueprint, request, jsonify
 from datetime import datetime, timezone
 from middleware.auth import token_required
 from utils import supabase
+import struct
+import re
 
 maps_bp = Blueprint("maps", __name__)
+
+def parse_wkb_point(hex_string):
+    """
+    Parse WKB (Well-Known Binary) hex string to extract lat/lng coordinates
+    WKB format for POINT with SRID: byte order + SRID flag + SRID + geometry type + X + Y (as doubles)
+    """
+    try:
+        # Remove spaces and convert hex string to bytes
+        hex_clean = hex_string.strip().replace(" ", "")
+        if len(hex_clean) < 2:
+            return None, None
+        
+        # Determine byte order: 01 = little-endian, 00 = big-endian
+        byte_order = hex_clean[:2]
+        is_little_endian = byte_order == "01"
+        
+        # Check for SRID flag in byte order+type (PostGIS EWKB with SRID)
+        # If SRID flag is set (0x20000000), skip 8 chars (4 bytes SRID)
+        offset = 10  # Skip byte order(2) + geometry type(8)
+        
+        # Check if SRID is present - geometry type starts at position 2
+        geom_type_hex = hex_clean[2:10]
+        geom_type_bytes = bytes.fromhex(geom_type_hex)
+        geom_type = struct.unpack(('<I' if is_little_endian else '>I'), geom_type_bytes)[0]
+        
+        # Check for SRID flag (0x20000000)
+        if geom_type & 0x20000000:
+            # Skip SRID (4 bytes = 8 hex chars)
+            offset = 18
+        
+        # Extract the coordinates
+        if len(hex_clean) < offset + 32:  # Need at least X and Y coordinates
+            return None, None
+        
+        coords_hex = hex_clean[offset:]
+        
+        # Parse X (longitude) - first 16 hex chars = 8 bytes
+        x_hex = coords_hex[:16]
+        x_bytes = bytes.fromhex(x_hex)
+        x = struct.unpack(('<d' if is_little_endian else '>d'), x_bytes)[0]
+        
+        # Parse Y (latitude) - next 16 hex chars = 8 bytes
+        y_hex = coords_hex[16:32]
+        y_bytes = bytes.fromhex(y_hex)
+        y = struct.unpack(('<d' if is_little_endian else '>d'), y_bytes)[0]
+        
+        return y, x  # Return as (latitude, longitude)
+    except Exception as e:
+        print(f"⚠️  Error parsing WKB: {e}")
+        return None, None
 
 # ============ SAFEZONES ============
 
@@ -22,24 +74,51 @@ def get_safezones():
         # Format safezones for frontend
         formatted_safezones = []
         for sz in safezones:
-            if sz.get("center"):
-                # Parse geography point from Supabase
-                center = sz["center"]
-                if isinstance(center, dict):
+            try:
+                center = sz.get("center")
+                latitude = None
+                longitude = None
+                
+                # Parse center based on format
+                if center:
+                    if isinstance(center, dict):
+                        # GeoJSON Point format: {"type": "Point", "coordinates": [lng, lat]}
+                        coords = center.get("coordinates", [])
+                        if len(coords) >= 2:
+                            longitude = coords[0]
+                            latitude = coords[1]
+                    elif isinstance(center, str):
+                        # Check if it's WKB hex format (PostGIS binary)
+                        if len(center) > 20 and not center.strip().startswith("POINT"):
+                            # WKB hex string
+                            latitude, longitude = parse_wkb_point(center)
+                        else:
+                            # Try WKT POINT format: "POINT(lng lat)"
+                            match = re.search(r'POINT\s*\(\s*([\d\.\-]+)\s+([\d\.\-]+)\s*\)', center, re.IGNORECASE)
+                            if match:
+                                longitude = float(match.group(1))
+                                latitude = float(match.group(2))
+                
+                # Only add if we have valid coordinates
+                if latitude is not None and longitude is not None:
                     formatted_safezones.append({
                         "id": sz["id"],
-                        "name": sz["name"],
-                        "description": sz["description"],
+                        "name": sz.get("name", "Unnamed"),
+                        "description": sz.get("description", ""),
                         "center": {
-                            "latitude": center.get("coordinates", [0, 0])[1],
-                            "longitude": center.get("coordinates", [0, 0])[0]
+                            "latitude": latitude,
+                            "longitude": longitude
                         },
-                        "radius_meters": sz["radius_meters"],
-                        "created_by": sz["created_by"],
-                        "created_at": sz["created_at"]
+                        "radius_meters": sz.get("radius_meters", 100),
+                        "created_by": sz.get("created_by"),
+                        "created_at": sz.get("created_at")
                     })
+                else:
+                    print(f"⚠️  Skipping safezone {sz.get('id')} - could not parse coordinates: {center}")
+            except Exception as parse_err:
+                print(f"⚠️  Error parsing safezone {sz.get('id')}: {parse_err}")
         
-        print(f"✅ Loaded {len(formatted_safezones)} safezones")
+        print(f"✅ Loaded {len(formatted_safezones)} valid safezones")
         return jsonify({"status": "success", "safezones": formatted_safezones}), 200
     except Exception as e:
         print(f"❌ Error fetching safezones: {e}")

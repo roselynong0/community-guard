@@ -8,11 +8,11 @@ import {
   Circle,
 } from "react-leaflet";
 import { API_CONFIG } from "../utils/apiConfig";
+import { getApiUrl } from "../utils/apiConfig";
+import { fetchSafezonesWithCache } from "../utils/safezonesService";
 import L from "leaflet";
 import "./Maps.css";
 import "leaflet/dist/leaflet.css";
-
-import { getApiUrl } from "../utils/apiConfig";
 
 // Build endpoints with getApiUrl so VITE_API_URL is used in prod and localhost in dev
 const OLONGAPO_CENTER = [14.8291, 120.2829];
@@ -138,15 +138,9 @@ function Maps({ session, userRole }) {
           console.log(`✅ Loaded ${(hotspotsData.hotspots || []).length} hotspots`);
         }
 
-        // Fetch safezones
-        const safezonesEndpoint = getApiUrl('/api/safezones');
-        const safezonesResponse = await fetch(safezonesEndpoint, { headers });
-        const safezonesData = await safezonesResponse.json();
-
-        if (safezonesData.status === "success") {
-          setSafezones(safezonesData.safezones || []);
-          console.log(`✅ Loaded ${(safezonesData.safezones || []).length} safezones`);
-        }
+        // Fetch safezones with caching
+        const cachedSafezones = await fetchSafezonesWithCache(token);
+        setSafezones(cachedSafezones);
       } catch (err) {
         console.error("Failed to load map reports:", err);
       } finally {
@@ -196,9 +190,11 @@ function Maps({ session, userRole }) {
               key={`safezone-${idx}`}
               center={[sz.center.latitude, sz.center.longitude]}
               radius={sz.radius_meters}
-              color="#06b6d4"
+              color="#0891b2"
               fillColor="#06b6d4"
-              fillOpacity={0.3}
+              fillOpacity={0.25}
+              weight={3}
+              dashArray="5, 5"
             >
               <Popup>
                 <div>

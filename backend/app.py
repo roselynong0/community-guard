@@ -21,6 +21,7 @@ try:
     from routes.community_feed import community_feed_bp
     from routes.ai_endpoints import ai_bp
     from routes.chatbot import chatbot_bp
+    from routes.maps import maps_bp
     
     # Import Ollama-enhanced chatbot (will override regular chatbot if available)
     try:
@@ -89,6 +90,8 @@ def create_app():
     print("✅ Registered: notifications_bp")
     app.register_blueprint(community_feed_bp, url_prefix='/api')
     print("✅ Registered: community_feed_bp")
+    app.register_blueprint(maps_bp, url_prefix='/api')
+    print("✅ Registered: maps_bp")
     app.register_blueprint(ai_bp, url_prefix='/api/ai')
     print("✅ Registered: ai_bp at /api/ai")
     

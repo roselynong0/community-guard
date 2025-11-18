@@ -8,6 +8,7 @@ import {
   Circle,
 } from "react-leaflet";
 import { API_CONFIG, getApiUrl } from "../utils/apiConfig";
+import { fetchSafezonesWithCache, addSafezonesToCache } from "../utils/safezonesService";
 import L from "leaflet";
 import "./Maps.css";
 import "leaflet/dist/leaflet.css";
@@ -130,21 +131,14 @@ function AdminMaps({ session }) {
           setHotspots(hotspotsData.hotspots || []);
         }
 
-        // Fetch safezones
-        const safezonesEndpoint = getApiUrl('/api/safezones');
-        const safezonesResponse = await fetch(safezonesEndpoint, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-        const safezonesData = await safezonesResponse.json();
-
-        if (safezonesData.status === "success") {
-          setSafezones(safezonesData.safezones || []);
-        }
+        // Fetch safezones with caching
+        const cachedSafezones = await fetchSafezonesWithCache(token);
+        setSafezones(cachedSafezones);
 
         console.log(
           `✅ Loaded admin map data: ${reportsData.reports?.length || 0} reports, ${
             hotspotsData.hotspots?.length || 0
-          } hotspots, ${safezonesData.safezones?.length || 0} safezones`
+          } hotspots, ${cachedSafezones.length} safezones`
         );
       } catch (err) {
         console.error("Failed to load admin map data:", err);
@@ -165,7 +159,38 @@ function AdminMaps({ session }) {
   // Handle safezone creation
   const handleSafezoneCreated = (newSafezone) => {
     setSafezones([...safezones, newSafezone]);
+    addSafezonesToCache([newSafezone]); // Cache the new safezone
     handleCloseSafezoneModal();
+  };
+
+  // Handle safezone deletion
+  const handleSafezoneDelete = async (safezoneId) => {
+    if (!window.confirm("Are you sure you want to delete this safezone?")) {
+      return;
+    }
+
+    try {
+      const token = session?.token || localStorage.getItem("access_token");
+      const response = await fetch(getApiUrl(`/api/safezones/${safezoneId}`), {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      const data = await response.json();
+      if (data.status === "success") {
+        // Remove from state
+        setSafezones(safezones.filter(sz => sz.id !== safezoneId));
+        // Invalidate cache to fetch fresh data
+        localStorage.removeItem("cachedSafezones");
+        console.log("✅ Safezone deleted successfully");
+      } else {
+        console.error("❌ Error deleting safezone:", data.message);
+        alert("Error deleting safezone: " + data.message);
+      }
+    } catch (err) {
+      console.error("❌ Error deleting safezone:", err);
+      alert("Error deleting safezone");
+    }
   };
 
   // Handle hotspot modal close
@@ -218,28 +243,60 @@ function AdminMaps({ session }) {
           />
 
           {/* Render safezones as circles */}
-          {showSafezones && safezones.map((sz, idx) => (
-            <Circle
-              key={`safezone-${idx}`}
-              center={[sz.center.latitude, sz.center.longitude]}
-              radius={sz.radius_meters}
-              color="#06b6d4"
-              fillColor="#06b6d4"
-              fillOpacity={0.3}
-            >
-              <Popup>
-                <div>
-                  <strong style={{ fontSize: "14px" }}>🛡️ {sz.name}</strong>
-                  <br />
-                  <span style={{ fontSize: "12px" }}>{sz.description}</span>
-                  <br />
-                  <span style={{ fontSize: "11px", color: "#666" }}>
-                    Radius: {sz.radius_meters}m
-                  </span>
-                </div>
-              </Popup>
-            </Circle>
-          ))}
+          {showSafezones && safezones.map((sz, idx) => {
+            // Validate safezone has valid center coordinates
+            if (!sz.center || !sz.center.latitude || !sz.center.longitude) {
+              console.warn(`⚠️ Skipping safezone ${idx} - invalid coordinates:`, sz);
+              return null;
+            }
+            return (
+              <Circle
+                key={`safezone-${idx}`}
+                center={[sz.center.latitude, sz.center.longitude]}
+                radius={sz.radius_meters}
+                color="#0891b2"
+                fillColor="#06b6d4"
+                fillOpacity={0.25}
+                weight={3}
+                dashArray="5, 5"
+              >
+                <Popup>
+                  <div>
+                    <strong style={{ fontSize: "14px" }}>🛡️ {sz.name}</strong>
+                    <br />
+                    <span style={{ fontSize: "12px" }}>{sz.description}</span>
+                    <br />
+                    <span style={{ fontSize: "11px", color: "#666" }}>
+                      Radius: {sz.radius_meters}m
+                    </span>
+                    <br />
+                    <button
+                      onClick={() => handleSafezoneDelete(sz.id)}
+                      style={{
+                        marginTop: "8px",
+                        padding: "6px 12px",
+                        backgroundColor: "#ef4444",
+                        color: "white",
+                        border: "none",
+                        borderRadius: "4px",
+                        cursor: "pointer",
+                        fontSize: "12px",
+                        fontWeight: "bold"
+                      }}
+                      onMouseOver={(e) => {
+                        e.target.style.backgroundColor = "#dc2626";
+                      }}
+                      onMouseOut={(e) => {
+                        e.target.style.backgroundColor = "#ef4444";
+                      }}
+                    >
+                      🗑️ Delete
+                    </button>
+                  </div>
+                </Popup>
+              </Circle>
+            );
+          })}
 
           {/* Render hotspots */}
           {showHotspots && filteredHotspots.map((hs, idx) => (
