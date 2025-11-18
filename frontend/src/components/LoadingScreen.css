@@ -1,0 +1,195 @@
+.loading-screen {
+  position: fixed;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  z-index: 9999;
+  overflow: hidden;
+}
+
+.loading-backdrop {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(ellipse at center, #eef1f7 0%, #d7dbe6 40%, #c9ceda 100%);
+  filter: blur(1px);
+}
+
+.loading-content {
+  position: relative;
+  width: min(900px, 92vw);
+  padding: 2.5rem 2rem 2rem;
+  text-align: center;
+  color: #11163e;
+}
+
+.loading-logo {
+  width: 68px;
+  height: 68px;
+  margin: 0 auto 0.5rem;
+  filter: drop-shadow(0 6px 14px rgba(17, 22, 62, 0.25));
+}
+
+.loading-title {
+  margin: 0.25rem 0 0.25rem;
+  font-size: 1.35rem;
+  font-weight: 700;
+}
+
+.loading-subtitle {
+  margin: 0 auto 1.25rem;
+  max-width: 640px;
+  color: #4d557a;
+}
+
+.loading-cards {
+  position: relative;
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  margin: 1rem auto 1.25rem;
+  width: 100%;
+  max-width: 760px;
+}
+
+.loading-card {
+  flex: 1 1 48%;
+  background: rgba(255, 255, 255, 0.94);
+  border-radius: 14px;
+  padding: 1rem 1.1rem;
+  text-align: left;
+  box-shadow: 0 12px 28px rgba(17, 22, 62, 0.14);
+  border: 1px solid rgba(17, 22, 62, 0.06);
+  overflow: hidden;
+  opacity: 0;
+  transform: translateY(6px);
+  animation-fill-mode: forwards;
+}
+
+.loading-card-title {
+  font-weight: 700;
+  margin-bottom: 0.35rem;
+}
+
+.loading-card-desc {
+  font-size: 0.9rem;
+  color: #5f677f;
+}
+
+.from-left {
+  animation: slideInLeft 560ms cubic-bezier(.2,.9,.2,1) forwards;
+}
+
+.from-right {
+  animation: slideInRight 560ms cubic-bezier(.2,.9,.2,1) forwards;
+}
+
+@keyframes slideInLeft {
+  from {
+    opacity: 0;
+    transform: translateX(-40px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes slideInRight {
+  from {
+    opacity: 0;
+    transform: translateX(40px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+.loading-progress {
+  position: relative;
+  height: 8px;
+  width: min(520px, 88vw);
+  border-radius: 999px;
+  margin: 0 auto 0.6rem;
+  background: linear-gradient(180deg, rgba(17,22,62,0.16), rgba(17,22,62,0.08));
+  overflow: hidden;
+}
+
+.loading-bar {
+  position: absolute;
+  left: -40%;
+  top: 0;
+  bottom: 0;
+  width: 40%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #5a7cff, #52e0c4, #5a7cff);
+  animation: sweep 2.2s ease-in-out infinite;
+}
+
+@keyframes sweep {
+  0% { left: -40%; }
+  50% { left: 30%; }
+  100% { left: 100%; }
+}
+
+.loading-small {
+  color: #6b7390;
+  font-size: 0.9rem;
+}
+
+/* Success redirect styles */
+.success-screen .loading-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.6rem;
+}
+.success-icon {
+  color: #2ecc71;
+  font-size: 64px;
+  filter: drop-shadow(0 8px 20px rgba(46,204,113,0.18));
+  transform: scale(0.9);
+  animation: popIn 420ms cubic-bezier(.2,.9,.2,1) forwards;
+}
+@keyframes popIn {
+  from { opacity: 0; transform: scale(0.6); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+/* Cinematic exit for loading screen */
+@keyframes cinematicExit {
+  from { opacity: 1; transform: translateY(0) scale(1); filter: blur(0px); }
+  to { opacity: 0; transform: translateY(-28px) scale(0.98); filter: blur(2px); }
+}
+
+@keyframes backdropFade {
+  from { opacity: 1; }
+  to { opacity: 0.25; }
+}
+
+.loading-screen.exit .loading-content {
+  animation: cinematicExit 420ms cubic-bezier(.2,.9,.2,1) forwards;
+}
+
+.loading-screen.exit .loading-backdrop {
+  animation: backdropFade 420ms ease forwards;
+}
+
+/* Cinematic enter for success */
+@keyframes cinematicEnter {
+  from { opacity: 0; transform: translateY(20px) scale(0.98); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+.success-screen .loading-content {
+  animation: cinematicEnter 520ms cubic-bezier(.2,.9,.2,1) forwards;
+}
+
+@media (max-width: 640px) {
+  .loading-cards {
+    grid-template-columns: 1fr;
+  }
+  .from-right {
+    animation: slideInLeft 600ms ease forwards; /* stack uses same motion on mobile */
+  }
+}

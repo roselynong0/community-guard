@@ -8,7 +8,7 @@ from bcrypt import hashpw, gensalt, checkpw
 import secrets
 import traceback
 
-from utils import supabase, generate_verification_code, send_verification_email, send_reset_code_email
+from utils import supabase, supabase_retry, generate_verification_code, send_verification_email, send_reset_code_email
 from middleware import token_required
 from config import Config
 

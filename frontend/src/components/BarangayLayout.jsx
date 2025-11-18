@@ -17,6 +17,7 @@ import Toast from "./Toast";
 import { registerToastCallback, registerNotificationCountCallback, startNotificationPolling, stopNotificationPolling } from "../utils/notificationService";
 import "./Layout.css";
 import logo from "../assets/logo.png";
+import LoadingScreen from "./LoadingScreen";
 
 function BarangayLayout({ session, setSession, setNotification }) {
   const [sidebarOpen, setSidebarOpen] = useState(true);
@@ -159,9 +160,15 @@ function BarangayLayout({ session, setSession, setNotification }) {
 
   if (loading) {
     return (
-      <div style={{ padding: "2rem", textAlign: "center" }}>
-        Loading Barangay Panel...
-      </div>
+      <LoadingScreen
+        title="Welcome back, Barangay Official!"
+        subtitle="Preparing your tools — together we improve community safety."
+        cycleMs={3000}
+        features={[
+          { title: "MVP: Incident Reporting", description: "Fast creation + structured intake for follow-up." },
+          { title: "MVP: Community Outreach", description: "Broadcast guidance and gather resident feedback." },
+        ]}
+      />
     );
   }
 

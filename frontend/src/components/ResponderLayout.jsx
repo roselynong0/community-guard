@@ -16,6 +16,7 @@ import { registerToastCallback, registerNotificationCountCallback, startNotifica
 import './Layout.css';
 import logo from '../assets/logo.png';
 import { logout } from '../utils/session';
+import LoadingScreen from './LoadingScreen';
 
 // Enhanced responder layout with improved design matching admin/barangay styles
 export default function ResponderLayout({ session, setSession, setNotification }) {
@@ -121,9 +122,16 @@ export default function ResponderLayout({ session, setSession, setNotification }
 
   if (loading)
     return (
-      <div style={{ padding: '2rem', textAlign: 'center' }}>
-        Loading responder panel...
-      </div>
+      <LoadingScreen
+        title="Welcome back, Responder!"
+        subtitle="Hold on—building up the interface… Your readiness saves time when it matters most."
+        features={[
+          { title: 'Response Dashboard', description: 'See open incidents and assigned tasks.' },
+          { title: 'Nearby Alerts', description: 'Get real-time updates on evolving situations.' },
+          { title: 'Route Optimization', description: 'Choose safer, faster paths to the scene.' },
+          { title: 'Incident Details', description: 'Review context, notes, and attachments fast.' },
+        ]}
+      />
     );
 
   return (

@@ -20,6 +20,7 @@ import ChatBot from "./ChatBot";
 import { registerToastCallback, registerNotificationCountCallback, startNotificationPolling, stopNotificationPolling } from "../utils/notificationService";
 import "./Layout.css";
 import logo from "../assets/logo.png";
+import LoadingScreen from "./LoadingScreen";
 
 function Layout({ session, setSession, setNotification }) {
   const [sidebarOpen, setSidebarOpen] = useState(true);
@@ -133,9 +134,28 @@ function Layout({ session, setSession, setNotification }) {
 
   if (loading)
     return (
-      <div style={{ padding: "2rem", textAlign: "center" }}>
-        Loading user...
-      </div>
+      <LoadingScreen
+        title="Welcome back, Resident!"
+        subtitle="Hold on, building up the interface… Thanks for helping keep your community safe."
+        features={[
+          {
+            title: "Incident Reporting",
+            description: "Report and track neighborhood incidents quickly.",
+          },
+          {
+            title: "Interactive Maps",
+            description: "See nearby alerts and safe routes in real time.",
+          },
+          {
+            title: "Community Feed",
+            description: "Stay updated and support your neighbors.",
+          },
+          {
+            title: "Safety Tips",
+            description: "Learn best practices to protect your area.",
+          },
+        ]}
+      />
     );
 
   return (
@@ -170,7 +190,7 @@ function Layout({ session, setSession, setNotification }) {
             }}
           >
             <NavLink to="/home">
-              <FaHome /> Home
+              <FaHome /> Dashboard
             </NavLink>
             <NavLink to="/maps">
               <FaMap /> Map

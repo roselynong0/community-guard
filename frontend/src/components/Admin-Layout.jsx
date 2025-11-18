@@ -17,6 +17,7 @@ import Toast from "./Toast";
 import { registerToastCallback, registerNotificationCountCallback, startNotificationPolling, stopNotificationPolling } from "../utils/notificationService";
 import "./Layout.css";
 import logo from "../assets/logo.png";
+import LoadingScreen from "./LoadingScreen";
 
 function AdminLayout({ session, setSession, setNotification }) {
   const [sidebarOpen, setSidebarOpen] = useState(true);
@@ -172,9 +173,16 @@ function AdminLayout({ session, setSession, setNotification }) {
 
   if (loading) {
     return (
-      <div style={{ padding: "2rem", textAlign: "center" }}>
-        Loading Admin Panel...
-      </div>
+      <LoadingScreen
+        title="Welcome back, Admin!"
+        subtitle="Keep the momentum—your leadership keeps the system running smoothly."
+        features={[
+          { title: "User Management", description: "Review roles, approvals, and profiles with confidence." },
+          { title: "Reports Analytics", description: "Track trends and outcomes to guide decisions." },
+          { title: "Moderation Tools", description: "Maintain a safe, respectful community space." },
+          { title: "System Health", description: "Monitor status and keep operations reliable." },
+        ]}
+      />
     );
   }
 

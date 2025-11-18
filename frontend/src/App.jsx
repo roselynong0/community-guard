@@ -27,6 +27,8 @@ import VerificationForm from "./components/VerificationForm";
 import LandingPage from "./components/LandingPage";
 import SafetyTips from "./components/SafetyTips";
 import CommunityFeed from "./components/CommunityFeed";
+import LoadingScreen from "./components/LoadingScreen";
+import SuccessRedirect from "./components/SuccessRedirect";
 import CommunityFeedAdmin from "./components/CommunityFeedAdmin";
 import BarangayDashboard from "./components/BarangayDashboard";
 import BarangayReports from "./components/BarangayReports";
@@ -54,6 +56,8 @@ function LoginWrapper({ session, setSession, setNotification }) {
 function App() {
   const [session, setSession] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [showSuccess, setShowSuccess] = useState(false);
+  const [loaderStage, setLoaderStage] = useState('loading'); // 'loading' | 'exit' | 'success' | 'done'
   const [notification, setNotification] = useState({ message: "", type: "" });
 
   // 🔹 Fetch session on mount with retry logic for Vercel cold starts
@@ -79,7 +83,19 @@ function App() {
       } else {
         setSession(currentSession);
       }
-      setLoading(false);
+      // Start staged transition: play loading exit, then success, then finish
+      setLoaderStage('exit');
+      // Wait for exit animation to play before showing success
+      setTimeout(() => {
+        setShowSuccess(true);
+        setLoaderStage('success');
+        // Show success for ~900ms, then complete
+        setTimeout(() => {
+          setShowSuccess(false);
+          setLoaderStage('done');
+          setLoading(false);
+        }, 900);
+      }, 420);
     };
     initSession();
   }, []);
@@ -92,7 +108,22 @@ function App() {
     }
   }, [notification]);
 
-  if (loading) return <p>Loading...</p>;
+  // Show loader stages until done: loading -> exit -> success -> done
+  if (loaderStage !== 'done') {
+    if (showSuccess) return <SuccessRedirect />;
+    return (
+      <LoadingScreen
+        title="Starting Community Guard"
+        subtitle="Initializing services and loading your session..."
+        cycleMs={3000}
+        stage={loaderStage}
+        features={[
+          { title: "Connecting", description: "Contacting backend services." },
+          { title: "Preparing UI", description: "Loading interface and user preferences." },
+        ]}
+      />
+    );
+  }
 
   return (
     <Router>
