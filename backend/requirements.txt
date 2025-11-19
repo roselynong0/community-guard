@@ -5,12 +5,12 @@ Flask-Caching==2.1.0
 Flask-Compress==1.15
 
 # Database - Known working combination for Python 3.11
-supabase==2.4.2
-postgrest==0.13.2
-storage3==0.6.1
-gotrue==2.4.2
-realtime==2.0.0
-httpx==0.24.1
+supabase>=2.4.2,<3.0.0
+postgrest>=0.14.0,<0.17.0
+storage3>=0.6.1,<1.0.0
+gotrue>=2.4.2,<3.0.0
+realtime>=2.0.0,<3.0.0
+httpx>=0.24.1,<0.26.0
 
 # Authentication & Security
 bcrypt==4.1.3
