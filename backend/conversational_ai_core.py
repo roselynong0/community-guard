@@ -71,7 +71,7 @@ class ConversationalAICore:
         """Fetch comprehensive system analytics"""
         try:
             # Get all reports
-            reports_response = supabase.table("reports").select("*").is_("deleted_at", None).execute()
+            reports_response = supabase.table("reports").select("*").is_("deleted_at", "null").execute()
             reports = reports_response.data if reports_response.data else []
             
             # Get all users

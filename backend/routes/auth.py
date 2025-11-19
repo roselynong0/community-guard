@@ -107,13 +107,19 @@ def register():
             code = generate_verification_code()
             expires_at = datetime.now(timezone.utc) + timedelta(minutes=Config.EMAIL_CODE_EXPIRY)
 
-            supabase.table("email_verifications").upsert({
+            # Ensure old verification records for this user are removed (avoid relying on DB ON CONFLICT constraint)
+            try:
+                supabase.table("email_verifications").delete().eq("user_id", new_user_id).execute()
+            except Exception:
+                pass
+
+            supabase.table("email_verifications").insert({
                 "user_id": new_user_id,
                 "email": email,
                 "code": code,
                 "expires_at": expires_at.isoformat(),
                 "is_used": False
-            }, on_conflict="user_id").execute()
+            }).execute()
 
             email_sent = send_verification_email(email, code)
             if email_sent:
@@ -242,12 +248,18 @@ def login():
             verification_token = secrets.token_urlsafe(32)
             verification_expires = (now + timedelta(minutes=30)).isoformat()
 
-            supabase.table("verification_sessions").upsert({
+            # Create or replace any existing verification session for this user
+            try:
+                supabase.table("verification_sessions").delete().eq("user_id", user["id"]).execute()
+            except Exception:
+                pass
+
+            supabase.table("verification_sessions").insert({
                 "user_id": user["id"],
                 "token": verification_token,
                 "expires_at": verification_expires,
                 "email": user["email"]
-            }, on_conflict="user_id").execute()
+            }).execute()
 
             return jsonify({
                 "status": "verification_redirect_required",
@@ -433,13 +445,19 @@ def forgot_password():
         reset_code = "{:06}".format(secrets.randbelow(1000000))
         expires_at = datetime.now(timezone.utc) + timedelta(minutes=Config.EMAIL_CODE_EXPIRY)
 
-        supabase.table("password_resets").upsert({
+        # Replace any existing reset code for this user to avoid ON CONFLICT requirement
+        try:
+            supabase.table("password_resets").delete().eq("user_id", user["id"]).execute()
+        except Exception:
+            pass
+
+        supabase.table("password_resets").insert({
             "user_id": user["id"],
             "email": email,
             "code": reset_code,
             "expires_at": expires_at.isoformat(),
             "used": False
-        }, on_conflict="user_id").execute()
+        }).execute()
 
         mail_sent = send_reset_code_email(email, reset_code)
         if mail_sent:

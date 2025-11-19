@@ -26,13 +26,19 @@ def send_email_code():
     expires_at = datetime.now(timezone.utc) + timedelta(minutes=Config.EMAIL_CODE_EXPIRY)
 
     try:
-        supabase.table("email_verifications").upsert({
+        # Remove any existing verification codes for this user and insert a fresh one
+        try:
+            supabase.table("email_verifications").delete().eq("user_id", user_id).execute()
+        except Exception:
+            pass
+
+        supabase.table("email_verifications").insert({
             "user_id": user_id,
             "email": email,
             "code": code,
             "expires_at": expires_at.isoformat(),
             "is_used": False
-        }, on_conflict="user_id").execute()
+        }).execute()
 
         try:
             email_sent = send_verification_email(email, code)

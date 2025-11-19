@@ -47,7 +47,7 @@ def get_profile():
             # OPTIMIZATION: Select only needed fields instead of *
             return supabase.table("users").select(
                 "id, firstname, lastname, email, isverified, avatar_url, role, deleted_at"
-            ).eq("id", user_id).is_("deleted_at", None).execute()
+            ).eq("id", user_id).is_("deleted_at", "null").execute()
 
         def fetch_info():
             # OPTIMIZATION: Select only needed fields
