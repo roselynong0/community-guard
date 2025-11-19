@@ -15,6 +15,12 @@ class Config:
     SUPABASE_URL = os.getenv("SUPABASE_URL")
     SUPABASE_KEY = os.getenv("SUPABASE_KEY")
     
+    # Validate critical environment variables on import
+    if not SUPABASE_URL:
+        print("⚠️  WARNING: SUPABASE_URL not set in environment variables")
+    if not SUPABASE_KEY:
+        print("⚠️  WARNING: SUPABASE_KEY not set in environment variables")
+    
     # Email Configuration
     EMAIL_SECRET_KEY = os.getenv("EMAIL_SECRET_KEY")
     MJ_APIKEY_PUBLIC = os.getenv("MJ_APIKEY_PUBLIC")
