@@ -110,7 +110,22 @@ def create_app():
     @app.route("/")
     @app.route("/api/health")
     def health_check():
-        return jsonify({"status": "ok", "message": "Community Guard API is running"}), 200
+        return jsonify({
+            "status": "ok", 
+            "message": "Community Guard API is running",
+            "version": "v2.0-cors-fixed",
+            "cors_enabled": True
+        }), 200
+    
+    # CORS test endpoint
+    @app.route("/api/cors-test")
+    def cors_test():
+        from flask import request
+        return jsonify({
+            "message": "CORS is working!",
+            "origin": request.headers.get('Origin', 'No origin header'),
+            "version": "v2.0-cors-fixed"
+        }), 200
 
     # ✅ Serve uploaded files
     @app.route("/api/uploads/<filename>")
