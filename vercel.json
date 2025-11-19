@@ -6,10 +6,12 @@
   "env": {
     "VITE_API_URL": "https://community-guard-backend.onrender.com"
   },
-  "rewrites": [
+  "cleanUrls": true,
+  "routes": [
+    { "handle": "filesystem" },
     {
-      "source": "/(.*)",
-      "destination": "/index.html"
+      "src": "/(.*)",
+      "dest": "/index.html"
     }
   ],
   "headers": [
