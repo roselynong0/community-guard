@@ -291,7 +291,7 @@ function Home({ token, session }) {
       <div className="map-section animate-up" style={{ animationDelay: "0.5s" }}>
         <h3>Community Map</h3>
         <div className="map-placeholder">
-          <MapView reports={recentReports} /> 
+          <MapView /> 
         </div>
       </div>
     </div>
