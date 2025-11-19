@@ -4,14 +4,10 @@ Flask-CORS==4.0.0
 Flask-Caching==2.1.0
 Flask-Compress==1.15
 
-# Database - Critical Compatibility (pinned for Render stability)
-supabase==2.7.4
-postgrest==0.17.0
-storage3==0.7.7
-supafunc==0.5.1
-httpx==0.27.2
-gotrue==2.8.1
-realtime==2.0.5
+# Database - Critical Compatibility (loose pinning for Render)
+supabase<3.0.0,>=2.5.0
+httpx<0.26.0,>=0.25.0
+gotrue>=2.4.1,<3.0.0
 
 # Authentication & Security
 bcrypt==4.1.3
