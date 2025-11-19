@@ -4,13 +4,14 @@ Flask-CORS==4.0.0
 Flask-Caching==2.1.0
 Flask-Compress==1.15
 
-# Database - Known working combination for Python 3.11
-supabase>=2.4.2,<3.0.0
-postgrest>=0.14.0,<0.17.0
-storage3>=0.6.1,<1.0.0
-gotrue>=2.4.2,<3.0.0
-realtime>=2.0.0,<3.0.0
-httpx>=0.23.0,<0.24.0
+# Database - Exact pinned versions (tested working combination)
+supabase==2.4.4
+postgrest==0.16.8
+storage3==0.7.4
+gotrue==2.4.2
+realtime==2.0.4
+httpx==0.23.3
+httpcore==0.16.3
 
 # Authentication & Security
 bcrypt==4.1.3
