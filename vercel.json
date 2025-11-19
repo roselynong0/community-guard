@@ -4,14 +4,13 @@
   "outputDirectory": "frontend/dist",
   "framework": "vite",
   "env": {
-    "VITE_API_URL": "https://community-guard-backend.onrender.com"
+    "VITE_API_URL": "https://community-guard-1.onrender.com"
   },
   "cleanUrls": true,
-  "routes": [
-    { "handle": "filesystem" },
+  "rewrites": [
     {
-      "src": "/(.*)",
-      "dest": "/index.html"
+      "source": "/(.*)",
+      "destination": "/index.html"
     }
   ],
   "headers": [
