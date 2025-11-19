@@ -39,30 +39,15 @@ def create_app():
     app = Flask(__name__)
     app.config.from_object(Config)
 
-    # ✅ Enable CORS properly - Allow localhost dev and production URLs
-    def check_origin(origin):
-        """Allow localhost and all Vercel deployment URLs"""
-        if not origin:
-            return False
-        
-        allowed_patterns = [
-            r'^http://localhost:\d+$',
-            r'^http://127\.0\.0\.1:\d+$',
-            r'^https://community-guard.*\.vercel\.app$',
-            r'^https://community-guard-1\.onrender\.com$'
-        ]
-        
-        for pattern in allowed_patterns:
-            if re.match(pattern, origin):
-                print(f"✅ CORS: Allowed origin: {origin}")
-                return True
-        
-        print(f"❌ CORS: Blocked origin: {origin}")
-        return False
-    
+    # ✅ Enable CORS - Allow all Vercel deployments and localhost
     CORS(
         app,
-        origins=check_origin,
+        origins=[
+            r"http://localhost:\d+",
+            r"http://127\.0\.0\.1:\d+",
+            r"https://community-guard.*\.vercel\.app",
+            "https://community-guard-1.onrender.com"
+        ],
         supports_credentials=True,
         allow_headers=["Content-Type", "Authorization", "Accept"],
         methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "HEAD"],
