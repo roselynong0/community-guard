@@ -10,7 +10,7 @@
     font-weight: bold;
     box-shadow: 0 4px 12px rgba(0,0,0,0.25);
     /* Raise above loading overlays and inline overlays */
-    z-index: 1000001;
+  z-index: 1000201;
     animation: slideFadeIn 0.3s ease-in-out;
 }
 
