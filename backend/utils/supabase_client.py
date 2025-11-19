@@ -3,6 +3,7 @@ Supabase Client Initialization - Simplified PostgreSQL client
 Uses postgrest directly to avoid auth client compatibility issues
 """
 import os
+import time
 from postgrest import SyncPostgrestClient
 from config import Config
 
@@ -23,11 +24,39 @@ try:
                 "Content-Type": "application/json",
                 "Prefer": "return=representation"
             }
-            self._client = SyncPostgrestClient(self.rest_url, headers=self.headers)
+            # Don't create client yet - lazy init on first use
+            self._url = url
+            self._key = key
+            self._client = None
+        
+        def _get_client(self):
+            """Lazy initialize the postgrest client"""
+            if self._client is None:
+                self._client = SyncPostgrestClient(self.rest_url, headers=self.headers)
+            return self._client
         
         def table(self, table_name):
-            """Access a table using postgrest directly"""
-            return self._client.from_(table_name)
+            """Access a table using postgrest directly with retry logic"""
+            max_retries = 3
+            for attempt in range(max_retries):
+                try:
+                    client = self._get_client()
+                    return client.from_(table_name)
+                except Exception as e:
+                    if attempt < max_retries - 1:
+                        # DNS or connection error - retry after delay
+                        wait_time = (attempt + 1) * 1
+                        print(f"⚠️  Connection attempt {attempt + 1} failed, retrying in {wait_time}s...")
+                        time.sleep(wait_time)
+                    else:
+                        # Final attempt failed
+                        error_msg = str(e)
+                        if "11001" in error_msg or "getaddrinfo" in error_msg:
+                            raise ConnectionError(
+                                f"Cannot connect to Supabase ({self._url}). "
+                                "Check your internet connection or firewall settings."
+                            ) from e
+                        raise
     
     supabase = SimpleSupabaseClient(Config.SUPABASE_URL, Config.SUPABASE_KEY)
     print("✅ Supabase client initialized successfully (direct PostgreSQL mode)")
