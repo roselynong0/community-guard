@@ -4,7 +4,6 @@ import re
 from flask import Flask, jsonify, send_from_directory
 from flask_caching import Cache
 from flask_compress import Compress
-from flask_cors import CORS
 from werkzeug.exceptions import HTTPException
 import traceback
 
@@ -39,20 +38,30 @@ def create_app():
     app = Flask(__name__)
     app.config.from_object(Config)
 
-    # ✅ Enable CORS - Allow all Vercel deployments and localhost
-    CORS(
-        app,
-        origins=[
-            r"http://localhost:\d+",
-            r"http://127\.0\.0\.1:\d+",
-            r"https://community-guard.*\.vercel\.app",
-            "https://community-guard-1.onrender.com"
-        ],
-        supports_credentials=True,
-        allow_headers=["Content-Type", "Authorization", "Accept"],
-        methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "HEAD"],
-        expose_headers=["Content-Type", "Authorization"]
-    )
+    # ✅ Enable CORS - Use wildcard for Vercel subdomains
+    from flask import request
+    
+    @app.after_request
+    def after_request(response):
+        origin = request.headers.get('Origin')
+        if origin:
+            # Allow localhost with any port
+            if origin.startswith('http://localhost:') or origin.startswith('http://127.0.0.1:'):
+                response.headers['Access-Control-Allow-Origin'] = origin
+                response.headers['Access-Control-Allow-Credentials'] = 'true'
+            # Allow all Vercel deployments
+            elif '.vercel.app' in origin and 'community-guard' in origin:
+                response.headers['Access-Control-Allow-Origin'] = origin
+                response.headers['Access-Control-Allow-Credentials'] = 'true'
+            # Allow Render backend
+            elif origin == 'https://community-guard-1.onrender.com':
+                response.headers['Access-Control-Allow-Origin'] = origin
+                response.headers['Access-Control-Allow-Credentials'] = 'true'
+        
+        response.headers['Access-Control-Allow-Headers'] = 'Content-Type,Authorization,Accept'
+        response.headers['Access-Control-Allow-Methods'] = 'GET,POST,PUT,DELETE,OPTIONS,HEAD'
+        response.headers['Access-Control-Expose-Headers'] = 'Content-Type,Authorization'
+        return response
 
     # ✅ Optional caching + compression
     cache = Cache(app, config={
