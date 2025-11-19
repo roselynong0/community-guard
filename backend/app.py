@@ -39,20 +39,26 @@ def create_app():
 
     # ✅ Enable CORS properly - Allow localhost dev and production URLs
     from flask_cors import CORS
+    import re
     
     # Define allowed origins for both development and production
-    allowed_origins = [
-        "http://localhost:5173",      # Local frontend dev server
-        "http://localhost:3000",      # Alternative local frontend port
-        "http://127.0.0.1:5173",      # Local frontend (127.0.0.1)
-        "http://127.0.0.1:3000",      # Local frontend (127.0.0.1)
-        "https://community-guard.vercel.app",  # Vercel production
-        "https://community-guard-1.onrender.com",  # Render production
-    ]
+    def check_origin(origin):
+        """Allow localhost and all Vercel deployment URLs"""
+        if not origin:
+            return False
+        
+        allowed_patterns = [
+            r'^http://localhost:\d+$',
+            r'^http://127\.0\.0\.1:\d+$',
+            r'^https://community-guard.*\.vercel\.app$',
+            r'^https://community-guard-1\.onrender\.com$'
+        ]
+        
+        return any(re.match(pattern, origin) for pattern in allowed_patterns)
     
     CORS(
         app,
-        origins=allowed_origins,
+        origins=check_origin,
         supports_credentials=True,
         allow_headers=["Content-Type", "Authorization", "Accept"],
         methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "HEAD"]
