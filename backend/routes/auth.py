@@ -169,7 +169,7 @@ def login():
     # Find user with retry logic
     try:
         def fetch_user():
-            return supabase.table("users").select("*").eq("email", email).is_("deleted_at", None).execute()
+            return supabase.table("users").select("*").eq("email", email).is_("deleted_at", "null").execute()
         
         resp = supabase_retry(fetch_user)
         users = getattr(resp, "data", []) or []

@@ -36,7 +36,7 @@ def get_all_community_posts_admin():
         query = supabase.table("community_posts").select(
             "id, user_id, title, content, post_type, barangay, status, "
             "created_at, updated_at, is_pinned, allow_comments, deleted_at"
-        ).is_("deleted_at", None)
+        ).is_("deleted_at", "null")
 
         if barangay_filter and barangay_filter != "All":
             query = query.eq("barangay", barangay_filter)
@@ -65,7 +65,7 @@ def get_all_community_posts_admin():
             # Batch fetch comment counts for all posts
             comments_resp = supabase.table("community_comments").select(
                 "post_id", count="exact"
-            ).in_("post_id", [p["id"] for p in posts]).is_("deleted_at", None).execute()
+            ).in_("post_id", [p["id"] for p in posts]).is_("deleted_at", "null").execute()
             
             comment_counts = {}
             if getattr(comments_resp, "data", None):
@@ -113,7 +113,7 @@ def get_community_posts():
         query = supabase.table("community_posts").select(
             "id, user_id, title, content, post_type, barangay, status, "
             "created_at, updated_at, is_pinned, allow_comments, deleted_at"
-        ).is_("deleted_at", None)
+        ).is_("deleted_at", "null")
 
         if barangay_filter and barangay_filter != "All":
             query = query.eq("barangay", barangay_filter)
@@ -146,7 +146,7 @@ def get_community_posts():
             # Batch fetch comment counts for all posts
             comments_resp = supabase.table("community_comments").select(
                 "post_id", count="exact"
-            ).in_("post_id", [p["id"] for p in posts]).is_("deleted_at", None).execute()
+            ).in_("post_id", [p["id"] for p in posts]).is_("deleted_at", "null").execute()
             
             comment_counts = {}
             if getattr(comments_resp, "data", None):
@@ -186,7 +186,7 @@ def get_post_with_comments(post_id):
         user_id = request.user_id
         
         # Fetch post
-        post_resp = supabase.table("community_posts").select("*").eq("id", post_id).is_("deleted_at", None).execute()
+        post_resp = supabase.table("community_posts").select("*").eq("id", post_id).is_("deleted_at", "null").execute()
         post = getattr(post_resp, "data", [None])[0]
         
         if not post:
@@ -204,7 +204,7 @@ def get_post_with_comments(post_id):
                 return jsonify({"status": "success", "post": post}), 200
         
         # Fetch comments
-        comments_resp = supabase.table("community_comments").select("*").eq("post_id", post_id).is_("deleted_at", None).order("created_at", desc=True).execute()
+        comments_resp = supabase.table("community_comments").select("*").eq("post_id", post_id).is_("deleted_at", "null").order("created_at", desc=True).execute()
         comments = getattr(comments_resp, "data", []) or []
         
         # Enrich comments with author info
@@ -344,7 +344,7 @@ def update_community_post(post_id):
         data = request.get_json()
         
         # Fetch post to verify ownership
-        post_resp = supabase.table("community_posts").select("*").eq("id", post_id).is_("deleted_at", None).execute()
+        post_resp = supabase.table("community_posts").select("*").eq("id", post_id).is_("deleted_at", "null").execute()
         post = getattr(post_resp, "data", [None])[0]
         
         if not post:
@@ -395,7 +395,7 @@ def delete_community_post(post_id):
         user_id = request.user_id
         
         # Fetch post to verify ownership
-        post_resp = supabase.table("community_posts").select("*").eq("id", post_id).is_("deleted_at", None).execute()
+        post_resp = supabase.table("community_posts").select("*").eq("id", post_id).is_("deleted_at", "null").execute()
         post = getattr(post_resp, "data", [None])[0]
         
         if not post:
@@ -426,7 +426,7 @@ def add_comment(post_id):
         data = request.get_json()
         
         # Verify post exists and comments are allowed
-        post_resp = supabase.table("community_posts").select("*").eq("id", post_id).is_("deleted_at", None).execute()
+        post_resp = supabase.table("community_posts").select("*").eq("id", post_id).is_("deleted_at", "null").execute()
         post = getattr(post_resp, "data", [None])[0]
         
         if not post:
@@ -478,7 +478,7 @@ def update_comment(comment_id):
         data = request.get_json()
         
         # Fetch comment
-        comment_resp = supabase.table("community_comments").select("*").eq("id", comment_id).is_("deleted_at", None).execute()
+        comment_resp = supabase.table("community_comments").select("*").eq("id", comment_id).is_("deleted_at", "null").execute()
         comment = getattr(comment_resp, "data", [None])[0]
         
         if not comment:
@@ -512,7 +512,7 @@ def delete_comment(comment_id):
         user_id = request.user_id
         
         # Fetch comment
-        comment_resp = supabase.table("community_comments").select("*").eq("id", comment_id).is_("deleted_at", None).execute()
+        comment_resp = supabase.table("community_comments").select("*").eq("id", comment_id).is_("deleted_at", "null").execute()
         comment = getattr(comment_resp, "data", [None])[0]
         
         if not comment:
@@ -550,7 +550,7 @@ def get_pending_posts():
 
         limit = int(request.args.get("limit", 50))
 
-        response = supabase.table("community_posts").select("*").eq("status", "pending").is_("deleted_at", None).order("created_at", desc=True).limit(limit).execute()
+        response = supabase.table("community_posts").select("*").eq("status", "pending").is_("deleted_at", "null").order("created_at", desc=True).limit(limit).execute()
         posts = getattr(response, "data", []) or []
 
         enriched_posts = []
@@ -559,7 +559,7 @@ def get_pending_posts():
             user_data = getattr(user_resp, "data", [None])[0]
 
             # comment count
-            comment_resp = supabase.table("community_comments").select("id", count="exact").eq("post_id", post["id"]).is_("deleted_at", None).execute()
+            comment_resp = supabase.table("community_comments").select("id", count="exact").eq("post_id", post["id"]).is_("deleted_at", "null").execute()
             comment_count = len(getattr(comment_resp, "data", []))
 
             post["author"] = user_data or {"id": post["user_id"], "firstname": "Unknown", "lastname": "User", "role": "Resident"}
@@ -610,7 +610,7 @@ def get_barangay_posts():
             barangay_filter = requested_barangay
 
         # Build query: only approved posts
-        query = supabase.table("community_posts").select("*").eq("status", "approved").is_("deleted_at", None)
+        query = supabase.table("community_posts").select("*").eq("status", "approved").is_("deleted_at", "null")
         if barangay_filter and barangay_filter != "All":
             query = query.eq("barangay", barangay_filter)
 
@@ -635,7 +635,7 @@ def get_barangay_posts():
             # Batch fetch comments for all posts
             comments_resp = supabase.table("community_comments").select(
                 "post_id"
-            ).in_("post_id", [p["id"] for p in posts]).is_("deleted_at", None).execute()
+            ).in_("post_id", [p["id"] for p in posts]).is_("deleted_at", "null").execute()
             
             comment_counts = {}
             if getattr(comments_resp, "data", None):
@@ -686,7 +686,7 @@ def approve_post(post_id):
             return jsonify({"status": "error", "message": "Forbidden"}), 403
 
         # Fetch post
-        post_resp = supabase.table("community_posts").select("*").eq("id", post_id).is_("deleted_at", None).execute()
+        post_resp = supabase.table("community_posts").select("*").eq("id", post_id).is_("deleted_at", "null").execute()
         post = getattr(post_resp, "data", [None])[0]
 
         if not post:
@@ -724,7 +724,7 @@ def reject_post(post_id):
             return jsonify({"status": "error", "message": "Forbidden"}), 403
 
         # Fetch post
-        post_resp = supabase.table("community_posts").select("*").eq("id", post_id).is_("deleted_at", None).execute()
+        post_resp = supabase.table("community_posts").select("*").eq("id", post_id).is_("deleted_at", "null").execute()
         post = getattr(post_resp, "data", [None])[0]
 
         if not post:
@@ -769,7 +769,7 @@ def toggle_post_comments(post_id):
             return jsonify({"status": "error", "message": "Forbidden"}), 403
 
         # Fetch post
-        post_resp = supabase.table("community_posts").select("*").eq("id", post_id).is_("deleted_at", None).execute()
+        post_resp = supabase.table("community_posts").select("*").eq("id", post_id).is_("deleted_at", "null").execute()
         post = getattr(post_resp, "data", [None])[0]
 
         if not post:

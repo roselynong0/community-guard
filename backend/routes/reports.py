@@ -33,7 +33,7 @@ def fetch_reports(limit=10, sort="desc", user_only=False, barangay_filter=False,
     try:
         # Use retry mechanism for the main reports query
         def fetch_main_reports():
-            query = supabase.table("reports").select("*").is_("deleted_at", None)
+            query = supabase.table("reports").select("*").is_("deleted_at", "null")
 
             if user_only and user_id:
                 query = query.eq("user_id", user_id)
@@ -662,7 +662,7 @@ def get_barangay_map_reports():
         # Fetch only reports from their barangay with valid coordinates
         response = supabase.table("reports").select(
             "id, title, address_barangay, address_street, latitude, longitude, user_id, created_at, status"
-        ).eq("address_barangay", user_barangay).is_("deleted_at", None).execute()
+        ).eq("address_barangay", user_barangay).is_("deleted_at", "null").execute()
 
         reports_list = getattr(response, "data", []) or []
         print(f"📊 Total reports in {user_barangay}: {len(reports_list)}")
@@ -782,7 +782,7 @@ def get_stats():
         
         # Use retry mechanism for stats query
         def fetch_stats():
-            query = supabase.table("reports").select("status").is_("deleted_at", None).eq("is_rejected", False)
+            query = supabase.table("reports").select("status").is_("deleted_at", "null").eq("is_rejected", False)
             if barangay_filter and barangay_filter != "all":
                 query = query.eq("address_barangay", barangay_filter)
             return query.execute()
@@ -827,7 +827,7 @@ def get_report_categories():
         
         # Use retry mechanism for Supabase query
         def fetch_categories():
-            query = supabase.table("reports").select("category").is_("deleted_at", None)
+            query = supabase.table("reports").select("category").is_("deleted_at", "null")
             
             # Apply filtering logic
             if filter_type == "all":
@@ -876,7 +876,7 @@ def get_barangays():
     try:
         # Get distinct barangays from reports
         def fetch_barangays():
-            return supabase.table("reports").select("address_barangay").is_("deleted_at", None).execute()
+            return supabase.table("reports").select("address_barangay").is_("deleted_at", "null").execute()
         
         resp = supabase_retry(fetch_barangays)
         reports_list = getattr(resp, "data", []) or []
@@ -953,7 +953,7 @@ def get_barangay_dashboard_stats():
         
         # Fetch reports with barangay and date filters
         def fetch_reports_for_stats():
-            query = supabase.table("reports").select("status, created_at, address_barangay").is_("deleted_at", None).eq("is_rejected", False)
+            query = supabase.table("reports").select("status, created_at, address_barangay").is_("deleted_at", "null").eq("is_rejected", False)
             if filter_barangay:
                 query = query.eq("address_barangay", filter_barangay)
                 print(f"📊 Filtering reports by barangay: {filter_barangay}")
@@ -988,7 +988,7 @@ def get_barangay_dashboard_stats():
         # Calculate barangay counts from ALL reports (lifetime data)
         # This shows trends across ALL barangays with NO date filtering for lifetime view
         def fetch_all_barangay_reports():
-            query = supabase.table("reports").select("address_barangay").is_("deleted_at", None).eq("is_rejected", False)
+            query = supabase.table("reports").select("address_barangay").is_("deleted_at", "null").eq("is_rejected", False)
             return query.execute()
         
         barangay_reports_resp = supabase_retry(fetch_all_barangay_reports)
@@ -1012,7 +1012,7 @@ def get_barangay_dashboard_stats():
         
         # Calculate monthly trends ONLY for the barangay official's own barangay
         def fetch_barangay_reports_for_trends():
-            query = supabase.table("reports").select("created_at").is_("deleted_at", None).eq("is_rejected", False)
+            query = supabase.table("reports").select("created_at").is_("deleted_at", "null").eq("is_rejected", False)
             if user_barangay:
                 query = query.eq("address_barangay", user_barangay)
             return query.execute()
@@ -1080,7 +1080,7 @@ def get_monthly_trends():
             
             # Fallback to manual query
             def fetch_monthly():
-                query = supabase.table("reports").select("created_at").is_("deleted_at", None)
+                query = supabase.table("reports").select("created_at").is_("deleted_at", "null")
                 if barangay_filter and barangay_filter != "All":
                     query = query.eq("address_barangay", barangay_filter)
                 return query.execute()
@@ -1122,7 +1122,7 @@ def get_top_barangays():
             
             # Fallback to manual query
             def fetch_all_barangays():
-                return supabase.table("reports").select("address_barangay").is_("deleted_at", None).execute()
+                return supabase.table("reports").select("address_barangay").is_("deleted_at", "null").execute()
             
             resp = supabase_retry(fetch_all_barangays)
             reports = getattr(resp, "data", []) or []

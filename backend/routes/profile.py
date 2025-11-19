@@ -50,7 +50,7 @@ def get_profile():
             def fetch_user():
                 return supabase.table("users").select(
                     "id, firstname, lastname, email, isverified, avatar_url, role, deleted_at"
-                ).eq("id", user_id).is_("deleted_at", None).execute()
+                ).eq("id", user_id).is_("deleted_at", "null").execute()
 
             user_resp = supabase_retry(fetch_user)
             if not getattr(user_resp, 'data', None):

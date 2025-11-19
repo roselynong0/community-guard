@@ -24,7 +24,7 @@ def list_sessions():
         if not user_data:
             # Fallback to querying the users table
             def fetch_user():
-                return supabase.table("users").select("*").eq("id", user_id).is_("deleted_at", None).single().execute()
+                return supabase.table("users").select("*").eq("id", user_id).is_("deleted_at", "null").single().execute()
 
             user_resp = supabase_retry(fetch_user)
             user_data = user_resp.data if user_resp.data else None

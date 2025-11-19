@@ -31,7 +31,7 @@ def get_all_users():
             return jsonify({"status": "error", "message": "Admin access required"}), 403
 
         # Fetch all users (excluding deleted ones)
-        users_resp = supabase.table("users").select("*").is_("deleted_at", None).order("created_at", desc=True).execute()
+        users_resp = supabase.table("users").select("*").is_("deleted_at", "null").order("created_at", desc=True).execute()
         users = getattr(users_resp, "data", []) or []
 
         # Remove password from response for security
@@ -68,7 +68,7 @@ def update_user_verification(user_id):
             return jsonify({"status": "error", "message": "Verification status is required"}), 400
 
         # Get user info for notification
-        user_resp = supabase.table("users").select("firstname, lastname, email, role").eq("id", user_id).is_("deleted_at", None).execute()
+        user_resp = supabase.table("users").select("firstname, lastname, email, role").eq("id", user_id).is_("deleted_at", "null").execute()
         user = getattr(user_resp, "data", [None])[0]
         if not user:
             return jsonify({"status": "error", "message": "User not found"}), 404
@@ -140,7 +140,7 @@ def get_users_for_verification():
             # Select only needed fields to reduce payload size
             users_response = supabase.table("users").select(
                 "id, firstname, lastname, email, role, isverified, avatar_url, created_at"
-            ).is_("is_deleted", None).order("created_at", desc=True).limit(limit).offset(offset).execute()
+            ).is_("is_deleted", "null").order("created_at", desc=True).limit(limit).offset(offset).execute()
             
             users = getattr(users_response, "data", []) or []
             
@@ -202,7 +202,7 @@ def get_users_for_verification():
             
             users_response = supabase.table("users").select(
                 "id, firstname, lastname, email, role, isverified, avatar_url, created_at"
-            ).is_("is_deleted", None).order("created_at", desc=True).limit(limit).offset(offset).execute()
+            ).is_("is_deleted", "null").order("created_at", desc=True).limit(limit).offset(offset).execute()
             
             users = getattr(users_response, "data", []) or []
             
@@ -315,7 +315,7 @@ def update_full_verification(user_id):
         # Get user info for notification
         user_resp = supabase.table("users").select(
             "firstname, lastname, email, role"
-        ).eq("id", user_id).is_("deleted_at", None).execute()
+        ).eq("id", user_id).is_("deleted_at", "null").execute()
         
         user = getattr(user_resp, "data", [None])[0]
         if not user:
@@ -384,7 +384,7 @@ def admin_update_report_status(report_id):
             return jsonify({"status": "error", "message": f"Invalid status. Must be one of: {valid_statuses}"}), 400
 
         # Fetch current report to get user_id and title
-        report_resp = supabase.table("reports").select("user_id, title, status").eq("id", report_id).is_("deleted_at", None).execute()
+        report_resp = supabase.table("reports").select("user_id, title, status").eq("id", report_id).is_("deleted_at", "null").execute()
         report = getattr(report_resp, "data", [None])[0]
         if not report:
             print(f"❌ Report {report_id} not found")
@@ -466,7 +466,7 @@ def delete_report(report_id):
         user_role = user.get("role") if user else "Resident"
         
         # Fetch current report to get user_id and title
-        report_resp = supabase.table("reports").select("user_id, title").eq("id", report_id).is_("deleted_at", None).execute()
+        report_resp = supabase.table("reports").select("user_id, title").eq("id", report_id).is_("deleted_at", "null").execute()
         report = getattr(report_resp, "data", [None])[0]
         if not report:
             print(f"❌ Report {report_id} not found")

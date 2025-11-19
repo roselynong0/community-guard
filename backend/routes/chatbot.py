@@ -281,7 +281,7 @@ def search_knowledge_base(query):
 def get_all_reports():
     """Fetch all reports from database"""
     try:
-        response = supabase.table("reports").select("*").is_("deleted_at", None).execute()
+        response = supabase.table("reports").select("*").is_("deleted_at", "null").execute()
         return response.data if response.data else []
     except Exception as e:
         logger.error(f"Error fetching reports: {e}")
