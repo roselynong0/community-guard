@@ -1,10 +1,9 @@
 """
 Supabase Client Initialization
-Handles safe initialization with connection pooling and retry logic
+Handles safe initialization with retry logic
 """
 import os
-import httpx
-from supabase import ClientOptions, create_client
+from supabase import create_client
 from config import Config
 
 # Initialize Supabase client with proper error handling and connection pooling
@@ -14,34 +13,9 @@ try:
     if not Config.SUPABASE_URL or not Config.SUPABASE_KEY:
         raise ValueError("Missing SUPABASE_URL or SUPABASE_KEY environment variables")
     
-    # Create httpx client with connection pooling and timeout settings
-    http_client = httpx.Client(
-        timeout=httpx.Timeout(30.0, connect=10.0),  # 30s total, 10s connect
-        limits=httpx.Limits(
-            max_keepalive_connections=20,
-            max_connections=100,
-            keepalive_expiry=30.0
-        ),
-        http2=True,  # Enable HTTP/2 for better performance
-    )
-    
-    # Prepare client options so supabase-py receives a valid dataclass instead of a raw dict
-    client_options = ClientOptions(
-        httpx_client=http_client,
-        headers={
-            **ClientOptions().headers,
-            "apikey": Config.SUPABASE_KEY,
-            "Authorization": f"Bearer {Config.SUPABASE_KEY}"
-        }
-    )
-
-    # Create client with explicit configuration
-    supabase = create_client(
-        Config.SUPABASE_URL,
-        Config.SUPABASE_KEY,
-        options=client_options
-    )
-    print("✓ Supabase client initialized successfully with connection pooling")
+    # Create client with default settings (supabase-py manages httpx internally)
+    supabase = create_client(Config.SUPABASE_URL, Config.SUPABASE_KEY)
+    print("✓ Supabase client initialized successfully")
     
 except Exception as e:
     error_msg = str(e)

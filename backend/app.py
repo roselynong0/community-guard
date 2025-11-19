@@ -96,6 +96,7 @@ def create_app():
     print("✅ Registered: chatbot_bp at /api/chat")
 
     # ✅ Health check
+    @app.route("/")
     @app.route("/api/health")
     def health_check():
         return jsonify({"status": "ok", "message": "Community Guard API is running"}), 200
