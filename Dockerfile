@@ -50,15 +50,16 @@ EXPOSE 10000
 
 # Health check for Render
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-    CMD python -c "import requests; requests.get('http://localhost:10000/health', timeout=2)"
+    CMD python -c "import requests; requests.get('http://localhost:10000/', timeout=2)"
 
 # Start gunicorn with optimized worker configuration
 CMD ["gunicorn", \
      "--bind", "0.0.0.0:10000", \
      "--workers", "2", \
      "--threads", "2", \
-     "--worker-class", "sync", \
+     "--worker-class", "gthread", \
      "--timeout", "120", \
      "--access-logfile", "-", \
      "--error-logfile", "-", \
-     "backend.app:create_app()"]
+     "--chdir", "/app/backend", \
+     "app:app"]
