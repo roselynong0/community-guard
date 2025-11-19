@@ -4,9 +4,9 @@ Flask-CORS==4.0.0
 Flask-Caching==2.1.0
 Flask-Compress==1.15
 
-# Database - Simplified stable versions
-supabase==2.3.4
-httpx==0.23.3
+# Database - Flexible versions to let pip resolve dependencies
+supabase>=2.3.0,<3.0.0
+httpx>=0.23.0,<0.24.0
 
 # Authentication & Security
 bcrypt==4.1.3
