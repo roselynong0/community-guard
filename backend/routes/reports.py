@@ -58,8 +58,9 @@ def fetch_reports(limit=10, sort="desc", user_only=False, barangay_filter=False,
                 # Admins and Barangay Officials see all reports that are not rejected
                 query = query.eq("is_rejected", False)
             elif current_user_id:
-                # Regular users can see their own pending/rejected posts, and other approved posts
-                query = query.or_(f"user_id.eq.{current_user_id},and(is_approved.eq.True,is_rejected.eq.False)")
+                # Regular users see approved non-rejected reports (simplified for postgrest compatibility)
+                # TODO: Add own reports separately if needed
+                query = query.eq("is_approved", True).eq("is_rejected", False)
             else:
                 # Public/unauthenticated users only see approved and not rejected posts
                 query = query.eq("is_approved", True).eq("is_rejected", False)
