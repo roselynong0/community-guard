@@ -1,8 +1,10 @@
 import os
 import sys
+import re
 from flask import Flask, jsonify, send_from_directory
 from flask_caching import Cache
 from flask_compress import Compress
+from flask_cors import CORS
 from werkzeug.exceptions import HTTPException
 import traceback
 
@@ -38,10 +40,6 @@ def create_app():
     app.config.from_object(Config)
 
     # ✅ Enable CORS properly - Allow localhost dev and production URLs
-    from flask_cors import CORS
-    import re
-    
-    # Define allowed origins for both development and production
     def check_origin(origin):
         """Allow localhost and all Vercel deployment URLs"""
         if not origin:
@@ -54,14 +52,21 @@ def create_app():
             r'^https://community-guard-1\.onrender\.com$'
         ]
         
-        return any(re.match(pattern, origin) for pattern in allowed_patterns)
+        for pattern in allowed_patterns:
+            if re.match(pattern, origin):
+                print(f"✅ CORS: Allowed origin: {origin}")
+                return True
+        
+        print(f"❌ CORS: Blocked origin: {origin}")
+        return False
     
     CORS(
         app,
         origins=check_origin,
         supports_credentials=True,
         allow_headers=["Content-Type", "Authorization", "Accept"],
-        methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "HEAD"]
+        methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "HEAD"],
+        expose_headers=["Content-Type", "Authorization"]
     )
 
     # ✅ Optional caching + compression
