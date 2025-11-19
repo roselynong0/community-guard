@@ -41,23 +41,40 @@ def create_app():
     # ✅ Enable CORS - Use wildcard for Vercel subdomains
     from flask import request
     
+    from flask import make_response
+
+    def _is_allowed_origin(origin: str) -> bool:
+        if not origin:
+            return False
+        if origin.startswith('http://localhost:') or origin.startswith('http://127.0.0.1:'):
+            return True
+        if '.vercel.app' in origin and 'community-guard' in origin:
+            return True
+        if origin == 'https://community-guard-1.onrender.com':
+            return True
+        return False
+
+    @app.before_request
+    def handle_preflight():
+        # Respond to CORS preflight (OPTIONS) requests early with the proper headers
+        if request.method == 'OPTIONS':
+            origin = request.headers.get('Origin')
+            resp = make_response('', 200)
+            if _is_allowed_origin(origin):
+                resp.headers['Access-Control-Allow-Origin'] = origin
+                resp.headers['Access-Control-Allow-Credentials'] = 'true'
+            resp.headers['Access-Control-Allow-Headers'] = 'Content-Type,Authorization,Accept'
+            resp.headers['Access-Control-Allow-Methods'] = 'GET,POST,PUT,DELETE,OPTIONS,HEAD'
+            resp.headers['Access-Control-Expose-Headers'] = 'Content-Type,Authorization'
+            return resp
+
     @app.after_request
     def after_request(response):
         origin = request.headers.get('Origin')
-        if origin:
-            # Allow localhost with any port
-            if origin.startswith('http://localhost:') or origin.startswith('http://127.0.0.1:'):
-                response.headers['Access-Control-Allow-Origin'] = origin
-                response.headers['Access-Control-Allow-Credentials'] = 'true'
-            # Allow all Vercel deployments
-            elif '.vercel.app' in origin and 'community-guard' in origin:
-                response.headers['Access-Control-Allow-Origin'] = origin
-                response.headers['Access-Control-Allow-Credentials'] = 'true'
-            # Allow Render backend
-            elif origin == 'https://community-guard-1.onrender.com':
-                response.headers['Access-Control-Allow-Origin'] = origin
-                response.headers['Access-Control-Allow-Credentials'] = 'true'
-        
+        if origin and _is_allowed_origin(origin):
+            response.headers['Access-Control-Allow-Origin'] = origin
+            response.headers['Access-Control-Allow-Credentials'] = 'true'
+
         response.headers['Access-Control-Allow-Headers'] = 'Content-Type,Authorization,Accept'
         response.headers['Access-Control-Allow-Methods'] = 'GET,POST,PUT,DELETE,OPTIONS,HEAD'
         response.headers['Access-Control-Expose-Headers'] = 'Content-Type,Authorization'
