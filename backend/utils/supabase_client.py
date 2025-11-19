@@ -4,7 +4,7 @@ Handles safe initialization with connection pooling and retry logic
 """
 import os
 import httpx
-from supabase import create_client
+from supabase import ClientOptions, create_client
 from config import Config
 
 # Initialize Supabase client with proper error handling and connection pooling
@@ -25,15 +25,21 @@ try:
         http2=True,  # Enable HTTP/2 for better performance
     )
     
+    # Prepare client options so supabase-py receives a valid dataclass instead of a raw dict
+    client_options = ClientOptions(
+        httpx_client=http_client,
+        headers={
+            **ClientOptions().headers,
+            "apikey": Config.SUPABASE_KEY,
+            "Authorization": f"Bearer {Config.SUPABASE_KEY}"
+        }
+    )
+
     # Create client with explicit configuration
     supabase = create_client(
-        Config.SUPABASE_URL, 
+        Config.SUPABASE_URL,
         Config.SUPABASE_KEY,
-        options={
-            'postgrest': {
-                'client': http_client
-            }
-        }
+        options=client_options
     )
     print("✓ Supabase client initialized successfully with connection pooling")
     
