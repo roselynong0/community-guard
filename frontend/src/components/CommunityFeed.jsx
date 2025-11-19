@@ -3,6 +3,7 @@ import "./CommunityFeed.css";
 import "./Notifications.css";
 import { FaPaperPlane, FaUsers, FaTrash } from "react-icons/fa";
 import { getApiUrl, API_CONFIG } from "../utils/apiConfig";
+import LoadingScreen from "./LoadingScreen";
 
 // ✅ POST TYPES
 const POST_TYPES = ["incident", "safety", "suggestion", "recommendation", "general"];
@@ -61,16 +62,15 @@ const CommunityFeed = () => {
 
       if (response.ok) {
         const data = await response.json();
-        // Same pattern as Profile component - extract address_barangay from profile
         const barangay = data.profile?.address_barangay || data.address_barangay || "Barretto";
         setUserBarangay(barangay);
       } else {
         console.error("Error fetching user info:", response.statusText);
-        setUserBarangay("Barretto"); // Fallback
+        setUserBarangay("Barretto");
       }
     } catch (error) {
       console.error("Error fetching user info:", error);
-      setUserBarangay("Barretto"); // Fallback
+      setUserBarangay("Barretto");
     }
   };
 
@@ -91,7 +91,6 @@ const CommunityFeed = () => {
         params.append("post_type", postTypeFilter);
       }
 
-      // Append query string to the full URL returned by getApiUrl
       const response = await fetch(url + (params.toString() ? `?${params.toString()}` : ''), {
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
       });
@@ -126,71 +125,43 @@ const CommunityFeed = () => {
         const data = await response.json();
         setPosts((prev) => [data.post, ...prev]);
 
-        setNotification({
-          type: "success",
-          message: "✅ Post published successfully!",
-        });
-        
-        // Clear saved form data on success
+        setNotification({ type: "success", message: "✅ Post published successfully!" });
         localStorage.removeItem("postFormDraft");
         setOpenModal(false);
         return true;
       } else {
         const error = await response.json();
-        
-        // ✅ Save form data for recovery on error
         localStorage.setItem("postFormDraft", JSON.stringify(newPost));
-        
-        setNotification({
-          type: "error",
-          message: `❌ Error: ${error.message}`,
-        });
+        setNotification({ type: "error", message: `❌ Error: ${error.message}` });
         return false;
       }
     } catch (error) {
       console.error("Error creating post:", error);
-      
-      // ✅ Save form data for recovery on error
       localStorage.setItem("postFormDraft", JSON.stringify(newPost));
-      
-      setNotification({
-        type: "error",
-        message: "❌ Failed to create post",
-      });
+      setNotification({ type: "error", message: "❌ Failed to create post" });
       return false;
+    } finally {
+      setTimeout(() => setNotification(null), 3000);
     }
-
-    setTimeout(() => setNotification(null), 3000);
   };
 
   const handleDeletePost = async (postId) => {
     if (!window.confirm("Are you sure you want to delete this post?")) return;
-
     try {
       const token = localStorage.getItem("token");
       const response = await fetch(getApiUrl(`/api/community/posts/${postId}`), {
         method: "DELETE",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
       });
-
       if (response.ok) {
         setPosts((prev) => prev.filter((p) => p.id !== postId));
-        setNotification({
-          type: "success",
-          message: "✅ Post deleted successfully!",
-        });
+        setNotification({ type: "success", message: "✅ Post deleted successfully!" });
       } else {
-        setNotification({
-          type: "error",
-          message: "❌ Failed to delete post",
-        });
+        setNotification({ type: "error", message: "❌ Failed to delete post" });
       }
     } catch (error) {
       console.error("Error deleting post:", error);
-      setNotification({
-        type: "error",
-        message: "❌ Failed to delete post",
-      });
+      setNotification({ type: "error", message: "❌ Failed to delete post" });
     } finally {
       setTimeout(() => setNotification(null), 3000);
     }
@@ -198,7 +169,6 @@ const CommunityFeed = () => {
 
   const handleAddComment = async (postId, commentText) => {
     if (!commentText.trim()) return;
-
     try {
       const token = localStorage.getItem("token");
       const response = await fetch(getApiUrl(`/api/community/posts/${postId}/comments`), {
@@ -206,50 +176,35 @@ const CommunityFeed = () => {
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
         body: JSON.stringify({ content: commentText }),
       });
-
       if (response.ok) {
-        fetchPosts(); // Refresh posts to show new comment
-        setNotification({
-          type: "success",
-          message: "✅ Comment added!",
-        });
+        fetchPosts();
+        setNotification({ type: "success", message: "✅ Comment added!" });
       } else {
         const error = await response.json();
-        setNotification({
-          type: "error",
-          message: `❌ ${error.message}`,
-        });
+        setNotification({ type: "error", message: `❌ ${error.message}` });
       }
     } catch (error) {
       console.error("Error adding comment:", error);
-      setNotification({
-        type: "error",
-        message: "❌ Failed to add comment",
-      });
+      setNotification({ type: "error", message: "❌ Failed to add comment" });
+    } finally {
+      setTimeout(() => setNotification(null), 2000);
     }
-
-    setTimeout(() => setNotification(null), 2000);
   };
 
   const handleDeleteComment = async (postId, commentId) => {
     if (!window.confirm("Delete this comment?")) return;
-
     try {
       const token = localStorage.getItem("token");
       const response = await fetch(getApiUrl(`/api/community/comments/${commentId}`), {
         method: "DELETE",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
       });
-
-      if (response.ok) {
-        fetchPosts(); // Refresh to show updated comments
-      }
+      if (response.ok) fetchPosts();
     } catch (error) {
       console.error("Error deleting comment:", error);
     }
   };
 
-  // ✅ FILTER POSTS
   const filteredPosts = posts.filter((p) => {
     const text = searchTerm.toLowerCase();
     const authorName = p.author?.firstname + " " + p.author?.lastname;
@@ -260,53 +215,21 @@ const CommunityFeed = () => {
     );
   });
 
-  return (
+  const main = (
     <div className="feed-container">
-      {notification && (
-        <div className={`notif notif-${notification.type}`}>
-          {notification.message}
-        </div>
-      )}
-
+      {notification && <div className={`notif notif-${notification.type}`}>{notification.message}</div>}
       <div className="feed-header">
-        <h2 className="feed-title">
-          <FaUsers className="feed-icon" />
-          Community Feed
-        </h2>
-
-        {/* ✅ SEARCH + NEW POST ROW */}
+        <h2 className="feed-title"><FaUsers className="feed-icon" /> Community Feed</h2>
         <div className="header-actions">
-          <input
-            className="feed-search"
-            type="text"
-            placeholder="Search post or user..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-          />
-
-          <button className="feed-btn" onClick={() => setOpenModal(true)}>
-            + New Post
-          </button>
+          <input className="feed-search" type="text" placeholder="Search post or user..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
+          <button className="feed-btn" onClick={() => setOpenModal(true)}>+ New Post</button>
         </div>
-
-        {/* ✅ FILTERS ROW */}
         <div className="feed-filters">
-          <select
-            className="feed-filter-select"
-            value={barangayFilter}
-            onChange={(e) => setBarangayFilter(e.target.value)}
-          >
+          <select className="feed-filter-select" value={barangayFilter} onChange={(e) => setBarangayFilter(e.target.value)}>
             <option value="All">All Barangays</option>
-            {BARANGAYS.map((b) => (
-              <option key={b} value={b}>{b}</option>
-            ))}
+            {BARANGAYS.map((b) => <option key={b} value={b}>{b}</option>)}
           </select>
-
-          <select
-            className="feed-filter-select"
-            value={postTypeFilter}
-            onChange={(e) => setPostTypeFilter(e.target.value)}
-          >
+          <select className="feed-filter-select" value={postTypeFilter} onChange={(e) => setPostTypeFilter(e.target.value)}>
             <option value="all">All Types</option>
             <option value="incident">Incident</option>
             <option value="safety">Safety</option>
@@ -316,37 +239,30 @@ const CommunityFeed = () => {
           </select>
         </div>
       </div>
-
       <div className="feed-list">
         {loading ? (
-          <div className="feed-loading">
-            <div className="spinner" />
-            <p>Loading posts...</p>
-          </div>
+          <div className="feed-loading"><div className="spinner" /><p>Loading posts...</p></div>
         ) : (
-          <> 
+          <>
             {filteredPosts.length === 0 && <p>No posts found.</p>}
-
             {filteredPosts.map((post) => (
-              <PostCard
-                key={post.id}
-                post={post}
-                onAddComment={handleAddComment}
-                onDeleteComment={handleDeleteComment}
-                onDeletePost={handleDeletePost}
-              />
+              <PostCard key={post.id} post={post} onAddComment={handleAddComment} onDeleteComment={handleDeleteComment} onDeletePost={handleDeletePost} />
             ))}
           </>
         )}
       </div>
-
-      {openModal && (
-        <PostModal onClose={() => setOpenModal(false)} onSubmit={handleNewPost} userBarangay={userBarangay} />
-      )}
+      {openModal && <PostModal onClose={() => setOpenModal(false)} onSubmit={handleNewPost} userBarangay={userBarangay} />}
     </div>
   );
-};
 
+  if (loading) {
+    return (
+      <LoadingScreen variant="inline" title="Loading posts...">{main}</LoadingScreen>
+    );
+  }
+
+  return main;
+};
 
 // ✅ POST CARD
 const PostCard = ({ post, onAddComment, onDeleteComment, onDeletePost }) => {
@@ -450,7 +366,7 @@ const PostCard = ({ post, onAddComment, onDeleteComment, onDeletePost }) => {
         </div>
       )}
 
-      {showComments && post.status === 'approved' && post.allow_comments && (
+      {showComments && (
         <div className="comments-box">
           <div className="comments-scroll">
             {(post.comments ?? []).map((c) => (

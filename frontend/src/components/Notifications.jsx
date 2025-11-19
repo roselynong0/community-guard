@@ -16,6 +16,7 @@ import {
 import { getApiUrl } from "../utils/apiConfig";
 
 // Use getApiUrl for consistent base URL resolution
+import LoadingScreen from "./LoadingScreen";
 
 
 const getFinalNotificationType = (n) => {
@@ -211,7 +212,7 @@ export default function Notifications({ session, token }) {
   }
 
 
-  return (
+  const mainContent = (
     <div className="notifications-container">
       <div className="notifications-header">
         <div className="left">
@@ -251,7 +252,6 @@ export default function Notifications({ session, token }) {
             disabled={loading || unreadCount === 0}
             title="Mark all as read"
           >
-            {/* React Icon: FaCheckDouble */}
             <FaCheckDouble className="icon" /> 
             <span className="btn-text">Mark All Read</span>
           </button>
@@ -261,7 +261,6 @@ export default function Notifications({ session, token }) {
             disabled={loading}
             title="Refresh notifications"
           >
-            {/* React Icon: FaSync */}
             <FaSync className="icon" />
             <span className="btn-text">Refresh</span>
           </button>
@@ -285,40 +284,30 @@ export default function Notifications({ session, token }) {
         <ul className="notifications-list" role="list">
           {visible.map((n) => (
             <li key={n.id} className={`notification-item ${n.read ? "read" : "unread"}`}>
-              {/* Notification Icon */}
               <div className="notif-icon-container">
                 {getNotificationIcon(n.type)}
               </div>
-
-              {/* Notification Content */}
               <div className="notif-details">
                 <p className="notif-message">
                   <strong>{n.title}</strong>: {n.message}
                 </p>
                 <p className="notif-time">{formatTime(n.created_at)}</p>
               </div>
-
-              {/* Actions Button Group */}
               <div className="notification-actions">
-                {/* Mark Read button */}
                 {!n.read && (
                   <button 
                     className="btn-action mark-read-btn" 
                     onClick={() => markRead(n.id)}
                     title="Mark as Read"
                   >
-                    {/* React Icon: FaCheck */}
                     <FaCheck />
                   </button>
                 )}
-                
-                {/* Delete button */}
                 <button 
                   className="btn-action delete-notif-btn" 
                   onClick={() => deleteNotification(n.id)}
                   title="Delete Notification"
                 >
-                    {/* React Icon: FaTrashAlt */}
                     <FaTrashAlt />
                 </button>
               </div>
@@ -335,4 +324,14 @@ export default function Notifications({ session, token }) {
       )}
     </div>
   );
+
+  if (loading) {
+    return (
+      <LoadingScreen variant="inline" title="Loading notifications...">
+        {mainContent}
+      </LoadingScreen>
+    );
+  }
+
+  return mainContent;
 }

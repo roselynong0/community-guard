@@ -181,6 +181,11 @@ h3 {
   border: 1px solid #f1f5f9;
 }
 
+/* About card styles (complementary to AboutHomeCard.css) */
+.about-card {
+  margin-top: 1rem;
+}
+
 .map-placeholder {
   height: 350px;
   background: #f0f0f0;

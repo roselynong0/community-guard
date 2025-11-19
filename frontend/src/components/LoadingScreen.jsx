@@ -1,17 +1,22 @@
 import React, { useEffect, useMemo, useState } from "react";
+import { FaCheckCircle } from "react-icons/fa";
 import "./LoadingScreen.css";
 import logo from "../assets/logo.png";
 
-/**
- * LoadingScreen
- * Props:
- * - title: string (e.g., "Welcome back, Resident!")
- * - subtitle: string (additional line under the title)
- * - features: Array<{ title: string, description: string }>
- * - cycleMs: number (defaults to 3000)
- */
-function LoadingScreen({ title, subtitle, features = [], cycleMs = 3000, stage = 'loading' }) {
-  // Pair features into twos for alternating display
+function LoadingScreen({
+  title,
+  subtitle,
+  features = [],
+  cycleMs = 3000,
+  stage = "loading",
+  variant = "fullscreen",
+  children,
+  onExited,
+  inlineOffset,
+  inlineCenterScreen = false,
+  successTitle = "Dashboard Complete!",
+  successDuration = 700,
+}) {
   const pairs = useMemo(() => {
     if (!features.length) return [];
     const result = [];
@@ -22,11 +27,47 @@ function LoadingScreen({ title, subtitle, features = [], cycleMs = 3000, stage =
   }, [features]);
 
   const [pairIndex, setPairIndex] = useState(0);
-  // cycleTick forces re-mount/re-animation of the same pair
   const [cycleTick, setCycleTick] = useState(0);
+  const [inlineIndex, setInlineIndex] = useState(0);
+  const EXIT_ANIMATION_MS = 420;
+  const [showOverlay, setShowOverlay] = useState(stage !== "exit");
+  const [showSuccess, setShowSuccess] = useState(false);
+  const [animatingExit, setAnimatingExit] = useState(false);
 
   useEffect(() => {
-    // We always tick so that single-pair displays can re-run animations.
+    let tSuccess;
+    let tExit;
+
+    if (stage === "loading") {
+      setShowOverlay(true);
+      setShowSuccess(false);
+      setAnimatingExit(false);
+    } else if (stage === "exit") {
+      setShowSuccess(true);
+
+      tSuccess = setTimeout(() => {
+        // start the exit animation phase but keep the success visuals
+        // visible during the exit animation so we don't flash back to
+        // the logo/loading content.
+        setAnimatingExit(true);
+
+        tExit = setTimeout(() => {
+          setAnimatingExit(false);
+          // now hide overlay and success state
+          setShowSuccess(false);
+          setShowOverlay(false);
+          if (typeof onExited === "function") onExited();
+        }, EXIT_ANIMATION_MS);
+      }, typeof successDuration === 'number' ? successDuration : 700);
+    }
+
+    return () => {
+      if (tSuccess) clearTimeout(tSuccess);
+      if (tExit) clearTimeout(tExit);
+    };
+  }, [stage, onExited, successDuration]);
+
+  useEffect(() => {
     const id = setInterval(() => {
       if (pairs.length > 1) {
         setPairIndex((i) => (i + 1) % pairs.length);
@@ -36,11 +77,20 @@ function LoadingScreen({ title, subtitle, features = [], cycleMs = 3000, stage =
     return () => clearInterval(id);
   }, [pairs, cycleMs]);
 
+  useEffect(() => {
+    if (!features || features.length === 0) return undefined;
+    const id = setInterval(() => {
+      setInlineIndex((i) => (i + 1) % features.length);
+      setCycleTick((t) => t + 1);
+    }, cycleMs);
+    return () => clearInterval(id);
+  }, [features, cycleMs]);
+
   const activePair = pairs[pairIndex] || [];
 
-  const rootClass = `loading-screen ${stage === 'exit' ? 'exit' : ''}`;
+  const rootClass = `loading-screen ${stage === "exit" || animatingExit ? "exit" : ""} ${showSuccess ? 'success' : ''}`;
 
-  return (
+  const fullscreen = (
     <div className={rootClass} role="status" aria-live="polite">
       <div className="loading-backdrop" />
       <div className="loading-content">
@@ -69,6 +119,81 @@ function LoadingScreen({ title, subtitle, features = [], cycleMs = 3000, stage =
       </div>
     </div>
   );
+
+  const inlineWrapper = (
+    <div className="loading-inline-container">
+      <div className={`loading-inline-children ${stage === "exit" && showOverlay ? "loading-paused" : ""}`}>{children}</div>
+
+      {/* Overlay covering only the component area. */}
+      {showOverlay && (
+        <div
+          className={`loading-inline-overlay ${inlineCenterScreen ? 'center-viewport' : ''} ${animatingExit ? "exit" : ""}`}
+          role="status"
+          aria-live="polite"
+          style={
+            inlineCenterScreen
+              ? Object.assign(
+                  {
+                    position: "fixed",
+                    inset: 0,
+                    display: "flex",
+                    justifyContent: "center",
+                    alignItems: "center",
+                    pointerEvents: "auto",
+                  },
+                  inlineOffset ? { ["--loading-inline-vertical-offset"]: inlineOffset } : {}
+                )
+              : inlineOffset
+              ? { ["--loading-inline-padding-top"]: inlineOffset }
+              : undefined
+          }
+        >
+          <div className={`loading-inline-card ${showSuccess ? 'success' : ''}`}>
+            <div className="logo-holder">
+              <img src={logo} className="loading-inline-logo" alt="Community Guard" />
+              {showSuccess && (
+                <div className="success-icon" aria-hidden>
+                  <FaCheckCircle />
+                </div>
+              )}
+            </div>
+
+            {showSuccess ? (
+              <div className="loading-inline-title">{successTitle || 'Dashboard Complete!'}</div>
+            ) : (
+              title && <div className="loading-inline-title">{title}</div>
+            )}
+
+            {/* If features were provided, render a single compact card that switches (inline mode) */}
+            {features && features.length > 0 && (
+              <div className="loading-cards inline">
+                {(() => {
+                  const card = features[inlineIndex];
+                  return (
+                    <div
+                      key={`${inlineIndex}-${cycleTick}-${card.title || inlineIndex}`}
+                      className={`loading-card from-left`}
+                      style={{ animationDelay: `0ms` }}
+                    >
+                      <div className="loading-card-title">{card.title}</div>
+                      <div className="loading-card-desc">{card.description}</div>
+                    </div>
+                  );
+                })()}
+              </div>
+            )}
+
+            <div className="loading-progress slim">
+              <div className="loading-bar" />
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+
+  if (variant === "inline") return inlineWrapper;
+  return showOverlay ? fullscreen : null;
 }
 
 export default LoadingScreen;

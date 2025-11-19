@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { FaEdit, FaSignOutAlt, FaTrashAlt, FaCheckCircle, FaTimesCircle, FaUserCheck } from "react-icons/fa";
 import "./Profile.css"; // Ensure this file contains the new CSS
 import "./Notifications.css"; // This is the file with the notif classes
+import LoadingScreen from "./LoadingScreen";
 import DatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css"
 import { format, parseISO } from "date-fns";
@@ -282,17 +283,8 @@ function Profile({ token }) {
         }
     };
 
-    // Filter reports for the logged-in user
-    if (isLoading) return (
-        <div className="loading-container">
-            <div className="spinner"></div>
-            <p>Loading profile...</p>
-        </div>
-    );
-
-    if (!user) return <p className="error-message">Failed to load profile or unauthorized.</p>;
-
-    return (
+    // Prepare main page content then conditionally show inline loader
+    const mainContent = (
         <div className="profile-page">
             {/* MODIFIED: Adjusted notification JSX to use provided CSS classes */}
             {notifications.map((notif) => (
@@ -331,23 +323,19 @@ function Profile({ token }) {
                                 )}
                             </span>
                         </div>
-                    </div>
-                </div>
-                
-                {/* Move profile actions lower with horizontal alignment */}
-                <div className="profile-header-actions" style={{ marginTop: "15px" }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: "8px", justifyContent: "flex-start" }}>
-                        <label className="upload-btn">
-                            Change Photo
-                            <input type="file" accept="image/*" onChange={handlePicUpload} hidden />
-                        </label>
-                        <button
-                            className="icon-btn trash-btn"
-                            onClick={() => setShowDeleteAccount(true)}
-                            title="Delete Account"
-                        >
-                            <FaTrashAlt />
-                        </button>
+                        <div className="profile-header-actions">
+                            <label className="change-photo">
+                                Change Photo
+                                <input type="file" accept="image/*" onChange={handlePicUpload} hidden />
+                            </label>
+                            <button
+                                className="icon-btn trash-btn"
+                                onClick={() => setShowDeleteAccount(true)}
+                                title="Delete Account"
+                            >
+                                <FaTrashAlt />
+                            </button>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -576,6 +564,18 @@ function Profile({ token }) {
             )}
         </div>
     );
+
+    if (isLoading) {
+        return (
+            <LoadingScreen variant="inline" title="Loading profile...">
+                {mainContent}
+            </LoadingScreen>
+        );
+    }
+
+    if (!user) return <p className="error-message">Failed to load profile or unauthorized.</p>;
+
+    return mainContent;
 }
 
 export default Profile;

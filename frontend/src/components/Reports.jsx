@@ -7,6 +7,7 @@ import AICategorySelector from "./AICategorySelector";
 import "leaflet/dist/leaflet.css";
 import L from "leaflet";
 import "./Reports.css";
+import LoadingScreen from "./LoadingScreen";
 import markerIcon2x from "leaflet/dist/images/marker-icon-2x.png";
 import markerIcon from "leaflet/dist/images/marker-icon.png";
 import markerShadow from "leaflet/dist/images/marker-shadow.png";
@@ -155,6 +156,56 @@ function Reports({ session }) {
   const [rejectionModalOpen, setRejectionModalOpen] = useState(false);
   const [rejectionReason, setRejectionReason] = useState(null);
 
+  // Persistent error state (shows a non-transient message like Home.jsx)
+  const [error, setError] = useState(null);
+
+  // Overlay exited state for inline loading exit animation (matches Home.jsx behavior)
+  const [overlayExited, setOverlayExited] = useState(false);
+
+  // Mount animation: show a short cinematic opening when the page isn't already loading
+  const [showMountAnimation, setShowMountAnimation] = useState(false);
+  const [mountStage, setMountStage] = useState("exit");
+  const loadingRef = useRef(loading);
+
+  useEffect(() => {
+    loadingRef.current = loading;
+  }, [loading]);
+
+  // Start a cinematic mount animation only if a real loading fetch is not already running.
+  // We wait a short delay so that if `fetchReports` triggers quickly (setting `loading` to true)
+  // we won't display the cinematic overlay and instead show the real loading state.
+  useEffect(() => {
+    let startTimer = null;
+    let exitTimer = null;
+
+    if (!loadingRef.current) {
+      startTimer = setTimeout(() => {
+        // If a fetch started while waiting, skip mount animation
+        if (loadingRef.current) return;
+        setShowMountAnimation(true);
+        setMountStage("loading");
+
+        // After a short display, transition to exit to play the exit animation
+        exitTimer = setTimeout(() => {
+          setMountStage("exit");
+        }, 700);
+      }, 180);
+    }
+
+    return () => {
+      if (startTimer) clearTimeout(startTimer);
+      if (exitTimer) clearTimeout(exitTimer);
+    };
+    // Run on mount only
+  }, []);
+
+  // If a real loading starts while the mount animation is visible, cancel the cinematic
+  useEffect(() => {
+    if (loading) {
+      setShowMountAnimation(false);
+    }
+  }, [loading]);
+
   // ⭐ REFS for Modals (already existed)
   const modalRef = useRef(null);
   const focusableElementsRef = useRef([]);
@@ -227,6 +278,9 @@ function Reports({ session }) {
   // ✅ Fetch reports
   const fetchReports = useCallback(async () => {
     if (!token) return;
+    // Reset overlay exit flag when starting a new loading cycle
+    setOverlayExited(false);
+    setError(null);
     setLoading(true);
     try {
       const res = await axios.get(
@@ -246,6 +300,7 @@ function Reports({ session }) {
       }
     } catch (err) {
       console.error("Error fetching reports:", err);
+      setError("Failed to load reports");
       if (err.code === 'ECONNABORTED') {
         showNotification("Request timed out - please try again", "error");
       } else if (err.response?.status >= 500) {
@@ -648,13 +703,15 @@ function Reports({ session }) {
     }
   }, [reports]); // Depend on reports so it runs after reports are loaded
 
-  return (
-    <div className="reports-container">
+  const mainContent = (
+    <div className={`reports-container ${overlayExited ? 'overlay-exited' : ''}`}>
       {notification && (
         <div className={`notif notif-${notification.type}`}>
           {notification.message}
         </div>
       )}
+
+      {error && <p className="error">{error}</p>}
 
       {/* Header */}
       <div className="header-row">
@@ -759,14 +816,6 @@ function Reports({ session }) {
       </div>
 
       {/* Loading Indicator */}
-      {loading && (
-        <div className="loading-overlay">
-          {" "}
-          <div className="reports-spinner" /> <p>Loading reports...</p>{" "}
-        </div>
-      )}
-
-      {/* Reports List */}
       <div className="reports-list">
         {!loading && filteredReports.length > 0 ? (
           filteredReports.map((report) => {
@@ -1412,6 +1461,57 @@ function Reports({ session }) {
         </div>
       )}
     </div>
+  );
+
+  const loadingFeatures = [
+    {
+      title: "Incident Reporting",
+      description:
+        "Submit safety incidents with location, photos, and details.",
+    },
+    {
+      title: "Report Tracking",
+      description:
+        "Monitor the status and updates of your submitted reports.",
+    },
+    {
+      title: "Nearby Incidents",
+      description:
+        "View real-time incidents around your area on the map.",
+    },
+    {
+      title: "Barangay Reports",
+      description:
+        "Browse and monitor barangay-level reports.",
+    },
+    {
+      title: "Report Notifications",
+      description:
+        "Receive alerts for report progress, approvals, and community updates.",
+    },
+  ];
+
+  const effectiveStage = showMountAnimation ? mountStage : (loading ? "loading" : "exit");
+
+  const handleLoadingExited = () => {
+    // When the overlay has exited, mark overlayExited so the UI can animate content in.
+    setShowMountAnimation(false);
+    setOverlayExited(true);
+  };
+
+  return (
+    <LoadingScreen
+      variant="inline"
+      features={loadingFeatures}
+      title={loading ? "Loading reports..." : undefined}
+      subtitle={loading ? "Fetching latest reports and resources" : undefined}
+      stage={effectiveStage}
+      onExited={handleLoadingExited}
+      inlineOffset="25vh"
+      successDuration={900}
+    >
+      {mainContent}
+    </LoadingScreen>
   );
 }
 

@@ -57,9 +57,8 @@ def token_required(f):
     """Decorator for routes requiring session token"""
     @wraps(f)
     def decorated(*args, **kwargs):
-        # Handle OPTIONS preflight requests without requiring token
         if request.method == "OPTIONS":
-            return jsonify({}), 200
+            return f(*args, **kwargs)
         auth_header = request.headers.get("Authorization", "")
         if not auth_header:
             return jsonify({"status": "error", "message": "Authorization header required"}), 401
@@ -126,17 +125,6 @@ def token_required(f):
         # Attach user_id and session
         request.user_id = session["user_id"]
         request.session = session
-
-        # Also fetch the application user row from the `users` table and attach it
-        # This ensures downstream routes read from your app's users table (not gotrue/auth table)
-        try:
-            user_resp = supabase.table("users").select("id, firstname, lastname, email, isverified, avatar_url, role, onpremium").eq("id", request.user_id).execute()
-            user_rows = getattr(user_resp, "data", []) or []
-            request.user_record = user_rows[0] if user_rows else None
-        except Exception as e:
-            # Non-fatal: keep going without user_record but log for diagnostics
-            print(f"⚠️ Failed to fetch user record for user_id {request.user_id}: {e}")
-            request.user_record = None
 
         return f(*args, **kwargs)
     return decorated

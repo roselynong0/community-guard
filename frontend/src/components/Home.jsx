@@ -14,6 +14,7 @@ import {
   Legend,
 } from "recharts";
 import MapView from "../components/Mapview";
+import LoadingScreen from "./LoadingScreen";
 import { API_CONFIG, getApiUrl } from "../utils/apiConfig";
 import "./Home.css";
 
@@ -72,9 +73,7 @@ function Home({ token, session }) {
   const [categoryData, setCategoryData] = useState([{ name: "No Data", value: 1, color: "#ccc" }]); 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  // const [selectedBarangay, setSelectedBarangay] = useState("all");
-  // const [barangayOptions, setBarangayOptions] = useState([]);
-
+  const [overlayExited, setOverlayExited] = useState(false);
   const getCategoryColor = useCallback((categoryName) => {
     return CATEGORY_COLORS[categoryName] || CATEGORY_COLORS.default;
   }, []);
@@ -85,14 +84,13 @@ function Home({ token, session }) {
 
     const fetchData = async () => {
       setLoading(true);
+      // Reset overlay exited flag when a new loading cycle starts
+      setOverlayExited(false);
       setError(null);
       try {
-        // 1. Fetch dashboard stats
-        // Barangay filtering temporarily disabled
         const statsEndpoint = getApiUrl(API_CONFIG.endpoints.stats);
         const statsRes = await fetchWithToken(statsEndpoint, token);
         if (statsRes.status === "success") {
-          // Both admin and users show "Community Reports"
           setStats([
             { title: "Community Reports", value: statsRes.totalReports || 0, icon: <FaExclamationTriangle />, color: "#2d2d73" },
             { title: "Ongoing Cases", value: statsRes.ongoing || 0, icon: <FaSyncAlt />, color: "#f40014ff" },
@@ -101,35 +99,18 @@ function Home({ token, session }) {
           ]);
         }
 
-        // 2. Fetch barangay options for admin - Currently disabled
-        /* if (isAdmin) {
-          try {
-            const barangayRes = await fetchWithToken("http://localhost:5000/api/barangays", token);
-            if (barangayRes.status === "success") {
-              setBarangayOptions([{ value: "all", label: "All Barangays" }, ...barangayRes.barangays]);
-            }
-          } catch (err) {
-            console.error("Failed to fetch barangays:", err);
-          }
-        } */
-
-        // 3. Fetch reports by category data
-        // For users and admins: get all categories (barangay filtering disabled)
         const categoryEndpoint = getApiUrl(API_CONFIG.endpoints.reports + `/categories?filter=all`);
         const categoryRes = await fetchWithToken(categoryEndpoint, token);
         if (categoryRes.status === "success" && categoryRes.data && categoryRes.data.length > 0) {
-          // Map data to include colors
           const formattedCategoryData = categoryRes.data.map(item => ({
             ...item,
             color: getCategoryColor(item.name),
           }));
           setCategoryData(formattedCategoryData);
         } else {
-            // Handle case with no category data
             setCategoryData([{ name: "No Data", value: 1, color: "#ccc" }]);
         }
 
-        // 4. Fetch recent reports - all reports for everyone (barangay filtering disabled)
         const reportsEndpoint = getApiUrl(API_CONFIG.endpoints.reports + `?limit=5&sort=desc&filter=all`);
         const recentRes = await fetchWithToken(reportsEndpoint, token);
         setRecentReports(recentRes.status === "success" ? recentRes.reports : []);
@@ -137,7 +118,6 @@ function Home({ token, session }) {
       } catch (err) {
         console.error("Dashboard fetch error:", err);
         setError("Failed to load dashboard");
-        // Reset to initial state on error
         setStats([
           { title: "Total Reports", value: 0, icon: <FaExclamationTriangle />, color: "#2d2d73" },
           { title: "Ongoing Cases", value: 0, icon: <FaSyncAlt />, color: "#f40014ff" },
@@ -156,59 +136,32 @@ function Home({ token, session }) {
     fetchData();
   }, [token, session?.user?.role, getCategoryColor]);
 
-  if (loading) {
-    return (
-      <div className="loading-overlay">
-        <div className="spinner"></div>
-        <p>Loading dashboard...</p>
-      </div>
-    );
-  }
+  const loadingFeatures = [
+    {
+      title: "Dashboard Overview",
+      description:
+        "Dashboard allows you to view recent reports and monitor ongoing cases.",
+    },
+    {
+      title: "Community Map",
+      description:
+        "The map show the Communities' location of Olongapo City.",
+    },
+  ];
 
   const handleReportClick = (reportId) => {
-    // Navigate based on user role
     const isAdmin = session?.user?.role === "Admin";
     
     if (isAdmin) {
-      // Admin goes to admin reports page with report highlighted
       window.location.href = `/admin/reports?highlight=${reportId}`;
     } else {
-      // Regular users go to reports page with report highlighted
       window.location.href = `/reports?highlight=${reportId}`;
     }
   };
 
-  return (
-    <div className="dashboard">
+  const content = (
+    <div className={`dashboard ${overlayExited ? 'overlay-exited' : ''}`}>
       {error && <p className="error">{error}</p>}
-
-      {/* Barangay Filter for Admin - Currently Hidden 
-      {session?.user?.role === "Admin" && (
-        <div className="barangay-filter" style={{ marginBottom: "1rem" }}>
-          <label htmlFor="barangay-select" style={{ marginRight: "0.5rem", fontWeight: "500" }}>
-            Filter by Barangay:
-          </label>
-          <select
-            id="barangay-select"
-            value={selectedBarangay}
-            onChange={(e) => setSelectedBarangay(e.target.value)}
-            style={{
-              padding: "0.5rem",
-              borderRadius: "6px",
-              border: "1px solid #ddd",
-              backgroundColor: "white",
-              minWidth: "200px"
-            }}
-          >
-            {barangayOptions.map(option => (
-              <option key={option.value} value={option.value}>
-                {option.label}
-              </option>
-            ))}
-          </select>
-        </div>
-      )}
-      */}
 
       <div className="stats-grid">
         {stats.map((stat, i) => (
@@ -227,7 +180,6 @@ function Home({ token, session }) {
           </div>
         ))}
       </div>
-
       <div className="middle-grid animate-up" style={{ animationDelay: "0.2s" }}>
         <div className="recent-reports animate-up" style={{ animationDelay: "0.3s" }}>
           <h3>Recent Reports</h3>
@@ -275,7 +227,7 @@ function Home({ token, session }) {
           <div className="chart-container">
             <ResponsiveContainer width="100%" height="100%">
               <PieChart>
-                <Pie data={categoryData} cx="50%" cy="50%" labelLine={false} outerRadius="70%" dataKey="value" nameKey="name"> {/* Added nameKey */}
+                <Pie data={categoryData} cx="50%" cy="50%" labelLine={false} outerRadius="70%" dataKey="value" nameKey="name">
                   {categoryData.map((entry, index) => (
                     <Cell key={`cell-${index}`} fill={entry.color} />
                   ))}
@@ -295,6 +247,20 @@ function Home({ token, session }) {
         </div>
       </div>
     </div>
+  );
+
+  return (
+    <LoadingScreen
+      variant="inline"
+      features={loadingFeatures}
+      title={loading ? "Loading dashboard..." : undefined}
+      subtitle={loading ? "Fetching latest stats and reports" : undefined}
+      stage={loading ? "loading" : "exit"}
+      onExited={() => setOverlayExited(true)}
+      inlineOffset="25vh"
+    >
+      {content}
+    </LoadingScreen>
   );
 }
 

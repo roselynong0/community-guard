@@ -13,6 +13,7 @@ import "./Maps.css";
 import "leaflet/dist/leaflet.css";
 
 import { getApiUrl } from "../utils/apiConfig";
+import LoadingScreen from "./LoadingScreen";
 
 // Build endpoints with getApiUrl so VITE_API_URL is used in prod and localhost in dev
 const OLONGAPO_CENTER = [14.8291, 120.2829];
@@ -172,7 +173,7 @@ function Maps({ session, userRole }) {
     ? reports 
     : reports.filter(r => r.address_barangay === selectedBarangay);
 
-  return (
+  const content = (
     <div className="maps-page">
       <h2>Olongapo City Reports Map</h2>
       <p>View all community reports across the city. Click on colored markers to view report details.</p>
@@ -398,26 +399,19 @@ function Maps({ session, userRole }) {
           </div>
         )}
 
-        {/* Loading Overlay */}
-        {loading && (
-          <div style={{
-            position: 'absolute',
-            top: '50%',
-            left: '50%',
-            transform: 'translate(-50%, -50%)',
-            backgroundColor: 'rgba(255,255,255,0.95)',
-            borderRadius: '8px',
-            padding: '32px',
-            textAlign: 'center',
-            zIndex: 1001
-          }}>
-            <div style={{ width: '40px', height: '40px', border: '4px solid #e5e7eb', borderTop: '4px solid #2563eb', borderRadius: '50%', animation: 'spin 1s linear infinite', margin: '0 auto 16px' }}></div>
-            <p style={{ margin: '0', fontSize: '14px', color: '#666' }}>Loading map reports...</p>
-          </div>
-        )}
       </div>
     </div>
   );
+
+  if (loading) {
+    return (
+      <LoadingScreen variant="inline" title="Loading map reports...">
+        {content}
+      </LoadingScreen>
+    );
+  }
+
+  return content;
 }
 
 export default Maps;
