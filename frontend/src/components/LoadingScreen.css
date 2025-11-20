@@ -3,7 +3,7 @@
   inset: 0;
   display: grid;
   place-items: center;
-  z-index: 9999;
+  z-index: 10;
   overflow: hidden;
   background: radial-gradient(ellipse at center, #eef1f7 0%, #d7dbe6 40%, #c9ceda 100%);
 }
@@ -147,7 +147,8 @@ html, body, #root {
 /* Inline Component Styles */
 .loading-inline-container {
   position: relative;
-  z-index: 999999;
+  /* lowered to match fullscreen loading stack (below modals/notifications) */
+  z-index: 10;
 }
 
 .loading-inline-children {
@@ -163,7 +164,8 @@ html, body, #root {
   align-items: flex-start;
   justify-content: center;
   padding-top: var(--loading-inline-padding-top, 0);
-  z-index: 999999;
+  /* lowered so inline loading overlays don't cover modals/notifications */
+  z-index: 10;
   pointer-events: auto;
   -webkit-backdrop-filter: blur(4px);
   backdrop-filter: blur(4px);
@@ -191,6 +193,15 @@ html, body, #root {
 
 .dashboard.overlay-exited .animate-up,
 .dashboard.overlay-exited .animate-up * {
+  animation: none !important;
+  transition: none !important;
+  transform: none !important;
+  opacity: 1 !important;
+}
+
+/* Pause animations for Reports page when overlay has exited */
+.reports-container.overlay-exited .animate-up,
+.reports-container.overlay-exited .animate-up * {
   animation: none !important;
   transition: none !important;
   transform: none !important;
@@ -390,7 +401,7 @@ html, body, #root {
   height: 100vh;
   display: grid;
   place-items: center;
-  z-index: 10000 !important;
+  z-index: 15 !important;
   background: radial-gradient(ellipse at center, #eef1f7 0%, #d7dbe6 40%, #c9ceda 100%);
   animation: none;
   opacity: 1;

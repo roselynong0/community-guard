@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import {
   FaExclamationTriangle,
   FaCheckCircle,
@@ -159,6 +159,8 @@ function Home({ token, session }) {
     }
   };
 
+  const mapRef = useRef(null);
+
   const content = (
     <div className={`dashboard ${overlayExited ? 'overlay-exited' : ''}`}>
       {error && <p className="error">{error}</p>}
@@ -240,14 +242,15 @@ function Home({ token, session }) {
         </div>
       </div>
 
-      <div className="map-section animate-up" style={{ animationDelay: "0.5s" }}>
+      <div className="map-section" style={{ animationDelay: "0.5s" }}>
         <h3>Community Map</h3>
         <div className="map-placeholder">
-          <MapView /> 
+          <MapView ref={mapRef} />
         </div>
       </div>
     </div>
   );
+  
 
   return (
     <LoadingScreen
@@ -256,7 +259,42 @@ function Home({ token, session }) {
       title={loading ? "Loading dashboard..." : undefined}
       subtitle={loading ? "Fetching latest stats and reports" : undefined}
       stage={loading ? "loading" : "exit"}
-      onExited={() => setOverlayExited(true)}
+      onExited={() => {
+        setOverlayExited(true);
+
+        // Dispatch a resize immediately to help browsers recalc layout.
+        window.dispatchEvent(new Event('resize'));
+
+        // Call invalidate multiple times with small delays to allow layout to settle.
+        try {
+          mapRef.current?.invalidate?.();
+        } catch (e) {
+          console.debug('map invalidate error', e);
+        }
+
+        setTimeout(() => {
+          try { mapRef.current?.invalidate?.(); } catch (e) { console.debug('map invalidate error', e); }
+        }, 120);
+
+        setTimeout(() => {
+          try { mapRef.current?.invalidate?.(); } catch (e) { console.debug('map invalidate error', e); }
+        }, 300);
+
+        // Fallback: if the map size is unexpectedly small, re-center to force a redraw.
+        setTimeout(() => {
+          try {
+            const m = mapRef.current;
+            if (m && typeof m.getSize === 'function') {
+              const size = m.getSize();
+              if (size.x < 120 || size.y < 120) {
+                m.invalidateSize();
+                // keep same center/zoom, but trigger a non-animated setView to force redraw
+                m.setView(m.getCenter(), m.getZoom(), { animate: false });
+              }
+            }
+          } catch (e) { console.debug('map fallback error', e); }
+        }, 400);
+      }}
       inlineOffset="25vh"
     >
       {content}

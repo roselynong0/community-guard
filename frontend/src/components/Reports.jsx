@@ -714,7 +714,7 @@ function Reports({ session }) {
       {error && <p className="error">{error}</p>}
 
       {/* Header */}
-      <div className="header-row">
+      <div className="header-row animate-up">
         <h2>Community Reports</h2>
         <button
           className="history-btn"
@@ -726,7 +726,7 @@ function Reports({ session }) {
       </div>
 
       {/* Filters - Added ref for keyboard navigation */}
-      <div className="top-controls" ref={filterContainerRef}>
+      <div className="top-controls animate-up" ref={filterContainerRef}>
         <div className="search-bar-container">
           <FaSearch className="search-icon" /> {/* Visual Search Icon */}
           <label htmlFor="report-search" className="sr-only">Search reports by title</label>
@@ -816,7 +816,7 @@ function Reports({ session }) {
       </div>
 
       {/* Loading Indicator */}
-      <div className="reports-list">
+      <div className="reports-list animate-up">
         {!loading && filteredReports.length > 0 ? (
           filteredReports.map((report) => {
             const isExpanded = expandedPosts.includes(report.id);
@@ -832,7 +832,7 @@ function Reports({ session }) {
               <div 
                 key={report.id} 
                 id={`report-${report.id}`}
-                className={isRejected ? 'report-rejected' : isPending ? 'report-pending' : `report-card ${highlightedReportId === String(report.id) ? 'highlighted-report' : ''}`}
+                className={(isRejected ? 'report-rejected' : isPending ? 'report-pending' : `report-card ${highlightedReportId === String(report.id) ? 'highlighted-report' : ''}`) + ' animate-up'}
                  role="article"
               >
                 {/* Header */}

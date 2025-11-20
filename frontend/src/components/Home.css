@@ -196,6 +196,29 @@ h3 {
   border-radius: 8px;
   overflow: hidden; 
 }
+/* Ensure Leaflet container fills the placeholder and doesn't collapse during overlay */
+.map-placeholder .leaflet-container {
+  height: 100% !important;
+  width: 100% !important;
+}
+
+/* Keep map DOM static during loading overlay animations or pause states
+   - Prevent transforms/animations from affecting the Leaflet container so it
+     doesn't get resized/clipped while the overlay exits. */
+.loading-paused .map-section,
+.loading-paused .map-placeholder,
+.map-section.no-animate,
+.map-placeholder.no-animate {
+  animation: none !important;
+  transform: none !important;
+  transition: none !important;
+}
+
+/* Prevent leaflet container from using CSS transitions which can cause
+   temporary collapsed rendering during overlay exit. */
+.map-placeholder .leaflet-container {
+  transition: none !important;
+}
 
 @keyframes slideUp {
   from {
@@ -267,5 +290,6 @@ h3 {
 @media (max-width: 510px) {
   .dashboard {
     padding: 0;
+    padding-bottom: 72px; /* reserve space for mobile bottom nav */
   }
 }

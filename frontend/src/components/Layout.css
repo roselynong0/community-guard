@@ -297,8 +297,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  /* Ensure modals are above any dashboard content, loading overlays, and notifications */
-  z-index: 1000200;
+  z-index: 60;
   -webkit-backdrop-filter: blur(3px);
   backdrop-filter: blur(3px);
   animation: fadeIn 0.2s ease-out;
@@ -410,7 +409,7 @@
   position: fixed;
   bottom: 4.1rem;
   right: 1.5rem;
-  z-index: 1100;
+  z-index: 30;
   background: linear-gradient(135deg, #11163e, #0d0f2a);
   color: #fff;
   border-radius: 50%;
@@ -441,7 +440,7 @@
   position: fixed;
   bottom: 1.5rem;
   right: 1.5rem;
-  z-index: 1050;
+  z-index: 30;
   background: linear-gradient(135deg, #007bff, #0056b3);
   color: #fff;
   border-radius: 50%;
@@ -494,7 +493,7 @@
   position: fixed;
   bottom: 4.1rem;
   right: 1.5rem;
-  z-index: 1100;
+  z-index: 30;
   background: linear-gradient(135deg, #11163e, #0d0f2a);
   color: #fff;
   border-radius: 50%;
@@ -565,7 +564,7 @@
     bottom: 0;
     left: 0;
     width: 100%;
-    z-index: 1000;
+    z-index: 40;
   }
   .main-area {
     padding-bottom: 4rem; 

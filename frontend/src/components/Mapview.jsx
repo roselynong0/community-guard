@@ -1,7 +1,7 @@
+import React, { useState, useEffect, useRef, useImperativeHandle, forwardRef } from "react";
 import { MapContainer, TileLayer, Marker, Popup } from "react-leaflet";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
-import { useState, useEffect } from "react";
 import { API_CONFIG, getApiUrl } from "../utils/apiConfig";
 
 delete L.Icon.Default.prototype._getIconUrl;
@@ -21,8 +21,9 @@ const redMarkerIcon = L.icon({
   shadowSize: [41, 41],
 });
 
-export default function MapView() {
+const MapView = forwardRef(function MapView(_, ref) {
   const [hotspots, setHotspots] = useState([]);
+  const mapRef = useRef(null);
 
   useEffect(() => {
     const fetchHotspots = async () => {
@@ -47,9 +48,22 @@ export default function MapView() {
     fetchHotspots();
   }, []);
 
+  // Expose an invalidate API so parent can force a redraw
+  useImperativeHandle(ref, () => ({
+    invalidate: () => {
+      try {
+        if (mapRef.current) mapRef.current.invalidateSize();
+      } catch (e) {
+        // swallow errors
+        console.debug('Map invalidate failed', e);
+      }
+    }
+  }));
+
   return (
     <div style={{ height: "100%", width: "100%" }}>
       <MapContainer
+        whenCreated={(mapInstance) => { mapRef.current = mapInstance; }}
         center={[14.8292, 120.2828]}
         zoom={13}
         style={{ height: "100%", width: "100%", borderRadius: "12px" }}
@@ -93,4 +107,6 @@ export default function MapView() {
       </MapContainer>
     </div>
   );
-}
+    });
+
+    export default MapView;
