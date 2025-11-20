@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { FaEdit, FaSignOutAlt, FaTrashAlt, FaCheckCircle, FaTimesCircle, FaUserCheck } from "react-icons/fa";
 import "./Profile.css"; // Ensure this file contains the new CSS
@@ -24,6 +24,7 @@ function Profile({ token }) {
     const [reports, setReports] = useState([]);
     const [reportsSubmitted, setReportsSubmitted] = useState(0);
     const [reportsResolved, setReportsResolved] = useState(0);
+    const [overlayExited, setOverlayExited] = useState(false);
 
     const [editProfileData, setEditProfileData] = useState({
         firstname: "",
@@ -152,6 +153,26 @@ function Profile({ token }) {
         setReportsSubmitted(userReports.length);
         setReportsResolved(userReports.filter(r => (r.status || "").toLowerCase() === "resolved").length);
     }, [reports, user]);
+
+    useEffect(() => {
+        if (isLoading) {
+            setOverlayExited(false);
+        }
+    }, [isLoading]);
+
+    const loadingFeatures = useMemo(
+        () => [
+            {
+                title: "Building your profile",
+                description: "Loading personal details, activity stats, and preferences.",
+            },
+            {
+                title: "Community insights",
+                description: "Preparing your reports, verifications, and badges for review.",
+            },
+        ],
+        []
+    );
 
     // ------------------- PROFILE PICTURE -------------------
     const handlePicUpload = async (e) => {
@@ -284,8 +305,10 @@ function Profile({ token }) {
     };
 
     // Prepare main page content then conditionally show inline loader
+    const safeUser = user || {};
+
     const mainContent = (
-        <div className="profile-page">
+        <div className={`profile-page ${overlayExited ? "overlay-exited" : ""}`}>
             {/* MODIFIED: Adjusted notification JSX to use provided CSS classes */}
             {notifications.map((notif) => (
                 <div key={notif.id} className={`notif notif-${notif.type}`}>
@@ -297,26 +320,26 @@ function Profile({ token }) {
             <div className="profile-header-card fade-in-up" style={{ animationDelay: '0s' }}>
                 <div className="profile-header-info">
                     <img
-                        src={profilePic ? profilePic : user?.avatar_url || "/default-avatar.png"}
+                        src={profilePic ? profilePic : safeUser?.avatar_url || "/default-avatar.png"}
                         alt="Profile"
                         className="profile-avatar"
                     />
                     <div className="profile-name">
                         <h2>
-                            {displayField(user.firstname, "No Name")} {displayField(user.lastname, "")}
+                            {displayField(safeUser.firstname, "No Name")} {displayField(safeUser.lastname, "")}
                             <FaEdit className="edit-icon" onClick={() => setShowModal("header")} />
                         </h2>
                         <p>
-                            {displayField(user.address_barangay, "No barangay selected")}, Olongapo City
+                            {displayField(safeUser.address_barangay, "No barangay selected")}, Olongapo City
                         </p>
                         <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", alignItems: "center", justifyContent: "center" }}>
-                            <span className={`admin-role-badge ${getRoleBadgeClass(user.role)}`}>{user.role}</span>
+                            <span className={`admin-role-badge ${getRoleBadgeClass(safeUser.role)}`}>{safeUser.role}</span>
                             <span
                                 className={`admin-verification-status ${
-                                    user.verified ? "fully-verified" : "unverified"
+                                    safeUser.verified ? "fully-verified" : "unverified"
                                 }`}
                             >
-                                {user.verified ? (
+                                {safeUser.verified ? (
                                     <><FaCheckCircle />Verified</>
                                 ) : (
                                     <><FaTimesCircle />Unverified</>
@@ -351,7 +374,7 @@ function Profile({ token }) {
                                 About <FaEdit className="edit-icon" onClick={() => setShowModal("about")} />
                             </h3>
                         </div>
-                        <p>{displayField(user.bio, "No information added yet.")}</p>
+                        <p>{displayField(safeUser.bio, "No information added yet.")}</p>
                     </div>
 
                     {/* Card 2 - Apply stagger delay */}
@@ -363,21 +386,21 @@ function Profile({ token }) {
                             </h3>
                         </div>
                         <p>
-                            <strong>Email:</strong> {displayField(user.email, "No info")}
+                            <strong>Email:</strong> {displayField(safeUser.email, "No info")}
                         </p>
                         <p>
-                            <strong>Contact:</strong> {displayField(user.contact, "No info")}
+                            <strong>Contact:</strong> {displayField(safeUser.contact, "No info")}
                         </p>
                         <p>
-                            <strong>Address:</strong> {displayField(user.address_street, "No location")}
+                            <strong>Address:</strong> {displayField(safeUser.address_street, "No location")}
                         </p>
                         <p>
                             <strong>City:</strong> Olongapo City
                         </p>
                         <p>
                             <strong>Birthday:</strong>{" "}
-                            {user.birthdate
-                                ? format(parseISO(user.birthdate), "MMMM d, yyyy") // "1999-07-15" → "July 15, 1999"
+                            {safeUser.birthdate
+                                ? format(parseISO(safeUser.birthdate), "MMMM d, yyyy") // "1999-07-15" → "July 15, 1999"
                                 : "No birthday set"}
                         </p>
                     </div>
@@ -391,23 +414,23 @@ function Profile({ token }) {
                         </div>
                         <p>
                             <strong>Role:</strong>{" "}
-                            <span className={`admin-role-badge ${getRoleBadgeClass(user.role)}`}>
-                                {user.role}
+                            <span className={`admin-role-badge ${getRoleBadgeClass(safeUser.role)}`}>
+                                {safeUser.role}
                             </span>
                         </p>
-                        {user.role === "Barangay Official" && user.address_barangay && (
+                        {safeUser.role === "Barangay Official" && safeUser.address_barangay && (
                             <p>
-                                <strong>Assigned Barangay:</strong> {user.address_barangay}
+                                <strong>Assigned Barangay:</strong> {safeUser.address_barangay}
                             </p>
                         )}
                         <p>
                             <strong>Verification Status:</strong>{" "}
                             <span
                                 className={`admin-verification-status ${
-                                    user.verified ? "fully-verified" : "unverified"
+                                    safeUser.verified ? "fully-verified" : "unverified"
                                 }`}
                             >
-                                {user.verified ? (
+                                {safeUser.verified ? (
                                     <><FaCheckCircle />Verified</>
                                 ) : (
                                     <><FaTimesCircle />Unverified</>
@@ -417,7 +440,7 @@ function Profile({ token }) {
                     </div>
 
                     {/* Activity Card - Only show for Residents */}
-                    {user.role === "Resident" && (
+                    {safeUser.role === "Resident" && (
                         <div className="profile-card fade-in-up" style={{ animationDelay: '0.4s' }}>
                             <h3>Activity</h3>
                             <p>📌 Reports Submitted: <strong>{reportsSubmitted}</strong></p>
@@ -565,17 +588,28 @@ function Profile({ token }) {
         </div>
     );
 
-    if (isLoading) {
-        return (
-            <LoadingScreen variant="inline" title="Loading profile...">
-                {mainContent}
-            </LoadingScreen>
-        );
-    }
+    const emptyState = (
+        <div className={`profile-page ${overlayExited ? "overlay-exited" : ""}`}>
+            {!isLoading && (
+                <p className="error-message">Failed to load profile or unauthorized.</p>
+            )}
+        </div>
+    );
 
-    if (!user) return <p className="error-message">Failed to load profile or unauthorized.</p>;
-
-    return mainContent;
+    return (
+        <LoadingScreen
+            variant="inline"
+            features={loadingFeatures}
+            title={isLoading ? "Loading profile..." : undefined}
+            subtitle={isLoading ? "Fetching your account details" : undefined}
+            stage={isLoading ? "loading" : "exit"}
+            successTitle="Profile Ready!"
+            inlineOffset="22vh"
+            onExited={() => setOverlayExited(true)}
+        >
+            {user ? mainContent : emptyState}
+        </LoadingScreen>
+    );
 }
 
 export default Profile;

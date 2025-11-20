@@ -17,14 +17,13 @@ import Maps from "./components/Maps";
 import AdminMaps from "./components/Admin-Maps";
 import CommunityMetrics from "./components/CommunityMetrics";
 import BarangayLayout from "./components/BarangayLayout";
-import BarangayHome from "./components/BarangayHome";
 import CommunityFeedBarangay from "./components/CommunityFeedBarangay";
 import ResponderLayout from "./components/ResponderLayout";
 import ResponderHome from "./components/ResponderHome";
 import CommunityFeedResponder from "./components/CommunityFeedResponder";
 import { fetchSession } from "./utils/session";
 import VerificationForm from "./components/VerificationForm";
-import LandingPage from "./components/LandingPage";
+import HomePage from "./components/HomePage";
 import SafetyTips from "./components/SafetyTips";
 import CommunityFeed from "./components/CommunityFeed";
 import LoadingScreen from "./components/LoadingScreen";
@@ -211,7 +210,7 @@ function App() {
                 replace
               />
             ) : (
-              <LandingPage />
+              <HomePage />
             )
           }
         />
@@ -235,7 +234,7 @@ function App() {
           }
         />
 
-        <Route path="/landingpage" element={<LandingPage />} />
+        <Route path="/homepage" element={<HomePage />} />
         <Route path="/register" element={<RegistrationForm />} />
         <Route path="/verify" element={<VerificationForm />} />
         <Route path="/verify-email" element={<VerificationForm />} />
@@ -518,8 +517,8 @@ function App() {
                 to={session.user?.role === "Admin" ? "/admin/users" : "/home"}
                 replace
               />
-            ) : (
-              <Navigate to="/landingpage" replace />
+              ) : (
+              <Navigate to="/" replace />
             )
           }
         />

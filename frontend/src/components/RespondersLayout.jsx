@@ -58,7 +58,7 @@ function ResponderLayout({ session, setSession, setNotification }) {
       {sidebarOpen && (
         <aside className="sidebar">
           <div className="logo">
-            <img src={logo} alt="Community Guard Logo" className="logo-img" />
+            <img src={logo} alt="Community Guard Logo" className="logo-img" width={40} height={40} loading="eager" fetchpriority="high" decoding="async" />
             <h2
               style={{
                 borderBottom: "1px solid rgba(255,255,255,0.1)",

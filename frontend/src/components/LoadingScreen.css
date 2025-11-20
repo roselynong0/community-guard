@@ -3,7 +3,7 @@
   inset: 0;
   display: grid;
   place-items: center;
-  z-index: 10;
+  z-index: 2;
   overflow: hidden;
   background: radial-gradient(ellipse at center, #eef1f7 0%, #d7dbe6 40%, #c9ceda 100%);
 }
@@ -148,7 +148,7 @@ html, body, #root {
 .loading-inline-container {
   position: relative;
   /* lowered to match fullscreen loading stack (below modals/notifications) */
-  z-index: 10;
+  z-index: 2;
 }
 
 .loading-inline-children {
@@ -164,8 +164,7 @@ html, body, #root {
   align-items: flex-start;
   justify-content: center;
   padding-top: var(--loading-inline-padding-top, 0);
-  /* lowered so inline loading overlays don't cover modals/notifications */
-  z-index: 10;
+  z-index: 2;
   pointer-events: auto;
   -webkit-backdrop-filter: blur(4px);
   backdrop-filter: blur(4px);
@@ -401,7 +400,7 @@ html, body, #root {
   height: 100vh;
   display: grid;
   place-items: center;
-  z-index: 15 !important;
+  z-index: 2;
   background: radial-gradient(ellipse at center, #eef1f7 0%, #d7dbe6 40%, #c9ceda 100%);
   animation: none;
   opacity: 1;

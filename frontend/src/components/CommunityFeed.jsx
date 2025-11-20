@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useMemo } from "react";
 import "./CommunityFeed.css";
 import "./Notifications.css";
 import { FaPaperPlane, FaUsers, FaTrash } from "react-icons/fa";
@@ -46,6 +46,7 @@ const CommunityFeed = () => {
   const [postTypeFilter, setPostTypeFilter] = useState("all");
   const [userBarangay, setUserBarangay] = useState("");
   const [postingState, setPostingState] = useState(false);
+  const [overlayExited, setOverlayExited] = useState(false);
 
   useEffect(() => {
     fetchUserBarangay();
@@ -111,6 +112,26 @@ const CommunityFeed = () => {
   useEffect(() => {
     fetchPosts();
   }, [fetchPosts]);
+
+  useEffect(() => {
+    if (loading) {
+      setOverlayExited(false);
+    }
+  }, [loading]);
+
+  const loadingFeatures = useMemo(
+    () => [
+      {
+        title: "Community Updates",
+        description: "Pulling in the latest neighborhood posts and announcements.",
+      },
+      {
+        title: "Stay Engaged",
+        description: "Share insights, comment on reports, and collaborate in real-time.",
+      },
+    ],
+    []
+  );
 
   const handleNewPost = async (newPost) => {
     try {
@@ -216,7 +237,7 @@ const CommunityFeed = () => {
   });
 
   const main = (
-    <div className="feed-container">
+    <div className={`feed-container ${overlayExited ? "overlay-exited" : ""}`}>
       {notification && <div className={`notif notif-${notification.type}`}>{notification.message}</div>}
       <div className="feed-header">
         <h2 className="feed-title"><FaUsers className="feed-icon" /> Community Feed</h2>
@@ -255,13 +276,20 @@ const CommunityFeed = () => {
     </div>
   );
 
-  if (loading) {
-    return (
-      <LoadingScreen variant="inline" title="Loading posts...">{main}</LoadingScreen>
-    );
-  }
-
-  return main;
+  return (
+    <LoadingScreen
+      variant="inline"
+      features={loadingFeatures}
+      title={loading ? "Loading posts..." : undefined}
+      subtitle={loading ? "Fetching the latest community stories" : undefined}
+      stage={loading ? "loading" : "exit"}
+      successTitle="Feed Updated!"
+      inlineOffset="18vh"
+      onExited={() => setOverlayExited(true)}
+    >
+      {main}
+    </LoadingScreen>
+  );
 };
 
 // ✅ POST CARD

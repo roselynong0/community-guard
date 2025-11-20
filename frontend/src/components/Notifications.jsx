@@ -92,6 +92,7 @@ export default function Notifications({ session, token }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [filter, setFilter] = useState("all"); 
+  const [overlayExited, setOverlayExited] = useState(false);
   const headers = useMemo(
     () => ({
       "Content-Type": "application/json",
@@ -99,6 +100,12 @@ export default function Notifications({ session, token }) {
     }),
     [authToken]
   );
+
+  useEffect(() => {
+    if (loading) {
+      setOverlayExited(false);
+    }
+  }, [loading]);
 
 
   const fetchNotifications = useCallback(async () => {
@@ -134,6 +141,20 @@ export default function Notifications({ session, token }) {
   useEffect(() => {
     fetchNotifications();
   }, [fetchNotifications]);
+
+  const loadingFeatures = useMemo(
+    () => [
+      {
+        title: "Notification Center",
+        description: "Review community updates and alerts receive real time updates.",
+      },
+      {
+        title: "Stay Informed",
+        description: "Mark messages as read or clear outdated notices in one place.",
+      },
+    ],
+    []
+  );
 
   const unreadCount = useMemo(
     () => notifications.filter((n) => !n.read).length,
@@ -213,7 +234,7 @@ export default function Notifications({ session, token }) {
 
 
   const mainContent = (
-    <div className="notifications-container">
+    <div className={`notifications-container ${overlayExited ? "overlay-exited" : ""}`}>
       <div className="notifications-header">
         <div className="left">
           <h2>
@@ -325,13 +346,18 @@ export default function Notifications({ session, token }) {
     </div>
   );
 
-  if (loading) {
-    return (
-      <LoadingScreen variant="inline" title="Loading notifications...">
-        {mainContent}
-      </LoadingScreen>
-    );
-  }
-
-  return mainContent;
+  return (
+    <LoadingScreen
+      variant="inline"
+      features={loadingFeatures}
+      title={loading ? "Loading notifications..." : undefined}
+      subtitle={loading ? "Fetching your latest alerts" : undefined}
+      stage={loading ? "loading" : "exit"}
+      successTitle="Notifications Ready!"
+      inlineOffset="20vh"
+      onExited={() => setOverlayExited(true)}
+    >
+      {mainContent}
+    </LoadingScreen>
+  );
 }

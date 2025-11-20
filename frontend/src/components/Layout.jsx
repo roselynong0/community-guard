@@ -165,7 +165,7 @@ function Layout({ session, setSession, setNotification }) {
       {sidebarOpen && (
         <aside className="sidebar">
           <div className="logo">
-            <img src={logo} alt="Community Guard Logo" className="logo-img" />
+            <img src={logo} alt="Community Guard Logo" className="logo-img" width={40} height={40} loading="eager" fetchpriority="high" decoding="async" />
             <h2>Community Guard</h2>
 
             {/* User Profile Section */}

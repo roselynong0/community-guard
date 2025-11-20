@@ -94,7 +94,7 @@ function LoadingScreen({
     <div className={rootClass} role="status" aria-live="polite">
       <div className="loading-backdrop" />
       <div className="loading-content">
-        <img src={logo} className="loading-logo" alt="Community Guard" />
+        <img src={logo} className="loading-logo" alt="Community Guard" width={68} height={68} loading="eager" fetchpriority="high" decoding="async" />
         <h2 className="loading-title">{title}</h2>
         {subtitle && <p className="loading-subtitle">{subtitle}</p>}
 
@@ -150,7 +150,7 @@ function LoadingScreen({
         >
           <div className={`loading-inline-card ${showSuccess ? 'success' : ''}`}>
             <div className="logo-holder">
-              <img src={logo} className="loading-inline-logo" alt="Community Guard" />
+              <img src={logo} className="loading-inline-logo" alt="Community Guard" width={56} height={56} loading="eager" fetchpriority="high" decoding="async" />
               {showSuccess && (
                 <div className="success-icon" aria-hidden>
                   <FaCheckCircle />
