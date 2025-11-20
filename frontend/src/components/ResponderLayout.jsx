@@ -10,7 +10,7 @@ import {
   FaCalendarAlt,
 } from 'react-icons/fa';
 import { Outlet, NavLink, useNavigate } from 'react-router-dom';
-import { API_CONFIG } from '../utils/apiConfig';
+import { API_CONFIG, getApiUrl } from '../utils/apiConfig';
 import Toast from './Toast';
 import { registerToastCallback, registerNotificationCountCallback, startNotificationSSE, stopNotificationSSE, startNotificationPolling, stopNotificationPolling } from '../utils/notificationService';
 import './Layout.css';
@@ -41,7 +41,7 @@ export default function ResponderLayout({ session, setSession, setNotification }
         return;
       }
       try {
-        const res = await fetch(`${API_CONFIG.BASE_URL}/api/profile`, {
+        const res = await fetch(getApiUrl(API_CONFIG.endpoints.profile), {
           headers: { Authorization: `Bearer ${token}` },
         });
         const data = await res.json();

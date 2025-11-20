@@ -14,7 +14,7 @@ import {
 } from "react-icons/fa";
 import { Outlet, NavLink, useNavigate } from "react-router-dom";
 import { logout } from "../utils/session";
-import { API_CONFIG } from "../utils/apiConfig";
+import { API_CONFIG, getApiUrl } from "../utils/apiConfig";
 import Toast from "./Toast";
 import ChatBot from "./ChatBot";
 import { registerToastCallback, registerNotificationCountCallback, startNotificationPolling, stopNotificationPolling } from "../utils/notificationService";
@@ -44,7 +44,7 @@ function Layout({ session, setSession, setNotification }) {
         return;
       }
       try {
-        const res = await fetch(`${API_CONFIG.BASE_URL}/api/profile`, {
+        const res = await fetch(getApiUrl(API_CONFIG.endpoints.profile), {
           headers: { Authorization: `Bearer ${session.token}` },
         });
         const data = await res.json();

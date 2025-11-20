@@ -3,11 +3,22 @@
 // This allows switching between development and production environments
 
 const getBaseUrl = () => {
+  // Allow explicit override from Vite env (deployments should set this)
+  try {
+    const envUrl = import.meta && import.meta.env && import.meta.env.VITE_API_URL;
+    if (envUrl && typeof envUrl === 'string' && envUrl.length > 0) {
+      console.log('✅ Using VITE_API_URL from env:', envUrl);
+      return envUrl.replace(/\/+$/, '');
+    }
+  } catch (e) {
+    // ignore in non-module contexts
+  }
   if (typeof window !== 'undefined') {
     const hostname = window.location.hostname;
     const origin = window.location.origin;
     
-    // Check for production Vercel deployment - use Render backend
+    // Check for production Vercel deployment - default to Render backend
+    // (still allow explicit VITE_API_URL override above)
     if (hostname.includes('vercel.app') || hostname.includes('community-guard.vercel.app')) {
       const renderApi = 'https://community-guard-1.onrender.com';
       console.log('✅ Detected Vercel deployment, using Render backend:', renderApi);

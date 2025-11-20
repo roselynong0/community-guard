@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { FaTimes, FaComments, FaPaperPlane, FaSpinner } from "react-icons/fa";
 import "./ChatBot.css";
-import { API_CONFIG } from "../utils/apiConfig";
+import { API_CONFIG, getApiUrl } from "../utils/apiConfig";
 
 function ChatBot({ isOpen, onClose, token }) {
   const [messages, setMessages] = useState([]);
@@ -65,7 +65,7 @@ function ChatBot({ isOpen, onClose, token }) {
       // Use Flask chatbot endpoint only
       const body = JSON.stringify({ message: messageText });
       
-      const response = await fetch(`${API_CONFIG.BASE_URL}/api/chat`, {
+      const response = await fetch(getApiUrl('/api/chat'), {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

@@ -2,7 +2,7 @@ import React, { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { FaEye, FaEyeSlash, FaArrowLeft } from "react-icons/fa";
 import VerificationRenewalModal from "./VerificationRenewalModal";
-import { API_CONFIG } from "../utils/apiConfig";
+import { API_CONFIG, getApiUrl } from "../utils/apiConfig";
 import "./RegistrationForm.css";
 import "./Notification.css";
 
@@ -62,7 +62,7 @@ function LoginForm({ setSession, setNotification }) {
     try {
       // include role hint in body when Admin login selected so backend can handle admin-specific auth
       const body = { ...formData, role: loginMode === "Admin" ? "Admin" : "Resident" };
-      const res = await fetch(`${API_CONFIG.BASE_URL}/api/login`, {
+      const res = await fetch(getApiUrl(API_CONFIG.endpoints.login), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
@@ -169,7 +169,7 @@ function LoginForm({ setSession, setNotification }) {
 
   const handleRenewVerification = async () => {
     try {
-      const response = await fetch(`${API_CONFIG.BASE_URL}/api/email/send-code`, {
+      const response = await fetch(getApiUrl('/api/email/send-code'), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
