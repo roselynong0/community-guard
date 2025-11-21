@@ -77,25 +77,19 @@ def create_app():
                     return True
                 if not origin:
                     return False
-                # normalize
                 o = origin.rstrip('/')
-                # localhost / 127.0.0.1 any port
                 if re.match(r'^https?://(localhost|127\.0\.0\.1)(:\d+)?$', o):
                     return True
-                # vercel wildcard support
                 if allow_vercel_wildcard and o.endswith('.vercel.app'):
                     return True
-                # match configured frontend origin
                 if frontend_origin and (o == frontend_origin or o.startswith(frontend_origin)):
                     return True
-                # direct match against normalized allowlist
                 if o in normalized_allowed:
                     return True
                 return False
 
             CORS(app, resources={r"/api/*": {"origins": _origin_checker}}, supports_credentials=True)
 
-    # ✅ Enable CORS - Use wildcard for Vercel subdomains
     from flask import request
     
     from flask import make_response
@@ -104,24 +98,20 @@ def create_app():
         if not origin:
             return False
 
-        # Allow all origins when explicitly requested (dangerous in production)
         if os.getenv('ALLOW_ALL_ORIGINS', '0') in ('1', 'true', 'True'):
             return True
 
         o = origin.rstrip('/')
 
-        # localhost / 127.0.0.1 any port
         if re.match(r'^https?://(localhost|127\.0\.0\.1)(:\d+)?$', o):
             return True
 
-        # Allow vercel subdomains when the env flag is set, or allow when it's a community-guard subdomain
         allow_vercel_wildcard = os.getenv('ALLOW_VERCEL_WILDCARD', '0') in ('1', 'true', 'True')
         if allow_vercel_wildcard and o.endswith('.vercel.app'):
             return True
         if '.vercel.app' in o and 'community-guard' in o:
             return True
 
-        # Allow configured frontend URL if present
         try:
             frontend_url = getattr(Config, 'FRONTEND_URL', None)
             if frontend_url:
@@ -131,7 +121,6 @@ def create_app():
         except Exception:
             pass
 
-        # Allow list via ALLOWED_ORIGINS
         extra = os.getenv('ALLOWED_ORIGINS')
         if extra:
             for part in extra.split(','):
@@ -139,7 +128,6 @@ def create_app():
                 if p and p == o:
                     return True
 
-        # Backwards compatibility: original explicit Render origin
         if o == 'https://community-guard-1.onrender.com':
             return True
 
@@ -147,7 +135,6 @@ def create_app():
 
     @app.before_request
     def handle_preflight():
-        # Respond to CORS preflight (OPTIONS) requests early with the proper headers
         if request.method == 'OPTIONS':
             origin = request.headers.get('Origin')
             resp = make_response('', 200)
@@ -171,14 +158,13 @@ def create_app():
         response.headers['Access-Control-Expose-Headers'] = 'Content-Type,Authorization'
         return response
 
-    # ✅ Optional caching + compression
     cache = Cache(app, config={
         'CACHE_TYPE': Config.CACHE_TYPE,
         'CACHE_DEFAULT_TIMEOUT': Config.CACHE_DEFAULT_TIMEOUT
     })
     Compress(app)
 
-    # ✅ Register all blueprints under /api
+    # ✅ Register all blueprints
     app.register_blueprint(auth_bp, url_prefix='/api')
     print("✅ Registered: auth_bp")
     app.register_blueprint(profile_bp, url_prefix='/api')
@@ -229,7 +215,6 @@ def create_app():
             "version": "v2.0-cors-fixed"
         }), 200
 
-    # ✅ Serve uploaded files
     @app.route("/api/uploads/<filename>")
     def uploaded_file(filename):
         return send_from_directory(Config.UPLOAD_FOLDER, filename)
@@ -238,8 +223,6 @@ def create_app():
     def uploaded_file_public(filename):
         return send_from_directory(Config.UPLOAD_FOLDER, filename)
 
-    # ✅ Serve frontend static files (SPA fallback) when the built frontend exists
-    # This prevents 404s when refreshing client-side routes (React Router BrowserRouter)
     try:
         frontend_dist = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'frontend', 'dist'))
         if os.path.isdir(frontend_dist):
@@ -248,17 +231,13 @@ def create_app():
             @app.route('/', defaults={'path': ''})
             @app.route('/<path:path>')
             def serve_frontend(path):
-                # If the requested resource exists in the dist, serve it directly
                 requested = os.path.join(frontend_dist, path)
                 if path and os.path.exists(requested) and os.path.isfile(requested):
                     return send_from_directory(frontend_dist, path)
-                # Otherwise return index.html so the client-side router can handle the route
                 return send_from_directory(frontend_dist, 'index.html')
     except Exception:
-        # Non-fatal: if something goes wrong, don't break the API
         print("⚠️ Failed to enable frontend static serving (frontend build may be missing)")
 
-    # ✅ Global exception handler
     @app.errorhandler(Exception)
     def handle_global_exception(e):
         if isinstance(e, HTTPException):
@@ -269,7 +248,6 @@ def create_app():
 
     return app
 
-# ✅ Create app instance
 try:
     app = create_app()
     print("✅ Flask app created successfully")
@@ -286,7 +264,6 @@ except Exception as e:
             "error_type": type(e).__name__
         }), 500
 
-# ✅ Ensure uploads directory exists
 os.makedirs(Config.UPLOAD_FOLDER, exist_ok=True)
 
 if __name__ == "__main__":
