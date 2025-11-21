@@ -2,6 +2,10 @@ import os
 import sys
 import re
 from flask import Flask, jsonify, send_from_directory
+try:
+    from flask_cors import CORS
+except Exception:
+    CORS = None
 from flask_caching import Cache
 from flask_compress import Compress
 from werkzeug.exceptions import HTTPException
@@ -38,6 +42,68 @@ def create_app():
     app = Flask(__name__)
     app.config.from_object(Config)
 
+    # Use Flask-CORS when available to ensure preflight and credentialed
+    # requests are handled correctly for both local dev and deployed origins.
+        if CORS:
+            # Build a dynamic allowlist from common local dev origins, config and env.
+            allowed = set([
+                "http://localhost:3000",
+                "http://127.0.0.1:3000",
+                "http://localhost:5000",
+                "http://127.0.0.1:5000",
+            ])
+
+            # Add FRONTEND_URL from Config if present (supports full origin or URL)
+            frontend_origin = None
+            try:
+                frontend_url = getattr(Config, 'FRONTEND_URL', None)
+                if frontend_url:
+                    frontend_origin = re.sub(r"/*$", "", frontend_url)
+                    allowed.add(frontend_origin)
+            except Exception:
+                frontend_origin = None
+
+            # Allow additional origins via ALLOWED_ORIGINS env (comma-separated)
+            extra = os.getenv('ALLOWED_ORIGINS')
+            if extra:
+                for part in extra.split(','):
+                    p = part.strip()
+                    if p:
+                        allowed.add(p)
+
+            # Optionally enable a vercel wildcard for preview subdomains when set
+            allow_vercel_wildcard = os.getenv('ALLOW_VERCEL_WILDCARD', '0') in ('1', 'true', 'True')
+
+            # Optionally allow all origins (use with caution)
+            allow_all = os.getenv('ALLOW_ALL_ORIGINS', '0') in ('1', 'true', 'True')
+
+            # Normalize allowed origins (strip trailing slash)
+            normalized_allowed = set([re.sub(r"/*$", "", a) for a in allowed if a])
+
+            # Create a callable origin checker so rules can be dynamic and pattern-based
+            def _origin_checker(origin):
+                if allow_all:
+                    return True
+                if not origin:
+                    return False
+                # normalize
+                o = origin.rstrip('/')
+                # localhost / 127.0.0.1 any port
+                if re.match(r'^https?://(localhost|127\.0\.0\.1)(:\d+)?$', o):
+                    return True
+                # vercel wildcard support
+                if allow_vercel_wildcard and o.endswith('.vercel.app'):
+                    return True
+                # match configured frontend origin
+                if frontend_origin and (o == frontend_origin or o.startswith(frontend_origin)):
+                    return True
+                # direct match against normalized allowlist
+                if o in normalized_allowed:
+                    return True
+                return False
+
+            CORS(app, resources={r"/api/*": {"origins": _origin_checker}}, supports_credentials=True)
+
     # ✅ Enable CORS - Use wildcard for Vercel subdomains
     from flask import request
     
@@ -46,12 +112,46 @@ def create_app():
     def _is_allowed_origin(origin: str) -> bool:
         if not origin:
             return False
-        if origin.startswith('http://localhost:') or origin.startswith('http://127.0.0.1:'):
+
+        # Allow all origins when explicitly requested (dangerous in production)
+        if os.getenv('ALLOW_ALL_ORIGINS', '0') in ('1', 'true', 'True'):
             return True
-        if '.vercel.app' in origin and 'community-guard' in origin:
+
+        o = origin.rstrip('/')
+
+        # localhost / 127.0.0.1 any port
+        if re.match(r'^https?://(localhost|127\.0\.0\.1)(:\d+)?$', o):
             return True
-        if origin == 'https://community-guard-1.onrender.com':
+
+        # Allow vercel subdomains when the env flag is set, or allow when it's a community-guard subdomain
+        allow_vercel_wildcard = os.getenv('ALLOW_VERCEL_WILDCARD', '0') in ('1', 'true', 'True')
+        if allow_vercel_wildcard and o.endswith('.vercel.app'):
             return True
+        if '.vercel.app' in o and 'community-guard' in o:
+            return True
+
+        # Allow configured frontend URL if present
+        try:
+            frontend_url = getattr(Config, 'FRONTEND_URL', None)
+            if frontend_url:
+                frontend_origin = re.sub(r"/*$", "", frontend_url)
+                if o == frontend_origin or o.startswith(frontend_origin):
+                    return True
+        except Exception:
+            pass
+
+        # Allow list via ALLOWED_ORIGINS
+        extra = os.getenv('ALLOWED_ORIGINS')
+        if extra:
+            for part in extra.split(','):
+                p = part.strip().rstrip('/')
+                if p and p == o:
+                    return True
+
+        # Backwards compatibility: original explicit Render origin
+        if o == 'https://community-guard-1.onrender.com':
+            return True
+
         return False
 
     @app.before_request
