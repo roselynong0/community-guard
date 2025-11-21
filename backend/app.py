@@ -42,10 +42,7 @@ def create_app():
     app = Flask(__name__)
     app.config.from_object(Config)
 
-    # Use Flask-CORS when available to ensure preflight and credentialed
-    # requests are handled correctly for both local dev and deployed origins.
-        if CORS:
-            # Build a dynamic allowlist from common local dev origins, config and env.
+    if CORS:
             allowed = set([
                 "http://localhost:3000",
                 "http://127.0.0.1:3000",
@@ -53,7 +50,6 @@ def create_app():
                 "http://127.0.0.1:5000",
             ])
 
-            # Add FRONTEND_URL from Config if present (supports full origin or URL)
             frontend_origin = None
             try:
                 frontend_url = getattr(Config, 'FRONTEND_URL', None)
@@ -63,7 +59,6 @@ def create_app():
             except Exception:
                 frontend_origin = None
 
-            # Allow additional origins via ALLOWED_ORIGINS env (comma-separated)
             extra = os.getenv('ALLOWED_ORIGINS')
             if extra:
                 for part in extra.split(','):
@@ -71,16 +66,12 @@ def create_app():
                     if p:
                         allowed.add(p)
 
-            # Optionally enable a vercel wildcard for preview subdomains when set
             allow_vercel_wildcard = os.getenv('ALLOW_VERCEL_WILDCARD', '0') in ('1', 'true', 'True')
 
-            # Optionally allow all origins (use with caution)
             allow_all = os.getenv('ALLOW_ALL_ORIGINS', '0') in ('1', 'true', 'True')
 
-            # Normalize allowed origins (strip trailing slash)
             normalized_allowed = set([re.sub(r"/*$", "", a) for a in allowed if a])
 
-            # Create a callable origin checker so rules can be dynamic and pattern-based
             def _origin_checker(origin):
                 if allow_all:
                     return True
