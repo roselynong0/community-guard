@@ -54,7 +54,7 @@ const updateNotificationCount = (count) => {
  * NOTE: This SSE implementation is deprecated. The system now uses polling for simplicity.
  * Kept for future implementation if backend SSE stream endpoint is available.
  * @param {string} token - Authentication token
- * @param {string} role - User role: 'Admin', 'Barangay Official', 'Responder', 'User'
+ * @param {string} role - User role: 'Admin', 'Barangay Official', 'Responder', 'Resident'
  */
 export const startNotificationSSE = (token, role) => {
   if (!token || eventSourceRef) return;
@@ -95,7 +95,7 @@ export const startNotificationPolling = (token, role, pollInterval = 10000) => {
       'Admin': '/api/admin/admin_notifications',           // Admin layout only
       'Barangay Official': '/api/barangay/notifications',  // Barangay layout only
       'Responder': '/api/responder/notifications',         // Responder layout only
-      'User': '/api/notifications',                        // Regular user layout
+      'Resident': '/api/notifications',                    // Regular resident layout
     };
     return roleMap[role] || '/api/notifications'; // Default to regular user endpoint
   };
@@ -159,6 +159,7 @@ export const startNotificationPolling = (token, role, pollInterval = 10000) => {
       } else if (role === 'Responder') {
         notifications = data.notifications || [];
       } else {
+        // Treat any non-special role as Resident
         notifications = data.notifications || [];
       }
 
@@ -209,7 +210,8 @@ export const startNotificationPolling = (token, role, pollInterval = 10000) => {
  */
 const processNewNotifications = (notifications, role) => {
   // Get previously seen notification IDs from sessionStorage
-  const storageKey = `lastSeenNotifications_${role || 'user'}`;
+  // Normalize storage key to use lowercase role name (fallback to 'resident')
+  const storageKey = `lastSeenNotifications_${(role || 'Resident').toLowerCase()}`;
   const lastSeenStr = sessionStorage.getItem(storageKey) || '[]';
   let lastSeenIds = [];
   

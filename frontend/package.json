@@ -11,6 +11,8 @@
     "vercel-build": "vite build && node copy-manifest.js",
     "lint": "eslint .",
     "preview": "vite preview",
+    "preview:preview": "vite preview --mode preview",
+    "preview:dev": "vite preview --mode development",
     "start": "node server.js"
   },
   "dependencies": {

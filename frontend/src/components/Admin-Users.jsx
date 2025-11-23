@@ -109,7 +109,15 @@ const [activeTab, setActiveTab] = useState("Residents");
       });
 
       if (!response.ok) {
-        throw new Error('Failed to fetch users');
+        // try to read response body to surface server error
+        let bodyText = '';
+        try {
+          bodyText = await response.text();
+        } catch (e) {
+          bodyText = '<unreadable response body>';
+        }
+        console.error(`Users fetch failed: ${response.status} ${response.statusText} - ${bodyText}`);
+        throw new Error(`Failed to fetch users: ${response.status} ${response.statusText} - ${bodyText}`);
       }
 
       const data = await response.json();
@@ -128,8 +136,9 @@ const [activeTab, setActiveTab] = useState("Residents");
       }
     } catch (error) {
       console.error('Error fetching users:', error);
-      // Show error notification without causing re-render
-      setNotification({ message: 'Failed to load users. Please try again.', type: 'error' });
+      // Show error notification with more detail when available
+      const msg = (error && error.message) ? `Failed to load users: ${error.message}` : 'Failed to load users. Please try again.';
+      setNotification({ message: msg, type: 'error' });
       setTimeout(() => setNotification(null), 4000);
       setUsers([]);
     } finally {

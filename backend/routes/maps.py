@@ -6,8 +6,51 @@ from flask import Blueprint, request, jsonify
 from datetime import datetime, timezone
 from middleware.auth import token_required
 from utils import supabase
+import struct
+import re
 
 maps_bp = Blueprint("maps", __name__)
+
+
+def parse_wkb_point(hex_string):
+    """
+    Parse WKB (Well-Known Binary) hex string to extract lat/lng coordinates.
+    Handles little/big endian and optional SRID flag.
+    """
+    try:
+        hex_clean = hex_string.strip().replace(" ", "")
+        if len(hex_clean) < 2:
+            return None, None
+
+        byte_order = hex_clean[:2]
+        is_little_endian = byte_order == "01"
+
+        offset = 10
+        geom_type_hex = hex_clean[2:10]
+        geom_type_bytes = bytes.fromhex(geom_type_hex)
+        geom_type = struct.unpack(("<I" if is_little_endian else ">I"), geom_type_bytes)[0]
+
+        if geom_type & 0x20000000:
+            offset = 18
+
+        if len(hex_clean) < offset + 32:
+            return None, None
+
+        coords_hex = hex_clean[offset:]
+        x_hex = coords_hex[:16]
+        y_hex = coords_hex[16:32]
+
+        x_bytes = bytes.fromhex(x_hex)
+        y_bytes = bytes.fromhex(y_hex)
+
+        longitude = struct.unpack(("<d" if is_little_endian else ">d"), x_bytes)[0]
+        latitude = struct.unpack(("<d" if is_little_endian else ">d"), y_bytes)[0]
+
+        return latitude, longitude
+    except Exception as exc:
+        print(f"⚠️  Error parsing WKB: {exc}")
+        return None, None
+
 
 # ============ SAFEZONES ============
 
@@ -18,32 +61,52 @@ def get_safezones():
     try:
         response = supabase.table("safezones").select("*").eq("is_active", True).execute()
         safezones = getattr(response, "data", []) or []
-        
-        # Format safezones for frontend
+
         formatted_safezones = []
         for sz in safezones:
-            if sz.get("center"):
-                # Parse geography point from Supabase
-                center = sz["center"]
-                if isinstance(center, dict):
+            try:
+                center = sz.get("center")
+                latitude = None
+                longitude = None
+
+                if center:
+                    if isinstance(center, dict):
+                        coords = center.get("coordinates", [])
+                        if len(coords) >= 2:
+                            longitude = coords[0]
+                            latitude = coords[1]
+                    elif isinstance(center, str):
+                        if len(center) > 20 and not center.strip().startswith("POINT"):
+                            latitude, longitude = parse_wkb_point(center)
+                        else:
+                            match = re.search(r"POINT\s*\(\s*([\d.\-]+)\s+([\d.\-]+)\s*\)", center, re.IGNORECASE)
+                            if match:
+                                longitude = float(match.group(1))
+                                latitude = float(match.group(2))
+
+                if latitude is not None and longitude is not None:
                     formatted_safezones.append({
                         "id": sz["id"],
-                        "name": sz["name"],
-                        "description": sz["description"],
+                        "name": sz.get("name", "Unnamed"),
+                        "description": sz.get("description", ""),
                         "center": {
-                            "latitude": center.get("coordinates", [0, 0])[1],
-                            "longitude": center.get("coordinates", [0, 0])[0]
+                            "latitude": latitude,
+                            "longitude": longitude,
                         },
-                        "radius_meters": sz["radius_meters"],
-                        "created_by": sz["created_by"],
-                        "created_at": sz["created_at"]
+                        "radius_meters": sz.get("radius_meters", 100),
+                        "created_by": sz.get("created_by"),
+                        "created_at": sz.get("created_at"),
                     })
-        
-        print(f"✅ Loaded {len(formatted_safezones)} safezones")
+                else:
+                    print(f"⚠️  Skipping safezone {sz.get('id')} - could not parse coordinates: {center}")
+            except Exception as parse_err:
+                print(f"⚠️  Error parsing safezone {sz.get('id')}: {parse_err}")
+
+        print(f"✅ Loaded {len(formatted_safezones)} valid safezones")
         return jsonify({"status": "success", "safezones": formatted_safezones}), 200
-    except Exception as e:
-        print(f"❌ Error fetching safezones: {e}")
-        return jsonify({"status": "error", "message": str(e), "safezones": []}), 500
+    except Exception as exc:
+        print(f"❌ Error fetching safezones: {exc}")
+        return jsonify({"status": "error", "message": str(exc), "safezones": []}), 500
 
 
 @maps_bp.route("/safezones", methods=["POST"])

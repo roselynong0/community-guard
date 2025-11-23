@@ -92,10 +92,12 @@ function Layout({ session, setSession, setNotification }) {
       setNotificationCount(count);
     });
 
-    // Start polling only for regular users (User layout only calls /api/notifications)
+    // Start polling only for regular residents (Resident layout calls /api/notifications)
     try {
       // Try SSE first, but layout context only needs /api/notifications
-      pollingIntervalRef.current = startNotificationPolling(session.token, 'User', 10000);
+      // Use the actual session/user role when available; fallback to 'Resident'
+      const resolvedRole = session?.user?.role || user?.role || 'Resident';
+      pollingIntervalRef.current = startNotificationPolling(session.token, resolvedRole, 10000);
     } catch (e) {
       console.warn('Notification polling error:', e);
     }

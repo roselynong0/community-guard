@@ -7,12 +7,11 @@ import {
   CircleMarker,
   Circle,
 } from "react-leaflet";
-import { API_CONFIG } from "../utils/apiConfig";
+import { getApiUrl } from "../utils/apiConfig";
+import { fetchSafezonesWithCache } from "../utils/safezonesService";
 import L from "leaflet";
 import "./Maps.css";
 import "leaflet/dist/leaflet.css";
-
-import { getApiUrl } from "../utils/apiConfig";
 import LoadingScreen from "./LoadingScreen";
 
 // Build endpoints with getApiUrl so VITE_API_URL is used in prod and localhost in dev
@@ -80,6 +79,68 @@ const hexToColorName = (hex) => {
   return colorMap[hex] || "gray";
 };
 
+const normalizeSafezone = (safezone) => {
+  if (!safezone) {
+    return null;
+  }
+
+  if (
+    safezone.center &&
+    typeof safezone.center === "object" &&
+    safezone.center.latitude !== undefined &&
+    safezone.center.longitude !== undefined
+  ) {
+    return {
+      ...safezone,
+      center: {
+        latitude: Number(safezone.center.latitude),
+        longitude: Number(safezone.center.longitude),
+      },
+    };
+  }
+
+  if (
+    safezone.center &&
+    typeof safezone.center === "object" &&
+    Array.isArray(safezone.center.coordinates) &&
+    safezone.center.coordinates.length >= 2
+  ) {
+    const [lng, lat] = safezone.center.coordinates;
+    return {
+      ...safezone,
+      center: {
+        latitude: Number(lat),
+        longitude: Number(lng),
+      },
+    };
+  }
+
+  if (typeof safezone.center === "string") {
+    const match = safezone.center.match(/POINT\s*\(\s*([\d.+\-eE]+)\s+([\d.+\-eE]+)\s*\)/i);
+    if (match) {
+      return {
+        ...safezone,
+        center: {
+          latitude: Number(match[2]),
+          longitude: Number(match[1]),
+        },
+      };
+    }
+  }
+
+  if (safezone.latitude !== undefined && safezone.longitude !== undefined) {
+    return {
+      ...safezone,
+      center: {
+        latitude: Number(safezone.latitude),
+        longitude: Number(safezone.longitude),
+      },
+    };
+  }
+
+  return null;
+};
+
 function Maps({ session, userRole }) {
   const [reports, setReports] = useState([]);
   const [hotspots, setHotspots] = useState([]);
@@ -95,16 +156,16 @@ function Maps({ session, userRole }) {
       try {
         setLoading(true);
         const token = session?.token || localStorage.getItem("access_token");
-        
+
         // Check if user is a barangay official
         const isBarangayOfficial = userRole === "Barangay Official";
-        
-  let endpoint = getApiUrl('/api/map_reports');
-        let headers = { Authorization: `Bearer ${token}` };
-        
+
+        let endpoint = getApiUrl("/api/map_reports");
+        const headers = token ? { Authorization: `Bearer ${token}` } : {};
+
         // If barangay official, use the filtered endpoint
-          if (isBarangayOfficial && token) {
-          endpoint = getApiUrl('/api/map_reports/barangay');
+        if (isBarangayOfficial && token) {
+          endpoint = getApiUrl("/api/map_reports/barangay");
         }
 
         const response = await fetch(endpoint, { headers });
@@ -130,7 +191,7 @@ function Maps({ session, userRole }) {
         }
 
         // Fetch hotspots
-        const hotspotsEndpoint = getApiUrl(API_CONFIG.endpoints.hotspots);
+        const hotspotsEndpoint = getApiUrl("/api/hotspots");
         const hotspotsResponse = await fetch(hotspotsEndpoint, { headers });
         const hotspotsData = await hotspotsResponse.json();
 
@@ -139,15 +200,12 @@ function Maps({ session, userRole }) {
           console.log(`✅ Loaded ${(hotspotsData.hotspots || []).length} hotspots`);
         }
 
-        // Fetch safezones
-        const safezonesEndpoint = getApiUrl('/api/safezones');
-        const safezonesResponse = await fetch(safezonesEndpoint, { headers });
-        const safezonesData = await safezonesResponse.json();
-
-        if (safezonesData.status === "success") {
-          setSafezones(safezonesData.safezones || []);
-          console.log(`✅ Loaded ${(safezonesData.safezones || []).length} safezones`);
-        }
+        const cachedSafezones = await fetchSafezonesWithCache(token);
+        const normalizedSafezones = cachedSafezones
+          .map((sz) => normalizeSafezone(sz))
+          .filter(Boolean);
+        setSafezones(normalizedSafezones);
+        console.log(`✅ Loaded ${normalizedSafezones.length} safezones (cached)`);
       } catch (err) {
         console.error("Failed to load map reports:", err);
       } finally {
@@ -192,28 +250,44 @@ function Maps({ session, userRole }) {
           />
 
           {/* Render safezones as circles */}
-          {showSafezones && safezones.map((sz, idx) => (
-            <Circle
-              key={`safezone-${idx}`}
-              center={[sz.center.latitude, sz.center.longitude]}
-              radius={sz.radius_meters}
-              color="#06b6d4"
-              fillColor="#06b6d4"
-              fillOpacity={0.3}
-            >
-              <Popup>
-                <div>
-                  <strong style={{ fontSize: "14px" }}>🛡️ {sz.name}</strong>
-                  <br />
-                  <span style={{ fontSize: "12px" }}>{sz.description}</span>
-                  <br />
-                  <span style={{ fontSize: "11px", color: "#666" }}>
-                    Radius: {sz.radius_meters}m
-                  </span>
-                </div>
-              </Popup>
-            </Circle>
-          ))}
+          {showSafezones && safezones.map((sz) => {
+            const latitude = sz?.center?.latitude;
+            const longitude = sz?.center?.longitude;
+            if (
+              latitude === undefined ||
+              longitude === undefined ||
+              Number.isNaN(Number(latitude)) ||
+              Number.isNaN(Number(longitude))
+            ) {
+              console.warn(`⚠️ Skipping safezone ${sz?.id ?? "unknown"} - invalid coordinates`, sz);
+              return null;
+            }
+
+            return (
+              <Circle
+                key={`safezone-${sz.id ?? `${latitude}-${longitude}`}`}
+                center={[Number(latitude), Number(longitude)]}
+                radius={sz.radius_meters}
+                color="#0891b2"
+                fillColor="#06b6d4"
+                fillOpacity={0.25}
+                weight={3}
+                dashArray="5, 5"
+              >
+                <Popup>
+                  <div>
+                    <strong style={{ fontSize: "14px" }}>🛡️ {sz.name}</strong>
+                    <br />
+                    <span style={{ fontSize: "12px" }}>{sz.description}</span>
+                    <br />
+                    <span style={{ fontSize: "11px", color: "#666" }}>
+                      Radius: {sz.radius_meters}m
+                    </span>
+                  </div>
+                </Popup>
+              </Circle>
+            );
+          })}
 
           {/* Render hotspots */}
           {showHotspots && hotspots.map((hs, idx) => (
