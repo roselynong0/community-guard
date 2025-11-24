@@ -13,10 +13,6 @@ maps_bp = Blueprint("maps", __name__)
 
 
 def parse_wkb_point(hex_string):
-    """
-    Parse WKB (Well-Known Binary) hex string to extract lat/lng coordinates.
-    Handles little/big endian and optional SRID flag.
-    """
     try:
         hex_clean = hex_string.strip().replace(" ", "")
         if len(hex_clean) < 2:

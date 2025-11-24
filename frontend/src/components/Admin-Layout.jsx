@@ -15,6 +15,7 @@ import {
 import { Outlet, NavLink, useNavigate } from "react-router-dom";
 import Toast from "./Toast";
 import { registerToastCallback, registerNotificationCountCallback, startNotificationPolling, stopNotificationPolling } from "../utils/notificationService";
+import { API_CONFIG, getApiUrl } from "../utils/apiConfig";
 import "./Layout.css";
 import logo from "../assets/logo.png";
 import LoadingScreen from "./LoadingScreen";
@@ -39,9 +40,15 @@ function AdminLayout({ session, setSession, setNotification }) {
         return;
       }
       try {
-        const res = await fetch("http://localhost:5000/api/profile", {
+        const profileUrl = getApiUrl(API_CONFIG.endpoints.profile);
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 6000); // 6s timeout for profile fetch
+
+        const res = await fetch(profileUrl, {
           headers: { Authorization: `Bearer ${session.token}` },
+          signal: controller.signal,
         });
+        clearTimeout(timeout);
         const data = await res.json();
         if (!res.ok || data.status !== "success") {
           setSession(null);
@@ -65,15 +72,30 @@ function AdminLayout({ session, setSession, setNotification }) {
       } catch (err) {
         console.error("Admin profile fetch error:", err);
         const isNetworkError =
-          err.message.includes("fetch") ||
-          err.message.includes("network") ||
+          (err && err.name === 'AbortError') ||
+          (err && (err.message || '').toLowerCase().includes("fetch")) ||
+          (err && (err.message || '').toLowerCase().includes("network")) ||
           err.name === "TypeError";
+
         if (isNetworkError) {
-          setNotification({
-            message:
-              "Connection issue detected. Some features may be temporarily unavailable.",
-            type: "caution",
-          });
+          // If we have a cached session user, use it to continue the admin UI gracefully
+          if (session?.user) {
+            setUser({
+              ...session.user,
+              avatar_url: session.user.avatar_url || "/default-avatar.png",
+            });
+            setNotification({
+              message:
+                "Connection issue detected — showing cached profile. Some features may be unavailable.",
+              type: "caution",
+            });
+          } else {
+            setNotification({
+              message:
+                "Connection issue detected. Some features may be temporarily unavailable.",
+              type: "caution",
+            });
+          }
         } else {
           setSession(null);
           setUser(null);
@@ -147,14 +169,15 @@ function AdminLayout({ session, setSession, setNotification }) {
 
   const handleLogout = async () => {
     setShowLogoutConfirm(false);
-    try {
-      const token = session?.token || localStorage.getItem("token");
-      if (token) {
-        await fetch("http://localhost:5000/api/logout", {
-          method: "POST",
-          headers: { Authorization: `Bearer ${token}` },
-        });
-      }
+      try {
+        const token = session?.token || localStorage.getItem("token");
+        if (token) {
+          const logoutUrl = getApiUrl(API_CONFIG.endpoints.logout);
+          await fetch(logoutUrl, {
+            method: "POST",
+            headers: { Authorization: `Bearer ${token}` },
+          });
+        }
     } catch (error) {
       console.error("Admin logout error:", error);
     } finally {
