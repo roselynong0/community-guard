@@ -249,10 +249,20 @@ def get_users_for_verification():
             }), 200
 
     except Exception as e:
+        # Print full traceback to server logs for diagnostics
         print(f"❌ Admin users fetch failed: {str(e)}")
         import traceback
-        traceback.print_exc()
-        return jsonify({"status": "error", "message": "Failed to fetch users"}), 500
+        tb = traceback.format_exc()
+        print(tb)
+
+        # Return the error message to the caller to aid debugging (safe in staging).
+        # In production you may want to hide details or gate with a DEBUG flag.
+        return jsonify({
+            "status": "error",
+            "message": "Failed to fetch users",
+            "error": str(e),
+            "trace": tb
+        }), 500
 
 
 @admin_bp.route("/users/<user_id>/info", methods=["GET"])
