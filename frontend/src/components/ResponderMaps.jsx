@@ -113,7 +113,7 @@ function ResponderMaps({ session }) {
   useEffect(() => {
     const fetchResponderBarangay = async () => {
       try {
-        const token = session?.token || localStorage.getItem("access_token");
+        const token = session?.token || localStorage.getItem("token");
         if (!token) return;
 
         const response = await fetch(getApiUrl('/api/profile'), {
@@ -134,7 +134,7 @@ function ResponderMaps({ session }) {
     const fetchResponderData = async () => {
       try {
         setLoading(true);
-        const token = session?.token || localStorage.getItem("access_token");
+        const token = session?.token || localStorage.getItem("token");
 
         if (!token) {
           console.warn("Missing token for responder maps");
@@ -226,7 +226,7 @@ function ResponderMaps({ session }) {
 
   const handleSaveSafezone = async () => {
     try {
-      const token = session?.token || localStorage.getItem("access_token");
+      const token = session?.token || localStorage.getItem("token");
 
       const safezoneData = {
         name: safezoneModal.name,
@@ -254,6 +254,17 @@ function ResponderMaps({ session }) {
         setSafezoneModal(null);
         setIsCreatingSafezone(false);
         alert("✅ Safezone created successfully!");
+        // Trigger hotspots refresh after creating a safezone
+        try {
+          await fetch(getApiUrl('/api/hotspots/refresh'), {
+            method: 'POST',
+            headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+            body: JSON.stringify({ radius_meters: safezoneData.radius_meters || 200 })
+          });
+          console.log('🔁 Triggered hotspots refresh after safezone creation (responder)');
+        } catch (e) {
+          console.warn('Failed to refresh hotspots after responder safezone creation:', e);
+        }
       } else {
         alert(`❌ Error: ${data.message}`);
       }

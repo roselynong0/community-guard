@@ -84,7 +84,7 @@ function BarangayMaps({ session, userBarangay }) {
     const fetchBarangayReports = async () => {
       try {
         setLoading(true);
-        const token = session?.token || localStorage.getItem("access_token");
+        const token = session?.token || localStorage.getItem("token");
 
         if (!token || !userBarangay) {
           console.warn("Missing token or barangay for barangay maps");

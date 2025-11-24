@@ -158,7 +158,7 @@ function AdminMaps({ session }) {
     const fetchAdminMapData = async () => {
       try {
         setLoading(true);
-        const token = session?.token || localStorage.getItem("access_token");
+        const token = session?.token || localStorage.getItem("token");
 
         if (!token) {
           console.warn("Missing token for admin maps");
@@ -231,6 +231,22 @@ function AdminMaps({ session }) {
     setSafezones((prev) => [...prev, normalized]);
     addSafezonesToCache([normalized]);
     handleCloseSafezoneModal();
+
+    // Also trigger hotspots refresh so the new safezone is represented in hotspot calculations
+    (async () => {
+      try {
+        const token = session?.token || localStorage.getItem("token");
+        if (!token) return;
+        await fetch(getApiUrl('/api/hotspots/refresh'), {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ radius_meters: normalized.radius_meters || 200 })
+        });
+        console.log('🔁 Triggered hotspots refresh after safezone creation');
+      } catch (e) {
+        console.warn('Failed to refresh hotspots after safezone creation:', e);
+      }
+    })();
   };
 
   const handleSafezoneDelete = async (safezoneId) => {
@@ -239,7 +255,7 @@ function AdminMaps({ session }) {
     }
 
     try {
-      const token = session?.token || localStorage.getItem("access_token");
+      const token = session?.token || localStorage.getItem("token");
       const response = await fetch(getApiUrl(`/api/safezones/${safezoneId}`), {
         method: "DELETE",
         headers: { Authorization: `Bearer ${token}` },
@@ -404,21 +420,17 @@ function AdminMaps({ session }) {
 
           {/* Report markers grouped by barangay */}
           {Object.entries(reportsByBarangay).map(([barangay, reportsArray], i) => {
-            // Only show if this barangay is selected or all are selected
-            if (selectedBarangay !== 'all' && barangay !== selectedBarangay) {
-              return null;
-            }
-
-            const markerPosition = [
-              reportsArray[0].latitude,
-              reportsArray[0].longitude,
-            ];
+            const markerPosition = [reportsArray[0].latitude, reportsArray[0].longitude];
+            // Determine if this barangay is selected
+            const isSelected = selectedBarangay === 'all' || barangay === selectedBarangay;
 
             return (
               <Marker
                 key={`marker-${i}`}
                 position={markerPosition}
                 icon={createColoredIcon(getColor(barangay))}
+                opacity={isSelected ? 1 : 0.35}
+                className={`barangay-marker barangay-${barangay.replace(/\s+/g, '-')}`}
               >
                 <Popup>
                   <div style={{ fontWeight: "bold", fontSize: "14px", marginBottom: "4px" }}>

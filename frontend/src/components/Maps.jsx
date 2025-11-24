@@ -150,12 +150,13 @@ function Maps({ session, userRole }) {
   const [selectedBarangay, setSelectedBarangay] = useState('all');
   const [showHotspots, setShowHotspots] = useState(true);
   const [showSafezones, setShowSafezones] = useState(true);
+  const [userLocation, setUserLocation] = useState(null);
 
   useEffect(() => {
     const fetchMapReports = async () => {
       try {
         setLoading(true);
-        const token = session?.token || localStorage.getItem("access_token");
+        const token = session?.token || localStorage.getItem("token");
 
         // Check if user is a barangay official
         const isBarangayOfficial = userRole === "Barangay Official";
@@ -206,6 +207,18 @@ function Maps({ session, userRole }) {
           .filter(Boolean);
         setSafezones(normalizedSafezones);
         console.log(`✅ Loaded ${normalizedSafezones.length} safezones (cached)`);
+        // Try to get user current location (for residents)
+        try {
+          if (userRole === 'Resident' && navigator && navigator.geolocation) {
+            navigator.geolocation.getCurrentPosition(
+              (pos) => setUserLocation({ latitude: pos.coords.latitude, longitude: pos.coords.longitude }),
+              (err) => console.warn('Geolocation error (user location):', err),
+              { enableHighAccuracy: true, maximumAge: 60_000 }
+            );
+          }
+        } catch (e) {
+          console.warn('Geolocation not available:', e);
+        }
       } catch (err) {
         console.error("Failed to load map reports:", err);
       } finally {
@@ -273,6 +286,7 @@ function Maps({ session, userRole }) {
                 fillOpacity={0.25}
                 weight={3}
                 dashArray="5, 5"
+                className={`safezone safezone-${sz.id ?? 'unknown'}`}
               >
                 <Popup>
                   <div>
@@ -283,6 +297,8 @@ function Maps({ session, userRole }) {
                     <span style={{ fontSize: "11px", color: "#666" }}>
                       Radius: {sz.radius_meters}m
                     </span>
+                    <br />
+                    <small style={{ color: '#666' }}>ID: {sz.id ?? 'n/a'}</small>
                   </div>
                 </Popup>
               </Circle>
@@ -292,12 +308,13 @@ function Maps({ session, userRole }) {
           {/* Render hotspots */}
           {showHotspots && hotspots.map((hs, idx) => (
             <Circle
-              key={`hotspot-${idx}`}
+              key={`hotspot-${hs.id ?? idx}`}
               center={[hs.centroid.latitude, hs.centroid.longitude]}
               radius={300}
               color="#dc2626"
               fillColor="#dc2626"
               fillOpacity={0.2}
+              className={`hotspot hotspot-${hs.id ?? idx}`}
             >
               <Popup>
                 <div>
@@ -308,6 +325,8 @@ function Maps({ session, userRole }) {
                   <span style={{ fontSize: "11px", color: "#666" }}>
                     Last activity: {new Date(hs.last_report_at).toLocaleDateString()}
                   </span>
+                  <br />
+                  <small style={{ color: '#666' }}>ID: {hs.id ?? 'n/a'}</small>
                 </div>
               </Popup>
             </Circle>
@@ -316,20 +335,17 @@ function Maps({ session, userRole }) {
           {/* Report markers grouped by barangay */}
           {Object.entries(reportsByBarangay).map(([barangay, reportsArray], i) => {
             // Only show if this barangay is selected or all are selected
-            if (selectedBarangay !== 'all' && barangay !== selectedBarangay) {
-              return null;
-            }
-
-            const markerPosition = [
-              reportsArray[0].latitude,
-              reportsArray[0].longitude,
-            ];
+            const markerPosition = [reportsArray[0].latitude, reportsArray[0].longitude];
+            // Dim markers not in the selected barangay
+            const isSelected = selectedBarangay === 'all' || barangay === selectedBarangay;
 
             return (
               <Marker
                 key={`marker-${i}`}
                 position={markerPosition}
                 icon={createColoredIcon(getColor(barangay))}
+                opacity={isSelected ? 1 : 0.35}
+                className={`barangay-marker barangay-${barangay.replace(/\s+/g, '-')}`}
               >
                 <Popup>
                   <div style={{ fontWeight: "bold", fontSize: "14px", marginBottom: "4px" }}>
@@ -370,6 +386,40 @@ function Maps({ session, userRole }) {
                 fillOpacity={0.8}
               />
             ) : null
+          )}
+
+          {/* User location pointer - residents only */}
+          {userLocation && userRole === 'Resident' && (
+            <>
+              <Marker
+                key={`user-location`}
+                position={[userLocation.latitude, userLocation.longitude]}
+                icon={new L.Icon({
+                  iconUrl: 'https://unpkg.com/leaflet@1.7.1/dist/images/marker-icon.png',
+                  shadowUrl: 'https://unpkg.com/leaflet@1.7.1/dist/images/marker-shadow.png',
+                  iconSize: [25,41],
+                  iconAnchor: [12,41]
+                })}
+                className="user-location-marker"
+              >
+                <Popup>
+                  <div>
+                    <strong>Your location</strong>
+                    <br />
+                    <small style={{ color: '#666' }}>Lat: {userLocation.latitude.toFixed(5)}, Lng: {userLocation.longitude.toFixed(5)}</small>
+                  </div>
+                </Popup>
+              </Marker>
+              <Circle
+                center={[userLocation.latitude, userLocation.longitude]}
+                radius={50}
+                color="#2563eb"
+                fillColor="#2563eb"
+                fillOpacity={0.12}
+                weight={2}
+                className="user-location-circle"
+              />
+            </>
           )}
         </MapContainer>
 

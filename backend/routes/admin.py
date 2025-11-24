@@ -140,7 +140,7 @@ def get_users_for_verification():
             # Select only needed fields to reduce payload size
             users_response = supabase.table("users").select(
                 "id, firstname, lastname, email, role, isverified, avatar_url, created_at"
-            ).is_("is_deleted", "null").order("created_at", desc=True).limit(limit).offset(offset).execute()
+            ).is_("deleted_at", "null").order("created_at", desc=True).limit(limit).offset(offset).execute()
             
             users = getattr(users_response, "data", []) or []
             
@@ -202,7 +202,7 @@ def get_users_for_verification():
             
             users_response = supabase.table("users").select(
                 "id, firstname, lastname, email, role, isverified, avatar_url, created_at"
-            ).is_("is_deleted", "null").order("created_at", desc=True).limit(limit).offset(offset).execute()
+            ).is_("deleted_at", "null").order("created_at", desc=True).limit(limit).offset(offset).execute()
             
             users = getattr(users_response, "data", []) or []
             

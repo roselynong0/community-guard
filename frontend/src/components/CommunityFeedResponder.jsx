@@ -6,7 +6,7 @@ import { API_CONFIG, getApiUrl } from "../utils/apiConfig";
 // This is intentionally small and resilient to missing endpoints.
 export default function CommunityFeedResponder({ session, token }) {
   const [reports, setReports] = useState(null);
-  const authToken = token || session?.token || localStorage.getItem('access_token') || '';
+  const authToken = token || session?.token || localStorage.getItem('token') || '';
 
   useEffect(() => {
     let mounted = true;
