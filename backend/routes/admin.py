@@ -126,7 +126,10 @@ def get_users_for_verification():
         # Get pagination parameters
         page = int(request.args.get('page', 1))
         limit = int(request.args.get('limit', 50))  # Default 50 users per page
-        offset = (page - 1) * limit
+        if limit <= 0:
+            limit = 50
+        offset = max((page - 1) * limit, 0)
+        end_index = offset + limit - 1
         
         start_time = time.time()
         print(f"🔍 Admin fetching users: page={page}, limit={limit}")
@@ -140,7 +143,7 @@ def get_users_for_verification():
             # Select only needed fields to reduce payload size
             users_response = supabase.table("users").select(
                 "id, firstname, lastname, email, role, isverified, avatar_url, created_at"
-            ).is_("deleted_at", "null").order("created_at", desc=True).limit(limit).offset(offset).execute()
+            ).is_("deleted_at", "null").order("created_at", desc=True).range(offset, end_index).execute()
             
             users = getattr(users_response, "data", []) or []
             
@@ -202,7 +205,7 @@ def get_users_for_verification():
             
             users_response = supabase.table("users").select(
                 "id, firstname, lastname, email, role, isverified, avatar_url, created_at"
-            ).is_("deleted_at", "null").order("created_at", desc=True).limit(limit).offset(offset).execute()
+            ).is_("deleted_at", "null").order("created_at", desc=True).range(offset, end_index).execute()
             
             users = getattr(users_response, "data", []) or []
             
