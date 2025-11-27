@@ -2,6 +2,61 @@
   padding: 0 2rem;
 }
 
+/* Animation classes for content building in background */
+.safety-container .title,
+.safety-container .subtitle,
+.safety-container .tips-section {
+  opacity: 0;
+  animation: fadeIn 0.6s ease-out forwards;
+}
+
+.safety-container.overlay-exited .title,
+.safety-container.overlay-exited .subtitle,
+.safety-container.overlay-exited .tips-section {
+  animation: none;
+  opacity: 1;
+}
+
+.safety-container .title {
+  animation-delay: 0.1s;
+}
+
+.safety-container .subtitle {
+  animation-delay: 0.2s;
+}
+
+.safety-container .tips-section:nth-child(3) {
+  animation-delay: 0.3s;
+}
+
+.safety-container .tips-section:nth-child(4) {
+  animation-delay: 0.4s;
+}
+
+.safety-container .tips-section:nth-child(5) {
+  animation-delay: 0.5s;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
 .title {
   font-size: 1.8rem;
   display: flex;
@@ -53,6 +108,25 @@
   border-radius: 0.9rem;
   border: 1px solid #ddd;
   box-shadow: 0 3px 6px rgba(0,0,0,0.05);
+  opacity: 0;
+  animation: fadeIn 0.5s ease-out forwards;
+}
+
+.safety-container.overlay-exited .tip-card {
+  animation: none;
+  opacity: 1;
+}
+
+.tip-card:nth-child(1) {
+  animation-delay: 0.4s;
+}
+
+.tip-card:nth-child(2) {
+  animation-delay: 0.5s;
+}
+
+.tip-card:nth-child(3) {
+  animation-delay: 0.6s;
 }
 
 .tip-card h3 {
@@ -66,6 +140,14 @@
   border-radius: .7rem;
   border: 1px solid #d33;
   margin: 0 0 0.7rem;
+  opacity: 0;
+  animation: fadeIn 0.5s ease-out forwards;
+  animation-delay: 0.6s;
+}
+
+.safety-container.overlay-exited .hotline-card {
+  animation: none;
+  opacity: 1;
 }
 
 .hotline-card h3 {

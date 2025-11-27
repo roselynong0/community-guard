@@ -1,14 +1,28 @@
-import React from "react";
+import React, { useState, useEffect } from "react";
 import { FaShieldAlt, FaFireExtinguisher, FaUserShield, FaFirstAid, FaPhoneAlt } from "react-icons/fa";
 import "./SafetyTips.css";
+import LoadingScreen from "./LoadingScreen";
 import EQ from "../assets/safety/earthquake.jpg";
 import FLOOD from "../assets/safety/flood.png";
 import FIRE from "../assets/safety/fire.png";
 
 
 const SafetyTips = () => {
-  return (
-    <div className="safety-container">
+  const [loading, setLoading] = useState(true);
+  const [overlayExited, setOverlayExited] = useState(false);
+  const successTitle = "Safety Tips Complete!";
+
+  useEffect(() => {
+    // Simulate loading safety tips content
+    const timer = setTimeout(() => {
+      setLoading(false);
+    }, 1500);
+
+    return () => clearTimeout(timer);
+  }, []);
+
+  const content = (
+    <div className={`safety-container ${overlayExited ? 'overlay-exited' : ''}`}>
       <h1 className="title"><FaShieldAlt /> Safety Tips</h1>
       <p className="subtitle">
         Stay informed. Protect yourself, your family, and your community with practical safety guidelines.
@@ -95,6 +109,51 @@ const SafetyTips = () => {
         </div>
         </div>
     </div>
+  );
+
+  const loadingFeatures = [
+    {
+      title: "Disaster Preparedness",
+      description: "Learn essential earthquake, fire, and flood safety protocols.",
+    },
+    {
+      title: "Crime Prevention",
+      description: "Secure your home and stay safe with proven safety measures.",
+    },
+    {
+      title: "Emergency Hotlines",
+      description: "Access national and local emergency contact numbers instantly.",
+    },
+    {
+      title: "Home Safety",
+      description: "Protect your property with security best practices.",
+    },
+    {
+      title: "Personal Safety",
+      description: "Stay aware and confident in public spaces with safety tips.",
+    },
+  ];
+
+  const effectiveStage = loading ? "loading" : "exit";
+
+  const handleLoadingExited = () => {
+    setOverlayExited(true);
+  };
+
+  return (
+    <LoadingScreen
+      variant="inline"
+      features={loadingFeatures}
+      title={loading ? "Loading safety tips..." : undefined}
+      subtitle={loading ? "Preparing essential safety information and guidelines" : undefined}
+      stage={effectiveStage}
+      onExited={handleLoadingExited}
+      inlineOffset="25vh"
+      successDuration={900}
+      successTitle={successTitle}
+    >
+      {content}
+    </LoadingScreen>
   );
 };
 

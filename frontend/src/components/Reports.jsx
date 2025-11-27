@@ -1,9 +1,20 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import axios from "axios";
-import { FaEdit, FaTrashAlt, FaSearch, FaRedo, FaCheckCircle, FaTimesCircle, FaQuestionCircle, FaTimes } from "react-icons/fa";
-import { MapContainer, TileLayer, Marker, useMap, useMapEvents } from "react-leaflet";
+import {
+  FaEdit,
+  FaTrashAlt,
+  FaSearch,
+  FaRedo,
+  FaCheckCircle,
+  FaTimesCircle,
+  FaQuestionCircle,
+  FaTimes } from "react-icons/fa";
+import {
+  MapContainer,
+  TileLayer, Marker,
+  useMap,
+  useMapEvents } from "react-leaflet";
 import { API_CONFIG, getApiUrl } from "../utils/apiConfig";
-import AICategorySelector from "./AICategorySelector";
 import "leaflet/dist/leaflet.css";
 import L from "leaflet";
 import "./Reports.css";
@@ -12,27 +23,19 @@ import markerIcon2x from "leaflet/dist/images/marker-icon-2x.png";
 import markerIcon from "leaflet/dist/images/marker-icon.png";
 import markerShadow from "leaflet/dist/images/marker-shadow.png";
 
-// Use getApiUrl(...) so VITE_API_URL from env is used in production (Railway) and localhost in dev
-
-// Helper function to construct proper image URLs with optimization
 const getImageUrl = (imgUrl) => {
-  // If it's a data URL (base64), return as is
   if (imgUrl && imgUrl.startsWith('data:')) {
     return imgUrl;
   }
-  // If it's an API path, construct full URL
   if (imgUrl && imgUrl.startsWith('/api/')) {
     return `${API_CONFIG.BASE_URL}${imgUrl}`;
   }
-  // Default case for relative paths
   if (imgUrl) {
     return `${API_CONFIG.BASE_URL}${imgUrl}`;
   }
-  // Fallback for empty/null URLs
   return "/src/assets/placeholder.png";
 };
 
-// Fix Leaflet marker icon issue
 delete L.Icon.Default.prototype._getIconUrl;
 L.Icon.Default.mergeOptions({
   iconRetinaUrl: markerIcon2x,
@@ -166,6 +169,7 @@ function Reports({ session }) {
   const [showMountAnimation, setShowMountAnimation] = useState(false);
   const [mountStage, setMountStage] = useState("exit");
   const loadingRef = useRef(loading);
+  const successTitle = "Reports Complete!";
 
   useEffect(() => {
     loadingRef.current = loading;
@@ -242,30 +246,7 @@ function Reports({ session }) {
   const [appliedSearch, setAppliedSearch] = useState("");
   const [appliedCategory, setAppliedCategory] = useState("All");
   const [appliedBarangay, setAppliedBarangay] = useState("All Barangays");
-  // AI free attempts tracking (3 attempts free by default), persisted in localStorage
-  const [aiAttemptsLeft, setAiAttemptsLeft] = useState(() => {
-    try {
-      const existing = localStorage.getItem('ai_free_attempts');
-      return existing ? parseInt(existing, 10) : 3;
-    } catch (e) {
-      console.debug('ai attempts load error', e);
-      return 3;
-    }
-  });
   const token = session?.token;
-
-  // Helper to decrement an AI attempt and persist to localStorage
-  const handleUseAiAttempt = () => {
-    setAiAttemptsLeft((prev) => {
-      const next = Math.max(0, prev - 1);
-      try {
-        localStorage.setItem('ai_free_attempts', String(next));
-      } catch (err) {
-        console.debug('ai attempts save error', err);
-      }
-      return next;
-    });
-  };
 
   // ⭐ NOTIFICATION HANDLER FUNCTION
   const showNotification = (message, type = "success") => {
@@ -284,7 +265,7 @@ function Reports({ session }) {
     setLoading(true);
     try {
       const res = await axios.get(
-  getApiUrl(`/api/reports?sort=${sort === "latest" ? "desc" : "asc"}`),
+  getApiUrl(`/api/reports`),
         { 
           headers: { Authorization: `Bearer ${token}` },
           timeout: 30000 // 30 second timeout
@@ -293,10 +274,24 @@ function Reports({ session }) {
       if (res.data.status === "success" && Array.isArray(res.data.reports)) {
         setReports(res.data.reports);
         console.log(`📊 Loaded ${res.data.reports.length} reports successfully`);
+        
+        if (res.data.reports.length > 0) {
+          // Calculate animation duration: 100ms per card + 500ms for slide animation
+          const animationDuration = (res.data.reports.length * 100) + 500;
+          
+          // Keep loading screen visible until all cards have animated in
+          setTimeout(() => {
+            setLoading(false);
+          }, animationDuration);
+        } else {
+          // No reports, exit loading immediately to show "No reports found" message
+          setLoading(false);
+        }
       } else {
         console.warn("Unexpected response format:", res.data);
         setReports([]);
         showNotification("Failed to load reports - invalid format", "error");
+        setLoading(false);
       }
     } catch (err) {
       console.error("Error fetching reports:", err);
@@ -310,10 +305,9 @@ function Reports({ session }) {
       }
       // On error, preserve existing reports to prevent blank page
       // Only set empty array if there are no existing reports
-    } finally {
       setLoading(false);
     }
-  }, [token, sort]);
+  }, [token]);
 
   // ✅ Run on mount & whenever token/sort changes
   useEffect(() => {
@@ -654,6 +648,12 @@ function Reports({ session }) {
       return (
         (r.title || "").toLowerCase().includes(searchLower)
       );
+    })
+    .sort((a, b) => {
+      // Client-side sorting by created_at timestamp
+      const dateA = new Date(a.created_at || 0).getTime();
+      const dateB = new Date(b.created_at || 0).getTime();
+      return sort === "latest" ? dateB - dateA : dateA - dateB;
     });
 
   // 👇 NEW HANDLER TO RESET ALL FILTERS
@@ -714,7 +714,7 @@ function Reports({ session }) {
       {error && <p className="error">{error}</p>}
 
       {/* Header */}
-      <div className="header-row animate-up">
+      <div className="header-row">
         <h2>Community Reports</h2>
         <button
           className="history-btn"
@@ -726,7 +726,7 @@ function Reports({ session }) {
       </div>
 
       {/* Filters - Added ref for keyboard navigation */}
-      <div className="top-controls animate-up" ref={filterContainerRef}>
+      <div className="top-controls" ref={filterContainerRef}>
         <div className="search-bar-container">
           <FaSearch className="search-icon" /> {/* Visual Search Icon */}
           <label htmlFor="report-search" className="sr-only">Search reports by title</label>
@@ -816,9 +816,10 @@ function Reports({ session }) {
       </div>
 
       {/* Loading Indicator */}
-      <div className="reports-list animate-up">
-        {!loading && filteredReports.length > 0 ? (
-          filteredReports.map((report) => {
+      <div className="reports-list">
+        {/* Show reports during loading if they exist (they'll animate in) */}
+        {filteredReports.length > 0 ? (
+          filteredReports.map((report, index) => {
             const isExpanded = expandedPosts.includes(report.id);
             const isPending = report.is_approved === false;
             const isRejected = report.is_rejected === true;
@@ -828,11 +829,22 @@ function Reports({ session }) {
                   (report.description?.length || 0) > 130 ? "..." : ""
                 }`;
 
+            const cardClasses = ["report-card", "animate-up"];
+            if (highlightedReportId === String(report.id)) {
+              cardClasses.push("highlighted-report");
+            }
+            if (isRejected) {
+              cardClasses.push("report-rejected");
+            } else if (isPending) {
+              cardClasses.push("report-pending");
+            }
+
             return (
               <div 
                 key={report.id} 
                 id={`report-${report.id}`}
-                className={(isRejected ? 'report-rejected' : isPending ? 'report-pending' : `report-card ${highlightedReportId === String(report.id) ? 'highlighted-report' : ''}`) + ' animate-up'}
+                className={cardClasses.join(" ")}
+                style={{ animationDelay: `${index * 0.1}s` }}
                  role="article"
               >
                 {/* Header */}
@@ -857,21 +869,27 @@ function Reports({ session }) {
                             }`.trim()}
                             <span
                               className={`admin-verification-status ${
-                                report.reporter.verified ? "fully-verified" : "unverified"
+                                report.reporter.verified && report.reporter.isverified
+                                  ? "fully-verified"
+                                  : report.reporter.isverified
+                                  ? "email-verified"
+                                  : "email-only-verified"
                               }`}
                             >
-                              {report.reporter.verified ? (
-                                <><FaCheckCircle aria-hidden="true" />Verified</>
+                              {report.reporter.verified && report.reporter.isverified ? (
+                                <><FaCheckCircle aria-hidden="true" />Fully Verified</>
+                              ) : report.reporter.isverified ? (
+                                <><FaCheckCircle aria-hidden="true" />Email Verified</>
                               ) : (
-                                <><FaTimesCircle aria-hidden="true" />Unverified</>
+                                <><FaCheckCircle aria-hidden="true" />Email Verified</>
                               )}
                             </span>
                           </>
                         ) : (
                           <>
                             Unknown User
-                            <span className="admin-verification-status unverified">
-                              <FaTimesCircle aria-hidden="true" />Unverified
+                            <span className="admin-verification-status email-only-verified">
+                              <FaCheckCircle aria-hidden="true" />Email Verified
                             </span>
                           </>
                         )}
@@ -1032,6 +1050,7 @@ function Reports({ session }) {
             );
           })
         ) : (
+          // Only show "No reports found" when loading is complete AND there are no reports
           !loading && <p className="no-report-msg">No reports found.</p>
         )}
       </div>
@@ -1061,6 +1080,7 @@ function Reports({ session }) {
 
               <label>Title: <span style={{ color: 'red' }}>*</span></label>
               <input
+                className="reports-modal-input"
                 type="text"
                 placeholder="Enter report title"
                 value={newReport.title}
@@ -1068,23 +1088,28 @@ function Reports({ session }) {
                   setNewReport({ ...newReport, title: e.target.value })
                 }
                 tabIndex="0"
+                aria-required="true"
                 required
               />
 
               <label>Description: <span style={{ color: 'red' }}>*</span></label>
               <textarea
+                className="reports-modal-textarea"
                 placeholder="Describe the incident in detail"
                 value={newReport.description}
                 onChange={(e) =>
                   setNewReport({ ...newReport, description: e.target.value })
                 }
                 tabIndex="0"
+                rows={5}
+                aria-required="true"
                 required
               />
 
               <div className="address-fields">
                 <label>Street Address: <span style={{ color: 'red' }}>*</span></label>
                 <input
+                  className="reports-modal-input"
                   type="text"
                   placeholder="e.g. 45 Rizal Avenue"
                   value={newReport.addressStreet}
@@ -1092,10 +1117,12 @@ function Reports({ session }) {
                     setNewReport({ ...newReport, addressStreet: e.target.value })
                   }
                   tabIndex="0"
+                  aria-required="true"
                   required
                 />
                 <label>Barangay: <span style={{ color: 'red' }}>*</span></label>
                 <select
+                  className="reports-modal-select"
                   value={newReport.barangay}
                   onChange={(e) =>
                     setNewReport({ ...newReport, barangay: e.target.value })
@@ -1113,40 +1140,24 @@ function Reports({ session }) {
                 </select>
               </div>
 
-              {/* AI Category Suggestions */}
               <label>Category: <span style={{ color: 'red' }}>*</span></label>
               <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start', flexDirection: 'column' }}>
                 <select
-                value={newReport.category}
-                onChange={(e) =>
-                  setNewReport({ ...newReport, category: e.target.value })
-                }
-                tabIndex="0"
-                required
-              >
-                <option value="">Select a category</option>
-                <option value="Crime">Crime</option>
-                <option value="Concern">Concern</option>
-                <option value="Hazard">Hazard</option>
-                <option value="Lost&Found">Lost & Found</option>
-                <option value="Others">Others</option>
-              </select>
-                <AICategorySelector
-                  description={newReport.description}
-                  selectedCategory={newReport.category}
-                  onSelectCategory={(category) =>
-                    setNewReport({ ...newReport, category })
+                  className="reports-modal-select"
+                  value={newReport.category}
+                  onChange={(e) =>
+                    setNewReport({ ...newReport, category: e.target.value })
                   }
-                  token={token}
-                  /* Only allow the AI helper when the current user is the report owner.
-                     For the 'Add New Report' modal this is always the case, and for
-                     edits we pass owner status in the future if we add per-report owner checks. */
-                  isOwner={editReportId ? editReportOwner : true}
-                  /* Ensure user has provided required fields before AI selection */
-                  allFieldsFilled={Boolean(newReport.title && newReport.description && newReport.barangay && newReport.addressStreet && ((newReport.images && newReport.images.length > 0) || (newReport.existingImages && newReport.existingImages.length > 0)))}
-                  aiAttemptsLeft={aiAttemptsLeft}
-                  onUseAI={handleUseAiAttempt}
-                />
+                  tabIndex="0"
+                  required
+                >
+                  <option value="">Select a category</option>
+                  <option value="Crime">Crime</option>
+                  <option value="Concern">Concern</option>
+                  <option value="Hazard">Hazard</option>
+                  <option value="Lost&Found">Lost & Found</option>
+                  <option value="Others">Others</option>
+                </select>
               </div>
 
               <div className="map-field">
@@ -1509,6 +1520,7 @@ function Reports({ session }) {
       onExited={handleLoadingExited}
       inlineOffset="25vh"
       successDuration={900}
+      successTitle={successTitle}
     >
       {mainContent}
     </LoadingScreen>

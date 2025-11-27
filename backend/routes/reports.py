@@ -3,7 +3,7 @@ Reports Blueprint
 Handles all report/incident CRUD operations including map reports and statistics
 """
 from flask import Blueprint, request, jsonify
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 import time
 import base64
 from middleware.auth import token_required
@@ -828,7 +828,13 @@ def get_report_categories():
         
         # Use retry mechanism for Supabase query
         def fetch_categories():
-            query = supabase.table("reports").select("category").is_("deleted_at", "null")
+            query = (
+                supabase
+                .table("reports")
+                .select("category")
+                .is_("deleted_at", "null")
+                .eq("is_rejected", False)
+            )
             
             # Apply filtering logic
             if filter_type == "all":
@@ -1141,6 +1147,174 @@ def get_top_barangays():
     except Exception as e:
         print(f"get_top_barangays error: {e}")
         return jsonify({"status": "error", "message": str(e), "barangays": []}), 500
+
+
+@reports_bp.route("/reports/missed_summary", methods=["GET"])
+@token_required
+def get_missed_reports_summary():
+    """Return a summary of reports that occurred while the user was offline.
+
+    Uses the sessions table to determine the previous session end (expires_at) and
+    the current session start (created_at) based on the token in Authorization header.
+    If no previous session is found, the endpoint will consider the last 24 hours.
+    Response includes counts, barangay breakdown, category breakdown, severity stats
+    (if available), and up to 5 recent reports.
+    """
+    user_id = request.user_id
+    token = request.headers.get("Authorization", "").replace("Bearer ", "")
+
+    try:
+        # Get current session by token (should exist)
+        try:
+            curr_resp = supabase.table("sessions").select("*").eq("token", token).eq("user_id", user_id).single().execute()
+            current_session = getattr(curr_resp, "data", None)
+        except Exception:
+            current_session = None
+
+        if current_session and current_session.get("created_at"):
+            curr_created = current_session.get("created_at")
+            curr_dt = datetime.fromisoformat(curr_created.replace('Z', '+00:00'))
+        else:
+            # Fallback to now as current session start
+            curr_dt = datetime.now(timezone.utc)
+
+        # Find previous session (most recent before current session created_at)
+        prev_session = None
+        try:
+            if current_session and current_session.get("created_at"):
+                prev_resp = supabase.table("sessions").select("*").eq("user_id", user_id).lt("created_at", current_session.get("created_at")).order("created_at", desc=True).limit(1).single().execute()
+                prev_session = getattr(prev_resp, "data", None)
+            else:
+                prev_session = None
+        except Exception:
+            prev_session = None
+
+        if prev_session:
+            offline_start_str = prev_session.get("expires_at") or prev_session.get("created_at")
+            offline_start = datetime.fromisoformat(offline_start_str.replace('Z', '+00:00'))
+        else:
+            # Default to 24 hours before current session
+            offline_start = curr_dt - timedelta(hours=24)
+
+        offline_end = curr_dt
+
+        # Fetch reports created between offline_start (exclusive) and offline_end (inclusive)
+        def fetch_reports_window():
+            # Supabase expects ISO strings; use Z format
+            return supabase.table("reports").select("*").gte("created_at", offline_start.isoformat()).lt("created_at", offline_end.isoformat()).is_("deleted_at", "null").execute()
+
+        resp = supabase_retry(fetch_reports_window)
+        reports_list = getattr(resp, "data", []) or []
+
+        total = len(reports_list)
+
+        # Aggregate breakdowns
+        from collections import Counter
+        categories = Counter([r.get("category") or "uncategorized" for r in reports_list])
+        barangays = Counter([r.get("address_barangay") or "Unknown" for r in reports_list])
+
+        # Severity stats using numpy if numeric severity/risk fields exist
+        numeric_severities = []
+        for r in reports_list:
+            val = r.get("severity") or r.get("risk_score")
+            try:
+                if val is not None:
+                    numeric_severities.append(float(val))
+            except Exception:
+                continue
+
+        severity_stats = {"count": 0}
+        try:
+            import numpy as np
+            if numeric_severities:
+                arr = np.array(numeric_severities, dtype=float)
+                severity_stats = {
+                    "count": int(arr.size),
+                    "mean": float(np.mean(arr)),
+                    "median": float(np.median(arr)),
+                    "p90": float(np.percentile(arr, 90)),
+                }
+        except Exception as e:
+            print("numpy not available or failed to compute severity stats:", e)
+
+        # Top 5 recent reports
+        def parse_created(r):
+            c = r.get("created_at")
+            try:
+                return datetime.fromisoformat(c.replace('Z', '+00:00'))
+            except Exception:
+                return datetime.now(timezone.utc)
+
+        top_reports = sorted(reports_list, key=parse_created, reverse=True)[:5]
+        # Minimalize report payload for frontend
+        top_reports_min = [
+            {
+                "id": r.get("id"),
+                "title": r.get("title") or r.get("category") or "Report",
+                "created_at": r.get("created_at"),
+                "address_barangay": r.get("address_barangay"),
+                "severity": r.get("severity") or r.get("risk_score")
+            }
+            for r in top_reports
+        ]
+
+        # Get user display name and verification flags
+        user_display = None
+        user_row = getattr(request, 'user_record', None)
+        user_flags = {"isverified": False, "verified": False, "status_label": "Email Verified"}
+        if user_row:
+            user_display = f"{user_row.get('firstname','Resident')}"
+            user_flags["isverified"] = bool(user_row.get('isverified'))
+            user_flags["verified"] = bool(user_row.get('verified'))
+            # Determine status label
+            if user_flags["verified"] and user_flags["isverified"]:
+                user_flags["status_label"] = "Fully Verified"
+            elif user_flags["isverified"]:
+                user_flags["status_label"] = "Email Verified"
+            else:
+                user_flags["status_label"] = "Email Verified"
+        else:
+            try:
+                user_resp = supabase.table("users").select("firstname,isverified,verified").eq("id", user_id).single().execute()
+                ud = getattr(user_resp, 'data', None)
+                user_display = ud.get('firstname') if ud else 'Resident'
+                if ud:
+                    user_flags["isverified"] = bool(ud.get('isverified'))
+                    user_flags["verified"] = bool(ud.get('verified'))
+                    # Determine status label
+                    if user_flags["verified"] and user_flags["isverified"]:
+                        user_flags["status_label"] = "Fully Verified"
+                    elif user_flags["isverified"]:
+                        user_flags["status_label"] = "Email Verified"
+                    else:
+                        user_flags["status_label"] = "Email Verified"
+            except Exception:
+                user_display = 'Resident'
+
+        if total == 0:
+            summary_message = f"Welcome back {user_display}, Community Helper detected no new reports while you were away. You're all caught up!"
+        else:
+            summary_message = f"Welcome back {user_display}, while you were away we detected {total} new report{'' if total==1 else 's'} you may have missed."
+
+        return jsonify({
+            "status": "success",
+            "summary": {
+                "message": summary_message,
+                "total": total,
+                "categories": dict(categories),
+                "barangays": dict(barangays),
+                "severity_stats": severity_stats,
+                "top_reports": top_reports_min,
+                "offline_start": offline_start.isoformat(),
+                "offline_end": offline_end.isoformat(),
+                "ai_name": "Community Helper",
+                "user_flags": user_flags
+            }
+        }), 200
+
+    except Exception as e:
+        print("get_missed_reports_summary error:", e)
+        return jsonify({"status": "error", "message": str(e), "summary": {}}), 500
 
 
 # Report Approval Endpoints

@@ -153,7 +153,9 @@ html, body, #root {
 
 .loading-inline-children {
   /* keep normal layout and stacking for children */
+  /* Content should remain visible during loading */
   transition: filter 420ms cubic-bezier(.2,.9,.2,1), opacity 420ms ease;
+  opacity: 1;
 }
 
 .loading-inline-overlay {
@@ -207,6 +209,17 @@ html, body, #root {
   opacity: 1 !important;
 }
 
+/* Pause animations for Profile page when overlay has exited */
+.profile-page.overlay-exited .animate-up,
+.profile-page.overlay-exited .animate-up *,
+.profile-page.overlay-exited .fade-in-up,
+.profile-page.overlay-exited .fade-in-up * {
+  animation: none !important;
+  transition: none !important;
+  transform: none !important;
+  opacity: 1 !important;
+}
+
 .loading-inline-card {
   background: rgba(255,255,255,0.98);
   border-radius: 12px;
@@ -230,7 +243,6 @@ html, body, #root {
 .loading-inline-children.loading-paused * {
   animation: none !important;
   transition: none !important;
-  transform: none !important;
   opacity: 1 !important;
 }
 

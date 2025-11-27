@@ -131,9 +131,21 @@ export default function Notifications({ session, token }) {
         };
       });
       setNotifications(list);
+      
+      if (list.length > 0) {
+        // Calculate animation duration: 80ms per notification + 500ms for slide animation
+        const animationDuration = (list.length * 80) + 500;
+        
+        // Keep loading screen visible until all notifications have animated in
+        setTimeout(() => {
+          setLoading(false);
+        }, animationDuration);
+      } else {
+        // No notifications, exit loading immediately
+        setLoading(false);
+      }
     } catch (e) {
       setError(e.message || "Something went wrong loading notifications");
-    } finally {
       setLoading(false);
     }
   }, [headers]);
@@ -294,17 +306,15 @@ export default function Notifications({ session, token }) {
         </div>
       )}
 
-      {loading ? (
-        <div className="loading loading-block" aria-busy="true" aria-live="polite">
-          <div className="spinner"></div>
-          Loading notifications…
-        </div>
-      ) : visible.length === 0 ? (
-        <div className="empty no-notifications">No notifications to show.</div>
-      ) : (
+      {/* Show notifications list during loading if they exist (they'll animate in) */}
+      {visible.length > 0 ? (
         <ul className="notifications-list" role="list">
-          {visible.map((n) => (
-            <li key={n.id} className={`notification-item ${n.read ? "read" : "unread"}`}>
+          {visible.map((n, index) => (
+            <li 
+              key={n.id} 
+              className={`notification-item ${n.read ? "read" : "unread"}`}
+              style={{ animationDelay: `${index * 0.08}s` }}
+            >
               <div className="notif-icon-container">
                 {getNotificationIcon(n.type)}
               </div>
@@ -335,6 +345,8 @@ export default function Notifications({ session, token }) {
             </li>
           ))}
         </ul>
+      ) : (
+        !loading && <div className="empty no-notifications">No notifications to show.</div>
       )}
 
       {!authToken && (

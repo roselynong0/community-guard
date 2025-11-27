@@ -1,11 +1,11 @@
 @keyframes fadeIn {
     from {
         opacity: 0;
-        transform: translateY(10px); 
+        transform: translateX(30px); /* Slide from right */
     }
     to {
         opacity: 1;
-        transform: translateY(0);
+        transform: translateX(0);
     }
 }
 
@@ -385,12 +385,19 @@
 @keyframes fadeIn {
     from {
         opacity: 0;
-        transform: translateY(10px); 
+        transform: translateX(30px);
     }
     to {
         opacity: 1;
-        transform: translateY(0);
+        transform: translateX(0);
     }
+}
+
+/* Disable animations after loading completes */
+.notifications-container.overlay-exited .notification-item {
+    animation: none !important;
+    opacity: 1 !important;
+    transform: translateX(0) !important;
 }
 
 .notifications-container { 

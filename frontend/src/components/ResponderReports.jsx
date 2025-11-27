@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import { FaEdit, FaTrashAlt, FaSearch, FaRedo, FaCheckCircle, FaTimesCircle, FaCheck, FaTimes } from "react-icons/fa";
 import { API_CONFIG, getApiUrl } from "../utils/apiConfig";
-import "./Reports.css";
+import "./ResponderReports.css";
 
 const REPORT_STATUSES = ["Pending", "Ongoing", "Resolved"];
 

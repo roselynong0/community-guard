@@ -309,38 +309,66 @@
     border-color: #9ecaff;
 }
 
-.stat-grid {
+.landing-container .stat-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    grid-template-columns: repeat(4, minmax(0, 1fr));
     gap: 20px;
-    max-width: 800px;
+    max-width: 1040px;
+    margin: 0 auto;
+    justify-items: center;
 }
 
-.stat-card {
-    background-color: rgba(71, 124, 223, 0.8);
-    border: 1px solid rgba(150, 204, 255, 0.2);
+.landing-container .stat-card {
+    background-color: #ffffff;
+    border: 1px solid var(--border-soft);
     border-radius: 16px;
-    padding: 20px;
-    box-shadow: 0 18px 42px rgba(5, 18, 42, 0.28);
+    padding: 26px 28px;
+    transition: transform 0.25s ease, box-shadow 0.25s ease, border-color 0.25s ease;
+    overflow: hidden;
+    min-height: 190px;
+    width: 100%;
+    max-width: 260px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    gap: 10px;
+    box-shadow: var(--card-shadow);
 }
 
-.stat-card strong {
+.landing-container .stat-card:hover {
+    background-color: #ffffff;
+    border: 1px solid var(--border-soft);
+    box-shadow: 0 28px 55px rgba(8, 30, 70, 0.18);
+    transform: translateY(-6px);
+}
+
+.landing-container .stat-card strong {
     display: block;
-    font-size: 2rem;
+    font-size: 2.2rem;
     color: var(--accent-gold);
-    margin-bottom: 6px;
+    margin-bottom: 8px;
+    word-wrap: break-word;
+    line-height: 1.2;
 }
 
-.stat-card span {
+.landing-container .stat-card span {
     display: block;
-    font-weight: 600;
-    margin-bottom: 6px;
-    color: #00095a;
+    font-weight: 700;
+    margin-bottom: 10px;
+    color: var(--text-dark);
+    word-wrap: break-word;
+    font-size: 1.05rem;
+    line-height: 1.3;
 }
 
-.stat-card p {
+.landing-container .stat-card p {
     font-size: 0.9rem;
     color: #2d2d2d;
+    word-wrap: break-word;
+    overflow-wrap: break-word;
+    line-height: 1.5;
+    margin: 0;
 }
 
 .section {
@@ -721,7 +749,7 @@
         grid-template-columns: repeat(2, 1fr);
     }
 
-    .stat-grid {
+    .landing-container .stat-grid {
         grid-template-columns: repeat(2, minmax(0, 1fr));
     }
 }
@@ -745,7 +773,7 @@
     }
 
     .hero-content p,
-    .stat-card p {
+    .landing-container .stat-card p {
         text-align: center;
     }
 
@@ -770,7 +798,7 @@
     .faq-grid,
     .team-grid,
     .process,
-    .stat-grid {
+    .landing-container .stat-grid {
         grid-template-columns: 1fr;
     }
 
@@ -822,11 +850,11 @@
         width: 100%;
     }
 
-    .stat-grid {
+    .landing-container .stat-grid {
         gap: 16px;
     }
 
-    .stat-card {
+    .landing-container .stat-card {
         padding: 16px;
     }
 

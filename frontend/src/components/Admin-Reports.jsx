@@ -5,7 +5,7 @@ import {
     FaSearch,
     FaRedo, FaCheckCircle, FaTimesCircle, FaCheck, FaTimes } from "react-icons/fa";
 import { API_CONFIG, getApiUrl } from "../utils/apiConfig";
-import "./Reports.css";
+import "./Admin-Reports.css";
 const REPORT_STATUSES = ["Pending", "Ongoing", "Resolved"];
 
 // Utility Hook for Modal Accessibility (Focus trap and Esc key)
@@ -615,11 +615,19 @@ function AdminReports({ token, reportTitle = 'All Community Reports', showTitle 
                             console.log(`[Admin-Reports] Report ${report.id}: is_approved=${report.is_approved}, isPending=${isPending}, status=${report.status}`);
                         }
 
+                        const cardClasses = ["report-card"];
+                        if (isPending) {
+                            cardClasses.push("report-pending");
+                        }
+                        if (highlightedReportId === report.id) {
+                            cardClasses.push("highlighted-report");
+                        }
+
                         return (
                             <div
                                 key={report.id}
                                 id={`report-${report.id}`}
-                                className={isPending ? 'report-pending' : `report-card ${highlightedReportId === report.id ? 'highlighted-report' : ''}`}
+                                className={cardClasses.join(' ')}
                                 style={{ animationDelay: `${index * 0.1}s` }} 
                                 aria-labelledby={`report-title-${report.id}`}
                             >

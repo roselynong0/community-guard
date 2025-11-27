@@ -3,11 +3,11 @@ import { useNavigate } from "react-router-dom";
 import { FaEdit, FaSignOutAlt, FaTrashAlt, FaCheckCircle, FaTimesCircle, FaUserCheck } from "react-icons/fa";
 import "./Profile.css"; // Ensure this file contains the new CSS
 import "./Notifications.css"; // This is the file with the notif classes
-import LoadingScreen from "./LoadingScreen";
 import DatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css"
 import { format, parseISO } from "date-fns";
 import axios from "axios";
+import LoadingScreen from "./LoadingScreen";
 import { API_CONFIG, getApiUrl } from "../utils/apiConfig";
 
 function Profile({ token }) {
@@ -47,7 +47,11 @@ function Profile({ token }) {
         "Santa Rita", "West Bajac-Bajac", "West Tapinac",
     ];
 
-    const displayField = (field, placeholder) => field || placeholder;
+    // Show empty string while loading, only show placeholder if loading finished and no data
+    const displayField = (field, placeholder) => {
+        if (isLoading) return "";
+        return field || placeholder;
+    };
 
     const getRoleBadgeClass = (role) => {
         switch (role) {
@@ -90,6 +94,7 @@ function Profile({ token }) {
                         address_city: profile.address_city || "Olongapo",
                         role: profile.role || "Resident",
                         contact: profile.phone || "",
+                        phone: profile.phone || "",
                     });
                     setEditProfileData({
                         firstname: profile.firstname || "",
@@ -317,37 +322,66 @@ function Profile({ token }) {
             ))}
 
             {/* HEADER - Apply fade-in-up animation and stagger delay */}
-            <div className="profile-header-card fade-in-up" style={{ animationDelay: '0s' }}>
+            <div className="profile-header-card fade-in-up animate-up" style={{ animationDelay: '0s' }}>
+                <button
+                    type="button"
+                    className="edit-card-button"
+                    onClick={() => setShowModal("header")}
+                    title="Edit basic profile details"
+                    aria-label="Edit basic profile details"
+                >
+                    <FaEdit />
+                    <span>Edit</span>
+                </button>
                 <div className="profile-header-info">
-                    <img
-                        src={profilePic ? profilePic : safeUser?.avatar_url || "/default-avatar.png"}
-                        alt="Profile"
-                        className="profile-avatar"
-                    />
-                    <div className="profile-name">
-                        <h2>
-                            {displayField(safeUser.firstname, "No Name")} {displayField(safeUser.lastname, "")}
-                            <FaEdit className="edit-icon" onClick={() => setShowModal("header")} />
-                        </h2>
-                        <p>
+                    <div className="profile-avatar-frame">
+                        <img
+                            src={
+                                isLoading 
+                                    ? "" 
+                                    : (profilePic ? profilePic : safeUser?.avatar_url || "/default-avatar.png")
+                            }
+                            alt="Profile"
+                            className="profile-avatar"
+                            style={{ visibility: isLoading ? 'hidden' : 'visible' }}
+                        />
+                    </div>
+                    <div className="profile-name profile-header-details">
+                        <div className="profile-header-top">
+                            <h2>
+                                {displayField(safeUser.firstname, "No Name")} {displayField(safeUser.lastname, "")}
+                            </h2>
+                        </div>
+                        <p className="profile-location">
                             {displayField(safeUser.address_barangay, "No barangay selected")}, Olongapo City
                         </p>
-                        <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", alignItems: "center", justifyContent: "center" }}>
-                            <span className={`admin-role-badge ${getRoleBadgeClass(safeUser.role)}`}>{safeUser.role}</span>
-                            <span
-                                className={`admin-verification-status ${
-                                    safeUser.verified ? "fully-verified" : "unverified"
-                                }`}
-                            >
-                                {safeUser.verified ? (
-                                    <><FaCheckCircle />Verified</>
-                                ) : (
-                                    <><FaTimesCircle />Unverified</>
-                                )}
-                            </span>
+                        <div className="profile-badges">
+                            {isLoading ? (
+                                <>
+                                    <span className="admin-role-badge resident">Loading...</span>
+                                    <span className="admin-verification-status email-verified">
+                                        <FaCheckCircle />Loading...
+                                    </span>
+                                </>
+                            ) : (
+                                <>
+                                    <span className={`admin-role-badge ${getRoleBadgeClass(safeUser.role)}`}>{safeUser.role}</span>
+                                    <span
+                                        className={`admin-verification-status ${
+                                            safeUser.verified ? "fully-verified" : "email-verified"
+                                        }`}
+                                    >
+                                        {safeUser.verified ? (
+                                            <><FaCheckCircle />Verified</>
+                                        ) : (
+                                            <><FaCheckCircle />Email Verified</>
+                                        )}
+                                    </span>
+                                </>
+                            )}
                         </div>
                         <div className="profile-header-actions">
-                            <label className="change-photo">
+                            <label className="upload-btn" title="Change photo">
                                 Change Photo
                                 <input type="file" accept="image/*" onChange={handlePicUpload} hidden />
                             </label>
@@ -368,28 +402,41 @@ function Profile({ token }) {
                 {/* SIDEBAR */}
                 <div className="profile-sidebar">
                     {/* Card 1 - Apply stagger delay */}
-                    <div className="profile-card fade-in-up" style={{ animationDelay: '0.1s' }}>
+                    <div className="profile-card fade-in-up animate-up" style={{ animationDelay: '0.1s' }}>
                         <div className="card-header">
-                            <h3>
-                                About <FaEdit className="edit-icon" onClick={() => setShowModal("about")} />
-                            </h3>
+                            <h3>About</h3>
+                            <button
+                                type="button"
+                                className="edit-action"
+                                onClick={() => setShowModal("about")}
+                                title="Edit about section"
+                                aria-label="Edit about section"
+                            >
+                                <FaEdit />
+                            </button>
                         </div>
                         <p>{displayField(safeUser.bio, "No information added yet.")}</p>
                     </div>
 
                     {/* Card 2 - Apply stagger delay */}
-                    <div className="profile-card fade-in-up" style={{ animationDelay: '0.2s' }}>
+                    <div className="profile-card fade-in-up animate-up" style={{ animationDelay: '0.2s' }}>
                         <div className="card-header">
-                            <h3>
-                                Personal Info{" "}
-                                <FaEdit className="edit-icon" onClick={() => setShowModal("personal")} />
-                            </h3>
+                            <h3>Personal Info</h3>
+                            <button
+                                type="button"
+                                className="edit-action"
+                                onClick={() => setShowModal("personal")}
+                                title="Edit personal information"
+                                aria-label="Edit personal information"
+                            >
+                                <FaEdit />
+                            </button>
                         </div>
                         <p>
                             <strong>Email:</strong> {displayField(safeUser.email, "No info")}
                         </p>
                         <p>
-                            <strong>Contact:</strong> {displayField(safeUser.contact, "No info")}
+                            <strong>Phone:</strong> {displayField(safeUser.phone, "No info")}
                         </p>
                         <p>
                             <strong>Address:</strong> {displayField(safeUser.address_street, "No location")}
@@ -406,7 +453,7 @@ function Profile({ token }) {
                     </div>
 
                     {/* Profile Card */}
-                    <div className="profile-card fade-in-up" style={{ animationDelay: '0.3s' }}>
+                    <div className="profile-card fade-in-up animate-up" style={{ animationDelay: '0.3s' }}>
                         <div className="card-header">
                             <h3>
                                 Role & Status
@@ -414,9 +461,13 @@ function Profile({ token }) {
                         </div>
                         <p>
                             <strong>Role:</strong>{" "}
-                            <span className={`admin-role-badge ${getRoleBadgeClass(safeUser.role)}`}>
-                                {safeUser.role}
-                            </span>
+                            {isLoading ? (
+                                <span className="admin-role-badge resident">Loading...</span>
+                            ) : (
+                                <span className={`admin-role-badge ${getRoleBadgeClass(safeUser.role)}`}>
+                                    {safeUser.role}
+                                </span>
+                            )}
                         </p>
                         {safeUser.role === "Barangay Official" && safeUser.address_barangay && (
                             <p>
@@ -425,23 +476,29 @@ function Profile({ token }) {
                         )}
                         <p>
                             <strong>Verification Status:</strong>{" "}
-                            <span
-                                className={`admin-verification-status ${
-                                    safeUser.verified ? "fully-verified" : "unverified"
-                                }`}
-                            >
-                                {safeUser.verified ? (
-                                    <><FaCheckCircle />Verified</>
-                                ) : (
-                                    <><FaTimesCircle />Unverified</>
-                                )}
-                            </span>
+                            {isLoading ? (
+                                <span className="admin-verification-status email-verified">
+                                    <FaCheckCircle />Loading...
+                                </span>
+                            ) : (
+                                <span
+                                    className={`admin-verification-status ${
+                                        safeUser.verified ? "fully-verified" : "email-verified"
+                                    }`}
+                                >
+                                    {safeUser.verified ? (
+                                        <><FaCheckCircle />Verified</>
+                                    ) : (
+                                        <><FaCheckCircle />Email Verified</>
+                                    )}
+                                </span>
+                            )}
                         </p>
                     </div>
 
                     {/* Activity Card - Only show for Residents */}
                     {safeUser.role === "Resident" && (
-                        <div className="profile-card fade-in-up" style={{ animationDelay: '0.4s' }}>
+                        <div className="profile-card fade-in-up animate-up" style={{ animationDelay: '0.4s' }}>
                             <h3>Activity</h3>
                             <p>📌 Reports Submitted: <strong>{reportsSubmitted}</strong></p>
                             <p>✅ Reports Resolved: <strong>{reportsResolved}</strong></p>
@@ -588,14 +645,6 @@ function Profile({ token }) {
         </div>
     );
 
-    const emptyState = (
-        <div className={`profile-page ${overlayExited ? "overlay-exited" : ""}`}>
-            {!isLoading && (
-                <p className="error-message">Failed to load profile or unauthorized.</p>
-            )}
-        </div>
-    );
-
     return (
         <LoadingScreen
             variant="inline"
@@ -607,7 +656,7 @@ function Profile({ token }) {
             inlineOffset="22vh"
             onExited={() => setOverlayExited(true)}
         >
-            {user ? mainContent : emptyState}
+            {mainContent}
         </LoadingScreen>
     );
 }

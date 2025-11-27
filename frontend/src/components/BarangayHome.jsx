@@ -272,7 +272,8 @@ function Home({ token, session }) {
         <div className="reports-chart animate-up" style={{ animationDelay: "0.4s" }}>
           <h3>Reports by Category</h3>
           <div className="chart-container">
-            <ResponsiveContainer width="100%" height="100%">
+            {/* Use a numeric height so Recharts can measure reliably */}
+            <ResponsiveContainer width="100%" height={260}>
               <PieChart>
                 <Pie data={categoryData} cx="50%" cy="50%" labelLine={false} outerRadius="70%" dataKey="value" nameKey="name"> {/* Added nameKey */}
                   {categoryData.map((entry, index) => (

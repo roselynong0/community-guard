@@ -16,6 +16,16 @@ def supabase_retry(func, max_retries=3, delay=0.5):
         try:
             return func()
         except (httpx.ReadError, httpx.ConnectError, httpx.TimeoutException, ConnectionError, Exception) as e:
+            # Print detailed diagnostics for easier debugging of API errors
+            try:
+                print(f"⚠️ supabase_retry caught exception (attempt {attempt+1}/{max_retries}): {type(e).__name__}")
+                print("Exception repr:", repr(e))
+                # Many postgrest APIError exceptions include a dict or tuple in args
+                if hasattr(e, 'args') and e.args:
+                    print("Exception args:", e.args)
+            except Exception:
+                pass
+
             error_str = str(e).lower()
             # Check if it's a network-related error that we should retry
             if any(keyword in error_str for keyword in [
@@ -33,7 +43,18 @@ def supabase_retry(func, max_retries=3, delay=0.5):
                     print(f"❌ Supabase operation failed after {max_retries} attempts: {e}")
                     raise e
             else:
-                # Non-network error, don't retry
+                # Non-network error: surface it (do not swallow)
+                # If it's a postgrest APIError, attempt to show the payload
+                try:
+                    from postgrest.exceptions import APIError
+                    if isinstance(e, APIError):
+                        # APIError often stores a dict or json-like detail
+                        try:
+                            print("Postgrest APIError details:", e.args[0])
+                        except Exception:
+                            pass
+                except Exception:
+                    pass
                 raise e
     
     return None  # Should never reach here

@@ -133,10 +133,12 @@ def logout():
     print(f"🚪 Logout requested by user {user_id}, token: {token[:20]}...")
     
     try:
-        # Delete the current session from database
-        result = supabase.table("sessions").delete().eq("token", token).eq("user_id", user_id).execute()
-        print(f"✅ Logout successful for user {user_id}, deleted {len(result.data) if result.data else 0} session(s)")
-        
+        # Instead of deleting the session row, mark it ended by setting expires_at to now().
+        # This allows the server to compute offline intervals (screen time tracking).
+        now = datetime.now(timezone.utc).isoformat()
+        result = supabase.table("sessions").update({"expires_at": now}).eq("token", token).eq("user_id", user_id).execute()
+        print(f"✅ Logout recorded for user {user_id}, session updated: {getattr(result, 'data', None)}")
+
         return jsonify({
             "status": "success",
             "message": "Logged out successfully"

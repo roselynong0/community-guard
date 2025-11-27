@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import { FaEdit, FaTrashAlt, FaSearch, FaRedo, FaCheckCircle, FaTimesCircle, FaCheck, FaTimes } from "react-icons/fa";
 import { API_CONFIG, getApiUrl } from "../utils/apiConfig";
-import "./Reports.css";
+import "./BarangayReports.css";
 const REPORT_STATUSES = ["Pending", "Ongoing", "Resolved"];
 
 // Severity level colors and styling
@@ -1377,11 +1377,19 @@ function BarangayReports({ token }) {
                             console.log(`[BarangayReports] Report ${report.id}: is_approved=${report.is_approved}, isPending=${isPending}, status=${report.status}`);
                         }
 
+                        const cardClasses = ["report-card"];
+                        if (isPending) {
+                            cardClasses.push("report-pending");
+                        }
+                        if (highlightedReportId === report.id) {
+                            cardClasses.push("highlighted-report");
+                        }
+
                         return (
                             <div
                                 key={report.id}
                                 id={`report-${report.id}`}
-                                className={isPending ? 'report-pending' : `report-card ${highlightedReportId === report.id ? 'highlighted-report' : ''}`}
+                                className={cardClasses.join(' ')}
                                 style={{
                                     animationDelay: `${index * 0.1}s`,
                                     position: 'relative',

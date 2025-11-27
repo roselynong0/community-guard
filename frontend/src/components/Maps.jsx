@@ -151,6 +151,8 @@ function Maps({ session, userRole }) {
   const [showHotspots, setShowHotspots] = useState(true);
   const [showSafezones, setShowSafezones] = useState(true);
   const [userLocation, setUserLocation] = useState(null);
+  const [overlayExited, setOverlayExited] = useState(false);
+  const successTitle = "Maps Complete!";
 
   useEffect(() => {
     const fetchMapReports = async () => {
@@ -170,9 +172,21 @@ function Maps({ session, userRole }) {
         }
 
         const response = await fetch(endpoint, { headers });
-        const data = await response.json();
+        let data = null;
 
-        if (data.status === "success") {
+        if (!response.ok) {
+          // Server returned a non-2xx response - capture body for debugging
+          const text = await response.text().catch(() => null);
+          console.error(`Map reports fetch failed: ${response.status} ${response.statusText}`, text);
+        } else {
+          try {
+            data = await response.json();
+          } catch (e) {
+            console.error("Failed parsing map reports JSON:", e);
+          }
+        }
+
+        if (data && data.status === "success") {
           const formatted = (data.reports || []).map((r) => ({
             ...r,
             latitude: parseFloat(r.latitude),
@@ -194,9 +208,19 @@ function Maps({ session, userRole }) {
         // Fetch hotspots
         const hotspotsEndpoint = getApiUrl("/api/hotspots");
         const hotspotsResponse = await fetch(hotspotsEndpoint, { headers });
-        const hotspotsData = await hotspotsResponse.json();
+        let hotspotsData = null;
+        if (!hotspotsResponse.ok) {
+          const text = await hotspotsResponse.text().catch(() => null);
+          console.error(`Hotspots fetch failed: ${hotspotsResponse.status} ${hotspotsResponse.statusText}`, text);
+        } else {
+          try {
+            hotspotsData = await hotspotsResponse.json();
+          } catch (e) {
+            console.error("Failed parsing hotspots JSON:", e);
+          }
+        }
 
-        if (hotspotsData.status === "success") {
+        if (hotspotsData && hotspotsData.status === "success") {
           setHotspots(hotspotsData.hotspots || []);
           console.log(`✅ Loaded ${(hotspotsData.hotspots || []).length} hotspots`);
         }
@@ -527,15 +551,50 @@ function Maps({ session, userRole }) {
     </div>
   );
 
-  if (loading) {
-    return (
-      <LoadingScreen variant="inline" title="Loading map reports...">
-        {content}
-      </LoadingScreen>
-    );
-  }
+  const loadingFeatures = [
+    {
+      title: "Map Reports",
+      description: "View community reports across Olongapo City on an interactive map.",
+    },
+    {
+      title: "Crime Hotspots",
+      description: "Identify high-risk areas with real-time incident clustering.",
+    },
+    {
+      title: "Safezones",
+      description: "Locate designated safe areas and emergency facilities nearby.",
+    },
+    {
+      title: "Barangay Filter",
+      description: "Filter and focus on specific barangay reports.",
+    },
+    {
+      title: "Location Tracking",
+      description: "See your current location and nearby incidents in real-time.",
+    },
+  ];
 
-  return content;
+  const effectiveStage = loading ? "loading" : "exit";
+
+  const handleLoadingExited = () => {
+    setOverlayExited(true);
+  };
+
+  return (
+    <LoadingScreen
+      variant="inline"
+      features={loadingFeatures}
+      title={loading ? "Loading map reports..." : undefined}
+      subtitle={loading ? "Fetching reports, hotspots, and safezones" : undefined}
+      stage={effectiveStage}
+      onExited={handleLoadingExited}
+      inlineOffset="25vh"
+      successDuration={900}
+      successTitle={successTitle}
+    >
+      {content}
+    </LoadingScreen>
+  );
 }
 
 export default Maps;

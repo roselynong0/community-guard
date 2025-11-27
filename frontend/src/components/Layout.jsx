@@ -10,13 +10,14 @@ import {
   FaUserFriends,
   FaMap,
   FaChartLine,
-  FaComments,
 } from "react-icons/fa";
 import { Outlet, NavLink, useNavigate } from "react-router-dom";
 import { logout } from "../utils/session";
 import { API_CONFIG, getApiUrl } from "../utils/apiConfig";
 import Toast from "./Toast";
 import ChatBot from "./ChatBot";
+import MissedSummaryModal from "./MissedSummaryModal";
+import VerificationModal from "./VerificationModal";
 import { registerToastCallback, registerNotificationCountCallback, startNotificationPolling, stopNotificationPolling } from "../utils/notificationService";
 import "./Layout.css";
 import logo from "../assets/logo.png";
@@ -33,6 +34,11 @@ function Layout({ session, setSession, setNotification }) {
   const [showChatBot, setShowChatBot] = useState(false);
   const toastRef = useRef(null);
   const pollingIntervalRef = useRef(null);
+  const logoutConfirmBtnRef = useRef(null);
+  const [showMissedModal, setShowMissedModal] = useState(false);
+  const [missedSummary, setMissedSummary] = useState(null);
+  const [showVerifyModal, setShowVerifyModal] = useState(false);
+  const [verifyUserData, setVerifyUserData] = useState(null);
 
   const navigate = useNavigate();
 
@@ -68,6 +74,72 @@ function Layout({ session, setSession, setNotification }) {
 
     loadProfile();
   }, [session, setSession]);
+
+  // 🔹 Fetch missed reports summary once after profile and session load
+  useEffect(() => {
+    const tryFetchSummary = async () => {
+      if (!session?.token || !user) return;
+
+      // Prevent repeated calls in same browser session
+      const shownKey = `missed_shown_${user.id || user?.email || 'anon'}`;
+      if (sessionStorage.getItem(shownKey)) return;
+
+      try {
+        const res = await fetch(getApiUrl('/reports/missed_summary'), {
+          headers: { Authorization: `Bearer ${session.token}` },
+        });
+        if (!res) return;
+        const contentType = res.headers.get('content-type') || '';
+        if (!res.ok) {
+          // Non-OK response: try to read json safely, else skip
+          if (contentType.includes('application/json')) {
+            const errBody = await res.json().catch(() => ({}));
+            console.warn('Missed summary non-ok response:', errBody);
+          } else {
+            const textBody = await res.text().catch(() => '');
+            console.warn('Missed summary non-ok response (non-json):', textBody ? textBody.slice(0, 200) : '<no body>');
+          }
+          return;
+        }
+
+        if (contentType.includes('application/json')) {
+          const data = await res.json().catch((e) => {
+            console.warn('Failed to parse missed_summary JSON:', e);
+            return null;
+          });
+          if (data && data.status === 'success' && data.summary) {
+            // If no reports, still show a friendly summary message
+            setMissedSummary(data);
+            setShowMissedModal(true);
+            // Show a single gentle toast (do not spam)
+            if (toastRef.current) {
+              const msg = data.summary.total && data.summary.total > 0 ? data.summary.message : (data.summary.message || "Community Helper detected no missed reports while you were away.");
+              toastRef.current.show(msg, 'info');
+            }
+            sessionStorage.setItem(shownKey, '1');
+
+            // If user is partially verified (isverified true but verified false) show verify modal after summary
+            try {
+              const flags = data.summary.user_flags || {};
+              if (flags.isverified === true && flags.verified === false) {
+                // Prepare verify data from user object we already have (prefer server profile)
+                setVerifyUserData(Object.assign({}, user, { firstname: user.firstname, lastname: user.lastname, email: user.email, address_barangay: user.address_barangay, phone: user.phone }));
+              }
+            } catch (e) {
+              console.warn('verify flags parse error', e);
+            }
+          }
+        } else {
+          const text = await res.text().catch(() => '');
+          console.warn('Skipped missed_summary: unexpected content-type, response starts with:', text ? text.slice(0, 200) : '<empty>');
+        }
+      } catch (e) {
+        console.warn('Failed to fetch missed summary:', e);
+      }
+    };
+
+    tryFetchSummary();
+  }, [session?.token, user]);
 
   // 🔹 Setup real-time notifications via SSE
   useEffect(() => {
@@ -108,13 +180,23 @@ function Layout({ session, setSession, setNotification }) {
         pollingIntervalRef.current = null;
       }
     };
-  }, [session?.token]);
+  }, [session, user]);
 
   // 🔹 Update date/time
   useEffect(() => {
     const interval = setInterval(() => setDateTime(new Date()), 1000);
     return () => clearInterval(interval);
   }, []);
+
+  // Focus confirm button when logout modal opens
+  useEffect(() => {
+    if (showLogoutConfirm) {
+      const t = setTimeout(() => {
+        try { logoutConfirmBtnRef.current?.focus(); } catch { /* noop */ }
+      }, 60);
+      return () => clearTimeout(t);
+    }
+  }, [showLogoutConfirm]);
 
   const formattedDateTime = dateTime.toLocaleString("en-US", {
     weekday: "long",
@@ -225,8 +307,12 @@ function Layout({ session, setSession, setNotification }) {
             </NavLink>
           </nav>
 
-          <button className="logout-btn" onClick={() => setShowLogoutConfirm(true)}>
-            <FaSignOutAlt /> Logout
+          <button
+            className="logout-btn"
+            onClick={() => setShowLogoutConfirm(true)}
+            aria-label="Logout"
+          >
+            <FaSignOutAlt /> Sign Out
           </button>
         </aside>
       )}
@@ -313,30 +399,27 @@ function Layout({ session, setSession, setNotification }) {
         <div
           className="mobile-logout-btn"
           onClick={() => setShowLogoutConfirm(true)}
-          title="Logout"
+          title="Sign Out"
         >
           <FaSignOutAlt />
         </div>
       )}
 
       {/* Chat Button - Always visible */}
-      {session?.token && (
-        <button
-          className="chat-button"
-          onClick={() => setShowChatBot(!showChatBot)}
-          title="Open Chat Helper"
-          aria-label="Open Chat Helper"
-        >
-          <FaComments />
-        </button>
-      )}
+      {/* Chat button removed per user request */}
 
       {/* Logout Confirmation */}
       {showLogoutConfirm && (
         <div className="modal-overlay">
-          <div className="modal">
-            <h3>Confirm Logout</h3>
-            <p>Are you sure you want to log out?</p>
+          <div
+            className="modal logout-confirm"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="logout-title"
+            aria-describedby="logout-desc"
+          >
+            <h3 id="logout-title">Confirm Sign Out</h3>
+            <p id="logout-desc">You're about to sign out of your Community Guard account. Don’t worry, you can always sign back in whenever you need to.</p>
             <div className="modal-actions">
               <button
                 onClick={() => setShowLogoutConfirm(false)}
@@ -344,40 +427,35 @@ function Layout({ session, setSession, setNotification }) {
               >
                 Cancel
               </button>
-              <button onClick={confirmLogout} className="confirm-btn">
-                Logout
+              <button
+                ref={logoutConfirmBtnRef}
+                onClick={confirmLogout}
+                className="confirm-btn"
+                aria-label="Confirm sign out"
+              >
+                <FaSignOutAlt style={{ marginRight: 8 }} /> Sign Out
               </button>
             </div>
           </div>
         </div>
       )}
 
-      {/* Sign-in modal */}
-      {showAuthModal && (
-        <div className="modal-overlay">
-          <div className="modal">
-            <h3>Sign In Required</h3>
-            <p>You must be signed in to access your profile.</p>
-            <div className="modal-actions">
-              <button
-                onClick={() => setShowAuthModal(false)}
-                className="cancel-btn"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={() => {
-                  setShowAuthModal(false);
-                  navigate("/login");
-                }}
-                className="confirm-btn"
-              >
-                Sign In
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* ChatBot Component */}
+      {/* Missed reports summary modal */}
+      <MissedSummaryModal
+        open={showMissedModal}
+        onClose={() => setShowMissedModal(false)}
+        data={missedSummary}
+        showProceedAsNext={Boolean(verifyUserData)}
+        onProceed={() => {
+          // Close summary and open verification modal
+          setShowMissedModal(false);
+          if (verifyUserData) setShowVerifyModal(true);
+        }}
+      />
+
+      {/* Verification prompt modal (shows after summary if needed) */}
+      <VerificationModal open={showVerifyModal} onClose={() => setShowVerifyModal(false)} user={verifyUserData} />
 
       {/* ChatBot Component */}
       {session?.token && (

@@ -65,14 +65,17 @@ export async function fetchSession() {
         try {
           const envUrl = import.meta && import.meta.env && import.meta.env.VITE_API_URL;
           if (envUrl && envUrl.replace) fallbacks.push(`${envUrl.replace(/\/+$/, '')}${endpoint}`);
-        } catch (e) {}
-
+        } catch {
+          // Ignore error if env URL is not available
+        }
         // Try same-origin API path if different
         try {
           if (typeof window !== 'undefined') {
             fallbacks.push(`${window.location.origin.replace(/\/+$/, '')}${endpoint}`);
           }
-        } catch (e) {}
+        } catch {
+          // Ignore error if window is not available
+        }
 
         // Last-resort known backend
         fallbacks.push(`https://community-guard-1.onrender.com${endpoint}`);
