@@ -88,7 +88,19 @@ def create_app():
                     return True
                 return False
 
-            CORS(app, resources={r"/api/*": {"origins": _origin_checker}}, supports_credentials=True)
+            # flask-cors expects origins to be a string, list, or regex pattern —
+            # not a callable. Use a concrete list or '*' when allow_all is set.
+            try:
+                if allow_all:
+                    origins_arg = "*"
+                else:
+                    origins_arg = list(normalized_allowed) if normalized_allowed else []
+
+                CORS(app, resources={r"/api/*": {"origins": origins_arg}}, supports_credentials=True)
+            except Exception as e:
+                # Fallback: if CORS fails to initialize, log and continue — manual
+                # before_request/after_request handlers below already implement CORS checks.
+                print(f"⚠️ Failed to initialize flask-cors: {e}")
 
     from flask import request
     

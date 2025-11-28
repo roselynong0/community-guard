@@ -28,8 +28,9 @@
 }
 
 .modal-header {
-  background: linear-gradient(135deg, #2d2d73, #5a6aa8);
-  color: #fff;
+  /* Default neutral header for non-resident contexts */
+  background: #f7f8fb;
+  color: #11163e;
   padding: 1.5rem;
   display: flex;
   justify-content: space-between;
@@ -91,13 +92,13 @@
   color: #666;
   margin-bottom: 1.5rem;
   padding: 0.75rem;
-  background: rgba(45, 45, 115, 0.05);
+  background: rgba(0,0,0,0.02);
   border-radius: 12px;
-  border-left: 4px solid #2d2d73;
+  border-left: 4px solid rgba(0,0,0,0.06);
 }
 
 .email-display strong {
-  color: #2d2d73;
+  color: #11163e;
   font-weight: 600;
 }
 
@@ -145,14 +146,35 @@
 }
 
 .btn-primary {
-  background: linear-gradient(135deg, #2d2d73, #5a6aa8);
+  /* Neutral primary for non-resident contexts; resident gets the accent via login-role-resident */
+  background: #2d3560;
   color: #fff;
-  box-shadow: 0 4px 12px rgba(45, 45, 115, 0.3);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.08);
 }
 
 .btn-primary:hover:not(:disabled) {
   transform: translateY(-2px);
   box-shadow: 0 6px 20px rgba(45, 45, 115, 0.4);
+}
+
+/* Resident-specific modal visuals (only when ancestor has login-role-resident) */
+.login-role-resident .modal-header {
+  background: linear-gradient(135deg, #2d2d73, #5a6aa8);
+  color: #fff;
+}
+
+.login-role-resident .email-display {
+  background: rgba(45, 45, 115, 0.05);
+  border-left: 4px solid #2d2d73;
+}
+
+.login-role-resident .email-display strong {
+  color: #2d2d73;
+}
+
+.login-role-resident .btn-primary {
+  background: linear-gradient(135deg, #2d2d73, #5a6aa8);
+  box-shadow: 0 4px 12px rgba(45, 45, 115, 0.3);
 }
 
 .btn-primary:disabled {

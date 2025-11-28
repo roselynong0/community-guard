@@ -10,12 +10,8 @@ import {
     FaChevronDown,
     FaShieldAlt,
     FaBolt,
-    FaGlobe,
-    FaServer,
-    FaMobileAlt,
-    FaQuestionCircle,
+    
     FaChartLine,
-    FaLaptopCode,
     FaExternalLinkAlt,
     FaCheckCircle,
     FaComments,
@@ -24,22 +20,63 @@ import {
     FaCloud,
     FaNetworkWired,
     FaChartBar
+    , FaChevronUp
 } from "react-icons/fa";
 import { Link } from "react-router-dom";
 
 const HomePage = () => {
     const [isMenuOpen, setIsMenuOpen] = useState(false);
     const [openDropdown, setOpenDropdown] = useState(null);
+    const [navHovered, setNavHovered] = useState(false);
+    const [pinnedDropdown, setPinnedDropdown] = useState(null);
+    const navLeaveTimerRef = React.useRef(null);
+    const [openFAQs, setOpenFAQs] = useState(new Set());
+    const [showScrollTop, setShowScrollTop] = useState(false);
+
+    const toggleFAQ = (key) => {
+        setOpenFAQs(prev => {
+            const next = new Set(prev);
+            if (next.has(key)) next.delete(key);
+            else next.add(key);
+            return next;
+        });
+    };
 
     const toggleMenu = () => {
-        setIsMenuOpen((prev) => !prev);
-        if (isMenuOpen) {
-            setOpenDropdown(null);
-        }
+        setIsMenuOpen((prev) => {
+            const next = !prev;
+            // When opening mobile menu, clear any open dropdowns so they don't overlay the nav,
+            // and apply a body scroll lock.
+            if (next) {
+                setOpenDropdown(null);
+                setPinnedDropdown(null);
+                if (typeof document !== 'undefined' &&
+                    document.body &&
+                    document.body.classList &&
+                    typeof document.body.classList.add === 'function') {
+                    document.body.classList.add('no-scroll');
+                }
+            } else {
+                if (typeof document !== 'undefined' &&
+                    document.body &&
+                    document.body.classList &&
+                    typeof document.body.classList.remove === 'function') {
+                    document.body.classList.remove('no-scroll');
+                }
+            }
+            return next;
+        });
     };
 
     const handleDropdownToggle = (key) => {
-        setOpenDropdown((prev) => (prev === key ? null : key));
+        // Click toggles pinned state: clicking will pin it open; clicking again unpins
+        if (pinnedDropdown === key) {
+            setPinnedDropdown(null);
+            setOpenDropdown(null);
+            return;
+        }
+        setPinnedDropdown(key);
+        setOpenDropdown(key);
     };
 
     const closeMenu = () => {
@@ -78,6 +115,88 @@ const HomePage = () => {
         }
     }, []);
 
+    // When nav hover state changes, close dropdown if not pinned
+    useEffect(() => {
+        if (!navHovered && !pinnedDropdown) {
+            setOpenDropdown(null);
+        }
+    }, [navHovered, pinnedDropdown]);
+
+    // Close dropdown when clicking outside nav if nothing pinned
+    useEffect(() => {
+        const handler = (e) => {
+            if (!document.querySelector('.navbar')) return;
+            const nav = document.querySelector('.navbar');
+            if (nav && !nav.contains(e.target) && !pinnedDropdown) {
+                setOpenDropdown(null);
+            }
+        };
+        document.addEventListener('mousedown', handler);
+        return () => document.removeEventListener('mousedown', handler);
+    }, [pinnedDropdown]);
+
+        useEffect(() => {
+            return () => {
+                if (typeof document !== 'undefined' &&
+                    document.body &&
+                    document.body.classList &&
+                    typeof document.body.classList.remove === 'function') {
+                    document.body.classList.remove('no-scroll');
+                }
+            };
+        }, []);
+            }
+        };
+    }, []);
+
+    // Ensure no-scroll class is removed when component unmounts
+        useEffect(() => {
+            return () => {
+                try { document.body.classList.remove('no-scroll'); } catch {}
+            };
+        }, []);
+
+    // Shared mouse-enter / mouse-leave handlers for nav items to provide
+    // consistent hover sensitivity (delay before hiding) across all dropdowns.
+    const handleNavMouseEnter = (key = null) => {
+        if (navLeaveTimerRef.current) {
+            clearTimeout(navLeaveTimerRef.current);
+            navLeaveTimerRef.current = null;
+        }
+        setNavHovered(true);
+        if (key) setOpenDropdown(key);
+    };
+
+    const handleNavMouseLeave = (key = null, delay = 180) => {
+        // Delay hiding slightly to avoid flicker when moving between elements
+        // Accept a custom delay so we can make login's sensitivity more forgiving.
+        if (navLeaveTimerRef.current) {
+            clearTimeout(navLeaveTimerRef.current);
+            navLeaveTimerRef.current = null;
+        }
+        navLeaveTimerRef.current = setTimeout(() => {
+            setNavHovered(false);
+            // only close if nothing is pinned
+            if (!pinnedDropdown) setOpenDropdown(null);
+            navLeaveTimerRef.current = null;
+        }, delay);
+    };
+
+    // Listen for scroll and show/hide scroll-to-top button
+    useEffect(() => {
+        const onScroll = () => {
+            try {
+                const shouldShow = window.scrollY > 220;
+                setShowScrollTop(shouldShow);
+            } catch {
+                // SSR-safe guard
+            }
+        };
+        window.addEventListener('scroll', onScroll, { passive: true });
+        onScroll();
+        return () => window.removeEventListener('scroll', onScroll);
+    }, []);
+
     const dropdowns = [
         {
             key: "solutions",
@@ -85,38 +204,12 @@ const HomePage = () => {
             items: [
                 { label: "Incident Reporting", href: "#reporting" },
                 { label: "Core Capabilities", href: "#capabilities" },
-                { label: "Operations Workflow", href: "#workflow" },
-                { label: "Community Engagement", href: "#roles" }
+                { label: "Community Engagement", href: "#roles" },
+                { label: "Operations Workflow", href: "#workflow" }
             ]
         },
-        {
-            key: "platform",
-            label: "Platform",
-            items: [
-                { label: "Architecture", href: "#platform" },
-                { label: "Deployment", href: "#deployment" },
-                { label: "Integrations", href: "#integrations" },
-                { label: "FAQs", href: "#faq" }
-            ]
-        },
-        {
-            key: "resources",
-            label: "Resources",
-            items: [
-                { label: "Product Tour", href: "#overview" },
-                {
-                    label: "Documentation",
-                    href: "https://github.com/Roselynong/community-guard",
-                    external: true
-                },
-                {
-                    label: "Knowledge Base",
-                    href: "https://github.com/Roselynong/community-guard/tree/main/master/MD%20Integrations",
-                    external: true
-                },
-                { label: "Contact", href: "#contact" }
-            ]
-        },
+        // Platform dropdown removed - platform/deployment sections deleted
+        // resources dropdown removed per request
         {
             key: "company",
             label: "About",
@@ -133,7 +226,7 @@ const HomePage = () => {
         { value: "24/7", label: "Incident Visibility", description: "Monitor barangay cases with transparent status updates." },
         { value: "12+", label: "Feature Modules", description: "Reporting, dashboards, messaging, mapping, and archives." },
         { value: "4", label: "Stakeholder Portals", description: "Residents, barangay officials, responders, administrators." },
-        { value: "<60m", label: "Deployment Ready", description: "Scripts and docs streamline local or cloud setups." }
+        { value: "100%", label: "Role-Based Access Control", description: "Secure, permission-driven access tailored to each user’s responsibilities." }
     ];
 
     const incidentFeatures = [
@@ -236,28 +329,7 @@ const HomePage = () => {
         }
     ];
 
-    const techHighlights = [
-        {
-            title: "Frontend",
-            icon: <FaLaptopCode />,
-            details: "React 19, Vite, React Router, Leaflet, Recharts, and modern UI tooling ensure fast, reliable experiences."
-        },
-        {
-            title: "Backend",
-            icon: <FaServer />,
-            details: "Flask with Blueprint architecture, Supabase integration, JWT security, and Mailjet-powered communications."
-        },
-        {
-            title: "Deployment",
-            icon: <FaGlobe />,
-            details: "Optimized for Vercel frontends and Railway full-stack rollouts with CLI or Git automations."
-        },
-        {
-            title: "Mobility",
-            icon: <FaMobileAlt />,
-            details: "Responsive layouts, PWA support, and offline-aware patterns keep field teams connected."
-        }
-    ];
+    // techHighlights removed as platform section was deleted
 
     const steps = [
         {
@@ -278,24 +350,42 @@ const HomePage = () => {
         }
     ];
 
-    const faqs = [
+    const faqSections = [
         {
-            question: "How does Community Guard keep data secure?",
-            answer: "Role-based JWT authentication, Supabase row-level policies, and encrypted transport safeguard every interaction."
+            title: "Security & Account Protection",
+            items: [
+                { q: "How does Community Guard keep user and incident data secure?", a: "Role-based access, encrypted transport, and secure storage protect user and incident data. Access is limited to authorized roles and audit logs track important actions." },
+                { q: "Is the system compliant with data privacy standards?", a: "The platform is designed to support common data privacy practices and can be configured to meet local requirements and retention policies." },
+                { q: "Why is email verification required?", a: "Email verification confirms a valid contact and helps prevent abuse or fraudulent accounts while improving notification delivery." },
+                { q: "Can users reset passwords without admin intervention?", a: "Yes — users can request a password reset via email." },
+                { q: "How are uploaded photos stored?", a: "Uploads are stored securely with access controls and optional retention or redaction policies; admin settings decide how long media is retained." }
+            ]
         },
         {
-            question: "How quickly can we go live?",
-            answer: "Automated scripts, environment templates, and migration helpers make pilots possible within the first week."
+            title: "Core Functionality & User Roles",
+            items: [
+                { q: "What user roles does Community Guard support?", a: "The system supports Residents (submit & track reports), Responders (view and update assigned reports), Barangay Officials (verify reports and manage local workflows), and Administrators (manage users, policies, and system settings)." },
+                { q: "Can responders and officials communicate with residents?", a: "Yes, the platform includes community feed/forums and notification features so officials and responders can coordinate with residents where appropriate." },
+                { q: "What is Community Helper?", a: "The Smart Helper suggests categories, helpful resources, and guided inputs to improve report quality and speed up response workflows; it’s an assistant layer configured to respect privacy and local guidance." }
+            ]
         },
         {
-            question: "Can we customize barangay or city branding?",
-            answer: "Yes. Update assets, color palettes, and copy within the React theme while retaining component logic."
+            title: "Analytics & Administration",
+            items: [
+                { q: "What analytics are available for admins?", a: "Built-in dashboards surface trends such as incident volumes, response times, and verification rates. Admins can filter by area, timeframe, and status." },
+                { q: "Can we export data for LGU reporting?", a: "Yes — exports are available in common formats (CSV) to support local government reporting and analysis." }
+            ]
         },
         {
-            question: "Do we need separate infrastructure for pilots?",
-            answer: "No. Deploy to Vercel for web and Railway for backend in minutes, then graduate to your preferred cloud when ready."
+            title: "Mobile Experience",
+            items: [
+                { q: "Is Community Guard mobile-friendly?", a: "Yes — the web frontend is responsive and includes PWA support for reliable mobile use in the field." }
+            ]
         }
     ];
+
+    // Flattened list of FAQ items (no categories) - keep `category` for potential future use
+    const faqItems = faqSections.flatMap((s) => s.items.map((it) => ({ ...it, category: s.title })));
 
     return (
         <div className="landing-container">
@@ -307,23 +397,23 @@ const HomePage = () => {
                 <button className="menu-toggle" onClick={toggleMenu} aria-label="Toggle navigation">
                     <FaBars />
                 </button>
-                <ul className={`nav-links ${isMenuOpen ? "open" : ""}`}>
+                <ul className={`nav-links ${isMenuOpen ? "open" : ""} ${openDropdown ? "has-dropdown" : ""}`} onMouseEnter={() => handleNavMouseEnter()} onMouseLeave={() => handleNavMouseLeave()}>
                     {dropdowns.map((item) => (
                         <li
                             key={item.key}
                             className={`nav-item dropdown ${openDropdown === item.key ? "open" : ""}`}
-                            onMouseEnter={() => setOpenDropdown(item.key)}
-                            onMouseLeave={() => setOpenDropdown(null)}
+                            onMouseEnter={() => handleNavMouseEnter(item.key)}
+                            onMouseLeave={() => handleNavMouseLeave(item.key)}
                         >
                             <button
                                 type="button"
-                                className="dropdown-toggle"
+                                className={`dropdown-toggle ${pinnedDropdown === item.key ? 'pinned' : ''}`}
                                 onClick={() => handleDropdownToggle(item.key)}
                                 aria-expanded={openDropdown === item.key}
                             >
                                 {item.label} <FaChevronDown />
                             </button>
-                            <div className="dropdown-menu">
+                            <div className="dropdown-menu" onMouseEnter={() => handleNavMouseEnter(item.key)} onMouseLeave={() => handleNavMouseLeave(item.key)}>
                                 {item.items.map((link) => (
                                     link.external ? (
                                         <a
@@ -336,7 +426,21 @@ const HomePage = () => {
                                             {link.label} <FaExternalLinkAlt className="external-icon" />
                                         </a>
                                     ) : (
-                                        <a key={link.label} href={link.href} onClick={closeMenu}>
+                                        <a key={link.label} href={link.href} onClick={(e) => {
+                                            e.preventDefault();
+                                            // Smooth scroll to section
+                                            const targetId = link.href.replace('#', '');
+                                            const el = document.getElementById(targetId);
+                                            if (el) {
+                                                const navHeight = document.querySelector('.navbar')?.offsetHeight || 64;
+                                                const top = el.getBoundingClientRect().top + window.scrollY - navHeight - 8;
+                                                window.scrollTo({ top, behavior: 'smooth' });
+                                            }
+                                            // Close dropdown if not pinned
+                                            if (!pinnedDropdown) setOpenDropdown(null);
+                                            if (!pinnedDropdown) setNavHovered(false);
+                                            closeMenu();
+                                        }}>
                                             {link.label}
                                         </a>
                                     )
@@ -345,7 +449,32 @@ const HomePage = () => {
                         </li>
                     ))}
                     <li className="nav-divider" />
-                    <li className="nav-auth"><Link to="/login" onClick={closeMenu}>Log in</Link></li>
+                    <li className={`nav-auth login-dropdown dropdown ${openDropdown === 'login' ? 'open' : ''}`}
+                        onMouseEnter={() => handleNavMouseEnter('login')}
+                        onMouseLeave={() => handleNavMouseLeave('login', 300)}
+                    >
+                        <button
+                            type="button"
+                            className={`dropdown-toggle ${pinnedDropdown === 'login' ? 'pinned' : ''} login-btn`}
+                            aria-haspopup="true"
+                            aria-expanded={openDropdown === 'login'}
+                            onClick={() => handleDropdownToggle('login')}
+                        >
+                            Log in <FaChevronDown />
+                        </button>
+                        <ul
+                            className={`login-dropdown-menu ${openDropdown === 'login' ? 'open' : ''}`}
+                            role="menu"
+                            aria-label="Login as"
+                            onMouseEnter={() => handleNavMouseEnter('login')}
+                            onMouseLeave={() => handleNavMouseLeave('login', 300)}
+                        >
+                            <li role="none"><Link role="menuitem" to="/login?role=resident" onClick={closeMenu}>Resident</Link></li>
+                            <li role="none"><Link role="menuitem" to="/login?role=barangay" onClick={closeMenu}>Barangay Official</Link></li>
+                            <li role="none"><Link role="menuitem" to="/login?role=responder" onClick={closeMenu}>Responder</Link></li>
+                            <li role="none"><Link role="menuitem" to="/login?role=admin" onClick={closeMenu}>Administrator</Link></li>
+                        </ul>
+                    </li>
                     <li>
                         <Link to="/register" className="signup-btn" onClick={closeMenu}>
                             Create Account
@@ -365,13 +494,25 @@ const HomePage = () => {
                         A unified safety command center for every community.
                     </h1>
                     <p>
-                        Community Guard empowers residents, officials, responders, and administrators with transparent reporting,
-                        smart assistance, and actionable dashboards that keep every neighborhood ready to respond.
+                        Community Guard is a full-stack, multi-role safety platform that empowers residents, barangay officials, responders, and administrators with transparent reporting, 
+                        smart assistance, and an integrated command workflow. Designed for real-world deployment, it brings incident visibility, coordinated response, and actionable data into one seamless system.
                     </p>
                     <div className="hero-actions">
-                        <Link to="/register" className="get-started-btn">Launch Your Pilot</Link>
-                        <a href="#workflow" className="secondary-btn">
-                            Explore Response Workflow
+                        <Link to="/register" className="get-started-btn">Get Started</Link>
+                        <a
+                            href="#faq"
+                            className="secondary-btn"
+                            onClick={e => {
+                                e.preventDefault();
+                                const el = document.getElementById('faq');
+                                if (el) {
+                                    const navHeight = document.querySelector('.navbar')?.offsetHeight || 64;
+                                    const top = el.getBoundingClientRect().top + window.scrollY - navHeight - 8;
+                                    window.scrollTo({ top, behavior: 'smooth' });
+                                }
+                            }}
+                        >
+                            View Community FAQs
                         </a>
                     </div>
                     <div className="stat-grid">
@@ -462,55 +603,12 @@ const HomePage = () => {
                             </div>
                         ))}
                     </div>
-                    <div className="process-note">
-                        <FaGlobe />
-                        <p>Detailed playbooks live inside the MD Integrations knowledge base so teams stay aligned and proactive.</p>
-                    </div>
+                    {/* Process note removed per request */}
                 </section>
 
-                <section id="platform" className="section light">
-                    <div className="section-heading">
-                        <h2>Modern architecture, proven stack</h2>
-                        <p className="section-desc">
-                            Engineered with a React + Flask foundation, Community Guard stays modular, testable, and cloud ready.
-                        </p>
-                    </div>
-                    <div className="card-grid tech">
-                        {techHighlights.map((tech) => (
-                            <div key={tech.title} className="tech-card">
-                                <div className="tech-icon">{tech.icon}</div>
-                                <h3>{tech.title}</h3>
-                                <p>{tech.details}</p>
-                            </div>
-                        ))}
-                    </div>
-                </section>
+                {/* Platform section removed per request */}
 
-                <section id="deployment" className="section dark">
-                    <div className="section-heading">
-                        <h2>Deploy anywhere in minutes</h2>
-                        <p className="section-desc">
-                            Choose your path—Vercel for rapid web rollout or Railway for full-stack orchestration. Our scripts and documentation guide you through every environment variable and health check.
-                        </p>
-                    </div>
-                    <div className="deployment-grid">
-                        <div className="deployment-card">
-                            <FaServer className="deployment-icon" />
-                            <h3>Vercel Frontend</h3>
-                            <p>One command deployment with auto-detected API URLs, environment injection, and zero-config CDN.</p>
-                        </div>
-                        <div className="deployment-card">
-                            <FaGlobe className="deployment-icon" />
-                            <h3>Railway Full Stack</h3>
-                            <p>CI-friendly builds for Flask + React, Supabase connectivity, and CLI tooling for logs and rollbacks.</p>
-                        </div>
-                        <div className="deployment-card">
-                            <FaLaptopCode className="deployment-icon" />
-                            <h3>Local Development</h3>
-                            <p>Run <code>python app.py</code> and <code>npm run dev</code> in tandem with live reload and proxying.</p>
-                        </div>
-                    </div>
-                </section>
+                {/* Deployment section removed per request */}
 
                 <section id="integrations" className="section dark">
                     <div className="section-heading">
@@ -531,13 +629,25 @@ const HomePage = () => {
                         <p className="section-desc">Everything you need to brief stakeholders and accelerate approvals.</p>
                     </div>
                     <div className="faq-grid">
-                        {faqs.map((faq) => (
-                            <div key={faq.question} className="faq-card">
-                                <FaQuestionCircle className="faq-icon" />
-                                <h3>{faq.question}</h3>
-                                <p>{faq.answer}</p>
+                        <div className="faq-card">
+                            <div className="faq-accordion">
+                                {faqItems.map((it, idx) => {
+                                    const key = `faq-${idx}`;
+                                    const isOpen = openFAQs.has(key);
+                                    return (
+                                        <div key={key} className={`faq-item ${isOpen ? 'open' : ''}`}>
+                                            <button type="button" className="faq-question" onClick={() => toggleFAQ(key)} aria-expanded={isOpen}>
+                                                <span>{it.q}</span>
+                                                <span className="faq-toggle">{isOpen ? '−' : '+'}</span>
+                                            </button>
+                                            <div className="faq-answer" aria-hidden={!isOpen}>
+                                                <p>{it.a}</p>
+                                            </div>
+                                        </div>
+                                    );
+                                })}
                             </div>
-                        ))}
+                        </div>
                     </div>
                 </section>
 
@@ -569,15 +679,7 @@ const HomePage = () => {
                         </p>
                         <p>Developers: Roselyn Ong &amp; Larissa Panganiban</p>
                     </div>
-                    <div className="footer-column">
-                        <h3>Documentation</h3>
-                        <ul>
-                            <li><a href="https://github.com/Roselynong/community-guard" target="_blank" rel="noopener noreferrer">Project README</a></li>
-                            <li><a href="https://github.com/Roselynong/community-guard/tree/main/master/MD%20Integrations" target="_blank" rel="noopener noreferrer">Integration Playbooks</a></li>
-                            <li><a href="#workflow">Operations Workflow</a></li>
-                            <li><a href="#platform">Platform Overview</a></li>
-                        </ul>
-                    </div>
+                    {/* Documentation column removed per request */}
                     <div className="footer-column">
                         <h3>Stay Connected</h3>
                         <ul>
@@ -592,6 +694,14 @@ const HomePage = () => {
                     <p>© {new Date().getFullYear()} CommunityGuard. All rights reserved.</p>
                 </div>
             </footer>
+            <button
+                className={`scroll-top-btn ${showScrollTop ? 'visible' : ''}`}
+                onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
+                aria-label="Scroll to top"
+                title="Scroll to top"
+            >
+                <FaChevronUp aria-hidden="true" />
+            </button>
         </div>
     );
 };

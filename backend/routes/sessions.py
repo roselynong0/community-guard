@@ -36,21 +36,23 @@ def list_sessions():
                 "sessions": []
             }), 404
 
-        # Get all sessions
+        # Get all sessions (include ended_at for tracking closed sessions)
         def fetch_sessions():
             return (supabase.table("sessions")
-                    .select("id, token, expires_at, created_at")
-                    .eq("user_id", user_id)
-                    .order("created_at", desc=True)
-                    .execute())
+                .select("id, token, expires_at, created_at, ended_at")
+                .eq("user_id", user_id)
+                .order("created_at", desc=True)
+                .execute())
 
         resp = supabase_retry(fetch_sessions)
         all_sessions = resp.data or []
 
-        # Filter expired sessions and enhance with user data
+        # Build active (not ended, not expired) and ended sessions
         active_sessions = []
+        ended_sessions = []
         for s in all_sessions:
             expires_at_str = s.get("expires_at")
+            ended_at_str = s.get("ended_at")
             if not expires_at_str:
                 continue
 
@@ -58,19 +60,47 @@ def list_sessions():
             if expires_at.tzinfo is None:
                 expires_at = expires_at.replace(tzinfo=timezone.utc)
 
-            if expires_at < now:
-                # Auto-delete expired sessions
+            # If there is an explicit ended_at timestamp or the session is past expiry, treat as ended
+            ended_at = None
+            if ended_at_str:
                 try:
-                    supabase.table("sessions").delete().eq("id", s["id"]).execute()
-                    print(f"🧹 Removed expired session {s['id']} for user {user_id}")
-                except Exception as e:
-                    print(f"⚠️ Failed to delete expired session {s['id']}: {e}")
+                    ended_at = datetime.fromisoformat(ended_at_str)
+                    if ended_at.tzinfo is None:
+                        ended_at = ended_at.replace(tzinfo=timezone.utc)
+                except Exception:
+                    ended_at = None
+
+            if expires_at < now and not ended_at:
+                # Session is expired and has no ended_at; set ended_at to expires_at for consistency
+                ended_at = expires_at
+
+            if ended_at:
+                # Ended/expired session — include in ended list
+                ended_sessions.append({
+                    "id": s["id"],
+                    "token": s["token"],
+                    "created_at": s["created_at"],
+                    "expires_at": s["expires_at"],
+                    "ended_at": ended_at.isoformat(),
+                    "user": {
+                        "id": user_data["id"],
+                        "firstname": user_data.get("firstname", ""),
+                        "lastname": user_data.get("lastname", ""),
+                        "email": user_data.get("email", ""),
+                        "role": user_data.get("role", "Resident"),
+                        "isverified": user_data.get("isverified", False),
+                        "avatar_url": user_data.get("avatar_url", "/default-avatar.png"),
+                        "onpremium": user_data.get("onpremium", False)
+                    }
+                })
             else:
+                # Active session
                 active_sessions.append({
                     "id": s["id"],
                     "token": s["token"],
                     "created_at": s["created_at"],
                     "expires_at": s["expires_at"],
+                    "ended_at": None,
                     "user": {
                         "id": user_data["id"],
                         "firstname": user_data.get("firstname", ""),
@@ -83,9 +113,33 @@ def list_sessions():
                     }
                 })
 
+        # Keep only the current (most recent active) and the most recent ended session
+        response_sessions = []
+        # Sort active_sessions by created_at desc to get current
+        active_sessions_sorted = sorted(active_sessions, key=lambda x: x.get('created_at', ''), reverse=True)
+        ended_sessions_sorted = sorted(ended_sessions, key=lambda x: x.get('ended_at', ''), reverse=True)
+
+        if active_sessions_sorted:
+            response_sessions.append(active_sessions_sorted[0])
+
+        if ended_sessions_sorted:
+            response_sessions.append(ended_sessions_sorted[0])
+
+        # PRUNE older sessions: keep only two latest sessions
+        try:
+            all_ids = [s['id'] for s in all_sessions]
+            # Keep response_ids
+            keep_ids = set([s['id'] for s in response_sessions])
+            to_delete = [i for i in all_ids if i not in keep_ids]
+            if to_delete:
+                supabase.table('sessions').delete().in_('id', to_delete).execute()
+                print(f"🧹 Cleaned old sessions for user {user_id}, deleted: {len(to_delete)}")
+        except Exception as e:
+            print(f"⚠️ Failed to prune old sessions for user {user_id}: {e}")
+
         return jsonify({
             "status": "success",
-            "sessions": active_sessions
+            "sessions": response_sessions
         }), 200
 
     except Exception as e:
@@ -133,11 +187,24 @@ def logout():
     print(f"🚪 Logout requested by user {user_id}, token: {token[:20]}...")
     
     try:
-        # Instead of deleting the session row, mark it ended by setting expires_at to now().
-        # This allows the server to compute offline intervals (screen time tracking).
+        # Mark session as ended by setting ended_at to now(). Do not overwrite expires_at (expiry still valid).
         now = datetime.now(timezone.utc).isoformat()
-        result = supabase.table("sessions").update({"expires_at": now}).eq("token", token).eq("user_id", user_id).execute()
-        print(f"✅ Logout recorded for user {user_id}, session updated: {getattr(result, 'data', None)}")
+        result = supabase.table("sessions").update({"ended_at": now}).eq("token", token).eq("user_id", user_id).execute()
+        # Generalized success message (no user/session details exposed)
+        print("✅ Logout recorded successfully")
+
+        # Prune older sessions if there are more than 2 sessions for the user
+        try:
+            all_resp = supabase.table('sessions').select('id, created_at, ended_at').eq('user_id', user_id).order('created_at', desc=True).execute()
+            rows = all_resp.data or []
+            # Keep only newest 2 rows
+            keep = 2
+            to_delete_ids = [r['id'] for r in rows[keep:]] if len(rows) > keep else []
+            if to_delete_ids:
+                supabase.table('sessions').delete().in_('id', to_delete_ids).execute()
+                print(f"🧹 Pruned {len(to_delete_ids)} old session(s) for user {user_id}")
+        except Exception as e:
+            print(f"⚠️ Failed to prune old sessions after logout for user {user_id}: {e}")
 
         return jsonify({
             "status": "success",

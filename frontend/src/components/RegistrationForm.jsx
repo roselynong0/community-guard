@@ -155,15 +155,15 @@ function RegistrationForm() {
 		});
 
 		// Redirect to VerificationForm with proper state
-		setTimeout(() => {
-		  navigate("/verify", {
-			state: { 
-			  email: result.email, 
-			  user_id: result.user_id,
-			  userRole: registerRole // Pass the fixed role
-			},
-		  });
-		}, 1000);
+				setTimeout(() => {
+					navigate(`/verify?role=resident`, {
+						state: { 
+							email: result.email, 
+							user_id: result.user_id,
+							userRole: registerRole // Pass the fixed role
+						},
+					});
+				}, 1000);
 	  } else if (result.status === "duplicate") {
 		notify("This email is already registered!", "caution");
 	  } else {

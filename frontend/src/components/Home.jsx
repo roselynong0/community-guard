@@ -165,6 +165,8 @@ function Home({ token, session }) {
         setRecentReports(recentRes.status === "success" ? recentRes.reports : []);
         
       } catch (err) {
+        console.debug('missed summary load error', err);
+        console.debug('missed summary load error', err);
         console.error("Dashboard fetch error:", err);
         setError("Failed to load dashboard");
         setStats([
@@ -209,6 +211,45 @@ function Home({ token, session }) {
   };
 
   const mapRef = useRef(null);
+
+  // On first mount (or when navigated with ?showMissed=1) fetch missed-summary
+  useEffect(() => {
+    // If there's no token yet, nothing to do
+    if (!token) return;
+
+    const params = new URLSearchParams(window.location.search);
+    const shouldShow = params.get("showMissed");
+
+    let cancelled = false;
+
+    async function loadMissedSummary() {
+      try {
+        // Attempt to fetch missed summary from the backend. Use 1 retry for quick response.
+        const resp = await fetchWithToken(getApiUrl('/reports/missed_summary'), token, 1);
+
+        // If backend returns an object with `summary`, use it. Otherwise create a minimal fallback.
+        const summaryData = resp && resp.summary ? resp : { summary: { message: 'No missed reports', total: 0, categories: {}, barangays: {}, severity_stats: {}, top_reports: [] } };
+        if (!cancelled) {
+          setMissedSummary(summaryData);
+          // Always show the missed modal on initial navigation (either via query param or session present)
+          if (shouldShow !== null || session) setShowMissedModal(true);
+        }
+      } catch {
+        if (!cancelled) {
+          // Fallback summary when API is unavailable or fails
+          setMissedSummary({ summary: { message: 'No missed reports', total: 0, categories: {}, barangays: {}, severity_stats: {}, top_reports: [] } });
+          if (shouldShow !== null || session) setShowMissedModal(true);
+        }
+      }
+    }
+
+    // Trigger fetch if query param present or if a valid session exists (first load after login)
+    if (shouldShow !== null || session) {
+      loadMissedSummary();
+    }
+
+    return () => { cancelled = true; };
+  }, [token, session]);
 
   const mapSection = (
     <div className="map-section" style={{ animationDelay: "0.5s" }}>

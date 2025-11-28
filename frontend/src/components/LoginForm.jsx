@@ -3,7 +3,7 @@ import { Link, useNavigate } from "react-router-dom";
 import { FaEye, FaEyeSlash, FaArrowLeft } from "react-icons/fa";
 import VerificationRenewalModal from "./VerificationRenewalModal";
 import { API_CONFIG, getApiUrl } from "../utils/apiConfig";
-import "./RegistrationForm.css";
+import "./LoginForm.css";
 import "./Notification.css";
 
 function LoginForm({ setSession, setNotification }) {
@@ -92,7 +92,8 @@ function LoginForm({ setSession, setNotification }) {
           }
 
           setNotification({ message: loginMessage, type: "success" });
-          setTimeout(() => navigate(redirectPath), 2000);
+          // Append a query flag so the Home component shows the missed-summary modal first
+          setTimeout(() => navigate(`${redirectPath}?showMissed=1`), 2000);
         } else if (result.status === "invalid_credentials") {
         setNotification({ message: "Incorrect email or password.", type: "error" });
         ["email", "password"].forEach((field) => {

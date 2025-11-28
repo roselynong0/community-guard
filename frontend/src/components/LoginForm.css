@@ -1,3 +1,186 @@
+/* Login-specific styles (migrated from RegistrationForm.css)
+   This file contains role-scoped overrides for the login pages only.
+   General layout and form styles remain in `RegistrationForm.css` which is
+   used by registration, reset and forgot pages.
+*/
+
+/* Color variables for login themes. Role-specific classes should override
+  these by setting their own values (e.g. `.login-role-admin { --login-btn-bg: #7c3aed; }`).
+  Defaults are provided so the form looks correct when no role class is present. */
+:root {
+  --login-btn-bg: #1d256a;
+  --login-btn-hover: #778EA0;
+  --login-heading-color: #11163e;
+  --login-top-heading-color: #ffffff;
+  --login-border-color: transparent;
+}
+
+.login-role-barangay-official {
+  --login-btn-bg: #0369a1;
+  --login-btn-hover: #035388;
+  --login-border-color: rgba(3, 105, 161, 0.10);
+}
+
+.login-role-responder {
+  --login-btn-bg: #dc2626;
+  --login-btn-hover: #b91c1c;
+  --login-border-color: rgba(220, 38, 38, 0.08);
+}
+
+.login-role-admin {
+  --login-btn-bg: #7c3aed;
+  --login-btn-hover: #6d28d9;
+  --login-border-color: rgba(124, 58, 237, 0.10);
+}
+
+/* Admin (purple) */
+.login-role-admin .form-card {
+  border: 1px solid var(--login-btn-bg) !important;
+}
+.login-role-admin .form-submit-btn {
+  background: #7c3aed; /* purple */
+  color: #fff;
+}
+.login-role-admin .form-submit-btn:hover:not(:disabled) {
+  background: #6d28d9;
+}
+.login-role-admin .modal-container {
+  border-top: 4px solid #7c3aed;
+}
+.login-role-admin .modal-header h2 {
+  color: #6d28d9;
+}
+/* Admin title tweaks (login form h2 only) */
+.login-role-admin .form-card h2 {
+  color: #5b21b6; /* darker purple for login title */
+}
+
+/* Admin container-level variables + stronger overrides */
+
+.login-role-admin .form-submit-btn {
+  background: var(--login-btn-bg) !important;
+  color: #fff !important;
+}
+.login-role-admin .form-submit-btn:hover:not(:disabled) {
+  background: var(--login-btn-hover) !important;
+}
+.login-role-admin .modal-container {
+  border-top: 4px solid var(--login-btn-bg) !important;
+}
+.login-role-admin .form-card {
+  border: 1px solid var(--login-btn-bg) !important;
+}
+
+/* Barangay Official (deep blue) */
+.login-role-barangay-official .form-card {
+  border: 3px solid rgba(3, 105, 161, 0.10);
+}
+.login-role-barangay-official .form-submit-btn {
+  background: #0369a1; /* deep blue */
+  color: #fff;
+}
+.login-role-barangay-official .form-submit-btn:hover:not(:disabled) {
+  background: #035388;
+}
+.login-role-barangay-official .modal-container {
+  border-top: 4px solid #0369a1;
+}
+.login-role-barangay-official .modal-header h2 {
+  color: #044e75;
+}
+.login-role-barangay-official .form-card h2 {
+  color: var(--login-btn-bg); /* slightly darker blue for login title */
+}
+
+.login-role-barangay-official .form-submit-btn {
+  background: var(--login-btn-bg) !important;
+  color: #fff !important;
+}
+.login-role-barangay-official .form-submit-btn:hover:not(:disabled) {
+  background: var(--login-btn-hover) !important;
+}
+.login-role-barangay-official .modal-container {
+  border-top: 4px solid var(--login-btn-bg) !important;
+}
+.login-role-barangay-official .form-card {
+  border: 1px solid var(--login-btn-bg) !important;
+}
+
+/* Responder (red) */
+.login-role-responder .form-card {
+  border: 3px solid rgba(220, 38, 38, 0.08);
+}
+.login-role-responder .form-submit-btn {
+  background: #dc2626; /* red */
+  color: #fff;
+}
+.login-role-responder .form-submit-btn:hover:not(:disabled) {
+  background: #b91c1c;
+}
+.login-role-responder .modal-container {
+  border-top: 4px solid #dc2626;
+}
+.login-role-responder .modal-header h2 {
+  color: #b91c1c;
+}
+.login-role-responder .form-card h2 {
+  color: #991b1b; /* darker red for login title */
+}
+
+/* Responder container-level variables + stronger overrides */
+
+.login-role-responder .form-submit-btn {
+  background: var(--login-btn-bg) !important;
+  color: #fff !important;
+}
+.login-role-responder .form-submit-btn:hover:not(:disabled) {
+  background: var(--login-btn-hover) !important;
+}
+.login-role-responder .modal-container {
+  border-top: 4px solid var(--login-btn-bg) !important;
+}
+.login-role-responder .form-card {
+  border: 1px solid var(--login-btn-bg) !important;
+}
+
+/* Resident uses the default styles in RegistrationForm.css and modal defaults */
+/* Resident explicit theme (light-blue) */
+.login-role-resident .form-card {
+  border: 3px solid rgba(11, 99, 209, 0.08);
+}
+.login-role-resident .form-submit-btn {
+  background: #0b63d1; /* primary blue */
+  color: #fff;
+}
+.login-role-resident .form-submit-btn:hover:not(:disabled) {
+  background: #094fb0;
+}
+.login-role-resident .form-card h2 {
+  color: #073b85; /* darker blue for login title */
+}
+
+/* Resident container-level variables + stronger overrides */
+.login-role-resident {
+  --login-btn-bg: #0b63d1;
+  --login-btn-hover: #094fb0;
+  --login-border-color: rgba(11, 99, 209, 0.08);
+}
+.login-role-resident .form-submit-btn {
+  background: var(--login-btn-bg) !important;
+  color: #fff !important;
+}
+.login-role-resident .form-submit-btn:hover:not(:disabled) {
+  background: var(--login-btn-hover) !important;
+}
+.login-role-resident .modal-container {
+  border-top: 4px solid var(--login-btn-bg) !important;
+}
+.login-role-resident .form-card {
+  border: 3px solid var(--login-border-color) !important;
+}
+
+/* ---- Core base styles copied from RegistrationForm.css ---- */
+
 html, body {
   background-color: #ffffff !important;
 }
@@ -38,7 +221,7 @@ html, body {
   margin: 0;
   font-size: 2rem;
   font-family: Georgia, 'Times New Roman', Times, serif;
-  color: #fff;
+  color: var(--login-top-heading-color, #fff);
 }
 
 .top-section p {
@@ -60,7 +243,7 @@ html, body {
 .form-card h2 {
   margin-top: 0;
   margin-bottom: 16px;
-  color: #11163e;
+  color: var(--login-heading-color, #11163e);
   font-size: 1.5rem;
   text-align: center;
 }
@@ -181,7 +364,7 @@ input[type="password"]::placeholder {
   padding: 0.75rem;
   border: none;
   border-radius: 30px;
-  background: #1d256a !important;
+  background: var(--login-btn-bg, #1d256a);
   color: white;
   font-weight: bold;
   font-size: 1rem;
@@ -190,7 +373,7 @@ input[type="password"]::placeholder {
 }
 
 .form-submit-btn:hover:not(:disabled) {
-  background: #778EA0 !important;
+  background: var(--login-btn-hover, #778EA0);
 }
 
 .form-submit-btn:disabled {
@@ -258,6 +441,44 @@ input[type="password"]::placeholder {
 
 .back-link:hover {
   text-decoration: underline;
+}
+
+/* Top-left back button used on role login pages */
+.back-button-top-left {
+  position: absolute;
+  top: 16px;
+  left: 16px;
+  background: #ffffff;
+  border: 1px solid rgba(0,0,0,0.06);
+  padding: 8px 12px;
+  border-radius: 9999px; /* fully rounded pill */
+  font-size: 0.95rem;
+  color: var(--login-btn-bg, #1d256a);
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  z-index: 20;
+  box-shadow: 0 4px 10px rgba(0,0,0,0.06);
+  transition: background 180ms ease, color 180ms ease, transform 160ms ease, box-shadow 160ms ease;
+}
+.back-button-top-left:hover {
+  background: var(--login-btn-bg, #1d256a);
+  color: #ffffff;
+  transform: translateY(-2px);
+  box-shadow: 0 6px 18px rgba(0,0,0,0.12);
+  border-color: transparent;
+}
+.back-button-top-left:focus {
+  outline: none;
+  box-shadow: 0 0 0 4px rgba(0,0,0,0.06);
+}
+.back-button-top-left svg,
+.back-button-top-left svg * {
+  color: inherit;
+  fill: currentColor;
+  width: 1rem;
+  height: 1rem;
 }
 
 .forgot-password-link {
@@ -348,8 +569,5 @@ input[type="password"]::placeholder {
     transform: translateY(0);
   }
 }
-/* Role-specific login overrides were moved to `LoginForm.css` to keep
-   registration/reset/forgot pages using the shared base styles in
-   `RegistrationForm.css`. Import `LoginForm.css` from login components.
-*/
 
+/* ---- End base styles ---- */

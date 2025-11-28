@@ -95,7 +95,7 @@ function ResetPassword() {
             <button type="submit" className="form-submit-btn">Reset Password</button>
           </form>
 
-          <span className="back-link" onClick={() => navigate("/login")}>
+          <span className="back-link" onClick={() => navigate("/login?role=resident") }>
             Back to Login
           </span>
         </div>

@@ -10,17 +10,30 @@
 
 :root {
     --nav-bg: #1d256a;
+    --navbar-height: 64px;
     --primary-blue: #0b63d1;
+    --primary-blue-rgb: 11,99,209;
+    --card-bg: #ffffff;
     --accent-gold: #f1d429;
     --light-bg: #f6f8fc;
     --dark-section-bg: #071737;
     --gradient-bg: linear-gradient(135deg, #040d25 0%, #092c5d 45%, #0f3e73 100%);
     --card-radius: 18px;
+    --faq-card-radius: 10px;
+    --faq-padding: 16px;
+    --faq-item-padding: 8px;
+    --faq-question-padding: 12px 10px;
     --card-shadow: 0 22px 45px rgba(7, 22, 54, 0.14);
     --text-dark: #0c2348;
     --text-muted: #5a7096;
     --text-light-muted: #c1d7ff;
     --border-soft: rgba(12, 45, 105, 0.12);
+    /* Use this to control the hover buffer color; set to transparent to hide it visually, or to --dark-section-bg to match the section below */
+    --nav-hover-gap-bg: transparent;
+    --nav-focus-bg: rgba(255,255,255,0.06);
+    --nav-focus-ring: rgba(var(--primary-blue-rgb), 0.18);
+    --selection-bg: var(--accent-gold);
+    --selection-color: #071737;
 }
 
 * {
@@ -75,16 +88,29 @@
     display: flex;
     align-items: center;
     list-style: none;
-    gap: 20px;
+    gap: 24px;
     margin: 0 20px 0 0;
     padding-left: 0;
+    position: relative;
 }
 
 .nav-links a {
     color: #f5f7ff;
     text-decoration: none;
     font-size: 1rem;
-    transition: color 0.2s ease;
+    transition: color 0.2s ease, background-color 0.18s ease, transform 0.12s ease;
+    -webkit-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
+    user-select: none;
+    -webkit-tap-highlight-color: transparent;
+    display: inline-flex;
+    align-items: center;
+    padding: 8px 12px; /* slightly larger click/tap area */
+    margin: 0 6px; /* horizontal breathing room between items */
+    border-radius: 8px;
+    line-height: 1.05;
+    min-height: 40px; /* vertical tap target */
 }
 
 .nav-links a:hover {
@@ -104,7 +130,12 @@
     align-items: center;
     gap: 6px;
     cursor: pointer;
-    padding: 8px 0;
+    padding: 8px 12px;
+    -webkit-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
+    user-select: none;
+    -webkit-tap-highlight-color: transparent;
 }
 
 .dropdown-toggle svg {
@@ -126,25 +157,64 @@
     background-color: #0b1632;
     box-shadow: 0 18px 45px rgba(3, 11, 30, 0.45);
     border: 1px solid rgba(255, 255, 255, 0.08);
-    display: none;
+    display: flex;
     flex-direction: column;
     gap: 10px;
+    opacity: 0;
+    transform: translateY(6px);
+    visibility: hidden;
+    transition: opacity 180ms ease, transform 180ms ease, visibility 180ms;
+    pointer-events: none;
+    z-index: 30;
 }
 
-.dropdown.open .dropdown-menu {
-    display: flex;
+.dropdown.open .dropdown-menu,
+.dropdown-menu:hover,
+.nav-links.open .dropdown-menu {
+    opacity: 1;
+    transform: translateY(0);
+    visibility: visible;
+    pointer-events: auto;
 }
 
 .dropdown-menu a {
     color: #d9e6ff;
     font-size: 0.95rem;
-    padding: 8px 10px;
+    padding: 10px 12px; /* slightly larger target for dropdown menu items */
     border-radius: 8px;
     transition: background-color 0.2s ease, color 0.2s ease;
+    -webkit-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
+    user-select: none;
+    -webkit-tap-highlight-color: transparent;
+}
+
+/* Keyboard focus ring for accessibility (no black blocks) */
+.nav-links a:focus-visible,
+.dropdown-toggle:focus-visible,
+.dropdown-menu a:focus-visible,
+.nav-links a:focus,
+.dropdown-toggle:focus,
+.dropdown-menu a:focus {
+    outline: none;
+    box-shadow: 0 0 0 4px var(--nav-focus-ring);
+    background-color: var(--nav-focus-bg);
+    border-radius: 6px;
+}
+
+/* Global selection color - improves default highlighted text */
+::selection {
+    background: var(--selection-bg);
+    color: var(--selection-color);
+}
+::-moz-selection { /* Firefox */
+    background: var(--selection-bg);
+    color: var(--selection-color);
 }
 
 .dropdown-menu a:hover {
-    background-color: rgba(10, 98, 206, 0.25);
+    background-color: rgba(var(--primary-blue-rgb), 0.25);
     color: var(--accent-gold);
 }
 
@@ -157,11 +227,13 @@
     width: 1px;
     height: 28px;
     background-color: rgba(255, 255, 255, 0.16);
+    margin: 0 10px; /* provide spacing from nav items */
 }
 
 .nav-auth a {
     color: #9ecaff;
     font-weight: 500;
+    padding: 6px 8px;
 }
 
 .signup-btn {
@@ -189,32 +261,56 @@
     cursor: pointer;
     margin-right: 12px;
     z-index: 21;
+    -webkit-tap-highlight-color: transparent;
+    -webkit-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
+    user-select: none;
 }
 
 .nav-links.open {
     display: flex;
     flex-direction: column;
-    position: absolute;
-    top: 64px;
-    right: 0;
+    /* full-screen mobile overlay when opened, but start below navbar so nav remains visible */
+    position: fixed;
+    top: var(--navbar-height);
+    left: 0;
     width: 100%;
-    background-color: #040d23;
-    box-shadow: 0 36px 60px rgba(3, 8, 20, 0.75);
-    padding: 18px 0;
+    height: calc(100vh - var(--navbar-height));
+    background: rgba(4, 13, 35, 0.96);
+    padding-top: 20px;
     align-items: center;
+    /* keep overlay just under navbar so navbar stays visible */
+    z-index: 15;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    transition: opacity 180ms ease, transform 200ms ease;
 }
 
 .nav-links.open li {
     width: 100%;
-    padding: 10px 0;
+    padding: 18px 0; /* larger tap targets */
     text-align: center;
 }
 
 .nav-links.open a {
     display: block;
-    width: 80%;
+    width: 94%;
     margin: 0 auto;
-    padding: 10px;
+    padding: 14px 18px; /* bigger click area on mobile */
+    border-radius: 10px;
+}
+
+/* Subtle hover style that keeps a polished look */
+.nav-links a:hover,
+.dropdown-toggle:hover {
+    background-color: rgba(255,255,255,0.03);
+    transform: translateY(-1px);
+}
+
+/* Slightly increase spacing between top-level nav items to improve readability */
+.nav-links {
+    gap: 24px;
 }
 
 .nav-links.open .dropdown-menu {
@@ -624,15 +720,22 @@
 
 .faq-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
-    gap: 24px;
+    /* Default: rows stacked vertically, content constrained to a centered column for a more compact, professional look */
+    grid-template-columns: 1fr;
+    gap: 14px;
+    max-width: 720px; /* more compact width */
+    margin: 0 auto;
+    padding: 0 8px; /* slightly reduced side padding */
+    border-radius: var(--faq-card-radius); /* rounded corners for container */
 }
 
+.faq-category { max-width: 980px; margin: 0 auto; }
+
 .faq-card {
-    background-color: #ffffff;
+    background-color: var(--card-bg);
     color: var(--text-dark);
-    border-radius: var(--card-radius);
-    padding: 26px;
+    border-radius: var(--faq-card-radius);
+    padding: var(--faq-padding);
     box-shadow: var(--card-shadow);
     border: 1px solid var(--border-soft);
 }
@@ -790,6 +893,152 @@
     }
 }
 
+/* Mobile: hide dropdown panels inside the overlay by default; they open only when the user taps the dropdown toggle (li will get .open) */
+@media (max-width: 768px) {
+    .nav-links.open .dropdown-menu {
+        display: none;
+        opacity: 0;
+        transform: none;
+        visibility: hidden;
+        pointer-events: none;
+    }
+
+    .nav-item.open .dropdown-menu {
+        display: block;
+        opacity: 1;
+        visibility: visible;
+        pointer-events: auto;
+    }
+
+    /* Lock body scroll when menu is open via JS class `no-scroll` */
+    body.no-scroll {
+        overflow: hidden;
+    }
+}
+
+/* Mobile: make dropdown links fill the overlay width and match nav item sizing
+   Apply to both the dropdown-menu inside the overlay and the login menu. */
+@media (max-width: 768px) {
+    .nav-links.open .dropdown-menu a,
+    .nav-links.open .dropdown-menu a:link,
+    .nav-links.open .dropdown-menu a:visited,
+    .login-dropdown-menu a {
+        display: block !important;
+        width: 94%;
+        margin: 0 auto;
+        padding: 14px 18px;
+        border-radius: 10px;
+        text-align: center;
+        box-sizing: border-box;
+    }
+
+    .nav-links.open li,
+    .login-dropdown-menu li {
+        width: 100%;
+        padding: 0 0 12px 0;
+        list-style: none;
+    }
+
+    /* Ensure the login dropdown list looks consistent inside the mobile overlay */
+    .login-dropdown-menu {
+        width: 100%;
+        display: block;
+        padding: 8px 0 18px;
+        background: transparent;
+    }
+}
+
+/* Center dropdown toggles and make login menu container dark with white text inside mobile overlay */
+@media (max-width: 768px) {
+    /* Make the dropdown toggle buttons center and match overlay width */
+    .nav-links.open .dropdown-toggle {
+        width: 94%;
+        margin: 0 auto;
+        justify-content: center;
+        display: flex;
+        text-align: center;
+        padding: 14px 18px;
+    
+    /* Make the hover-gap pseudo-element very thin on mobile and keep it non-interactive.
+       Also convert the desktop vertical divider into a subtle horizontal rule between
+       menu items for clearer separation without heavy color blocks. */
+    .nav-links.has-dropdown:after {
+        content: "";
+        position: absolute;
+        left: 6%;
+        right: 6%;
+        top: 100%;
+        height: 1px; /* thin line */
+        background: rgba(255,255,255,0.06);
+        pointer-events: none;
+        opacity: 1;
+        visibility: visible;
+        z-index: 10;
+        transition: opacity 120ms ease, visibility 120ms ease;
+    }
+        border-radius: 10px;
+    }
+
+    /* Ensure the dropdown panel matches the centered width and centers its links */
+    .nav-links.open .dropdown-menu {
+        width: 94%;
+        margin: 8px auto 0;
+        text-align: center;
+        background-color: rgba(12, 32, 70, 0.88);
+        box-shadow: none;
+        border-radius: 12px;
+        display: none; /* remain hidden until parent li has .open */
+    }
+
+    .nav-item.open .dropdown-menu {
+        display: block;
+    }
+
+    .nav-links.open .dropdown-menu a {
+        display: block;
+        width: 100%;
+        margin: 6px 0;
+        padding: 12px 14px;
+        text-align: center;
+        color: #ffffff;
+    }
+
+    /* Make login dropdown look and behave like other dropdowns in the overlay: dark container with white text */
+    .nav-links.open .login-dropdown-menu {
+        position: static;
+        width: 94%;
+        margin: 8px auto 0;
+        background: rgba(12, 32, 70, 0.92);
+        border-radius: 12px;
+        box-shadow: none;
+        padding: 8px 0 14px;
+        display: none; /* show when parent has .open */
+    }
+
+    .nav-auth.open .login-dropdown-menu,
+    .nav-item.open .login-dropdown-menu,
+    .login-dropdown.open .login-dropdown-menu {
+        display: block;
+    }
+
+    .nav-links.open .login-dropdown-menu a {
+        color: #ffffff;
+        padding: 12px 16px;
+        display: block;
+        width: 100%;
+        text-align: center;
+    }
+}
+
+/* Disable hover gap pseudo-element on small screens (mobile) to avoid interfering with touch interactions */
+@media (max-width: 768px) {
+    .nav-links.has-dropdown:after {
+        display: none;
+        opacity: 0;
+        pointer-events: none;
+    }
+}
+
 @media (max-width: 600px) {
     .feature-grid,
     .capability-grid,
@@ -891,4 +1140,225 @@
     .footer {
         padding: 60px 16px 30px;
     }
+}
+.dropdown-toggle.pinned {
+    background-color: rgba(255,255,255,0.06);
+    border-radius: 8px;
+    
+}
+
+.nav-links.has-dropdown:after {
+    content: "";
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: 100%;
+    height: 22px;
+    pointer-events: none; /* disable pointer events by default to prevent accidental trigger */
+    opacity: 0;
+    visibility: hidden;
+    z-index: 10;
+    transition: opacity 120ms ease, visibility 120ms ease;
+}
+
+.nav-links.has-dropdown.show-gap:after {
+    opacity: 1;
+    visibility: visible;
+    pointer-events: auto; /* only interactive in developer preview */
+}
+
+/* Prevent odd black backgrounds on click/active states in some browsers */
+.nav-links a:active,
+.dropdown-toggle:active,
+.dropdown-menu a:active,
+.login-btn:active,
+.login-dropdown-menu a:active {
+    background: transparent;
+    color: inherit;
+    box-shadow: none;
+}
+
+.faq-category {
+    /* Use light, card-like surfaces for the light section so text contrast is clear */
+    background-color: var(--light-bg);
+    color: var(--text-dark);
+    padding: calc(var(--faq-padding) - 4px) calc(var(--faq-padding));
+    border-radius: var(--faq-card-radius);
+    border: 1px solid var(--border-soft);
+    box-shadow: 0 12px 30px rgba(6, 22, 55, 0.06);
+}
+
+.faq-category-title {
+    color: var(--accent-gold);
+    font-size: 1.1rem;
+    margin-bottom: 12px;
+}
+
+.faq-accordion {
+    display: grid;
+    gap: 8px;
+}
+
+.faq-item {
+    background-color: var(--card-bg); /* card surface for clean contrast on light card */
+    border-radius: var(--faq-card-radius) !important; /* use theme radius for consistency */
+    padding: var(--faq-item-padding);
+    overflow: hidden;
+    border: 1px solid var(--border-soft);
+}
+
+.faq-accordion {
+    display: grid;
+    gap: 8px;
+}
+
+.faq-item { 
+    background-color: var(--card-bg); /* card surface for clean contrast on light card */
+    border-radius: var(--compact-card-radius);
+    padding: calc(var(--compact-card-padding) / 1.2);
+    overflow: hidden;
+    border: 1px solid var(--border-soft);
+}
+.faq-item:hover { border-color: rgba(var(--primary-blue-rgb), 0.18); box-shadow: 0 8px 20px rgba(var(--primary-blue-rgb), 0.04); }
+
+.faq-question { 
+    width: 100%;
+    background: transparent;
+    border: none;
+    text-align: left;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    color: var(--text-dark);
+    font-weight: 700;
+    padding: var(--faq-question-padding);
+    cursor: pointer;
+    transition: color 120ms ease, background-color 120ms ease, font-size 120ms ease;
+}
+
+.faq-question:hover { color: var(--primary-blue); background-color: rgba(var(--primary-blue-rgb), 0.06); border-radius: 6px; }
+.faq-question:focus-visible { box-shadow: 0 0 0 4px var(--nav-focus-ring); background-color: var(--nav-focus-bg); border-radius: 6px; }
+
+.faq-toggle {
+    color: var(--accent-gold);
+    margin-left: 8px;
+    font-weight: 700;
+}
+
+.faq-answer {
+    max-height: 0;
+    transition: max-height 200ms ease, padding 160ms ease;
+    overflow: hidden;
+    color: var(--text-dark);
+    padding: 0 12px;
+}
+.faq-answer a { color: var(--primary-blue); text-decoration: underline; }
+
+.faq-item.open .faq-answer {
+    max-height: 360px;
+    padding-top: 8px;
+    padding-bottom: 12px;
+}
+
+.faq-item p { margin: 0; font-size: calc(0.95rem * var(--compact-font-scale)); line-height: 1.45; }
+.faq-question { font-size: 1rem; }
+.faq-item { padding: 8px; }
+
+/* Scroll-to-top button (bottom-right) */
+.scroll-top-btn {
+    position: fixed;
+    right: 18px;
+    bottom: 22px;
+    z-index: 60;
+    width: 44px;
+    height: 44px;
+    border-radius: 10px;
+    display: inline-grid;
+    place-items: center;
+    background-color: var(--nav-bg);
+    color: #ffffff;
+    cursor: pointer;
+    border: none;
+    box-shadow: 0 8px 20px rgba(6,22,55,0.12);
+    transition: transform 120ms ease, opacity 180ms ease;
+    opacity: 0;
+    pointer-events: none;
+}
+.scroll-top-btn.visible {
+    opacity: 1;
+    pointer-events: auto;
+    transform: translateY(0);
+}
+.scroll-top-btn:focus-visible { outline: none; box-shadow: 0 0 0 4px var(--nav-focus-ring); }
+.scroll-top-btn svg { width: 18px; height: 18px; }
+.scroll-top-btn:hover { background-color: var(--primary-blue); color: #fff; transform: translateY(-3px); }
+
+/* Login dropdown (nav) */
+.nav-auth { position: relative; }
+.login-btn {
+    background: transparent;
+    border: 1px solid transparent;
+    color: inherit;
+    cursor: pointer;
+    padding: 8px 12px;
+    border-radius: 8px;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-weight: 600;
+}
+.login-btn:focus { outline: none; box-shadow: 0 0 0 4px var(--nav-focus-ring); }
+.login-caret { font-size: 0.8rem; opacity: 0.9; }
+.login-dropdown-menu {
+    position: absolute;
+    right: 0;
+    /* reduce gap so cursor can move from button to panel without leaving the hover area */
+    top: calc(100% + 4px);
+    background: var(--card-bg);
+    color: var(--text-dark);
+    border-radius: 10px;
+    box-shadow: 0 12px 30px rgba(7,22,54,0.12);
+    padding: 6px 0;
+    min-width: 200px;
+    display: none;
+    z-index: 60;
+}
+.login-dropdown-menu.open { display: block; }
+.login-dropdown-menu li { list-style: none; }
+.login-dropdown-menu a {
+    display: block;
+    padding: 10px 14px;
+    color: inherit;
+    text-decoration: none;
+    font-size: 0.95rem;
+}
+.login-dropdown-menu a:hover { background-color: rgba(var(--primary-blue-rgb), 0.06); color: var(--primary-blue); }
+
+/* Mirror nav dropdown behaviour: show login menu only when its parent has .open.
+   Previously this also showed when the entire mobile nav overlay opened (`.nav-links.open`)
+   which caused the login list to display immediately on mobile. Remove that behavior
+   so login menu behaves like other dropdowns and only opens on interaction. */
+.login-dropdown.open .login-dropdown-menu {
+    display: block;
+    opacity: 1;
+    transform: translateY(0);
+    visibility: visible;
+    pointer-events: auto;
+}
+
+/* Keep login button text as accent gold to match header accent */
+.login-btn { color: var(--accent-gold); }
+
+@media (max-width: 768px) {
+    .login-dropdown-menu { position: static; box-shadow: none; background: transparent; padding: 0; min-width: auto; }
+    .login-dropdown-menu a { padding: 12px 0; }
+    .login-btn { padding: 10px; }
+}
+
+/* When menu overlay is open, slightly dim page content behind it for clarity */
+.nav-links.open ~ main,
+.nav-links.open ~ footer,
+.nav-links.open .hero-section,
+.nav-links.open + main {
+    /* no-op selectors to allow devs to add fine-grained focus styles if needed */
 }

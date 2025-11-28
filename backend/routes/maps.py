@@ -5,7 +5,7 @@ Handles map data, hotspots, and safezones
 from flask import Blueprint, request, jsonify
 from datetime import datetime, timezone
 from middleware.auth import token_required
-from utils import supabase
+from utils import supabase, supabase_retry
 import struct
 import re
 
@@ -180,8 +180,18 @@ def delete_safezone(safezone_id):
 def get_hotspots():
     """Get all hotspots (computed clusters)"""
     try:
-        response = supabase.table("hotspots").select("*").order("report_count", desc=True).execute()
-        hotspots = getattr(response, "data", []) or []
+        # Use the retry wrapper to handle transient network/read errors (e.g. WinError 10035)
+        def fetch_hotspots():
+            return supabase.table("hotspots").select("*").order("report_count", desc=True).execute()
+
+        try:
+            # Increase retries for this potentially flaky query
+            response = supabase_retry(fetch_hotspots, max_retries=5, delay=0.5)
+            hotspots = getattr(response, "data", []) or []
+        except Exception as e:
+            # Log and return an empty successful response to avoid 500s on transient DB/network errors
+            print(f"⚠️ Failed to load hotspots from Supabase: {e}")
+            hotspots = []
         
         # Format hotspots for frontend
         formatted_hotspots = []
@@ -204,8 +214,9 @@ def get_hotspots():
         print(f"✅ Loaded {len(formatted_hotspots)} hotspots")
         return jsonify({"status": "success", "hotspots": formatted_hotspots}), 200
     except Exception as e:
-        print(f"❌ Error fetching hotspots: {e}")
-        return jsonify({"status": "error", "message": str(e), "hotspots": []}), 500
+        # As a last resort, avoid returning 500 to the frontend for transient network/read issues.
+        print(f"❌ Error fetching hotspots (final fallback): {e}")
+        return jsonify({"status": "success", "hotspots": []}), 200
 
 
 @maps_bp.route("/hotspots/refresh", methods=["POST"])

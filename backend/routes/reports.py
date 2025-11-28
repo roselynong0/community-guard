@@ -1190,7 +1190,8 @@ def get_missed_reports_summary():
             prev_session = None
 
         if prev_session:
-            offline_start_str = prev_session.get("expires_at") or prev_session.get("created_at")
+            # Prefer use of explicit ended_at (set when user logged out) for more accurate offline intervals.
+            offline_start_str = prev_session.get("ended_at") or prev_session.get("expires_at") or prev_session.get("created_at")
             offline_start = datetime.fromisoformat(offline_start_str.replace('Z', '+00:00'))
         else:
             # Default to 24 hours before current session

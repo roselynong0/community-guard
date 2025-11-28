@@ -1,7 +1,10 @@
 import { HashRouter as Router, Routes, Route, Navigate, useLocation } from "react-router-dom";
 import { useState, useEffect } from "react";
 import RegistrationForm from "./components/RegistrationForm";
-import LoginForm from "./components/LoginForm";
+import AdminLogin from "./components/AdminLogin";
+import ResidentLogin from "./components/ResidentLogin";
+import BarangayLogin from "./components/BarangayLogin";
+import ResponderLogin from "./components/ResponderLogin";
 import ForgotPassword from "./components/ForgotPassword";
 import ResetPassword from "./components/ResetPassword";
 import Layout from "./components/Layout";
@@ -45,10 +48,16 @@ function LoginWrapper({ session, setSession, setNotification }) {
   const location = useLocation();
   const params = new URLSearchParams(location.search);
   const forceLogin = params.get("force");
+  const role = (params.get("role") || "resident").toLowerCase();
 
   if (session && !forceLogin) return <Navigate to="/home" replace />;
 
-  return <LoginForm setSession={setSession} setNotification={setNotification} />;
+  // Route to the appropriate role-specific login component based on ?role=
+  if (role === "admin") return <AdminLogin setSession={setSession} setNotification={setNotification} />;
+  if (role === "barangay") return <BarangayLogin setSession={setSession} setNotification={setNotification} />;
+  if (role === "responder") return <ResponderLogin setSession={setSession} setNotification={setNotification} />;
+  // default to resident
+  return <ResidentLogin setSession={setSession} setNotification={setNotification} />;
 }
 
 // ---------------- APP COMPONENT ----------------
@@ -230,7 +239,13 @@ function App() {
                   replace
                 />
               )
-              : <LoginForm setSession={setSession} setNotification={setNotification} />
+              : (
+                <LoginWrapper
+                  session={session}
+                  setSession={setSession}
+                  setNotification={setNotification}
+                />
+              )
           }
         />
 

@@ -20,9 +20,11 @@ export async function fetchSession() {
         cachedSession = JSON.parse(storedSession);
         const now = new Date();
         const expiresAt = new Date(cachedSession.expires_at);
-        
-        // If cached session is expired, clear it
-        if (expiresAt < now) {
+        // If the session has an explicit ended_at it should be considered ended
+        const endedAt = cachedSession.ended_at ? new Date(cachedSession.ended_at) : null;
+
+        // If cached session is expired or ended, clear it
+        if (expiresAt < now || (endedAt && endedAt < now)) {
           console.log("⏰ Cached session expired");
           localStorage.removeItem("token");
           localStorage.removeItem("session");
@@ -112,7 +114,7 @@ export async function fetchSession() {
               return null;
             }
 
-            // Update localStorage with fresh session data
+            // Update localStorage with fresh session data (include ended_at if present)
             // If role or user details are missing, fetch profile to confirm
             try {
               if (!currentSession.user || !currentSession.user.role) {
