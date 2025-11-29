@@ -265,7 +265,7 @@ function LoginForm({ setSession, setNotification }) {
                 )}
               </button>
 
-              <Link to="/forgot-password" className="forgot-password-link">
+              <Link to={`/forgot-password?role=${loginMode === 'Admin' ? 'admin' : 'resident'}`} className="forgot-password-link">
                 Forgot Password?
               </Link>
               <Link 

@@ -283,7 +283,10 @@
     /* keep overlay just under navbar so navbar stays visible */
     z-index: 15;
     overflow-y: auto;
-    -webkit-overflow-scrolling: touch;
+    /* Use standard, cross-browser properties instead of vendor-prefixed rule */
+    scroll-behavior: smooth; /* smoother scrolling for anchor jumps */
+    overscroll-behavior: contain; /* prevent scroll chaining / bounce */
+    touch-action: pan-y; /* improve touch performance and maintain vertical scroll */
     transition: opacity 180ms ease, transform 200ms ease;
 }
 
@@ -1360,5 +1363,7 @@
 .nav-links.open ~ footer,
 .nav-links.open .hero-section,
 .nav-links.open + main {
-    /* no-op selectors to allow devs to add fine-grained focus styles if needed */
+    /* Subtle dimming to visually emphasize the mobile nav overlay without blocking interactions */
+    filter: brightness(0.94) saturate(0.98);
+    transition: filter 180ms ease, opacity 180ms ease;
 }

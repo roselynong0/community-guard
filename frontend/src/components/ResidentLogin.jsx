@@ -117,6 +117,7 @@ export default function ResidentLogin({ setSession, setNotification }) {
         setNotification?.({ message: "An unexpected error occurred.", type: "error" });
       }
     } catch (err) {
+      console.error(err);
       setNotification?.({ message: "Server error", type: "error" });
     } finally {
       setIsLoggingIn(false);
@@ -146,10 +147,10 @@ export default function ResidentLogin({ setSession, setNotification }) {
         <button
           className="back-button-top-left"
           onClick={() => navigate('/')}
-          title="Go back to Homepage"
+          title="Go to Homepage"
         >
           <FaArrowLeft />
-          <span>Go back to Homepage</span>
+          <span>Go to Homepage</span>
         </button>
         <div className="wrapper">
           <div className="top-section">
@@ -166,7 +167,7 @@ export default function ResidentLogin({ setSession, setNotification }) {
                 <button type="button" className="password-toggle-btn" onClick={() => setShowPassword(!showPassword)}>{showPassword ? <FaEyeSlash /> : <FaEye />}</button>
               </div>
               <button type="submit" className="form-submit-btn" disabled={isLoggingIn}>{isLoggingIn ? "Logging in..." : "Login"}</button>
-              <Link to="/forgot-password" className="forgot-password-link">Forgot Password?</Link>
+              <Link to="/forgot-password?role=resident" className="forgot-password-link">Forgot Password?</Link>
               <Link to="/register" className="back-link">Don't have an account? Register</Link>
             </form>
           </div>

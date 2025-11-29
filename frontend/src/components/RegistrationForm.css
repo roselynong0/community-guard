@@ -260,6 +260,40 @@ input[type="password"]::placeholder {
   text-decoration: underline;
 }
 
+/* Registration-specific back button: use site accent gold on hover similar to Resident */
+.back-button-top-left {
+  position: absolute;
+  top: 16px;
+  left: 16px;
+  background: #ffffff;
+  border: 1px solid rgba(0,0,0,0.06);
+  padding: 8px 12px;
+  border-radius: 9999px;
+  font-size: 0.95rem;
+  color: var(--login-btn-bg, #1d256a);
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  z-index: 20;
+  box-shadow: 0 4px 10px rgba(0,0,0,0.06);
+  transition: background 180ms ease, color 180ms ease, transform 160ms ease, box-shadow 160ms ease;
+}
+.back-button-top-left:hover {
+  background: var(--accent-gold, #f1d429) !important;
+  color: var(--selection-color, #071737) !important;
+  transform: translateY(-2px);
+  box-shadow: 0 6px 18px rgba(0,0,0,0.12);
+  border-color: transparent;
+}
+.back-button-top-left svg,
+.back-button-top-left svg * {
+  color: inherit;
+  fill: currentColor;
+  width: 1rem;
+  height: 1rem;
+}
+
 .forgot-password-link {
   display: block;
   text-align: right;

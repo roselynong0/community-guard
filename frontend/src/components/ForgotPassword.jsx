@@ -1,10 +1,22 @@
 import React, { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
+import "./LoginForm.css";
 import "./RegistrationForm.css";
 import "./Notification.css";
 
 function ForgotPassword() {
   const navigate = useNavigate();
+  const location = useLocation();
+  const params = new URLSearchParams(location.search);
+  const roleParam = (params.get("role") || "resident").toLowerCase();
+  const roleClassMap = {
+    resident: "login-role-resident",
+    admin: "login-role-admin",
+    responder: "login-role-responder",
+    barangay: "login-role-barangay-official",
+    "barangay-official": "login-role-barangay-official",
+  };
+  const roleClass = roleClassMap[roleParam] || "login-role-resident";
   const [email, setEmail] = useState("");
   const [errors, setErrors] = useState({});
   const [notification, setNotification] = useState({ message: "", type: "" });
@@ -48,8 +60,8 @@ function ForgotPassword() {
 
       if (res.ok && result.status === "success") {
         setNotification({ message: "Reset code sent! Check your email.", type: "success" });
-        // Pass email to reset page
-        setTimeout(() => navigate("/reset-password", { state: { email } }), 1500);
+        // Pass email and role to reset page
+        setTimeout(() => navigate(`/reset-password?role=${roleParam}`, { state: { email } }), 1500);
       } else if (result.status === "not_found") {
         setNotification({ message: "No account found with this email.", type: "error" });
       } else {
@@ -61,14 +73,21 @@ function ForgotPassword() {
   };
 
   return (
-    <div className="background">
+    <div className={`background ${roleClass}`}>
+      <button
+        className="back-button-top-left"
+        onClick={() => navigate('/')}
+        title="Go to Homepage"
+      >
+        <span style={{display:'inline-flex', alignItems:'center', gap:6}}>&#x2190; Go to Homepage</span>
+      </button>
       {notification.message && (
         <div className={`notif notif-${notification.type}`}>{notification.message}</div>
       )}
       <div className="wrapper">
         <div className="top-section">
           <h1>Community Guard</h1>
-          <p>Reset your password</p>
+          <p>Reset your password {roleParam === 'resident' ? '' : `for ${roleParam}`}</p>
         </div>
 
         <div className="form-card">
@@ -84,7 +103,7 @@ function ForgotPassword() {
             <button type="submit" className="form-submit-btn">Send Reset Code</button>
           </form>
 
-          <span className="back-link" onClick={() => navigate("/login?role=resident") }>
+          <span className="back-link" onClick={() => navigate(`/login?role=${roleParam}`) }>
             Back to Login
           </span>
         </div>

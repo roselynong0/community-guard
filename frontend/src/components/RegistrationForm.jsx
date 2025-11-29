@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { FaEye, FaEyeSlash, FaArrowLeft } from "react-icons/fa";
 import TermsModal from "./TermsModal";
+import "./LoginForm.css";
 import "./RegistrationForm.css";
 import "./Notification.css";
 import { getApiUrl, API_CONFIG } from "../utils/apiConfig";
@@ -175,29 +176,15 @@ function RegistrationForm() {
   };
 
   return (
-	<div className="background">
-	  <button 
-        className="back-button-top-left" 
-        onClick={() => navigate(-1)}
-        title="Go back"
-        style={{
-          position: 'absolute',
-          top: '20px',
-          left: '20px',
-          background: 'none',
-          border: 'none',
-          fontSize: '20px',
-          color: '#2563eb',
-          cursor: 'pointer',
-          display: 'flex',
-          alignItems: 'center',
-          gap: '6px',
-		  padding: 0,
-          zIndex: 10
-        }}
-      >
-        <FaArrowLeft />
-      </button>
+			<div className="background">
+			<button 
+				className="back-button-top-left" 
+				onClick={() => navigate('/')} 
+				title="Go to Homepage"
+			>
+				<FaArrowLeft />
+				<span>Go to Homepage</span>
+			</button>
 	  {notification.message && (
 		<div className={`notif notif-${notification.type}`}>
 		  <span>{notification.message}</span>
@@ -324,8 +311,8 @@ function RegistrationForm() {
 
 <button type="submit" className="form-submit-btn">Sign Up</button>
 <Link 
-  to="/login" // Simplified login link
-  className="back-link"
+	to="/login?role=resident" // Simplified login link ensures resident mode
+	className="back-link"
 >
   Go to Login
 </Link>

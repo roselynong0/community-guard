@@ -16,10 +16,12 @@ export default function MissedSummaryModal({ open, onClose, data, onProceed, sho
   const barangayEntries = Object.entries(barangays).sort((a,b)=>b[1]-a[1]);
 
   const hasReports = total > 0;
-
-  // Simple pie segment generator for small counts
-  const totalForPie = Math.max(1, Object.values(categories).reduce((s,v)=>s+v,0));
-  let acc = 0;
+  
+  // Prepare overview counts
+  const reportsTotal = total;
+  const userBarangay = summary.user_barangay || summary.user_barangay_name || summary.current_user_barangay || (barangayEntries[0] ? barangayEntries[0][0] : null);
+  const reportsInUserBarangay = userBarangay ? (barangays[userBarangay] || 0) : 0;
+  const communityPosts = summary.community_posts_count || summary.community_posts || 0;
 
   // Robust timestamp parsing to handle Postgres/Supabase formats and browser differences
   const parseTimestamp = (ts) => {
@@ -117,32 +119,40 @@ export default function MissedSummaryModal({ open, onClose, data, onProceed, sho
               </section>
 
               <section className="missed-charts">
+                <div className="chart-card">
+                  <h4>Overview</h4>
+                  <div className="cards-row">
+                    <div className="small-card">
+                      <div className="card-title">Reports in your Barangay</div>
+                      <div className="card-count">{reportsInUserBarangay}</div>
+                      <div className="card-sub muted">{userBarangay || 'Barangay unknown'}</div>
+                    </div>
+
+                    <div className="small-card">
+                      <div className="card-title">Total Missed Reports</div>
+                      <div className="card-count">{reportsTotal}</div>
+                      <div className="card-sub muted">From offline session</div>
+                    </div>
+
+                    <div className="small-card">
+                      <div className="card-title">Community Posts</div>
+                      <div className="card-count">{communityPosts}</div>
+                      <div className="card-sub muted">Related community posts</div>
+                    </div>
+                  </div>
+                </div>
+
                 {categoryEntries.length > 0 ? (
                   <div className="chart-card">
                     <h4>By Category</h4>
-                    <svg viewBox="0 0 100 100" className="pie" aria-hidden>
-                      {categoryEntries.map(([k,v], idx)=>{
-                        const start = (acc/totalForPie)*360;
-                        acc += v;
-                        const end = (acc/totalForPie)*360;
-                        const large = end-start > 180 ? 1 : 0;
-                        const r = 30;
-                        const cx = 50, cy = 50;
-                        const rad = (deg)=> (Math.PI*deg)/180;
-                        const x1 = cx + r*Math.cos(rad(start-90));
-                        const y1 = cy + r*Math.sin(rad(start-90));
-                        const x2 = cx + r*Math.cos(rad(end-90));
-                        const y2 = cy + r*Math.sin(rad(end-90));
-                        const d = `M ${cx} ${cy} L ${x1} ${y1} A ${r} ${r} 0 ${large} 1 ${x2} ${y2} Z`;
-                        const colors = ['#e74c3c','#3498db','#f39c12','#2ecc71','#9b59b6','#95a5a6','#e67e22'];
-                        return <path key={k+idx} d={d} fill={colors[idx % colors.length]} stroke="#fff" strokeWidth="0.2" />
-                      })}
-                    </svg>
-                    <ul className="legend">
+                    <div className="category-scroller" role="list">
                       {categoryEntries.map(([k,v], i)=> (
-                        <li key={k} className="legend-item"><span className="swatch" style={{background: ['#e74c3c','#3498db','#f39c12','#2ecc71','#9b59b6','#95a5a6','#e67e22'][i%7]}}></span>{k} <strong>{v}</strong></li>
+                        <div key={k} className="category-card" role="listitem">
+                          <div className="category-name">{k}</div>
+                          <div className="category-count">{v}</div>
+                        </div>
                       ))}
-                    </ul>
+                    </div>
                   </div>
                 ) : null}
 

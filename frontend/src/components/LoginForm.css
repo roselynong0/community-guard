@@ -1,92 +1,102 @@
-/* Login-specific styles (migrated from RegistrationForm.css)
-   This file contains role-scoped overrides for the login pages only.
-   General layout and form styles remain in `RegistrationForm.css` which is
-   used by registration, reset and forgot pages.
-*/
-
-/* Color variables for login themes. Role-specific classes should override
-  these by setting their own values (e.g. `.login-role-admin { --login-btn-bg: #7c3aed; }`).
-  Defaults are provided so the form looks correct when no role class is present. */
 :root {
   --login-btn-bg: #1d256a;
   --login-btn-hover: #778EA0;
   --login-heading-color: #11163e;
   --login-top-heading-color: #ffffff;
   --login-border-color: transparent;
+  /* Login modal/card variables */
+  --login-modal-top: var(--login-btn-bg);
+  --login-modal-title-color: var(--login-heading-color);
+  --login-card-title-color: var(--login-heading-color);
+  --login-btn-text: #ffffff;
+  --login-unsupported-highlight: #dc2626;
 }
 
 .login-role-barangay-official {
   --login-btn-bg: #0369a1;
   --login-btn-hover: #035388;
   --login-border-color: rgba(3, 105, 161, 0.10);
+  --login-modal-top: #0369a1;
+  --login-modal-title-color: #044e75;
+  --login-card-title-color: var(--login-btn-bg);
+  --login-btn-text: #fff;
 }
 
 .login-role-responder {
   --login-btn-bg: #dc2626;
   --login-btn-hover: #b91c1c;
   --login-border-color: rgba(220, 38, 38, 0.08);
+  --login-modal-top: #dc2626;
+  --login-modal-title-color: #b91c1c;
+  --login-card-title-color: #991b1b;
+  --login-btn-text: #fff;
 }
 
 .login-role-admin {
   --login-btn-bg: #7c3aed;
   --login-btn-hover: #6d28d9;
   --login-border-color: rgba(124, 58, 237, 0.10);
+  --login-modal-top: #7c3aed;
+  --login-modal-title-color: #6d28d9;
+  --login-card-title-color: #5b21b6;
+  --login-btn-text: #fff;
 }
 
 /* Admin (purple) */
 .login-role-admin .form-card {
   border: 1px solid var(--login-btn-bg) !important;
 }
-.login-role-admin .form-submit-btn {
-  background: #7c3aed; /* purple */
-  color: #fff;
-}
-.login-role-admin .form-submit-btn:hover:not(:disabled) {
-  background: #6d28d9;
-}
-.login-role-admin .modal-container {
-  border-top: 4px solid #7c3aed;
-}
-.login-role-admin .modal-header h2 {
-  color: #6d28d9;
-}
-/* Admin title tweaks (login form h2 only) */
-.login-role-admin .form-card h2 {
-  color: #5b21b6; /* darker purple for login title */
-}
-
-/* Admin container-level variables + stronger overrides */
 
 .login-role-admin .form-submit-btn {
   background: var(--login-btn-bg) !important;
-  color: #fff !important;
+  color: var(--login-btn-text, #fff) !important;
 }
 .login-role-admin .form-submit-btn:hover:not(:disabled) {
   background: var(--login-btn-hover) !important;
 }
 .login-role-admin .modal-container {
+  border-top: 4px solid var(--login-modal-top) !important;
+}
+.login-role-admin .modal-header h2 {
+  color: var(--login-modal-title-color);
+}
+/* Admin title tweaks (login form h2 only) */
+.login-role-admin .form-card h2 {
+  color: var(--login-card-title-color);
+}
+
+.login-role-barangay-official .form-submit-btn {
+  background: var(--login-btn-bg) !important;
+  color: #fff !important;
+}
+.login-role-barangay-official .form-submit-btn:hover:not(:disabled) {
+  background: var(--login-btn-hover) !important;
+}
+.login-role-barangay-official .modal-container {
   border-top: 4px solid var(--login-btn-bg) !important;
 }
-.login-role-admin .form-card {
+.login-role-barangay-official .form-card {
   border: 1px solid var(--login-btn-bg) !important;
 }
 
+/* Admin container-level variables + stronger overrides (already defined above) */
+
 /* Barangay Official (deep blue) */
 .login-role-barangay-official .form-card {
-  border: 3px solid rgba(3, 105, 161, 0.10);
+  border: 1px solid var(--login-border-color, var(--login-btn-bg)) !important;
 }
 .login-role-barangay-official .form-submit-btn {
-  background: #0369a1; /* deep blue */
-  color: #fff;
+  background: var(--login-btn-bg) !important;
+  color: var(--login-btn-text, #fff) !important;
 }
 .login-role-barangay-official .form-submit-btn:hover:not(:disabled) {
-  background: #035388;
+  background: var(--login-btn-hover) !important;
 }
 .login-role-barangay-official .modal-container {
-  border-top: 4px solid #0369a1;
+  border-top: 4px solid var(--login-modal-top) !important;
 }
 .login-role-barangay-official .modal-header h2 {
-  color: #044e75;
+  color: var(--login-modal-title-color);
 }
 .login-role-barangay-official .form-card h2 {
   color: var(--login-btn-bg); /* slightly darker blue for login title */
@@ -108,23 +118,23 @@
 
 /* Responder (red) */
 .login-role-responder .form-card {
-  border: 3px solid rgba(220, 38, 38, 0.08);
+  border: 1px solid var(--login-border-color, var(--login-btn-bg)) !important;
 }
 .login-role-responder .form-submit-btn {
-  background: #dc2626; /* red */
-  color: #fff;
+  background: var(--login-btn-bg) !important;
+  color: var(--login-btn-text, #fff) !important;
 }
 .login-role-responder .form-submit-btn:hover:not(:disabled) {
-  background: #b91c1c;
+  background: var(--login-btn-hover) !important;
 }
 .login-role-responder .modal-container {
-  border-top: 4px solid #dc2626;
+  border-top: 4px solid var(--login-modal-top) !important;
 }
 .login-role-responder .modal-header h2 {
-  color: #b91c1c;
+  color: var(--login-modal-title-color);
 }
 .login-role-responder .form-card h2 {
-  color: #991b1b; /* darker red for login title */
+  color: var(--login-card-title-color);
 }
 
 /* Responder container-level variables + stronger overrides */
@@ -143,27 +153,33 @@
   border: 1px solid var(--login-btn-bg) !important;
 }
 
-/* Resident uses the default styles in RegistrationForm.css and modal defaults */
-/* Resident explicit theme (light-blue) */
+/* Resident explicit theme: use the site's default (root) colors */
 .login-role-resident .form-card {
-  border: 3px solid rgba(11, 99, 209, 0.08);
+  border: 1px solid var(--login-border-color) !important;
 }
 .login-role-resident .form-submit-btn {
-  background: #0b63d1; /* primary blue */
-  color: #fff;
+  background: var(--login-btn-bg); /* use root default */
+  color: var(--login-btn-text, #fff);
 }
 .login-role-resident .form-submit-btn:hover:not(:disabled) {
-  background: #094fb0;
+  background: var(--login-btn-hover) !important;
 }
 .login-role-resident .form-card h2 {
-  color: #073b85; /* darker blue for login title */
+  color: var(--login-card-title-color);
 }
 
 /* Resident container-level variables + stronger overrides */
 .login-role-resident {
-  --login-btn-bg: #0b63d1;
-  --login-btn-hover: #094fb0;
-  --login-border-color: rgba(11, 99, 209, 0.08);
+  /* Explicitly align resident role to the site's default theme */
+  --login-btn-bg: #1d256a;
+  --login-btn-hover: #778EA0;
+  --login-border-color: transparent;
+  --login-heading-color: #11163e;
+  --login-top-heading-color: #ffffff;
+}
+/* Ensure modal top border uses the configured modal top color for resident too */
+.login-role-resident .modal-container {
+  border-top: 4px solid var(--login-modal-top) !important;
 }
 .login-role-resident .form-submit-btn {
   background: var(--login-btn-bg) !important;
@@ -177,6 +193,15 @@
 }
 .login-role-resident .form-card {
   border: 3px solid var(--login-border-color) !important;
+}
+
+/* Use the project's accent gold for the resident back-button hover to match brand */
+.login-role-resident .back-button-top-left:hover {
+  background: var(--accent-gold, #f1d429) !important;
+  color: var(--selection-color, #071737) !important;
+  transform: translateY(-2px);
+  box-shadow: 0 6px 18px rgba(0,0,0,0.12);
+  border-color: transparent;
 }
 
 /* ---- Core base styles copied from RegistrationForm.css ---- */
@@ -490,6 +515,76 @@ input[type="password"]::placeholder {
   padding-right: 0; /* align with button's right edge */
   text-decoration: none;
 }
+
+/* Container that holds the forgot link and the info icon on opposite sides */
+.forgot-row {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 0.75rem;
+  margin-bottom: 1.25rem;
+}
+
+/* Small circled question icon */
+.info-icon {
+  background: #fff;
+  border: 1px solid rgba(0,0,0,0.06);
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  color: var(--login-btn-bg, #1d256a);
+  transform: translateY(-0.5px);
+  transition: transform 160ms ease, box-shadow 180ms ease, border-color 160ms ease, color 160ms ease, background 160ms ease;
+  padding: 0; /* avoid extra inner spacing */
+}
+.info-icon:hover,
+.info-icon:focus {
+  /* Increase lift and shadow slightly without changing the icon fill/background */
+  transform: translateY(-2.5px);
+  box-shadow: 0 10px 30px rgba(7, 22, 54, 0.16);
+  border-color: rgba(0,0,0,0.12);
+  background: #fff;
+}
+/* Make the SVG inside the circle slightly larger to better fill the container */
+.info-icon svg,
+.info-icon svg * {
+  width: 14px;
+  height: 14px;
+  fill: currentColor;
+  color: inherit;
+}
+
+/* Tooltip container shown when hovering/clicking the icon */
+.info-tooltip {
+  position: absolute;
+  left: 0;
+  right: 0;
+  margin: 0 auto;
+  margin-top: -20px !important;
+  top: calc(100% + 8px);
+  width: min(320px, 92%);
+  background: #fff;
+  color: #071737;
+  border-radius: 10px;
+  padding: 8px 10px;
+  box-shadow: 0 10px 30px rgba(7, 22, 54, 0.12);
+  font-size: 0.8rem; /* slightly smaller text */
+  line-height: 1.25;
+  z-index: 40;
+}
+.info-tooltip strong {
+  display:block;
+  margin-bottom:6px;
+  color: var(--login-unsupported-highlight, #dc2626); /* highlight 'Unsupported' in red */ }
+.info-tooltip div {
+  font-size: 0.70rem;
+  color: #243049; }
 
 /* small style for Resident/Admin tabs */
 .tab-group {

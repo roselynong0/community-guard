@@ -1,12 +1,13 @@
 import React, { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { FaEye, FaEyeSlash, FaArrowLeft } from "react-icons/fa";
+import { FaEye, FaEyeSlash, FaArrowLeft, FaQuestionCircle } from "react-icons/fa";
 import VerificationRenewalModal from "./VerificationRenewalModal";
 import { API_CONFIG, getApiUrl } from "../utils/apiConfig";
 import "./LoginForm.css";
 import "./Notification.css";
 
 export default function ResponderLogin({ setSession, setNotification }) {
+  const [showInfo, setShowInfo] = useState(false);
   const [formData, setFormData] = useState({ email: "", password: "" });
   const [errors, setErrors] = useState({});
   const [showPassword, setShowPassword] = useState(false);
@@ -147,10 +148,10 @@ export default function ResponderLogin({ setSession, setNotification }) {
         <button
           className="back-button-top-left"
           onClick={() => navigate('/')}
-          title="Go back to Homepage"
+          title="Go to Homepage"
         >
           <FaArrowLeft />
-          <span>Go back to Homepage</span>
+          <span>Go to Homepage</span>
         </button>
         <div className="wrapper">
           <div className="top-section">
@@ -167,8 +168,25 @@ export default function ResponderLogin({ setSession, setNotification }) {
                 <button type="button" className="password-toggle-btn" onClick={() => setShowPassword(!showPassword)}>{showPassword ? <FaEyeSlash /> : <FaEye />}</button>
               </div>
               <button type="submit" className="form-submit-btn" disabled={isLoggingIn}>{isLoggingIn ? "Logging in..." : "Login"}</button>
-              <Link to="/forgot-password" className="forgot-password-link">Forgot Password?</Link>
-              <Link to="/register?role=responder" className="back-link">Don't have an account? Register</Link>
+              <div className="forgot-row">
+                <button
+                  type="button"
+                  className="info-icon"
+                  aria-label="Why registration is disabled"
+                  onClick={() => setShowInfo((s) => !s)}
+                  onMouseEnter={() => setShowInfo(true)}
+                  onMouseLeave={() => setShowInfo(false)}
+                >
+                  <FaQuestionCircle />
+                </button>
+                <Link to="/forgot-password?role=responder" className="forgot-password-link">Forgot Password?</Link>
+                {showInfo && (
+                  <div className="info-tooltip" role="dialog">
+                    <strong>Unsupported Account Creation.</strong>
+                    <div>Only Admin can create an account for Responder.</div>
+                  </div>
+                )}
+              </div>
             </form>
           </div>
         </div>

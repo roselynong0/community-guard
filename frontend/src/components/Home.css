@@ -63,10 +63,8 @@
 }
 
 .stat-card:hover {
-  transform: translateY(-6px) scale(1.01);
+  transform: translateX(-6px);
   box-shadow: var(--shadow-2);
-  background: linear-gradient(180deg, rgba(45,45,115,0.02), var(--surface-2));
-  border-left-width: 8px;
 }
 
 /* Stat card variations based on content */

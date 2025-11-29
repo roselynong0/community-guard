@@ -1,11 +1,22 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import "./RegistrationForm.css";
+import "./LoginForm.css";
 import "./Notification.css";
 
 function ResetPassword() {
   const location = useLocation();
   const navigate = useNavigate();
+  const params = new URLSearchParams(location.search);
+  const roleParam = (params.get("role") || "resident").toLowerCase();
+  const roleClassMap = {
+    resident: "login-role-resident",
+    admin: "login-role-admin",
+    responder: "login-role-responder",
+    barangay: "login-role-barangay-official",
+    "barangay-official": "login-role-barangay-official",
+  };
+  const roleClass = roleClassMap[roleParam] || "login-role-resident";
   const { email } = location.state || {};
   const [code, setCode] = useState("");
   const [password, setPassword] = useState("");
@@ -47,7 +58,7 @@ function ResetPassword() {
 
       if (res.ok && result.status === "success") {
         setNotification({ message: "Password reset successfully! 🎉", type: "success" });
-        setTimeout(() => navigate("/login"), 1000);
+        setTimeout(() => navigate(`/login?role=${roleParam}`), 1000);
       } else {
         setNotification({ message: result.message || "Invalid or expired code.", type: "error" });
       }
@@ -57,7 +68,14 @@ function ResetPassword() {
   };
 
   return (
-    <div className="background">
+    <div className={`background ${roleClass}`}>
+      <button
+        className="back-button-top-left"
+        onClick={() => navigate('/')}
+        title="Go to Homepage"
+      >
+        <span style={{display:'inline-flex', alignItems:'center', gap:6}}>&#x2190; Go to Homepage</span>
+      </button>
       {notification.message && (
         <div className={`notif notif-${notification.type}`}>{notification.message}</div>
       )}
@@ -95,7 +113,7 @@ function ResetPassword() {
             <button type="submit" className="form-submit-btn">Reset Password</button>
           </form>
 
-          <span className="back-link" onClick={() => navigate("/login?role=resident") }>
+          <span className="back-link" onClick={() => navigate(`/login?role=${roleParam}`) }>
             Back to Login
           </span>
         </div>
