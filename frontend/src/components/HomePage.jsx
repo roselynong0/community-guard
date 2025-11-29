@@ -131,30 +131,24 @@ const HomePage = () => {
                 setOpenDropdown(null);
             }
         };
+
         document.addEventListener('mousedown', handler);
-        return () => document.removeEventListener('mousedown', handler);
+        return () => {
+            document.removeEventListener('mousedown', handler);
+        };
     }, [pinnedDropdown]);
 
-        useEffect(() => {
-            return () => {
-                if (typeof document !== 'undefined' &&
-                    document.body &&
-                    document.body.classList &&
-                    typeof document.body.classList.remove === 'function') {
-                    document.body.classList.remove('no-scroll');
-                }
-            };
-        }, []);
+    // Ensure no-scroll class is removed when component unmounts
+    useEffect(() => {
+        return () => {
+            if (typeof document !== 'undefined' &&
+                document.body &&
+                document.body.classList &&
+                typeof document.body.classList.remove === 'function') {
+                document.body.classList.remove('no-scroll');
             }
         };
     }, []);
-
-    // Ensure no-scroll class is removed when component unmounts
-        useEffect(() => {
-            return () => {
-                try { document.body.classList.remove('no-scroll'); } catch {}
-            };
-        }, []);
 
     // Shared mouse-enter / mouse-leave handlers for nav items to provide
     // consistent hover sensitivity (delay before hiding) across all dropdowns.
@@ -167,7 +161,7 @@ const HomePage = () => {
         if (key) setOpenDropdown(key);
     };
 
-    const handleNavMouseLeave = (key = null, delay = 180) => {
+    const handleNavMouseLeave = (delay = 180) => {
         // Delay hiding slightly to avoid flicker when moving between elements
         // Accept a custom delay so we can make login's sensitivity more forgiving.
         if (navLeaveTimerRef.current) {
@@ -403,7 +397,7 @@ const HomePage = () => {
                             key={item.key}
                             className={`nav-item dropdown ${openDropdown === item.key ? "open" : ""}`}
                             onMouseEnter={() => handleNavMouseEnter(item.key)}
-                            onMouseLeave={() => handleNavMouseLeave(item.key)}
+                            onMouseLeave={() => handleNavMouseLeave()}
                         >
                             <button
                                 type="button"
@@ -413,7 +407,7 @@ const HomePage = () => {
                             >
                                 {item.label} <FaChevronDown />
                             </button>
-                            <div className="dropdown-menu" onMouseEnter={() => handleNavMouseEnter(item.key)} onMouseLeave={() => handleNavMouseLeave(item.key)}>
+                            <div className="dropdown-menu" onMouseEnter={() => handleNavMouseEnter(item.key)} onMouseLeave={() => handleNavMouseLeave()}>
                                 {item.items.map((link) => (
                                     link.external ? (
                                         <a
@@ -451,7 +445,7 @@ const HomePage = () => {
                     <li className="nav-divider" />
                     <li className={`nav-auth login-dropdown dropdown ${openDropdown === 'login' ? 'open' : ''}`}
                         onMouseEnter={() => handleNavMouseEnter('login')}
-                        onMouseLeave={() => handleNavMouseLeave('login', 300)}
+                        onMouseLeave={() => handleNavMouseLeave(300)}
                     >
                         <button
                             type="button"
@@ -467,7 +461,7 @@ const HomePage = () => {
                             role="menu"
                             aria-label="Login as"
                             onMouseEnter={() => handleNavMouseEnter('login')}
-                            onMouseLeave={() => handleNavMouseLeave('login', 300)}
+                            onMouseLeave={() => handleNavMouseLeave(300)}
                         >
                             <li role="none"><Link role="menuitem" to="/login?role=resident" onClick={closeMenu}>Resident</Link></li>
                             <li role="none"><Link role="menuitem" to="/login?role=barangay" onClick={closeMenu}>Barangay Official</Link></li>
