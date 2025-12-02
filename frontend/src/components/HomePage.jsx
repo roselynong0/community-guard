@@ -45,8 +45,6 @@ const HomePage = () => {
     const toggleMenu = () => {
         setIsMenuOpen((prev) => {
             const next = !prev;
-            // When opening mobile menu, clear any open dropdowns so they don't overlay the nav,
-            // and apply a body scroll lock.
             if (next) {
                 setOpenDropdown(null);
                 setPinnedDropdown(null);
@@ -211,52 +209,52 @@ const HomePage = () => {
                 { label: "Mission", href: "#overview" },
                 { label: "Team", href: "#team" },
                 { label: "Contact", href: "#contact" },
-                { label: "Documentation", href: "https://github.com/Roselynong/community-guard", external: true }
+                { label: "FAQs", href: "#faq" }
             ]
         }
     ];
 
     const stats = [
-        { value: "24/7", label: "Incident Visibility", description: "Monitor barangay cases with transparent status updates." },
-        { value: "12+", label: "Feature Modules", description: "Reporting, dashboards, messaging, mapping, and archives." },
-        { value: "4", label: "Stakeholder Portals", description: "Residents, barangay officials, responders, administrators." },
-        { value: "100%", label: "Role-Based Access Control", description: "Secure, permission-driven access tailored to each user’s responsibilities." }
+        { value: "24/7", label: "Always Available", description: "Report incidents and check updates anytime, day or night." },
+        { value: "12+", label: "Helpful Features", description: "Everything you need: reporting, maps, notifications, and more." },
+        { value: "4", label: "User Types", description: "Residents, Barangay Officials, Responders, and Administrators." },
+        { value: "100%", label: "Private & Secure", description: "Your information is protected and only shared with the right people." }
     ];
 
     const incidentFeatures = [
         {
-            title: "Incident Reporting System",
-            description: "Submit reports about crimes, hazards, or suspicious activity with mapped locations and supporting images.",
+            title: "Easy Report Submission",
+            description: "Report crimes, hazards, or concerns with just a few taps. Add photos and pinpoint the exact location on a map.",
             icon: <FaClipboardList />
         },
         {
-            title: "Interactive Safety Map",
-            description: "Visualize community updates through live maps that surface hotspots, safety zones, and ongoing responses.",
+            title: "Live Safety Map",
+            description: "See what's happening in your neighborhood with our real-time map showing recent incidents and safe zones.",
             icon: <FaMapMarkedAlt />
         },
         {
-            title: "Emergency Alert Notifications",
-            description: "Send timely alerts to nearby residents, responders, and officials whenever incidents escalate.",
+            title: "Instant Notifications",
+            description: "Get alerted when something important happens nearby or when there's an update on your report.",
             icon: <FaBell />
         },
         {
-            title: "Verification & Response Dashboard",
-            description: "Give authorized teams a unified console to validate submissions, assign responders, and track resolution steps.",
+            title: "Quick Response System",
+            description: "Your reports go straight to the right people who can verify and respond to incidents faster.",
             icon: <FaCheckCircle />
         },
         {
-            title: "Community Feed & Forum",
-            description: "Host neighborhood announcements, discussions, and safety coordination inside a moderated feed.",
+            title: "Community Updates",
+            description: "Stay connected with your neighbors through announcements, discussions, and safety tips.",
             icon: <FaComments />
         },
         {
-            title: "Safety Tips & Resource Center",
-            description: "Share prevention guides, preparedness checklists, and partner resources to empower every household.",
+            title: "Safety Resources",
+            description: "Access helpful guides, emergency contacts, and tips to keep you and your family safe.",
             icon: <FaBookOpen />
         },
         {
-            title: "Analytics & Trend Monitoring",
-            description: "Review charts that reveal recurring issues, high-risk zones, and the impact of community-wide actions.",
+            title: "Community Insights",
+            description: "See trends and patterns to better understand safety in your area over time.",
             icon: <FaChartLine />
         }
     ];
@@ -266,59 +264,59 @@ const HomePage = () => {
             title: "Residents",
             icon: <FaUsers />,
             points: [
-                "Report incidents with precise geolocation and media uploads",
-                "Track statuses and receive adaptive notifications",
-                "Engage with neighbors via the community feed"
+                "Report incidents easily with photos and location",
+                "Track your report status and get updates",
+                "Connect with your community through the feed"
             ]
         },
         {
             title: "Barangay Officials",
             icon: <FaShieldAlt />,
             points: [
-                "Monitor barangay-specific dashboards and analytics",
-                "Assign responders and track escalations from a single console",
-                "Publish advisories and review closure notes for every case"
+                "View all reports in your barangay at a glance",
+                "Approve reports and assign responders quickly",
+                "Keep residents informed with announcements"
             ]
         },
         {
             title: "Responders",
             icon: <FaBolt />,
             points: [
-                "Access prioritized queues with mapping overlays",
-                "Log updates in the field using any device",
-                "Sync outcomes back to administrators instantly"
+                "See assigned incidents on your map",
+                "Update report status from anywhere",
+                "Coordinate with officials in real time"
             ]
         },
         {
             title: "Administrators",
             icon: <FaChartLine />,
             points: [
-                "Verify accounts, manage sessions, and uphold policies",
-                "Maintain data quality with audit tools and migrations",
-                "Review trends to guide investments and community programs"
+                "Manage user accounts and permissions",
+                "Monitor system activity and reports",
+                "View community safety trends and statistics"
             ]
         }
     ];
 
     const capabilityHighlights = [
         {
-            title: "Smart Community Helper",
-            description: "Friendly guidance suggests categories, surfaces related resources, and keeps reports consistent for faster action.",
+            title: "Smart Assistant",
+            description: "Get helpful suggestions when filing reports to make sure your concern reaches the right people faster.",
             icon: <FaLightbulb />
         },
         {
-            title: "Insightful Trend Monitoring",
-            description: "Dashboards spotlight recurring incidents, emerging hotspots, and response times to inform community planning.",
+            title: "Safety Insights",
+            description: "Understand what's happening in your community with easy-to-read charts and trend summaries.",
             icon: <FaChartBar />
         },
         {
-            title: "Secure Cloud Infrastructure",
-            description: "Supabase authentication, JWT security, and managed backups keep data protected, auditable, and ready to scale.",
+            title: "Safe & Secure",
+            description: "Your data is protected with the same security used by banks and major organizations.",
             icon: <FaCloud />
         },
         {
-            title: "Connected Safety Ecosystem",
-            description: "Integrate alerts, email outreach, and external hotlines so every stakeholder works from the same command center.",
+            title: "Stay Connected",
+            description: "Receive email updates and notifications so you never miss important community alerts.",
             icon: <FaNetworkWired />
         }
     ];
@@ -327,53 +325,56 @@ const HomePage = () => {
 
     const steps = [
         {
-            title: "1. MVP Reporting App",
-            description: "Launch core incident submissions, verification workflows, and resident-to-official communication."
+            title: "1. Submit Your Report",
+            description: "Residents can quickly report incidents with details, photos, and location — all in one simple form."
         },
         {
-            title: "2. Smart Mapping & Guidance",
-            description: "Activate the smart helper experience, safety maps, and guided checklists for faster decision-making."
+            title: "2. Review & Verify",
+            description: "Barangay officials review your report and verify the information before taking action."
         },
         {
-            title: "3. Connected Operations",
-            description: "Link notifications, responders, and partner hotlines to keep every stakeholder informed in real time."
+            title: "3. Respond & Resolve",
+            description: "Responders are notified and dispatched to handle the situation while you track progress."
         },
         {
-            title: "4. Citywide Expansion",
-            description: "Introduce predictive analytics, optional sensor feeds, and sustainability programs as adoption grows."
+            title: "4. Stay Informed",
+            description: "Get updates as your report moves through the process until it's fully resolved."
         }
     ];
 
     const faqSections = [
         {
-            title: "Security & Account Protection",
+            title: "Getting Started",
             items: [
-                { q: "How does Community Guard keep user and incident data secure?", a: "Role-based access, encrypted transport, and secure storage protect user and incident data. Access is limited to authorized roles and audit logs track important actions." },
-                { q: "Is the system compliant with data privacy standards?", a: "The platform is designed to support common data privacy practices and can be configured to meet local requirements and retention policies." },
-                { q: "Why is email verification required?", a: "Email verification confirms a valid contact and helps prevent abuse or fraudulent accounts while improving notification delivery." },
-                { q: "Can users reset passwords without admin intervention?", a: "Yes — users can request a password reset via email." },
-                { q: "How are uploaded photos stored?", a: "Uploads are stored securely with access controls and optional retention or redaction policies; admin settings decide how long media is retained." }
+                { q: "How do I create an account?", a: "Click 'Create Account' on the homepage, fill in your details, verify your email, and you're all set!" },
+                { q: "I forgot my password. How do I reset it?", a: "On the login page, click 'Forgot Password' and enter your email. You'll get a link to create a new password." },
+                { q: "Why do I need to verify my email?", a: "It confirms your identity and ensures you receive important notifications about your reports and account." },
+                { q: "What are the different account types?", a: "Residents submit reports. Responders handle emergencies. Barangay Officials verify and manage reports. Admins manage the whole system." }
             ]
         },
         {
-            title: "Core Functionality & User Roles",
+            title: "Reporting Incidents",
             items: [
-                { q: "What user roles does Community Guard support?", a: "The system supports Residents (submit & track reports), Responders (view and update assigned reports), Barangay Officials (verify reports and manage local workflows), and Administrators (manage users, policies, and system settings)." },
-                { q: "Can responders and officials communicate with residents?", a: "Yes, the platform includes community feed/forums and notification features so officials and responders can coordinate with residents where appropriate." },
-                { q: "What is Community Helper?", a: "The Smart Helper suggests categories, helpful resources, and guided inputs to improve report quality and speed up response workflows; it’s an assistant layer configured to respect privacy and local guidance." }
+                { q: "How do I report an incident?", a: "Log in, post new report, describe what happened, mark the location on the map, attach photos if needed, then submit." },
+                { q: "Can I attach photos to my report?", a: "Yes! Adding photos helps officials understand the situation better." },
+                { q: "How do I track my report?", a: "Check your reports on the Reports tab and wait for further notifications if status changes." },
+                { q: "What can I report?", a: "Crimes, safety hazards, suspicious activities, emergencies, or any community concern." }
             ]
         },
         {
-            title: "Analytics & Administration",
+            title: "Privacy & Safety",
             items: [
-                { q: "What analytics are available for admins?", a: "Built-in dashboards surface trends such as incident volumes, response times, and verification rates. Admins can filter by area, timeframe, and status." },
-                { q: "Can we export data for LGU reporting?", a: "Yes — exports are available in common formats (CSV) to support local government reporting and analysis." }
+                { q: "Is my information safe?", a: "Yes. We use secure connections and only authorized staff can access your data." },
+                { q: "Who can see my reports?", a: "Once approved, reports appear on the other Residents in your barangay feed and Safety Map without your personal details." },
+                { q: "Is my identity kept private?", a: "Yes, your identity is confidential and not shown publicly." }
             ]
         },
         {
-            title: "Mobile Experience",
+            title: "Using the App",
             items: [
-                { q: "Is Community Guard mobile-friendly?", a: "Yes — the web frontend is responsive and includes PWA support for reliable mobile use in the field." }
+                { q: "Can I use this on my phone?", a: "Yes! It works on any phone, tablet, or computer with internet." },
+                { q: "What is the Community Feed?", a: "A place to see announcements, safety tips, and updates from your barangay." },
+                { q: "What is the Safety Map?", a: "It shows incidents in your area so you know what's happening nearby." }
             ]
         }
     ];
@@ -480,16 +481,16 @@ const HomePage = () => {
             <header className="hero-section" id="overview">
                 <div className="hero-content">
                     <div className="headline-badges">
-                        <span>Incident reporting system</span>
-                        <span>Smart community helper</span>
-                        <span>Coordinated response workflow</span>
+                        <span>Easy incident reporting</span>
+                        <span>Real-time updates</span>
+                        <span>Safer communities</span>
                     </div>
                     <h1>
-                        A unified safety command center for every community.
+                        Your community safety partner.
                     </h1>
                     <p>
-                        Community Guard is a full-stack, multi-role safety platform that empowers residents, barangay officials, responders, and administrators with transparent reporting, 
-                        smart assistance, and an integrated command workflow. Designed for real-world deployment, it brings incident visibility, coordinated response, and actionable data into one seamless system.
+                        Community Guard makes it easy to report incidents, stay informed about what's happening in your barangay, 
+                        and connect with officials and responders — all in one place. Together, we build safer neighborhoods.
                     </p>
                     <div className="hero-actions">
                         <Link to="/register" className="get-started-btn">Get Started</Link>
@@ -524,10 +525,9 @@ const HomePage = () => {
             <main>
                 <section id="reporting" className="section light">
                     <div className="section-heading">
-                        <h2>Incident lifecycle management without compromise</h2>
+                        <h2>Everything you need to report and track incidents</h2>
                         <p className="section-desc">
-                            From the moment a resident submits a concern to the instant a responder resolves it, Community Guard orchestrates the
-                            entire journey. Capture structured data, enrich with maps and media, automate notifications, and close the loop with verifiable outcomes.
+                            From the moment you submit a report to when it gets resolved, Community Guard keeps you informed every step of the way.
                         </p>
                     </div>
                     <div className="feature-grid">
@@ -543,9 +543,9 @@ const HomePage = () => {
 
                 <section id="capabilities" className="section dark">
                     <div className="section-heading">
-                        <h2>Core capabilities that scale with your barangay</h2>
+                        <h2>Built for your community's needs</h2>
                         <p className="section-desc">
-                            Streamline incident handling, empower citizens, and deliver reliable insights without adding operational overhead.
+                            Simple tools that help you report faster, stay informed, and keep your neighborhood safe.
                         </p>
                     </div>
                     <div className="capability-grid">
@@ -561,9 +561,9 @@ const HomePage = () => {
 
                 <section id="roles" className="section light">
                     <div className="section-heading">
-                        <h2>Role-based experiences tailored to your city</h2>
+                        <h2>Different roles, one goal: community safety</h2>
                         <p className="section-desc">
-                            Purpose-built dashboards respect the responsibilities of every stakeholder while centralizing governance.
+                            Everyone has a part to play in keeping our community safe. Here's how each user type contributes.
                         </p>
                     </div>
                     <div className="card-grid">
@@ -583,8 +583,8 @@ const HomePage = () => {
 
                 <section id="workflow" className="section dark">
                     <div className="section-heading">
-                        <h2>From report submission to measurable impact</h2>
-                        <p className="section-desc">Every stage of the incident lifecycle stays coordinated—from resident outreach to performance reviews.</p>
+                        <h2>How it works</h2>
+                        <p className="section-desc">A simple process from report to resolution — keeping you informed at every step.</p>
                     </div>
                     <div className="process">
                         {steps.map((step) => (
@@ -606,14 +606,14 @@ const HomePage = () => {
 
                 <section id="integrations" className="section dark">
                     <div className="section-heading">
-                        <h2>Integrations that extend your reach</h2>
+                        <h2>Powered by trusted technology</h2>
                         <p className="section-desc">
-                            Community Guard ties together location services, notification pipelines, smart helper services, and COTS tooling.
+                            We use reliable tools to ensure your reports are delivered, your data is safe, and the app works smoothly.
                         </p>
                     </div>
                     <div className="integration-banner">
                         <FaMapMarkedAlt />
-                        <span>Leaflet &amp; React-Leaflet mapping • Supabase authentication &amp; storage • Mailjet email automation • JWT-secured APIs • PWA offline styling</span>
+                        <span>Interactive Maps • Secure Login • Email Notifications • Works Offline</span>
                     </div>
                 </section>
 
