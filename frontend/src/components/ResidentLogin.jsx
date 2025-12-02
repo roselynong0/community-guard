@@ -63,25 +63,37 @@ export default function ResidentLogin({ setSession, setNotification }) {
         // Save session
         localStorage.setItem("token", result.session.token);
         localStorage.setItem("session", JSON.stringify(result.session));
-        setSession?.(result.session);
         const userRole = result.session.user?.role;
+        const userFirstname = result.session.user?.firstname || "User";
 
         // Resident page: only allow Resident
         const allowed = ["Resident"];
         if (!allowed.includes(userRole)) {
+          // Clear session - don't keep wrong role logged in
+          localStorage.removeItem("token");
+          localStorage.removeItem("session");
+          
           const roleToPath = {
             "Admin": "/login?role=admin",
             "Barangay Official": "/login?role=barangay",
             "Responder": "/login?role=responder",
             "Resident": "/login?role=resident"
           };
+          const roleLabels = {
+            "Admin": "Admin",
+            "Barangay Official": "Barangay Official",
+            "Responder": "Responder",
+            "Resident": "Resident"
+          };
           const target = roleToPath[userRole] || "/login?role=resident";
-          setNotification?.({ message: `You have ${userRole} access — redirecting to the correct login.`, type: "caution" });
-          setTimeout(() => navigate(target), 900);
+          const roleLabel = roleLabels[userRole] || "Resident";
+          setNotification?.({ message: `Hi ${userFirstname}! You're a ${roleLabel}. Please login on the correct page.`, type: "caution" });
+          setTimeout(() => navigate(target), 1500);
           return;
         }
 
-        // Allowed: continue to resident area
+        // Allowed: set session and continue to resident area
+        setSession?.(result.session);
         const redirectPath = "/home";
         setNotification?.({ message: "Login successful! 🎉", type: "success" });
         setTimeout(() => navigate(`${redirectPath}?showMissed=1`), 1200);

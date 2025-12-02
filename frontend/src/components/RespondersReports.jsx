@@ -224,7 +224,7 @@ function RespondersReports({ token }) {
     const reasonRef = useAriaModal(isDeleteReasonOpen, closeDeleteReason);
     // --------------------------------------------------
 
-    // Fetch reports from API (kept original logic)
+    // Fetch reports from API - uses responder endpoint that filters by barangay and excludes rejected
     const fetchReports = useCallback(async () => {
         if (!token) {
             setLoading(false);
@@ -234,19 +234,32 @@ function RespondersReports({ token }) {
         setLoading(true);
         try {
             const sortParam = sort === "latest" ? "desc" : "asc";
-            const response = await fetch(`${API_URL}/reports?limit=50&sort=${sortParam}`, {
+            // Use responder-specific endpoint that filters by barangay and excludes rejected reports
+            const responderEndpoint = getApiUrl(`/api/responder/reports?limit=50`);
+            let response = await fetch(responderEndpoint, {
                 headers: { 
                     'Authorization': `Bearer ${token}`,
                     'Content-Type': 'application/json'
                 }
             });
 
+            // Fallback to regular reports endpoint if responder endpoint fails
             if (!response.ok) {
-                throw new Error('Failed to fetch reports');
+                console.warn("Responder reports endpoint failed, falling back to regular reports");
+                response = await fetch(`${API_URL}/reports?limit=50&sort=${sortParam}`, {
+                    headers: { 
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    }
+                });
+                if (!response.ok) {
+                    throw new Error('Failed to fetch reports');
+                }
             }
 
             const data = await response.json();
             if (data.status === "success") {
+                // Use reports from responder endpoint or fallback
                 const reports = Array.isArray(data.reports) ? data.reports : [];
                 
                 const transformedReports = reports.map(report => {

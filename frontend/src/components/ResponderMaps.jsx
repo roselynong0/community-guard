@@ -142,8 +142,8 @@ function ResponderMaps({ session }) {
           return;
         }
 
-        // Fetch all reports
-        const reportsEndpoint = getApiUrl('/api/map_reports');
+        // Use responder-specific map endpoint that filters by barangay and excludes rejected reports
+        const reportsEndpoint = getApiUrl('/api/responder/map_reports');
         const reportsResponse = await fetch(reportsEndpoint, {
           headers: { Authorization: `Bearer ${token}` },
         });
@@ -155,11 +155,36 @@ function ResponderMaps({ session }) {
             latitude: parseFloat(r.latitude),
             longitude: parseFloat(r.longitude),
           }));
-          // Filter to responder's barangay only
-          const filteredByBarangay = responderBarangay 
-            ? formatted.filter(r => r.address_barangay === responderBarangay)
-            : formatted;
-          setReports(filteredByBarangay);
+          // Reports are already filtered by barangay from backend
+          setReports(formatted);
+          
+          // Update responder barangay from response if available
+          if (reportsData.barangay) {
+            setResponderBarangay(reportsData.barangay);
+          }
+          
+          console.log(`✅ Loaded ${formatted.length} responder map reports for barangay: ${reportsData.barangay || 'All'}`);
+        } else {
+          // Fallback to regular map_reports if responder endpoint fails
+          console.warn("Responder map endpoint failed, falling back to regular map_reports");
+          const fallbackEndpoint = getApiUrl('/api/map_reports');
+          const fallbackResponse = await fetch(fallbackEndpoint, {
+            headers: { Authorization: `Bearer ${token}` },
+          });
+          const fallbackData = await fallbackResponse.json();
+          
+          if (fallbackData.status === "success") {
+            const formatted = (fallbackData.reports || []).map((r) => ({
+              ...r,
+              latitude: parseFloat(r.latitude),
+              longitude: parseFloat(r.longitude),
+            }));
+            // Filter to responder's barangay only
+            const filteredByBarangay = responderBarangay 
+              ? formatted.filter(r => r.address_barangay === responderBarangay)
+              : formatted;
+            setReports(filteredByBarangay);
+          }
         }
 
         // Fetch hotspots
@@ -184,7 +209,7 @@ function ResponderMaps({ session }) {
           setSafezones(safezonesData.safezones || []);
         }
 
-        console.log(`✅ Loaded responder data: ${reportsData.reports?.length || 0} reports${responderBarangay ? ` for ${responderBarangay}` : ''}, ${hotspotsData.hotspots?.length || 0} hotspots, ${safezonesData.safezones?.length || 0} safezones`);
+        console.log(`✅ Loaded responder map data: ${hotspotsData.hotspots?.length || 0} hotspots, ${safezonesData.safezones?.length || 0} safezones`);
       } catch (err) {
         console.error("Failed to load responder map data:", err);
       } finally {

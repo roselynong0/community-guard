@@ -224,7 +224,7 @@ function ResponderReports({ token }) {
     const reasonRef = useAriaModal(isDeleteReasonOpen, closeDeleteReason);
     // --------------------------------------------------
 
-    // Fetch reports from API
+    // Fetch reports from API - uses responder endpoint that filters by barangay and excludes rejected
     const fetchReports = useCallback(async () => {
         if (!token) {
             setLoading(false);
@@ -234,15 +234,26 @@ function ResponderReports({ token }) {
         setLoading(true);
         try {
             const sortParam = sort === "latest" ? "desc" : "asc";
-            const response = await fetch(getApiUrl(`/api/reports?limit=50&sort=${sortParam}`), {
+            // Use responder-specific endpoint that filters by barangay and excludes rejected reports
+            let response = await fetch(getApiUrl(`/api/responder/reports?limit=50`), {
                 headers: { 
                     'Authorization': `Bearer ${token}`,
                     'Content-Type': 'application/json'
                 }
             });
 
+            // Fallback to regular reports endpoint if responder endpoint fails
             if (!response.ok) {
-                throw new Error('Failed to fetch reports');
+                console.warn("Responder reports endpoint failed, falling back to regular reports");
+                response = await fetch(getApiUrl(`/api/reports?limit=50&sort=${sortParam}`), {
+                    headers: { 
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    }
+                });
+                if (!response.ok) {
+                    throw new Error('Failed to fetch reports');
+                }
             }
 
             const data = await response.json();

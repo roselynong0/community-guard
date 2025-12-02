@@ -688,10 +688,10 @@ def get_barangay_map_reports():
         
         print(f"📍 Fetching map reports for barangay official {user_id} in barangay: {user_barangay}")
         
-        # Fetch only reports from their barangay with valid coordinates
+        # Fetch only reports from their barangay with valid coordinates (exclude rejected reports)
         response = supabase.table("reports").select(
             "id, title, address_barangay, address_street, latitude, longitude, user_id, created_at, status"
-        ).eq("address_barangay", user_barangay).is_("deleted_at", "null").execute()
+        ).eq("address_barangay", user_barangay).is_("deleted_at", "null").eq("is_rejected", False).execute()
 
         reports_list = getattr(response, "data", []) or []
         print(f"📊 Total reports in {user_barangay}: {len(reports_list)}")
@@ -736,10 +736,10 @@ def get_barangay_map_reports():
 def get_map_reports():
     """Optimized endpoint for map view - returns only reports with valid coordinates"""
     try:
-        # Fetch only relevant fields from reports
+        # Fetch only relevant fields from reports (exclude deleted and rejected reports)
         response = supabase.table("reports").select(
             "id, title, address_barangay, address_street, latitude, longitude, user_id, created_at"
-        ).execute()
+        ).is_("deleted_at", "null").eq("is_rejected", False).execute()
 
         reports_list = response.data or []
         print(f"📊 Total reports fetched from DB: {len(reports_list)}")
@@ -780,8 +780,8 @@ def get_map_reports():
 def get_map_report_counts():
     """Returns the number of reports per barangay for the map view"""
     try:
-        # Fetch all reports with barangay info
-        response = supabase.table("reports").select("address_barangay").execute()
+        # Fetch all reports with barangay info (exclude deleted and rejected reports)
+        response = supabase.table("reports").select("address_barangay").is_("deleted_at", "null").eq("is_rejected", False).execute()
         reports_list = response.data or []
         print(f"📊 Total reports fetched for counts: {len(reports_list)}")
 
@@ -929,6 +929,197 @@ def get_barangays():
     except Exception as e:
         print("get_barangays error:", e)
         return jsonify({"status": "error", "message": str(e), "barangays": []}), 500
+
+
+# Responder-specific endpoints
+@reports_bp.route("/responder/reports", methods=["GET"])
+@token_required
+def get_responder_reports():
+    """
+    Responder endpoint: Returns reports filtered by the responder's barangay from info table.
+    Excludes rejected reports. Returns stats and reports for the responder dashboard.
+    """
+    user_id = request.user_id
+    limit = request.args.get("limit", 100, type=int)
+    
+    try:
+        # Verify user is a Responder
+        user_resp = supabase.table("users").select("role").eq("id", user_id).execute()
+        user = getattr(user_resp, "data", [None])[0]
+        
+        if not user or user.get("role") != "Responder":
+            return jsonify({"status": "error", "message": "Responder access required"}), 403
+        
+        # Get barangay from info table
+        info_resp = supabase.table("info").select("address_barangay").eq("user_id", user_id).execute()
+        info = getattr(info_resp, "data", [None])[0]
+        user_barangay = info.get("address_barangay") if info else None
+        
+        print(f"📍 Fetching responder reports for user {user_id}, barangay: {user_barangay}")
+        
+        # Build query - filter by barangay if set, exclude rejected reports
+        query = supabase.table("reports").select(
+            "id, title, category, status, address_barangay, address_street, latitude, longitude, created_at, updated_at, user_id"
+        ).is_("deleted_at", "null").eq("is_rejected", False)
+        
+        # Filter by responder's barangay if they have one set
+        if user_barangay and user_barangay != "No barangay selected":
+            query = query.eq("address_barangay", user_barangay)
+            print(f"📊 Filtering reports by barangay: {user_barangay}")
+        
+        query = query.order("created_at", desc=True).limit(limit)
+        response = query.execute()
+        
+        reports_list = getattr(response, "data", []) or []
+        print(f"✅ Responder fetched {len(reports_list)} reports")
+        
+        # Calculate stats from filtered reports
+        pending = sum(1 for r in reports_list if (r.get("status") or "").lower() == "pending")
+        ongoing = sum(1 for r in reports_list if (r.get("status") or "").lower() == "ongoing")
+        resolved = sum(1 for r in reports_list if (r.get("status") or "").lower() == "resolved")
+        
+        # Calculate avg response time from resolved reports
+        resolved_reports = [r for r in reports_list if (r.get("status") or "").lower() == "resolved" and r.get("created_at") and r.get("updated_at")]
+        avg_response_time = "0h"
+        if resolved_reports:
+            total_ms = 0
+            for r in resolved_reports:
+                try:
+                    created = datetime.fromisoformat(r["created_at"].replace('Z', '+00:00'))
+                    updated = datetime.fromisoformat(r["updated_at"].replace('Z', '+00:00'))
+                    total_ms += (updated - created).total_seconds() * 1000
+                except:
+                    pass
+            if resolved_reports:
+                avg_ms = total_ms / len(resolved_reports)
+                avg_hours = avg_ms / (1000 * 60 * 60)
+                days = int(avg_hours // 24)
+                hours = int(avg_hours % 24)
+                if days > 0:
+                    avg_response_time = f"{days}d {hours}h" if hours > 0 else f"{days}d"
+                else:
+                    avg_response_time = f"{int(avg_hours)}h"
+        
+        # Calculate monthly trends from filtered reports
+        month_order = {"Jan": 1, "Feb": 2, "Mar": 3, "Apr": 4, "May": 5, "Jun": 6,
+                       "Jul": 7, "Aug": 8, "Sep": 9, "Oct": 10, "Nov": 11, "Dec": 12}
+        monthly_counts = {}
+        for report in reports_list:
+            created_at = report.get("created_at")
+            if created_at:
+                try:
+                    report_date = datetime.fromisoformat(created_at.replace('Z', '+00:00'))
+                    month = report_date.strftime("%b")
+                    monthly_counts[month] = monthly_counts.get(month, 0) + 1
+                except:
+                    pass
+        
+        trends = [
+            {"month": month, "count": monthly_counts[month]}
+            for month in sorted(monthly_counts.keys(), key=lambda m: month_order.get(m, 0))
+        ]
+        
+        # Calculate high incident areas (barangay counts)
+        barangay_counts = {}
+        for report in reports_list:
+            barangay = report.get("address_barangay", "Unknown")
+            barangay_counts[barangay] = barangay_counts.get(barangay, 0) + 1
+        
+        high_incident_areas = sorted(
+            [{"area": k, "total": v} for k, v in barangay_counts.items()],
+            key=lambda x: x["total"],
+            reverse=True
+        )[:5]
+        
+        return jsonify({
+            "status": "success",
+            "reports": reports_list,
+            "barangay": user_barangay,
+            "stats": {
+                "pending": pending,
+                "ongoing": ongoing,
+                "resolved": resolved,
+                "avgResponseTime": avg_response_time
+            },
+            "trends": trends if trends else [{"month": "No Data", "count": 0}],
+            "highIncidentAreas": high_incident_areas if high_incident_areas else [{"area": "No Data", "total": 0}],
+            "total": len(reports_list)
+        }), 200
+
+    except Exception as e:
+        print(f"❌ Error fetching responder reports: {e}")
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+
+@reports_bp.route("/responder/map_reports", methods=["GET"])
+@token_required
+def get_responder_map_reports():
+    """
+    Responder endpoint: Returns map reports filtered by the responder's barangay from info table.
+    Excludes rejected reports. Only returns reports with valid coordinates.
+    """
+    user_id = request.user_id
+    
+    try:
+        # Verify user is a Responder
+        user_resp = supabase.table("users").select("role").eq("id", user_id).execute()
+        user = getattr(user_resp, "data", [None])[0]
+        
+        if not user or user.get("role") != "Responder":
+            return jsonify({"status": "error", "message": "Responder access required"}), 403
+        
+        # Get barangay from info table
+        info_resp = supabase.table("info").select("address_barangay").eq("user_id", user_id).execute()
+        info = getattr(info_resp, "data", [None])[0]
+        user_barangay = info.get("address_barangay") if info else None
+        
+        print(f"📍 Fetching responder map reports for user {user_id}, barangay: {user_barangay}")
+        
+        # Build query - filter by barangay if set, exclude rejected and deleted reports
+        query = supabase.table("reports").select(
+            "id, title, address_barangay, address_street, latitude, longitude, user_id, created_at, status, category"
+        ).is_("deleted_at", "null").eq("is_rejected", False)
+        
+        # Filter by responder's barangay if they have one set
+        if user_barangay and user_barangay != "No barangay selected":
+            query = query.eq("address_barangay", user_barangay)
+            print(f"📊 Filtering map reports by barangay: {user_barangay}")
+        
+        response = query.execute()
+        reports_list = getattr(response, "data", []) or []
+        
+        # Filter only valid geotagged reports
+        reports_list = [r for r in reports_list if r.get("latitude") and r.get("longitude")]
+        print(f"📍 Responder map reports with valid coordinates: {len(reports_list)}")
+        
+        # Fetch reporter info for each report
+        for r in reports_list:
+            user_data = (
+                supabase.table("users")
+                .select("firstname, lastname, email")
+                .eq("id", r["user_id"])
+                .execute()
+                .data
+            )
+            if user_data:
+                r["reporter"] = {
+                    "first_name": user_data[0]["firstname"],
+                    "last_name": user_data[0]["lastname"],
+                    "email": user_data[0]["email"]
+                }
+            else:
+                r["reporter"] = {"first_name": "Unknown", "last_name": "", "email": ""}
+        
+        return jsonify({
+            "status": "success",
+            "reports": reports_list,
+            "barangay": user_barangay,
+            "total": len(reports_list)
+        }), 200
+
+    except Exception as e:
+        print(f"❌ Error fetching responder map reports: {e}")
+        return jsonify({"status": "error", "message": str(e)}), 500
 
 
 # Dashboard-specific endpoints for BarangayDashboard

@@ -63,79 +63,126 @@ export default function RespondersDashboard() {
 
   const [activeReports, setActiveReports] = useState([]);
   const [trendData, setTrendData] = useState([]);
+  // eslint-disable-next-line no-unused-vars
   const [allReports, setAllReports] = useState([]);
   const [highIncidentAreas, setHighIncidentAreas] = useState([]);
+  const [userBarangay, setUserBarangay] = useState(null);
 
-  // Fetch reports on component mount
+  // Fetch reports on component mount - filtered by responder's barangay, excluding rejected
   useEffect(() => {
     const fetchReports = async () => {
       try {
         const token = localStorage.getItem("token");
         if (!token) return;
 
-        const response = await fetch(getApiUrl("/api/reports?limit=100&sort=desc"), {
+        // Use the new responder-specific endpoint that filters by barangay and excludes rejected reports
+        const response = await fetch(getApiUrl("/api/responder/reports?limit=100"), {
           headers: { Authorization: `Bearer ${token}` },
         });
 
-        if (!response.ok) throw new Error("Failed to fetch reports");
+        if (!response.ok) {
+          // Fall back to regular reports endpoint if responder endpoint fails
+          console.warn("Responder endpoint failed, falling back to regular reports");
+          const fallbackResponse = await fetch(getApiUrl("/api/reports?limit=100&sort=desc"), {
+            headers: { Authorization: `Bearer ${token}` },
+          });
+          if (!fallbackResponse.ok) throw new Error("Failed to fetch reports");
+          const fallbackData = await fallbackResponse.json();
+          const reports = (fallbackData.reports || []).filter(r => !r.is_rejected);
+          processReports(reports);
+          return;
+        }
 
         const data = await response.json();
-        const reports = data.reports || [];
-        setAllReports(reports);
-
-        // Calculate stats
-        const pending = reports.filter(r => r.status === "Pending").length;
-        const ongoing = reports.filter(r => r.status === "Ongoing").length;
-        const resolved = reports.filter(r => r.status === "Resolved").length;
-        const avgResponseTime = calculateAvgResponseTime(reports);
-
-        setStats([
-          { title: "Active Reports", value: ongoing, icon: <FaExclamationTriangle />, color: "#f40014ff" },
-          { title: "Resolved Reports", value: resolved, icon: <FaCheckCircle />, color: "#2a9d62ff" },
-          { title: "Pending Reports", value: pending, icon: <FaTasks />, color: "#f4b761ff" },
-          { title: "Avg Response Time", value: avgResponseTime, icon: <FaClock />, color: "#2d2d73" },
-        ]);
-
-        // Set active reports (only ongoing for the table)
-        const active = reports.filter(r => r.status === "Ongoing").slice(0, 10);
-        setActiveReports(active);
-
-        // Generate trend data by month
-        const monthlyData = {};
-        const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
         
-        reports.forEach(report => {
-          if (report.created_at) {
-            const date = new Date(report.created_at);
-            const monthKey = months[date.getMonth()];
-            monthlyData[monthKey] = (monthlyData[monthKey] || 0) + 1;
+        if (data.status === "success") {
+          const reports = data.reports || [];
+          setAllReports(reports);
+          setUserBarangay(data.barangay);
+          
+          // Use pre-calculated stats from backend
+          if (data.stats) {
+            setStats([
+              { title: "Active Reports", value: data.stats.ongoing || 0, icon: <FaExclamationTriangle />, color: "#f40014ff" },
+              { title: "Resolved Reports", value: data.stats.resolved || 0, icon: <FaCheckCircle />, color: "#2a9d62ff" },
+              { title: "Pending Reports", value: data.stats.pending || 0, icon: <FaTasks />, color: "#f4b761ff" },
+              { title: "Avg Response Time", value: data.stats.avgResponseTime || "0h", icon: <FaClock />, color: "#2d2d73" },
+            ]);
           }
-        });
-
-        const trendArray = months
-          .filter(month => monthlyData[month])
-          .map(month => ({ month, count: monthlyData[month] }));
-        
-        setTrendData(trendArray.length > 0 ? trendArray : [{ month: "No Data", count: 0 }]);
-
-        // Generate high incident areas by barangay
-        const barangayData = {};
-        reports.forEach(report => {
-          const barangay = extractBarangay(report);
-          barangayData[barangay] = (barangayData[barangay] || 0) + 1;
-        });
-
-        const incidentAreas = Object.entries(barangayData)
-          .map(([area, total]) => ({ area, total }))
-          .sort((a, b) => b.total - a.total)
-          .slice(0, 5);
-
-        setHighIncidentAreas(incidentAreas.length > 0 ? incidentAreas : [{ area: "No Data", total: 0 }]);
+          
+          // Set active reports (only ongoing for the table)
+          const active = reports.filter(r => r.status === "Ongoing").slice(0, 10);
+          setActiveReports(active);
+          
+          // Use pre-calculated trends from backend
+          setTrendData(data.trends || [{ month: "No Data", count: 0 }]);
+          
+          // Use pre-calculated high incident areas from backend
+          setHighIncidentAreas(data.highIncidentAreas || [{ area: "No Data", total: 0 }]);
+          
+          console.log(`✅ Responder loaded ${reports.length} reports for barangay: ${data.barangay || 'All'}`);
+        } else {
+          throw new Error(data.message || "Failed to fetch reports");
+        }
       } catch (error) {
         console.error("Error fetching reports:", error);
         setTrendData([{ month: "No Data", count: 0 }]);
         setHighIncidentAreas([{ area: "No Data", total: 0 }]);
       }
+    };
+    
+    // Helper function to process reports when falling back to regular endpoint
+    const processReports = (reports) => {
+      setAllReports(reports);
+
+      // Calculate stats
+      const pending = reports.filter(r => r.status === "Pending").length;
+      const ongoing = reports.filter(r => r.status === "Ongoing").length;
+      const resolved = reports.filter(r => r.status === "Resolved").length;
+      const avgResponseTime = calculateAvgResponseTime(reports);
+
+      setStats([
+        { title: "Active Reports", value: ongoing, icon: <FaExclamationTriangle />, color: "#f40014ff" },
+        { title: "Resolved Reports", value: resolved, icon: <FaCheckCircle />, color: "#2a9d62ff" },
+        { title: "Pending Reports", value: pending, icon: <FaTasks />, color: "#f4b761ff" },
+        { title: "Avg Response Time", value: avgResponseTime, icon: <FaClock />, color: "#2d2d73" },
+      ]);
+
+      // Set active reports (only ongoing for the table)
+      const active = reports.filter(r => r.status === "Ongoing").slice(0, 10);
+      setActiveReports(active);
+
+      // Generate trend data by month
+      const monthlyData = {};
+      const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+      
+      reports.forEach(report => {
+        if (report.created_at) {
+          const date = new Date(report.created_at);
+          const monthKey = months[date.getMonth()];
+          monthlyData[monthKey] = (monthlyData[monthKey] || 0) + 1;
+        }
+      });
+
+      const trendArray = months
+        .filter(month => monthlyData[month])
+        .map(month => ({ month, count: monthlyData[month] }));
+      
+      setTrendData(trendArray.length > 0 ? trendArray : [{ month: "No Data", count: 0 }]);
+
+      // Generate high incident areas by barangay
+      const barangayData = {};
+      reports.forEach(report => {
+        const barangay = extractBarangay(report);
+        barangayData[barangay] = (barangayData[barangay] || 0) + 1;
+      });
+
+      const incidentAreas = Object.entries(barangayData)
+        .map(([area, total]) => ({ area, total }))
+        .sort((a, b) => b.total - a.total)
+        .slice(0, 5);
+
+      setHighIncidentAreas(incidentAreas.length > 0 ? incidentAreas : [{ area: "No Data", total: 0 }]);
     };
 
     fetchReports();
@@ -157,6 +204,13 @@ export default function RespondersDashboard() {
 
   return (
     <div className="dashboard">
+      {/* BARANGAY HEADER */}
+      {userBarangay && (
+        <div className="barangay-header animate-up" style={{ marginBottom: "1rem", padding: "0.5rem 1rem", background: "#f0f4f8", borderRadius: "8px", display: "inline-block" }}>
+          <span style={{ color: "#2d2d73", fontWeight: 500 }}>📍 {userBarangay}</span>
+        </div>
+      )}
+      
       {/* STAT CARDS */}
       <div className="stats-grid">
         {stats.map((stat, i) => (

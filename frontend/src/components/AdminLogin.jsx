@@ -64,12 +64,16 @@ export default function AdminLogin({ setSession, setNotification }) {
         // Store session first
         localStorage.setItem("token", result.session.token);
         localStorage.setItem("session", JSON.stringify(result.session));
-        setSession?.(result.session);
         const userRole = result.session.user?.role;
+        const userFirstname = result.session.user?.firstname || "User";
 
         // Admin page: only allow Admin role
         const allowed = ["Admin"];
         if (!allowed.includes(userRole)) {
+          // Clear session - don't keep wrong role logged in
+          localStorage.removeItem("token");
+          localStorage.removeItem("session");
+          
           // Redirect to the correct login page for the user's role
           const roleToPath = {
             "Admin": "/login?role=admin",
@@ -77,13 +81,21 @@ export default function AdminLogin({ setSession, setNotification }) {
             "Responder": "/login?role=responder",
             "Resident": "/login?role=resident"
           };
+          const roleLabels = {
+            "Admin": "Admin",
+            "Barangay Official": "Barangay Official",
+            "Responder": "Responder",
+            "Resident": "Resident"
+          };
           const target = roleToPath[userRole] || "/login?role=resident";
-          setNotification?.({ message: `You have ${userRole} access — redirecting to the correct login.`, type: "caution" });
-          setTimeout(() => navigate(target), 900);
+          const roleLabel = roleLabels[userRole] || "Resident";
+          setNotification?.({ message: `Hi ${userFirstname}! You're a ${roleLabel}. Please login on the correct page.`, type: "caution" });
+          setTimeout(() => navigate(target), 1500);
           return;
         }
 
-        // Allowed: continue to admin area
+        // Allowed: set session and continue to admin area
+        setSession?.(result.session);
         const redirectPath = "/admin/users";
         setNotification?.({ message: "Admin access granted!", type: "success" });
         setTimeout(() => navigate(`${redirectPath}?showMissed=1`), 1200);

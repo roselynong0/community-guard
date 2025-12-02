@@ -257,12 +257,15 @@ html, body {
 
 .form-card {
   background-color: #fff;
-  padding: 1.5rem 1.5rem;
+  padding: 1.25rem 1.5rem 1rem 1.5rem; /* reduced bottom padding */
   border-radius: 20px;
   margin-top: -2rem;
   box-shadow: 0 5px 20px rgba(0, 0, 0, 0.1);
   position: relative; /* allow tab strip to overlap */
   overflow: visible;
+  width: fit-content;
+  min-width: 320px;
+  max-width: 380px;
 }
 
 .form-card h2 {
@@ -510,8 +513,8 @@ input[type="password"]::placeholder {
   display: block;
   text-align: right;
   font-size: 12px;
-  margin-top: 0.75rem;
-  margin-bottom: 1.25rem;
+  margin-top: 0.5rem;
+  margin-bottom: 0.25rem; /* reduced bottom margin */
   padding-right: 0; /* align with button's right edge */
   text-decoration: none;
 }
@@ -523,8 +526,8 @@ input[type="password"]::placeholder {
   align-items: center;
   justify-content: space-between;
   gap: 8px;
-  margin-top: 0.75rem;
-  margin-bottom: 1.25rem;
+  margin-top: 0.5rem;
+  margin-bottom: 0.25rem; /* reduced bottom margin */
 }
 
 /* Small circled question icon */
