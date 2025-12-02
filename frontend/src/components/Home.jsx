@@ -15,8 +15,9 @@ import {
 } from "recharts";
 import MapView from "../components/Mapview";
 import LoadingScreen from "./LoadingScreen";
-// Lazy-load the missed-summary modal to avoid runtime import issues
+// Lazy-load the missed-summary modal and verification modal to avoid runtime import issues
 const MissedSummaryModal = React.lazy(() => import("./MissedSummaryModal"));
+const GetVerifiedModal = React.lazy(() => import("./GetVerifiedModal"));
 import { API_CONFIG, getApiUrl } from "../utils/apiConfig";
 import "./Home.css";
 
@@ -66,7 +67,7 @@ async function fetchWithToken(url, token, retries = 3) {
 
 function Home({ token, session }) {
   const [stats, setStats] = useState([
-    { title: "Total Reports", value: 0, icon: <FaExclamationTriangle />, color: "primary" },
+    { title: "Community Reports", value: 0, icon: <FaExclamationTriangle />, color: "primary" },
     { title: "Ongoing Cases", value: 0, icon: <FaSyncAlt />, color: "danger" },
     { title: "Resolved Cases", value: 0, icon: <FaCheckCircle />, color: "success" },
     { title: "Pending Reports", value: 0, icon: <FaClock />, color: "warning" },
@@ -74,6 +75,7 @@ function Home({ token, session }) {
   const [recentReports, setRecentReports] = useState([]);
   const [categoryData, setCategoryData] = useState([{ name: "No Data", value: 1, color: "#ccc" }]); 
   const [_activeSlice, setActiveSlice] = useState(null);
+  const [userBarangay, setUserBarangay] = useState(null);
   const totalReports = categoryData.reduce((s, c) => s + (c.value || 0), 0);
 
   // Custom tooltip to show category amount + percentage
@@ -94,6 +96,9 @@ function Home({ token, session }) {
   const [overlayExited, setOverlayExited] = useState(false);
   const [missedSummary, setMissedSummary] = useState(null);
   const [showMissedModal, setShowMissedModal] = useState(false);
+  const [showGetVerifiedModal, setShowGetVerifiedModal] = useState(false);
+  const [isInfoVerified, setIsInfoVerified] = useState(true); // Track if user info.verified is true
+  const [userProfile, setUserProfile] = useState(null); // Store full profile for GetVerifiedModal
   const getCategoryColor = useCallback((categoryName) => {
     return CATEGORY_COLORS[categoryName] || CATEGORY_COLORS.default;
   }, []);
@@ -102,8 +107,19 @@ function Home({ token, session }) {
   useEffect(() => {
     if (!token) return;
 
-    // Fetch missed-summary first so it can be shown above the loading screen
+    // Check if user came from login (URL has ?showMissed=1)
+    const urlParams = new URLSearchParams(window.location.search || window.location.hash.split('?')[1] || '');
+    const showMissedParam = urlParams.get('showMissed') || urlParams.get('show_missed');
+    const cameFromLogin = showMissedParam === '1';
+
+    // Fetch missed-summary only if user came from login
     const fetchMissedSummary = async () => {
+      // Only fetch if user came from login with ?showMissed=1
+      if (!cameFromLogin) {
+        console.log('📊 Skipping missed summary - user did not come from login');
+        return;
+      }
+      
       try {
         const shownKey = `missed_shown_${session?.user?.id || session?.user?.email || 'anon'}`;
         if (sessionStorage.getItem(shownKey)) return;
@@ -120,7 +136,7 @@ function Home({ token, session }) {
           const data = await res.json().catch(() => null);
           if (data && data.status === 'success' && data.summary) {
             setMissedSummary(data);
-            setShowMissedModal(true);
+            // Don't show modal yet - wait for verification check
             sessionStorage.setItem(shownKey, '1');
           }
         }
@@ -137,7 +153,30 @@ function Home({ token, session }) {
       try {
         // attempt to fetch missed summary before other data
         await fetchMissedSummary();
-        const statsEndpoint = getApiUrl(API_CONFIG.endpoints.stats);
+        
+        // 1. Fetch user profile first to get their barangay from info table
+        let barangay = null;
+        try {
+          const profileEndpoint = getApiUrl(API_CONFIG.endpoints.profile);
+          const profileRes = await fetchWithToken(profileEndpoint, token);
+          if (profileRes.status === "success" && profileRes.profile) {
+            // address_barangay comes from info table via profile endpoint
+            const userBarangayValue = profileRes.profile.address_barangay;
+            // Only use barangay if it's a valid value (not the default placeholder)
+            if (userBarangayValue && userBarangayValue !== "No barangay selected") {
+              barangay = userBarangayValue;
+              setUserBarangay(barangay);
+              console.log("📍 User barangay from info table:", barangay);
+            } else {
+              console.log("📍 User has no barangay set in info table - showing all reports");
+            }
+          }
+        } catch (profileErr) {
+          console.warn("Could not fetch user barangay:", profileErr);
+        }
+        
+        // 2. Fetch stats filtered by user's barangay (if set)
+        const statsEndpoint = getApiUrl(API_CONFIG.endpoints.stats + (barangay ? `?barangay=${encodeURIComponent(barangay)}` : ''));
         const statsRes = await fetchWithToken(statsEndpoint, token);
         if (statsRes.status === "success") {
           setStats([
@@ -148,7 +187,11 @@ function Home({ token, session }) {
           ]);
         }
 
-        const categoryEndpoint = getApiUrl(API_CONFIG.endpoints.reports + `/categories?filter=all`);
+        // 3. Fetch categories filtered by user's barangay from info table
+        const categoryEndpoint = getApiUrl(
+          API_CONFIG.endpoints.reports + 
+          `/categories?filter=all${barangay ? `&barangay=${encodeURIComponent(barangay)}` : ''}`
+        );
         const categoryRes = await fetchWithToken(categoryEndpoint, token);
         if (categoryRes.status === "success" && categoryRes.data && categoryRes.data.length > 0) {
           const formattedCategoryData = categoryRes.data.map(item => ({
@@ -156,13 +199,19 @@ function Home({ token, session }) {
             color: getCategoryColor(item.name),
           }));
           setCategoryData(formattedCategoryData);
+          console.log("📊 Categories loaded for barangay:", barangay || "All", categoryRes.data.length, "categories");
         } else {
-            setCategoryData([{ name: "No Data", value: 1, color: "#ccc" }]);
+          setCategoryData([{ name: "No Data", value: 1, color: "#ccc" }]);
         }
 
-        const reportsEndpoint = getApiUrl(API_CONFIG.endpoints.reports + `?limit=5&sort=desc&filter=all`);
+        // 4. Fetch recent reports filtered by user's barangay from info table
+        const reportsEndpoint = getApiUrl(
+          API_CONFIG.endpoints.reports + 
+          `?limit=5&sort=desc&filter=all${barangay ? `&barangay=${encodeURIComponent(barangay)}` : ''}`
+        );
         const recentRes = await fetchWithToken(reportsEndpoint, token);
         setRecentReports(recentRes.status === "success" ? recentRes.reports : []);
+        console.log("📋 Recent reports loaded for barangay:", barangay || "All", recentRes.reports?.length || 0, "reports");
         
       } catch (err) {
         console.debug('missed summary load error', err);
@@ -186,6 +235,66 @@ function Home({ token, session }) {
 
     fetchData();
   }, [token, session?.user?.role, session?.user?.email, session?.user?.id, getCategoryColor]);
+
+  // When a missedSummary arrives, check verification status and show appropriate modal
+  useEffect(() => {
+    // Guard: only run when we have a missed summary and a valid token
+    if (!missedSummary || !token) return;
+
+    let cancelled = false;
+    (async () => {
+      try {
+        // Fetch latest profile to check verification flags
+        const profileUrl = getApiUrl(API_CONFIG.endpoints.profile);
+        const profileResp = await fetchWithToken(profileUrl, token).catch(() => null);
+        const profileData = profileResp && profileResp.profile ? profileResp.profile : profileResp || {};
+
+        // Check users.isverified and info.verified (from profile response)
+        const usersIsVerified = profileData.isverified === true;
+        const infoVerified = profileData.verified === true; // info.verified is merged into profile
+
+        console.log('🔐 Verification check:', { usersIsVerified, infoVerified });
+
+        if (!cancelled) {
+          setIsInfoVerified(infoVerified);
+          setUserProfile(profileData); // Store full profile for GetVerifiedModal
+          
+          // Always show missed summary modal first (it was fetched because ?showMissed=1)
+          // The button text will be "Continue" if not verified, "Continue to Dashboard" if verified
+          setShowMissedModal(true);
+        }
+      } catch (err) {
+        // fallback: show missed summary if verification check fails
+        console.debug('verification check error', err);
+        if (!cancelled) {
+          setIsInfoVerified(false); // Assume not verified on error
+          setShowMissedModal(true);
+        }
+      }
+    })();
+
+    return () => { cancelled = true; };
+  }, [missedSummary, token]);
+
+  // Profile update handler passed to verification modal
+  const handleProfileUpdate = async (updateData) => {
+    try {
+      const profileUrl = getApiUrl(API_CONFIG.endpoints.profile);
+      const res = await fetch(profileUrl, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify(updateData)
+      });
+      if (!res.ok) throw new Error('Update failed');
+      // on success, close verification modal and proceed to missed-summary
+      setShowGetVerifiedModal(false);
+      setShowMissedModal(true);
+      return true;
+    } catch (e) {
+      console.error('profile update error', e);
+      return false;
+    }
+  };
 
   const loadingFeatures = [
     {
@@ -212,44 +321,9 @@ function Home({ token, session }) {
 
   const mapRef = useRef(null);
 
-  // On first mount (or when navigated with ?showMissed=1) fetch missed-summary
-  useEffect(() => {
-    // If there's no token yet, nothing to do
-    if (!token) return;
-
-    const params = new URLSearchParams(window.location.search);
-    const shouldShow = params.get("showMissed");
-
-    let cancelled = false;
-
-    async function loadMissedSummary() {
-      try {
-        // Attempt to fetch missed summary from the backend. Use 1 retry for quick response.
-        const resp = await fetchWithToken(getApiUrl('/reports/missed_summary'), token, 1);
-
-        // If backend returns an object with `summary`, use it. Otherwise create a minimal fallback.
-        const summaryData = resp && resp.summary ? resp : { summary: { message: 'No missed reports', total: 0, categories: {}, barangays: {}, severity_stats: {}, top_reports: [] } };
-        if (!cancelled) {
-          setMissedSummary(summaryData);
-          // Always show the missed modal on initial navigation (either via query param or session present)
-          if (shouldShow !== null || session) setShowMissedModal(true);
-        }
-      } catch {
-        if (!cancelled) {
-          // Fallback summary when API is unavailable or fails
-          setMissedSummary({ summary: { message: 'No missed reports', total: 0, categories: {}, barangays: {}, severity_stats: {}, top_reports: [] } });
-          if (shouldShow !== null || session) setShowMissedModal(true);
-        }
-      }
-    }
-
-    // Trigger fetch if query param present or if a valid session exists (first load after login)
-    if (shouldShow !== null || session) {
-      loadMissedSummary();
-    }
-
-    return () => { cancelled = true; };
-  }, [token, session]);
+  // REMOVED: Duplicate missed-summary fetch that was showing modal without login check
+  // The fetchMissedSummary in the main fetchData useEffect already handles this correctly
+  // by checking for ?showMissed=1 parameter
 
   const mapSection = (
     <div className="map-section" style={{ animationDelay: "0.5s" }}>
@@ -395,10 +469,23 @@ function Home({ token, session }) {
     </LoadingScreen>
     {/* Missed summary modal overlays the loading/dashboard as needed */}
     <React.Suspense fallback={null}>
+      <GetVerifiedModal
+        open={showGetVerifiedModal}
+        onSkip={() => { setShowGetVerifiedModal(false); setShowMissedModal(true); }}
+        onProfileUpdate={handleProfileUpdate}
+        user={userProfile || session?.user}
+      />
+
       <MissedSummaryModal
-        open={showMissedModal}
+        open={showMissedModal && !showGetVerifiedModal}
         onClose={() => setShowMissedModal(false)}
         data={missedSummary}
+        showProceedAsNext={!isInfoVerified}
+        onProceed={() => {
+          // User clicked "Next" (when not verified) - show GetVerified modal
+          setShowMissedModal(false);
+          setShowGetVerifiedModal(true);
+        }}
       />
     </React.Suspense>
     </>

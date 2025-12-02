@@ -570,6 +570,12 @@
 .icon-pending { color: #f4b761; } 
 .icon-security { color: #2d2d73; }
 .icon-info { color: #6c757d; } 
+.icon-emergency { color: #ff1744; animation: pulse-icon 1s infinite; }
+
+@keyframes pulse-icon {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.8; transform: scale(1.1); }
+}
 
 /* dashboard-aligned icon colors */
 .icon-report { color: #2d2d73; } /* total reports / primary */

@@ -957,6 +957,206 @@ def get_chat_suggestions():
         }), 500
 
 
+@chatbot_bp.route('/generate-report', methods=['POST'])
+@token_required
+def generate_analytical_report():
+    """
+    Generate an analytical report using AI based on reports data.
+    Supports various report types: summary, barangay, category, trends.
+    """
+    try:
+        user_id = request.user_id
+        data = request.get_json() or {}
+        
+        report_type = data.get("report_type", "summary")  # summary, barangay, category, trends
+        days = int(data.get("days", 30))  # Time range in days
+        barangay_filter = data.get("barangay")  # Optional barangay filter
+        format_type = data.get("format", "text")  # text, json
+        
+        # Verify user has permission (Admin or Barangay Official)
+        user_resp = supabase.table("users").select("role").eq("id", user_id).execute()
+        user_role = getattr(user_resp, "data", [{}])[0].get("role")
+        
+        if user_role not in ["Admin", "Barangay Official"]:
+            return jsonify({"status": "error", "message": "Access denied. Only Admin and Barangay Officials can generate reports."}), 403
+        
+        # Get barangay for Barangay Officials
+        if user_role == "Barangay Official":
+            info_resp = supabase.table("info").select("address_barangay").eq("user_id", user_id).execute()
+            user_barangay = getattr(info_resp, "data", [{}])[0].get("address_barangay")
+            barangay_filter = user_barangay  # Force barangay filter for officials
+        
+        # Fetch reports based on filters
+        from datetime import timedelta
+        cutoff_date = (datetime.now(timezone.utc) - timedelta(days=days)).isoformat()
+        
+        query = supabase.table("reports").select("*").is_("deleted_at", "null").gte("created_at", cutoff_date)
+        
+        if barangay_filter:
+            query = query.eq("address_barangay", barangay_filter)
+        
+        reports_resp = query.execute()
+        reports = getattr(reports_resp, "data", []) or []
+        
+        if not reports:
+            return jsonify({
+                "status": "success",
+                "report": {
+                    "title": f"No Reports Found",
+                    "summary": f"No reports found in the last {days} days{' for ' + barangay_filter if barangay_filter else ''}.",
+                    "data": {}
+                }
+            }), 200
+        
+        # Analyze reports
+        total_reports = len(reports)
+        categories = {}
+        statuses = {}
+        barangays = {}
+        priority_counts = {"Critical": 0, "High": 0, "Medium": 0, "Low": 0}
+        daily_counts = {}
+        
+        for r in reports:
+            cat = r.get("category", "Others")
+            status = r.get("status", "Pending")
+            brgy = r.get("address_barangay", "Unknown")
+            created = r.get("created_at", "")[:10]
+            
+            categories[cat] = categories.get(cat, 0) + 1
+            statuses[status] = statuses.get(status, 0) + 1
+            barangays[brgy] = barangays.get(brgy, 0) + 1
+            daily_counts[created] = daily_counts.get(created, 0) + 1
+            
+            # Priority mapping
+            if cat == "Crime":
+                priority_counts["Critical"] += 1
+            elif cat == "Hazard":
+                priority_counts["High"] += 1
+            elif cat == "Concern":
+                priority_counts["Medium"] += 1
+            else:
+                priority_counts["Low"] += 1
+        
+        # Build report based on type
+        if report_type == "summary":
+            report_content = {
+                "title": f"📊 Community Safety Report - Last {days} Days",
+                "subtitle": f"Generated for: {barangay_filter or 'All Barangays'}",
+                "generated_at": datetime.now(timezone.utc).isoformat(),
+                "summary": f"Total of {total_reports} reports recorded in the past {days} days.",
+                "statistics": {
+                    "total_reports": total_reports,
+                    "by_category": categories,
+                    "by_status": statuses,
+                    "by_priority": priority_counts,
+                    "resolution_rate": f"{round((statuses.get('Resolved', 0) / total_reports) * 100, 1)}%" if total_reports > 0 else "0%"
+                },
+                "top_barangays": sorted(barangays.items(), key=lambda x: x[1], reverse=True)[:5],
+                "insights": []
+            }
+            
+            # Generate insights
+            if categories.get("Crime", 0) > total_reports * 0.3:
+                report_content["insights"].append("⚠️ High crime rate detected - consider increased patrol")
+            if categories.get("Hazard", 0) > total_reports * 0.2:
+                report_content["insights"].append("🔧 Multiple hazard reports - infrastructure review recommended")
+            if statuses.get("Pending", 0) > total_reports * 0.5:
+                report_content["insights"].append("📋 Many reports pending - response time may need improvement")
+            if statuses.get("Resolved", 0) > total_reports * 0.7:
+                report_content["insights"].append("✅ Good resolution rate - keep up the effective response")
+                
+        elif report_type == "barangay":
+            report_content = {
+                "title": f"🏘️ Barangay Breakdown Report - Last {days} Days",
+                "generated_at": datetime.now(timezone.utc).isoformat(),
+                "barangays": {}
+            }
+            for brgy, count in sorted(barangays.items(), key=lambda x: x[1], reverse=True):
+                brgy_reports = [r for r in reports if r.get("address_barangay") == brgy]
+                brgy_categories = {}
+                for r in brgy_reports:
+                    cat = r.get("category", "Others")
+                    brgy_categories[cat] = brgy_categories.get(cat, 0) + 1
+                report_content["barangays"][brgy] = {
+                    "total": count,
+                    "percentage": f"{round((count / total_reports) * 100, 1)}%",
+                    "categories": brgy_categories
+                }
+                
+        elif report_type == "category":
+            report_content = {
+                "title": f"📂 Category Analysis Report - Last {days} Days",
+                "generated_at": datetime.now(timezone.utc).isoformat(),
+                "categories": {}
+            }
+            for cat, count in sorted(categories.items(), key=lambda x: x[1], reverse=True):
+                cat_reports = [r for r in reports if r.get("category") == cat]
+                cat_statuses = {}
+                for r in cat_reports:
+                    s = r.get("status", "Pending")
+                    cat_statuses[s] = cat_statuses.get(s, 0) + 1
+                report_content["categories"][cat] = {
+                    "total": count,
+                    "percentage": f"{round((count / total_reports) * 100, 1)}%",
+                    "statuses": cat_statuses,
+                    "resolution_rate": f"{round((cat_statuses.get('Resolved', 0) / count) * 100, 1)}%" if count > 0 else "0%"
+                }
+                
+        elif report_type == "trends":
+            report_content = {
+                "title": f"📈 Trend Analysis Report - Last {days} Days",
+                "generated_at": datetime.now(timezone.utc).isoformat(),
+                "daily_reports": sorted(daily_counts.items()),
+                "peak_day": max(daily_counts.items(), key=lambda x: x[1]) if daily_counts else None,
+                "average_per_day": round(total_reports / max(len(daily_counts), 1), 1),
+                "trend": "increasing" if len(daily_counts) > 1 and list(daily_counts.values())[-1] > list(daily_counts.values())[0] else "stable"
+            }
+        else:
+            report_content = {"error": "Invalid report type"}
+        
+        # Convert to text format if requested
+        if format_type == "text":
+            text_report = f"{'='*50}\n{report_content.get('title', 'Report')}\n{'='*50}\n\n"
+            if report_content.get('subtitle'):
+                text_report += f"{report_content['subtitle']}\n"
+            text_report += f"Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n\n"
+            
+            if report_type == "summary":
+                text_report += f"📊 SUMMARY\n{'-'*30}\n"
+                text_report += f"Total Reports: {total_reports}\n"
+                text_report += f"Resolution Rate: {report_content['statistics']['resolution_rate']}\n\n"
+                text_report += f"📂 BY CATEGORY\n"
+                for cat, count in report_content['statistics']['by_category'].items():
+                    text_report += f"  • {cat}: {count}\n"
+                text_report += f"\n📋 BY STATUS\n"
+                for status, count in report_content['statistics']['by_status'].items():
+                    text_report += f"  • {status}: {count}\n"
+                if report_content['insights']:
+                    text_report += f"\n💡 INSIGHTS\n"
+                    for insight in report_content['insights']:
+                        text_report += f"  {insight}\n"
+            
+            return jsonify({
+                "status": "success",
+                "report": report_content,
+                "text_report": text_report
+            }), 200
+        
+        return jsonify({
+            "status": "success",
+            "report": report_content
+        }), 200
+        
+    except Exception as e:
+        logger.error(f"Error generating report: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({
+            "status": "error",
+            "message": f"Error generating report: {str(e)}"
+        }), 500
+
+
 @chatbot_bp.route('/system-info', methods=['GET'])
 def get_system_info():
     """
@@ -983,3 +1183,542 @@ def get_system_info():
             "status": "error",
             "message": "Error retrieving system information"
         }), 500
+
+
+# =============================================================================
+# AI AUTO-EVALUATION SYSTEM FOR PREMIUM USERS
+# =============================================================================
+
+def get_ai_evaluation_summary(user_id, user_barangay=None):
+    """
+    Generate AI auto-evaluation summary of reports by priority.
+    This function analyzes pending/new reports and categorizes them by priority level.
+    
+    Returns summary of:
+    - Critical priority reports (auto-responded)
+    - High priority reports (auto-responded)
+    - Medium priority reports (queued for evaluation)
+    - Low priority reports (queued for evaluation)
+    """
+    from services.ml_categorizer import categorize_incident, get_categorizer
+    from utils.notifications import get_priority_from_category, is_high_risk_report
+    
+    try:
+        # Fetch recent pending reports (last 24 hours or since last check)
+        now = datetime.now()
+        yesterday = now - timedelta(days=1)
+        
+        query = supabase.table("reports").select("*").is_("deleted_at", "null").eq("is_rejected", False)
+        
+        # Filter by user's barangay if provided
+        if user_barangay and user_barangay != "No barangay selected":
+            query = query.eq("address_barangay", user_barangay)
+        
+        # Get reports from last 24 hours
+        query = query.gte("created_at", yesterday.isoformat())
+        query = query.order("created_at", desc=True)
+        
+        response = query.execute()
+        reports = getattr(response, "data", []) or []
+        
+        if not reports:
+            return {
+                "status": "success",
+                "has_evaluations": False,
+                "message": "No new reports to evaluate in the last 24 hours.",
+                "summary": {
+                    "total_evaluated": 0,
+                    "critical": {"count": 0, "auto_responded": True, "reports": []},
+                    "high": {"count": 0, "auto_responded": True, "reports": []},
+                    "medium": {"count": 0, "queued_for_evaluation": True, "reports": []},
+                    "low": {"count": 0, "queued_for_evaluation": True, "reports": []}
+                }
+            }
+        
+        # Categorize and evaluate each report
+        evaluation_results = {
+            "critical": {"count": 0, "auto_responded": True, "reports": []},
+            "high": {"count": 0, "auto_responded": True, "reports": []},
+            "medium": {"count": 0, "queued_for_evaluation": True, "reports": []},
+            "low": {"count": 0, "queued_for_evaluation": True, "reports": []}
+        }
+        
+        categorizer = get_categorizer()
+        
+        for report in reports:
+            report_id = report.get("id")
+            title = report.get("title", "Untitled")
+            description = report.get("description", "")
+            category = report.get("category", "Others")
+            barangay = report.get("address_barangay", "Unknown")
+            status = report.get("status", "Pending")
+            created_at = report.get("created_at", "")
+            
+            # Get AI categorization and priority
+            ai_result = categorize_incident(description, 0)
+            priority = ai_result.get("priority", "Low")
+            priority_score = ai_result.get("priority_score", 1)
+            confidence = ai_result.get("confidence", 0.5)
+            
+            # If no priority from AI, derive from category
+            if not priority:
+                priority = get_priority_from_category(category)
+            
+            priority_lower = priority.lower()
+            
+            report_summary = {
+                "id": report_id,
+                "title": title,
+                "category": category,
+                "barangay": barangay,
+                "status": status,
+                "priority": priority,
+                "priority_score": priority_score,
+                "confidence": round(confidence * 100, 1),
+                "created_at": created_at,
+                "is_high_risk": is_high_risk_report(priority, priority_score, category)
+            }
+            
+            # Categorize by priority level
+            if priority_lower == "critical":
+                evaluation_results["critical"]["count"] += 1
+                evaluation_results["critical"]["reports"].append(report_summary)
+            elif priority_lower == "high":
+                evaluation_results["high"]["count"] += 1
+                evaluation_results["high"]["reports"].append(report_summary)
+            elif priority_lower == "medium":
+                evaluation_results["medium"]["count"] += 1
+                evaluation_results["medium"]["reports"].append(report_summary)
+            else:  # Low or Others
+                evaluation_results["low"]["count"] += 1
+                evaluation_results["low"]["reports"].append(report_summary)
+        
+        total_evaluated = len(reports)
+        auto_responded = evaluation_results["critical"]["count"] + evaluation_results["high"]["count"]
+        queued = evaluation_results["medium"]["count"] + evaluation_results["low"]["count"]
+        
+        return {
+            "status": "success",
+            "has_evaluations": total_evaluated > 0,
+            "message": f"AI evaluated {total_evaluated} reports in the last 24 hours.",
+            "summary": {
+                "total_evaluated": total_evaluated,
+                "auto_responded": auto_responded,
+                "queued_for_evaluation": queued,
+                **evaluation_results
+            },
+            "insights": generate_evaluation_insights(evaluation_results, total_evaluated)
+        }
+        
+    except Exception as e:
+        logger.error(f"Error in AI evaluation summary: {e}")
+        import traceback
+        traceback.print_exc()
+        return {
+            "status": "error",
+            "message": f"Error generating evaluation summary: {str(e)}"
+        }
+
+
+def generate_evaluation_insights(results, total):
+    """Generate insights from the evaluation results"""
+    insights = []
+    
+    critical_count = results["critical"]["count"]
+    high_count = results["high"]["count"]
+    medium_count = results["medium"]["count"]
+    low_count = results["low"]["count"]
+    
+    if critical_count > 0:
+        insights.append(f"🚨 {critical_count} CRITICAL report(s) detected - Automatic urgent response triggered")
+    
+    if high_count > 0:
+        insights.append(f"🟠 {high_count} HIGH priority report(s) - Responders and officials notified")
+    
+    if medium_count > 0:
+        insights.append(f"⚪ {medium_count} MEDIUM priority report(s) - Queued for evaluation by officials")
+    
+    if low_count > 0:
+        insights.append(f"⚪ {low_count} LOW priority report(s) - Added to assessment queue")
+    
+    # Calculate auto-response rate
+    auto_responded = critical_count + high_count
+    if total > 0:
+        auto_rate = round((auto_responded / total) * 100, 1)
+        if auto_rate > 50:
+            insights.append(f"⚡ {auto_rate}% of reports received automatic priority response")
+    
+    return insights
+
+
+def format_evaluation_summary_for_chat(summary_data):
+    """Format the evaluation summary into a readable chat message"""
+    if summary_data.get("status") != "success":
+        return "❌ Unable to generate evaluation summary at this time."
+    
+    if not summary_data.get("has_evaluations"):
+        return "✅ No new reports to evaluate in the last 24 hours. Your community is quiet!"
+    
+    summary = summary_data.get("summary", {})
+    insights = summary_data.get("insights", [])
+    
+    text = "🤖 AI AUTO-EVALUATION SUMMARY\n"
+    text += "=" * 35 + "\n\n"
+    
+    text += f"📊 Total Reports Evaluated: {summary.get('total_evaluated', 0)}\n\n"
+    
+    # Priority breakdown
+    text += "📋 PRIORITY BREAKDOWN:\n\n"
+    
+    critical = summary.get("critical", {})
+    if critical.get("count", 0) > 0:
+        text += f"🔴 CRITICAL: {critical['count']} report(s)\n"
+        text += "   → Automatic Response: ✅ TRIGGERED\n"
+        for r in critical.get("reports", [])[:3]:  # Show max 3
+            text += f"   • {r['title'][:30]}... ({r['barangay']})\n"
+        if critical["count"] > 3:
+            text += f"   + {critical['count'] - 3} more...\n"
+        text += "\n"
+    
+    high = summary.get("high", {})
+    if high.get("count", 0) > 0:
+        text += f"🟠 HIGH: {high['count']} report(s)\n"
+        text += "   → Automatic Response: ✅ TRIGGERED\n"
+        for r in high.get("reports", [])[:3]:
+            text += f"   • {r['title'][:30]}... ({r['barangay']})\n"
+        if high["count"] > 3:
+            text += f"   + {high['count'] - 3} more...\n"
+        text += "\n"
+    
+    medium = summary.get("medium", {})
+    if medium.get("count", 0) > 0:
+        text += f"⚪ MEDIUM: {medium['count']} report(s)\n"
+        text += "   → Status: 📋 Queued for Evaluation\n"
+        for r in medium.get("reports", [])[:2]:
+            text += f"   • {r['title'][:30]}... ({r['barangay']})\n"
+        if medium["count"] > 2:
+            text += f"   + {medium['count'] - 2} more...\n"
+        text += "\n"
+    
+    low = summary.get("low", {})
+    if low.get("count", 0) > 0:
+        text += f"⚪ LOW: {low['count']} report(s)\n"
+        text += "   → Status: 📋 Assessment Queue\n\n"
+    
+    # Add insights
+    if insights:
+        text += "💡 INSIGHTS:\n"
+        for insight in insights:
+            text += f"   {insight}\n"
+    
+    text += "\n✨ Premium AI Auto-Evaluation Complete"
+    
+    return text
+
+
+@chatbot_bp.route('/auto-approve-priority-reports', methods=['POST'])
+@token_required
+def auto_approve_priority_reports():
+    """
+    Auto-approve HIGH and CRITICAL priority reports by setting is_approved=TRUE.
+    
+    This endpoint:
+    1. Checks if user is premium or official (Admin, Barangay Official, Responder)
+    2. Fetches all pending HIGH/CRITICAL reports
+    3. Auto-approves them by updating is_approved = TRUE
+    4. Returns summary of approved reports
+    
+    Request body (optional):
+    {
+        "barangay": "specific barangay to filter" (optional)
+    }
+    """
+    user_id = request.user_id
+    
+    try:
+        # Check user role and premium status
+        user_resp = supabase.table("users").select("id, role, onpremium").eq("id", user_id).single().execute()
+        user_data = getattr(user_resp, "data", None)
+        
+        if not user_data:
+            return jsonify({
+                "status": "error",
+                "message": "User not found"
+            }), 404
+        
+        user_role = user_data.get("role", "Resident")
+        is_premium = user_data.get("onpremium", False)
+        
+        # Only allow officials and premium users
+        allowed_roles = ["Admin", "Barangay Official", "Responder"]
+        if user_role not in allowed_roles and not is_premium:
+            return jsonify({
+                "status": "error",
+                "message": "Access denied. Only officials and premium users can auto-approve reports."
+            }), 403
+        
+        # Get user's barangay for filtering (if Barangay Official)
+        user_barangay = None
+        try:
+            info_resp = supabase.table("info").select("address_barangay").eq("user_id", user_id).single().execute()
+            info_data = getattr(info_resp, "data", None)
+            if info_data:
+                user_barangay = info_data.get("address_barangay")
+        except:
+            pass
+        
+        # Get barangay from request if provided
+        data = request.get_json() or {}
+        filter_barangay = data.get("barangay") or user_barangay
+        
+        # Find all HIGH and CRITICAL reports that are not yet approved
+        query = supabase.table("reports").select(
+            "id, title, category, description, address_barangay, priority, is_approved, created_at"
+        ).is_("deleted_at", "null").eq("is_rejected", False).eq("is_approved", False)
+        
+        # Filter by barangay for Barangay Officials
+        if user_role == "Barangay Official" and filter_barangay and filter_barangay != "No barangay selected":
+            query = query.eq("address_barangay", filter_barangay)
+        elif user_role not in ["Admin", "Responder"] and filter_barangay and filter_barangay != "No barangay selected":
+            # For premium residents, only their barangay
+            query = query.eq("address_barangay", filter_barangay)
+        
+        response = query.order("created_at", desc=True).execute()
+        reports = getattr(response, "data", [])
+        
+        # Filter for HIGH and CRITICAL priority reports
+        priority_mapping = {
+            "Crime": "Critical",
+            "Hazard": "High", 
+            "Fire": "Critical",
+            "Accident": "High",
+            "Harassment": "High",
+            "Vandalism": "Medium",
+            "Concern": "Medium",
+            "Lost&Found": "Low",
+            "Others": "Low"
+        }
+        
+        reports_to_approve = []
+        for report in reports:
+            # Check explicit priority field first
+            priority = report.get("priority")
+            if not priority:
+                # Derive priority from category
+                category = report.get("category", "Others")
+                priority = priority_mapping.get(category, "Medium")
+            
+            # Only approve HIGH and CRITICAL
+            if priority in ["Critical", "High"]:
+                reports_to_approve.append(report)
+        
+        if not reports_to_approve:
+            return jsonify({
+                "status": "success",
+                "message": "No HIGH or CRITICAL reports found to auto-approve.",
+                "approved_count": 0,
+                "approved_reports": []
+            }), 200
+        
+        # Auto-approve the reports
+        approved_count = 0
+        approved_reports = []
+        
+        for report in reports_to_approve:
+            try:
+                update_resp = supabase.table("reports").update({
+                    "is_approved": True
+                }).eq("id", report["id"]).execute()
+                
+                if getattr(update_resp, "data", None):
+                    approved_count += 1
+                    priority = report.get("priority") or priority_mapping.get(report.get("category", "Others"), "Medium")
+                    approved_reports.append({
+                        "id": report["id"],
+                        "title": report.get("title", "Untitled"),
+                        "category": report.get("category", "Others"),
+                        "priority": priority,
+                        "barangay": report.get("address_barangay", "Unknown")
+                    })
+                    logger.info(f"Auto-approved report {report['id']} (Priority: {priority}) by user {user_id}")
+            except Exception as e:
+                logger.error(f"Failed to auto-approve report {report['id']}: {e}")
+                continue
+        
+        # Create notification for the action
+        try:
+            notification_msg = f"🤖 AI Auto-Approved {approved_count} HIGH/CRITICAL priority report(s)"
+            supabase.table("admin_notifications").insert({
+                "user_id": user_id,
+                "message": notification_msg,
+                "type": "ai_auto_approve",
+                "is_read": False
+            }).execute()
+        except Exception as e:
+            logger.warning(f"Failed to create notification: {e}")
+        
+        return jsonify({
+            "status": "success",
+            "message": f"Successfully auto-approved {approved_count} HIGH/CRITICAL priority reports.",
+            "approved_count": approved_count,
+            "approved_reports": approved_reports,
+            "user_role": user_role,
+            "barangay_filter": filter_barangay
+        }), 200
+        
+    except Exception as e:
+        logger.error(f"Error in auto-approve endpoint: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({
+            "status": "error",
+            "message": f"Error: {str(e)}"
+        }), 500
+
+
+@chatbot_bp.route('/ai-evaluation-summary', methods=['GET'])
+@token_required
+def get_ai_evaluation_summary_endpoint():
+    """
+    Get AI auto-evaluation summary for premium users.
+    
+    This endpoint:
+    1. Checks if user is premium (onpremium = true)
+    2. Fetches recent reports (last 24 hours)
+    3. Auto-evaluates them by priority (Critical, High, Medium, Low)
+    4. Returns a summary for chatbot display
+    
+    Premium users get:
+    - Automatic priority filtering
+    - Summary of auto-responded (high-risk) reports
+    - Summary of queued (lower-priority) reports for evaluation
+    """
+    user_id = request.user_id
+    
+    try:
+        # Check if user is premium
+        user_resp = supabase.table("users").select("id, role, onpremium").eq("id", user_id).single().execute()
+        user_data = getattr(user_resp, "data", None)
+        
+        if not user_data:
+            return jsonify({
+                "status": "error",
+                "message": "User not found"
+            }), 404
+        
+        is_premium = user_data.get("onpremium", False)
+        user_role = user_data.get("role", "Resident")
+        
+        # Premium check - Allow Admins and Barangay Officials, or premium users
+        if not is_premium and user_role not in ["Admin", "Barangay Official"]:
+            return jsonify({
+                "status": "error",
+                "is_premium": False,
+                "message": "AI Auto-Evaluation is a Premium feature. Upgrade to access automatic report filtering and priority summaries.",
+                "upgrade_prompt": True
+            }), 403
+        
+        # Get user's barangay for filtering
+        user_barangay = None
+        try:
+            info_resp = supabase.table("info").select("address_barangay").eq("user_id", user_id).single().execute()
+            info_data = getattr(info_resp, "data", None)
+            if info_data:
+                user_barangay = info_data.get("address_barangay")
+        except:
+            pass
+        
+        # Generate evaluation summary
+        summary_data = get_ai_evaluation_summary(user_id, user_barangay)
+        
+        # Format for chat display
+        chat_message = format_evaluation_summary_for_chat(summary_data)
+        
+        return jsonify({
+            "status": "success",
+            "is_premium": True,
+            "user_barangay": user_barangay,
+            "data": summary_data,
+            "chat_message": chat_message,
+            "should_open_chatbot": summary_data.get("has_evaluations", False)
+        }), 200
+        
+    except Exception as e:
+        logger.error(f"Error in AI evaluation summary endpoint: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({
+            "status": "error",
+            "message": f"Error: {str(e)}"
+        }), 500
+
+
+@chatbot_bp.route('/check-new-evaluations', methods=['GET'])
+@token_required
+def check_new_evaluations():
+    """
+    Quick check endpoint to see if there are new reports to evaluate.
+    Used by frontend to decide whether to auto-open chatbot.
+    
+    Returns:
+    - has_new_evaluations: bool
+    - count: number of reports in last 24 hours
+    - should_notify: bool (true if premium user with new reports)
+    """
+    user_id = request.user_id
+    
+    try:
+        # Check premium status
+        user_resp = supabase.table("users").select("onpremium, role").eq("id", user_id).single().execute()
+        user_data = getattr(user_resp, "data", None)
+        
+        if not user_data:
+            return jsonify({"has_new_evaluations": False, "count": 0, "should_notify": False}), 200
+        
+        is_premium = user_data.get("onpremium", False)
+        user_role = user_data.get("role", "Resident")
+        
+        # Only notify premium users or officials
+        if not is_premium and user_role not in ["Admin", "Barangay Official"]:
+            return jsonify({
+                "has_new_evaluations": False, 
+                "count": 0, 
+                "should_notify": False,
+                "is_premium": False
+            }), 200
+        
+        # Get user's barangay
+        user_barangay = None
+        try:
+            info_resp = supabase.table("info").select("address_barangay").eq("user_id", user_id).single().execute()
+            info_data = getattr(info_resp, "data", None)
+            if info_data:
+                user_barangay = info_data.get("address_barangay")
+        except:
+            pass
+        
+        # Quick count of recent reports
+        now = datetime.now()
+        yesterday = now - timedelta(days=1)
+        
+        query = supabase.table("reports").select("id", count="exact").is_("deleted_at", "null").eq("is_rejected", False)
+        
+        if user_barangay and user_barangay != "No barangay selected":
+            query = query.eq("address_barangay", user_barangay)
+        
+        query = query.gte("created_at", yesterday.isoformat())
+        
+        response = query.execute()
+        count = response.count if hasattr(response, 'count') else len(getattr(response, "data", []))
+        
+        return jsonify({
+            "has_new_evaluations": count > 0,
+            "count": count,
+            "should_notify": count > 0 and (is_premium or user_role in ["Admin", "Barangay Official"]),
+            "is_premium": is_premium,
+            "user_barangay": user_barangay
+        }), 200
+        
+    except Exception as e:
+        logger.error(f"Error checking new evaluations: {e}")
+        return jsonify({"has_new_evaluations": False, "count": 0, "should_notify": False}), 200

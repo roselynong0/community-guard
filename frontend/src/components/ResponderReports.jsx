@@ -1,9 +1,23 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
-import { FaEdit, FaTrashAlt, FaSearch, FaRedo, FaCheckCircle, FaTimesCircle, FaCheck, FaTimes } from "react-icons/fa";
+import { FaEdit, FaTrashAlt, FaSearch, FaRedo, FaCheckCircle, FaTimesCircle, FaCheck, FaTimes, FaSyncAlt, FaClock, FaFileCsv, FaFilePdf, FaThLarge, FaList, FaArchive, FaFileAlt } from "react-icons/fa";
 import { API_CONFIG, getApiUrl } from "../utils/apiConfig";
 import "./ResponderReports.css";
 
 const REPORT_STATUSES = ["Pending", "Ongoing", "Resolved"];
+
+// Status badge icon helper
+const getStatusIcon = (status) => {
+    switch (status?.toLowerCase()) {
+        case 'pending':
+            return <FaClock aria-hidden="true" />;
+        case 'ongoing':
+            return <FaSyncAlt aria-hidden="true" />;
+        case 'resolved':
+            return <FaCheckCircle aria-hidden="true" />;
+        default:
+            return null;
+    }
+};
 
 // Utility Hook for Modal Accessibility (Focus trap and Esc key)
 const useAriaModal = (isOpen, onClose) => {
@@ -123,6 +137,7 @@ function ResponderReports({ token }) {
     const [notification, setNotification] = useState(null);
     const [highlightedReportId, setHighlightedReportId] = useState(null);
     const [responderBarangay, setResponderBarangay] = useState(null);
+    const [viewMode, setViewMode] = useState("card"); // "card" or "list" view
 
     // States for the Status Update Modal
     const [isStatusModalOpen, setIsStatusModalOpen] = useState(false);
@@ -417,6 +432,179 @@ function ResponderReports({ token }) {
         }
     };
 
+    // Export to CSV
+    const exportToCSV = () => {
+        const headers = ["ID", "Title", "Category", "Status", "Barangay", "Address", "Reporter", "Created At", "Description"];
+        const rows = filteredReports.map((r) => [
+            r.id,
+            `"${(r.title || "").replace(/"/g, '""')}"`,
+            r.category || "N/A",
+            r.status || "N/A",
+            r.barangay || r.address_barangay || "N/A",
+            `"${(r.addressStreet || r.address_street || "").replace(/"/g, '""')}"`,
+            r.reporter ? `${r.reporter.firstname || ""} ${r.reporter.lastname || ""}`.trim() : "Unknown",
+            r.created_at ? new Date(r.created_at).toLocaleString() : "N/A",
+            `"${(r.description || "").replace(/"/g, '""').substring(0, 200)}..."`
+        ]);
+        
+        const csvContent = [headers.join(","), ...rows.map((r) => r.join(","))].join("\n");
+        const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        link.href = url;
+        link.download = `${responderBarangay || 'responder'}_reports_${new Date().toISOString().split("T")[0]}.csv`;
+        link.click();
+    };
+
+    // Export to PDF with Community Helper AI Analytics
+    const exportToPDF = async () => {
+        const reportDate = new Date().toLocaleDateString("en-US", {
+            weekday: "long",
+            year: "numeric",
+            month: "long",
+            day: "numeric",
+        });
+        
+        const totalReports = filteredReports.length;
+        const categoryStats = {};
+        const statusStats = { Pending: 0, Ongoing: 0, Resolved: 0 };
+        
+        filteredReports.forEach((report) => {
+            const cat = report.category || "Unknown";
+            categoryStats[cat] = (categoryStats[cat] || 0) + 1;
+            
+            const status = report.status || "Pending";
+            statusStats[status] = (statusStats[status] || 0) + 1;
+        });
+        
+        const sortedCategories = Object.entries(categoryStats).sort((a, b) => b[1] - a[1]);
+        const logoPath = new URL('../assets/logo.png', import.meta.url).href;
+        
+        const printContent = `
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <title>Community Guard - ${responderBarangay || 'Responder'} Reports</title>
+                <style>
+                    * { box-sizing: border-box; margin: 0; padding: 0; }
+                    body { font-family: 'Segoe UI', Arial, sans-serif; padding: 40px; color: #333; }
+                    .header { text-align: center; margin-bottom: 30px; border-bottom: 3px solid #2d3b8f; padding-bottom: 20px; }
+                    .header-logo { display: flex; align-items: center; justify-content: center; gap: 12px; margin-bottom: 10px; }
+                    .header-logo img { width: 48px; height: 48px; object-fit: contain; }
+                    .header h1 { color: #2d3b8f; font-size: 28px; margin-bottom: 5px; }
+                    .header .subtitle { color: #666; font-size: 14px; }
+                    .header .role-badge { background: #3b82f6; color: white; padding: 4px 12px; border-radius: 12px; font-size: 12px; margin-top: 8px; display: inline-block; }
+                    .ai-badge { background: linear-gradient(135deg, #2d3b8f, #1e2966); color: white; padding: 10px 20px; border-radius: 20px; display: inline-flex; align-items: center; gap: 10px; margin: 15px 0; font-size: 14px; font-weight: 500; }
+                    .ai-badge img { width: 24px; height: 24px; object-fit: contain; border-radius: 4px; }
+                    .section { margin-bottom: 30px; }
+                    .section-title { font-size: 18px; color: #2d3b8f; margin-bottom: 15px; padding-bottom: 8px; border-bottom: 2px solid #e5e7eb; }
+                    .stats-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 15px; margin-bottom: 25px; }
+                    .stat-card { background: #f8fafc; padding: 20px; border-radius: 10px; text-align: center; border: 1px solid #e5e7eb; }
+                    .stat-card .number { font-size: 32px; font-weight: bold; color: #2d3b8f; }
+                    .stat-card .label { font-size: 12px; color: #666; margin-top: 5px; }
+                    .analytics-card { background: #f8fafc; padding: 20px; border-radius: 10px; border: 1px solid #e5e7eb; margin-bottom: 20px; }
+                    .analytics-card h3 { font-size: 14px; color: #2d3b8f; margin-bottom: 15px; }
+                    .analytics-item { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #e5e7eb; }
+                    .analytics-item:last-child { border-bottom: none; }
+                    table { width: 100%; border-collapse: collapse; font-size: 11px; margin-top: 15px; }
+                    th { background: #2d3b8f; color: white; padding: 10px 8px; text-align: left; }
+                    td { padding: 10px 8px; border-bottom: 1px solid #e5e7eb; vertical-align: top; }
+                    tr:nth-child(even) { background: #f8fafc; }
+                    .footer { margin-top: 40px; text-align: center; font-size: 12px; color: #666; padding-top: 20px; border-top: 2px solid #2d3b8f; }
+                    .footer-brand { display: flex; align-items: center; justify-content: center; gap: 10px; margin-bottom: 8px; }
+                    .footer-brand img { width: 28px; height: 28px; object-fit: contain; }
+                    .footer-brand span { font-weight: 600; color: #2d3b8f; font-size: 14px; }
+                    .footer-subtitle { margin-top: 8px; font-size: 11px; color: #888; font-style: italic; }
+                    @media print { body { padding: 20px; } }
+                </style>
+            </head>
+            <body>
+                <div class="header">
+                    <div class="header-logo">
+                        <img src="${logoPath}" alt="Community Guard Logo" onerror="this.style.display='none'" />
+                        <h1>Community Guard</h1>
+                    </div>
+                    <p class="subtitle">${responderBarangay || 'Responder'} Reports - Analytics Report</p>
+                    <div class="ai-badge">💡 Community Helper</div>
+                    <p style="margin-top: 10px; font-size: 13px; color: #666;">Generated: ${reportDate}</p>
+                </div>
+                
+                <div class="section">
+                    <div class="stats-grid">
+                        <div class="stat-card">
+                            <div class="number">${totalReports}</div>
+                            <div class="label">Total Reports</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="number" style="color: #f59e0b;">${statusStats.Pending}</div>
+                            <div class="label">Pending</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="number" style="color: #3b82f6;">${statusStats.Ongoing}</div>
+                            <div class="label">Ongoing</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="number" style="color: #22c55e;">${statusStats.Resolved}</div>
+                            <div class="label">Resolved</div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="analytics-card">
+                    <h3>📁 Reports by Category</h3>
+                    ${sortedCategories.map(([name, count]) => `
+                        <div class="analytics-item">
+                            <span class="name">${name}</span>
+                            <span class="count">${count}</span>
+                        </div>
+                    `).join("")}
+                </div>
+                
+                <div class="section">
+                    <h2 class="section-title">📋 Detailed Report List</h2>
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>ID</th>
+                                <th>Title</th>
+                                <th>Category</th>
+                                <th>Status</th>
+                                <th>Created</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${filteredReports.slice(0, 50).map((report) => `
+                                <tr>
+                                    <td>${report.id}</td>
+                                    <td>${report.title || "Untitled"}</td>
+                                    <td>${report.category || "N/A"}</td>
+                                    <td>${report.status || "N/A"}</td>
+                                    <td>${new Date(report.created_at).toLocaleDateString()}</td>
+                                </tr>
+                            `).join("")}
+                        </tbody>
+                    </table>
+                    ${filteredReports.length > 50 ? `<p style="margin-top: 15px; color: #666; font-size: 12px; text-align: center;">Showing first 50 of ${filteredReports.length} reports</p>` : ""}
+                </div>
+                
+                <div class="footer">
+                    <div class="footer-brand">
+                        <img src="${logoPath}" alt="Community Guard Logo" onerror="this.style.display='none'" />
+                        <span>Community Guard</span>
+                    </div>
+                    <p>Protecting Communities Together</p>
+                    <p class="footer-subtitle">This report was generated with Community Helper Smart Analytics</p>
+                </div>
+            </body>
+            </html>
+        `;
+        
+        const printWindow = window.open("", "_blank");
+        printWindow.document.write(printContent);
+        printWindow.document.close();
+        printWindow.print();
+    };
+
     // Filtered reports - Responders see approved reports + pending reports that are approved
     const filteredReports = reports
         .filter((r) => {
@@ -441,8 +629,49 @@ function ResponderReports({ token }) {
 
     return (
         <div className="admin-container">
-            <div className="header-row">
+            <div className="responder-header-row">
                 <h2>{responderBarangay ? `${responderBarangay} Reports` : 'Loading...'}</h2>
+                <div className="header-right">
+                    {/* View Toggle */}
+                    <div className="view-toggle">
+                        <button
+                            className={`view-toggle-btn ${viewMode === 'card' ? 'active' : ''}`}
+                            onClick={() => setViewMode('card')}
+                            title="Card View"
+                            aria-label="Switch to card view"
+                        >
+                            <FaThLarge />
+                        </button>
+                        <button
+                            className={`view-toggle-btn ${viewMode === 'list' ? 'active' : ''}`}
+                            onClick={() => setViewMode('list')}
+                            title="List View"
+                            aria-label="Switch to list view"
+                        >
+                            <FaList />
+                        </button>
+                    </div>
+                    
+                    {/* Export Buttons */}
+                    <div className="export-buttons">
+                        <button
+                            className="export-btn csv"
+                            onClick={exportToCSV}
+                            title="Export to CSV"
+                            aria-label="Export reports to CSV"
+                        >
+                            <FaFileCsv /> CSV
+                        </button>
+                        <button
+                            className="export-btn pdf"
+                            onClick={exportToPDF}
+                            title="Export to PDF with Analytics"
+                            aria-label="Export reports to PDF with AI analytics"
+                        >
+                            <FaFilePdf /> PDF
+                        </button>
+                    </div>
+                </div>
             </div>
 
             {/* Filter Controls */}
@@ -524,6 +753,7 @@ function ResponderReports({ token }) {
                         <p>Loading reports...</p>
                     </div>
                 ) : filteredReports.length > 0 ? (
+                    viewMode === "card" ? (
                     filteredReports.map((report, index) => {
                         const isExpanded = expandedPosts.includes(report.id);
 
@@ -586,24 +816,27 @@ function ResponderReports({ token }) {
                                     </div>
 
                                     <div className="report-header-actions">
-                                        <span className={`status-badge status-${report.status.toLowerCase()}`}>
+                                        <span className={`responder-status-badge responder-status-${report.status.toLowerCase()}`}>
+                                            {getStatusIcon(report.status)}
                                             {report.status}
                                         </span>
                                         <button 
-                                            className="icon-btn edit-btn" 
+                                            className="responder-action-btn responder-update-btn" 
                                             onClick={() => openStatusModal(report)}
-                                            aria-label={`Edit status for report: ${report.title}`}
-                                            title="Edit Status"
+                                            aria-label={`Update status for report: ${report.title}`}
+                                            title="Update Status"
                                         >
                                             <FaEdit aria-hidden="true" />
+                                            <span>Update</span>
                                         </button>
                                         <button 
-                                            className="icon-btn delete-btn" 
+                                            className="responder-action-btn responder-delete-btn" 
                                             onClick={() => openDeleteReason(report)}
                                             aria-label={`Delete report: ${report.title}`}
                                             title="Delete Report"
                                         >
                                             <FaTrashAlt aria-hidden="true" />
+                                            <span>Delete</span>
                                         </button>
                                     </div>
                                 </div>
@@ -646,6 +879,101 @@ function ResponderReports({ token }) {
                             </div>
                         );
                     })
+                    ) : (
+                    // List View
+                    <div className="responder-list-table">
+                        <div className="list-header">
+                            <div className="list-col col-image">Image</div>
+                            <div className="list-col col-title">Title</div>
+                            <div className="list-col col-category">Category</div>
+                            <div className="list-col col-barangay">Barangay</div>
+                            <div className="list-col col-reporter">Reporter</div>
+                            <div className="list-col col-date">Date</div>
+                            <div className="list-col col-status">Status</div>
+                            <div className="list-col col-actions">Actions</div>
+                        </div>
+                        {filteredReports.map((report, index) => {
+                            const isExpanded = expandedPosts.includes(report.id);
+                            
+                            return (
+                                <div 
+                                    key={report.id} 
+                                    className="list-row"
+                                    style={{ animationDelay: `${index * 0.05}s` }}
+                                >
+                                    <div className="list-col col-image">
+                                        {report.images && report.images.length > 0 ? (
+                                            <img
+                                                src={report.images[0]}
+                                                alt="Report thumbnail"
+                                                className="list-thumbnail"
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    setPreviewImage(report.images[0]);
+                                                }}
+                                            />
+                                        ) : (
+                                            <div className="no-thumbnail">
+                                                <FaFileAlt />
+                                            </div>
+                                        )}
+                                    </div>
+                                    <div className="list-col col-title" onClick={() => toggleExpand(report.id)}>
+                                        <span className="list-title">{report.title || "Untitled"}</span>
+                                        {isExpanded && (
+                                            <p className="list-description">{report.description}</p>
+                                        )}
+                                    </div>
+                                    <div className="list-col col-category">
+                                        <span className="category-tag">{report.category || "N/A"}</span>
+                                    </div>
+                                    <div className="list-col col-barangay">{report.barangay || report.address_barangay || "N/A"}</div>
+                                    <div className="list-col col-reporter">
+                                        <div className="reporter-info">
+                                            <img
+                                                src={report.reporter?.avatar_url || "/src/assets/profile.png"}
+                                                alt=""
+                                                className="reporter-avatar"
+                                                onError={(e) => {
+                                                    e.target.src = "/src/assets/profile.png";
+                                                }}
+                                            />
+                                            <span>{report.reporter?.firstname || "Unknown"}</span>
+                                        </div>
+                                    </div>
+                                    <div className="list-col col-date">
+                                        {report.date || report.created_at
+                                            ? new Date(report.date || report.created_at).toLocaleDateString()
+                                            : "N/A"}
+                                    </div>
+                                    <div className="list-col col-status">
+                                        <span className={`responder-status-badge responder-status-${report.status.toLowerCase()}`}>
+                                            {getStatusIcon(report.status)} {report.status}
+                                        </span>
+                                    </div>
+                                    <div className="list-col col-actions">
+                                        <div className="list-actions">
+                                            <button 
+                                                className="list-action-btn edit"
+                                                onClick={() => openStatusModal(report)}
+                                                title="Update Status"
+                                            >
+                                                <FaEdit />
+                                            </button>
+                                            <button 
+                                                className="list-action-btn delete"
+                                                onClick={() => openDeleteReason(report)}
+                                                title="Delete"
+                                            >
+                                                <FaTrashAlt />
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            );
+                        })}
+                    </div>
+                    )
                 ) : (
                     <div style={{ padding: '20px', textAlign: 'center' }}>
                         <p>No reports match your current filters.</p>

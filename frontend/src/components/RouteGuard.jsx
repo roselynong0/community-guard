@@ -3,7 +3,7 @@ import { Navigate } from "react-router-dom";
 // Admin route guard - only allows admins
 export function AdminRoute({ children, session }) {
   if (!session?.user) {
-    return <Navigate to="/login" replace />;
+    return <Navigate to="/login?role=admin" replace />;
   }
   
   if (session.user.role !== "Admin") {
@@ -16,7 +16,7 @@ export function AdminRoute({ children, session }) {
 // Resident route guard - only allows residents
 export function ResidentRoute({ children, session }) {
   if (!session?.user) {
-    return <Navigate to="/login" replace />;
+    return <Navigate to="/login?role=resident" replace />;
   }
   
   if (session.user.role === "Admin") {
@@ -29,7 +29,7 @@ export function ResidentRoute({ children, session }) {
 // Role-based redirect for home
 export function HomeRoute({ children, session }) {
   if (!session?.user) {
-    return <Navigate to="/login" replace />;
+    return <Navigate to="/login?role=resident" replace />;
   }
   
   return children;

@@ -21,17 +21,24 @@ const redMarkerIcon = L.icon({
   shadowSize: [41, 41],
 });
 
-const MapView = forwardRef(function MapView(_, ref) {
-  const [hotspots, setHotspots] = useState([]);
+const MapView = forwardRef(function MapView(props, ref) {
+  const { reports, barangay } = props || {};
+  const [hotspots, setHotspots] = useState((reports && reports.length) ? reports : []);
   const mapRef = useRef(null);
 
   useEffect(() => {
+    // If parent provided `reports`, prefer those and skip fetching.
+    if (reports && reports.length) return;
+
     const fetchHotspots = async () => {
       try {
         const token = localStorage.getItem("token");
         if (!token) return;
+        // If a barangay is provided, request barangay-scoped hotspots
+        const base = getApiUrl(API_CONFIG.endpoints.hotspots);
+        const url = barangay ? `${base}?barangay=${encodeURIComponent(barangay)}` : base;
 
-        const response = await fetch(getApiUrl(API_CONFIG.endpoints.hotspots), {
+        const response = await fetch(url, {
           headers: { Authorization: `Bearer ${token}` },
         });
 
@@ -46,7 +53,7 @@ const MapView = forwardRef(function MapView(_, ref) {
     };
 
     fetchHotspots();
-  }, []);
+  }, [reports, barangay]);
 
   // Expose an invalidate API so parent can force a redraw
   useImperativeHandle(ref, () => ({

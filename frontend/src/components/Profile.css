@@ -631,6 +631,62 @@ letter-spacing: 0.3px;
     animation: fadeIn 0.2s ease-in-out;
 }
 
+/* Specific sizing for Get Verified modal to fit button labels comfortably */
+.modal.get-verified-modal {
+    width: 520px; /* slightly wider than default profile modal */
+    max-width: 96%;
+}
+
+.modal.get-verified-modal .modal-buttons {
+    display: flex;
+    gap: 12px;
+    justify-content: flex-end;
+}
+
+.modal.get-verified-modal .modal-buttons button {
+    min-width: 140px;
+    padding: 10px 16px;
+}
+
+@media (max-width: 600px) {
+    .modal.get-verified-modal { width: 92%; }
+    .modal.get-verified-modal .modal-buttons button { min-width: 0; padding: 8px 12px; }
+}
+
+/* Make the verified modal vertically scrollable without horizontal scrollbars,
+   keep buttons pinned to bottom-right and content scrolls vertically. */
+.modal.get-verified-modal {
+    display: flex;
+    flex-direction: column;
+    max-height: 80vh;
+    overflow-x: hidden; /* prevent horizontal scroll */
+}
+
+.modal.get-verified-modal .address-fields {
+    /* allow the form area to grow and scroll vertically if content exceeds modal height */
+    overflow-y: auto;
+    padding-right: 4px; /* prevent contact with scrollbar */
+    max-height: calc(80vh - 220px); /* leave space for header and buttons */
+}
+
+.modal.get-verified-modal .modal-buttons {
+    /* ensure buttons sit at bottom-right and don't scroll with content */
+    flex: 0 0 auto;
+    align-self: stretch;
+    display: flex;
+    justify-content: flex-end;
+    gap: 12px;
+    margin-top: 12px;
+}
+
+/* ensure inputs don't cause horizontal overflow */
+.modal.get-verified-modal input,
+.modal.get-verified-modal select,
+.modal.get-verified-modal textarea {
+    box-sizing: border-box;
+    width: 100%;
+}
+
 .modal input,
 .modal textarea {
     display: block;

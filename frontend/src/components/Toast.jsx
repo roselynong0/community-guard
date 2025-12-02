@@ -1,6 +1,6 @@
 import React, { useState, useCallback } from 'react';
 import './Toast.css';
-import { FaInfoCircle, FaCheckCircle, FaExclamationTriangle, FaTimesCircle, FaTimes } from 'react-icons/fa';
+import { FaInfoCircle, FaCheckCircle, FaExclamationTriangle, FaTimesCircle, FaTimes, FaBell } from 'react-icons/fa';
 
 /**
  * Generalized Toast Notification Component
@@ -19,6 +19,8 @@ const Toast = React.forwardRef(({ autoCloseDuration = 4000 }, ref) => {
         return <FaTimesCircle className="toast-icon" />;
       case 'warning':
         return <FaExclamationTriangle className="toast-icon" />;
+      case 'emergency':
+        return <FaBell className="toast-icon" />;
       case 'info':
       case 'deleted':
       default:
@@ -32,10 +34,13 @@ const Toast = React.forwardRef(({ autoCloseDuration = 4000 }, ref) => {
     
     setToasts(prev => [...prev, newToast]);
 
+    // Emergency alerts stay longer (8 seconds)
+    const duration = type === 'emergency' ? 8000 : autoCloseDuration;
+
     // Auto-remove toast after duration
     setTimeout(() => {
       setToasts(prev => prev.filter(t => t.id !== id));
-    }, autoCloseDuration);
+    }, duration);
 
     return id;
   }, [autoCloseDuration]);

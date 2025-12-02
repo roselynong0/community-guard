@@ -49,7 +49,7 @@ function ResponderLayout({ session, setSession, setNotification }) {
       message: `Responder ${user.firstname} logged out successfully`,
       type: "success",
     });
-    navigate("/login");
+    navigate("/login?role=responder");
   };
 
   return (

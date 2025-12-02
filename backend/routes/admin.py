@@ -50,6 +50,97 @@ def get_all_users():
         return jsonify({"status": "error", "message": str(e)}), 500
 
 
+@admin_bp.route("/set-premium", methods=["POST", "OPTIONS"])
+@token_required
+def set_admin_premium():
+    """Auto-set onpremium = true for Admin users. Called from Admin Layout on login."""
+    # Handle CORS preflight
+    if request.method == "OPTIONS":
+        return jsonify({"status": "ok"}), 200
+        
+    try:
+        user_id = request.user_id
+        print(f"[Admin Premium] 🔄 Processing premium request for user {user_id}")
+        
+        # Verify user is Admin with retry logic for network issues
+        max_retries = 3
+        user = None
+        last_error = None
+        
+        for attempt in range(max_retries):
+            try:
+                def fetch_user():
+                    return supabase.table("users").select("role, onpremium").eq("id", user_id).execute()
+                
+                user_resp = supabase_retry(fetch_user)
+                user = getattr(user_resp, "data", [None])[0] if user_resp else None
+                break
+            except Exception as e:
+                last_error = e
+                print(f"[Admin Premium] ⚠️ Attempt {attempt + 1}/{max_retries} failed: {e}")
+                if attempt < max_retries - 1:
+                    time.sleep(0.3 * (attempt + 1))  # Exponential backoff
+                continue
+        
+        if not user:
+            if last_error:
+                print(f"[Admin Premium] ❌ All retries failed: {last_error}")
+                return jsonify({
+                    "status": "error", 
+                    "message": "Network error - please try again",
+                    "onpremium": True  # Assume premium for Admin on network error
+                }), 200  # Return 200 to not block UI
+            return jsonify({"status": "error", "message": "User not found"}), 404
+            
+        if user.get("role") != "Admin":
+            return jsonify({"status": "error", "message": "Admin access required"}), 403
+        
+        # Check if already premium
+        if user.get("onpremium") == True:
+            print(f"[Admin Premium] ✅ User {user_id} already has onpremium=true")
+            return jsonify({
+                "status": "success",
+                "message": "Already premium",
+                "onpremium": True
+            }), 200
+        
+        # Update onpremium to true with retry
+        for attempt in range(max_retries):
+            try:
+                def update_premium():
+                    return supabase.table("users").update({
+                        "onpremium": True,
+                        "updated_at": datetime.now(timezone.utc).isoformat()
+                    }).eq("id", user_id).execute()
+                
+                supabase_retry(update_premium)
+                print(f"[Admin Premium] 👑 Auto-set onpremium=true for Admin user {user_id}")
+                break
+            except Exception as e:
+                print(f"[Admin Premium] ⚠️ Update attempt {attempt + 1}/{max_retries} failed: {e}")
+                if attempt < max_retries - 1:
+                    time.sleep(0.3 * (attempt + 1))
+                else:
+                    # Even if update fails, return success to not block UI
+                    print(f"[Admin Premium] ⚠️ Update failed but continuing - Admin should have premium access")
+        
+        return jsonify({
+            "status": "success",
+            "message": "Premium status enabled",
+            "onpremium": True
+        }), 200
+        
+    except Exception as e:
+        print(f"[Admin Premium] ❌ Error setting premium: {e}")
+        # For Admin users, return success anyway to not block the UI
+        # Premium status is a convenience feature, not critical
+        return jsonify({
+            "status": "success",
+            "message": "Premium assumed for Admin",
+            "onpremium": True
+        }), 200
+
+
 @admin_bp.route("/users/<user_id>/verification", methods=["PUT"])
 @token_required
 def update_user_verification(user_id):

@@ -47,8 +47,10 @@ function VerificationForm() {
         }
       }
       
-      // If all validation fails, redirect to login
-      navigate("/login", {
+      // If all validation fails, redirect to login (try to preserve role if present)
+      const fallbackRole = location.state?.userRole || 'resident';
+      const loginPath = `/login?role=${encodeURIComponent(fallbackRole)}`;
+      navigate(loginPath, {
         replace: true,
         state: { notification: "Verification access expired or invalid. Please log in and try again." }
       });
@@ -108,9 +110,9 @@ function VerificationForm() {
       if (res.ok && result.status === "success") {
         setNotification({ message: "Email verified successfully! 🎉", type: "success" });
         // Check if user registered as admin and redirect to admin login
-        const userRole = location.state?.userRole;
-        const loginPath = userRole === "Admin" ? "/login?role=admin" : "/login";
-        setTimeout(() => navigate(loginPath), 1000);
+          const userRole = location.state?.userRole || 'resident';
+          const loginPath = `/login?role=${encodeURIComponent(userRole)}`;
+          setTimeout(() => navigate(loginPath), 1000);
       } else if (result.status === "invalid_code") {
         setNotification({ message: "Invalid verification code.", type: "error" });
         const el = document.querySelector(`input[name="code"]`);
@@ -181,7 +183,10 @@ function VerificationForm() {
 
           <span
             className="back-link"
-            onClick={() => navigate("/login")}
+            onClick={() => {
+              const role = location.state?.userRole || 'resident';
+              navigate(`/login?role=${encodeURIComponent(role)}`);
+            }}
           >
             Back to Login
           </span>

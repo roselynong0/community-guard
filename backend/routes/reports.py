@@ -8,6 +8,8 @@ import time
 import base64
 from middleware.auth import token_required
 from utils import supabase, supabase_retry, create_report_notification, create_admin_notification, create_barangay_notification
+from utils.notifications import trigger_priority_response, is_high_risk_report, get_priority_from_category
+from routes.notifications import trigger_emergency_alerts
 from PIL import Image
 import io
 
@@ -402,46 +404,72 @@ def add_report():
         print(f"✅ Report created successfully by user {user_id}")
         print(f"📊 New report with {len(images_data)} images")
 
-        # Create an admin notification for newly submitted reports
+        # =================================================================
+        # PRIORITY-BASED AUTOMATIC RESPONSE SYSTEM
+        # =================================================================
+        # Trigger priority-based notifications based on report category
+        # High-risk (Crime/Hazard) -> Automatic urgent response
+        # Lower priority (Concern/Lost&Found/Others) -> Evaluation queue
         try:
             reporter_name = f"{reporter.get('firstname','') or ''} {reporter.get('lastname','') or ''}".strip() or str(user_id)
-            admin_title = f"New report submitted: {report.get('title')}"
-            admin_message = f"{reporter_name} submitted a new report '{report.get('title')}' in {report.get('address_barangay') or 'Unknown'}. Please review and update its status."
-            create_admin_notification(actor_id=user_id, user_id=user_id, report_id=report_id, title=admin_title, type_label="New Report", message=admin_message)
-        except Exception as e:
-            print(f"⚠️ Failed to create admin notification for new report: {e}")
-
-        # Create a barangay official notification for the barangay where report was submitted
-        try:
-            barangay_name = report.get('address_barangay') or 'Unknown'
-            report_category = report.get('category') or 'General'
             
-            # Find barangay officials for this barangay by checking info table
-            barangay_officials_resp = supabase.table("info").select("user_id").eq("address_barangay", barangay_name).execute()
-            barangay_official_ids = [official.get("user_id") for official in (getattr(barangay_officials_resp, "data", []) or [])]
+            # Get AI priority for this report (or derive from category)
+            report_priority = get_priority_from_category(report.get('category', 'Others'))
             
-            # Verify they are actually barangay officials
-            if barangay_official_ids:
-                officials_resp = supabase.table("users").select("id").in_("id", barangay_official_ids).eq("role", "Barangay Official").execute()
-                barangay_officials = getattr(officials_resp, "data", []) or []
+            # Trigger priority-based response
+            priority_result = trigger_priority_response(
+                report_data={
+                    'id': report_id,
+                    'title': report.get('title'),
+                    'category': report.get('category'),
+                    'user_id': user_id,
+                    'address_barangay': report.get('address_barangay'),
+                    'description': report.get('description'),
+                    'priority': report_priority
+                },
+                actor_id=user_id
+            )
+            
+            # Log the result
+            if priority_result.get('is_high_risk'):
+                print(f"🚨 HIGH-RISK REPORT: {priority_result.get('notifications_sent')} notifications sent")
             else:
-                barangay_officials = []
+                print(f"📋 EVALUATION QUEUE: Report queued for assessment")
             
-            # Send notification to all barangay officials in that barangay
-            for official in barangay_officials:
-                official_id = official.get("id")
-                if official_id:
-                    create_barangay_notification(
-                        barangay_official_id=official_id,
-                        report_id=report_id,
-                        report_title=report.get('title'),
-                        event_type="created",
-                        barangay_name=barangay_name,
-                        report_category=report_category,
-                        actor_name=reporter_name
-                    )
-        except Exception as e:
-            print(f"⚠️ Failed to create barangay notification for new report: {e}")
+            # Add priority info to response
+            report['priority_response'] = priority_result
+            
+        except Exception as priority_err:
+            print(f"⚠️ Priority response system error (falling back to standard): {priority_err}")
+            # Fallback to standard notification if priority system fails
+            try:
+                admin_title = f"New report submitted: {report.get('title')}"
+                admin_message = f"{reporter_name} submitted a new report '{report.get('title')}' in {report.get('address_barangay') or 'Unknown'}. Please review and update its status."
+                create_admin_notification(actor_id=user_id, user_id=user_id, report_id=report_id, title=admin_title, type_label="New Report", message=admin_message)
+            except Exception as e:
+                print(f"⚠️ Failed to create fallback admin notification: {e}")
+
+        # =================================================================
+        # EMERGENCY ALERT SYSTEM - Notify nearby users
+        # =================================================================
+        # Trigger emergency alerts for users in the same barangay
+        # and notify all admins about the new report
+        try:
+            emergency_result = trigger_emergency_alerts({
+                'id': report_id,
+                'title': report.get('title'),
+                'category': report.get('category'),
+                'user_id': user_id,
+                'address_barangay': report.get('address_barangay'),
+                'description': report.get('description'),
+                'priority': report_priority
+            })
+            
+            print(f"🔔 Emergency Alerts: {emergency_result.get('total_notified', 0)} users notified")
+            report['emergency_alerts'] = emergency_result
+            
+        except Exception as emergency_err:
+            print(f"⚠️ Emergency alert system error: {emergency_err}")
 
         return jsonify({"status": "success", "report": report}), 201
     except Exception as e:
@@ -836,13 +864,12 @@ def get_report_categories():
                 .eq("is_rejected", False)
             )
             
-            # Apply filtering logic
-            if filter_type == "all":
-                # Show all reports - used for regular users and admin "all" view
-                if is_admin and barangay_filter and barangay_filter != "all":
-                    # Admin with specific barangay filter
-                    query = query.eq("address_barangay", barangay_filter)
-                # else: show all reports (no additional filtering)
+            # Apply barangay filter for all users if provided
+            if barangay_filter and barangay_filter != "all":
+                query = query.eq("address_barangay", barangay_filter)
+            elif filter_type == "all":
+                # Show all reports - no additional filtering
+                pass
             else:
                 # Legacy user filtering (not used anymore but kept for compatibility)
                 if not is_admin:
@@ -1325,6 +1352,10 @@ def approve_report(report_id):
     """
     Approve a pending report to make it visible to public.
     Only admins and barangay officials can approve reports.
+    
+    When approved:
+    - High-risk reports (Crime/Hazard) trigger automatic urgent response
+    - Lower priority reports are queued for standard handling
     """
     user_id = request.user_id
     try:
@@ -1338,8 +1369,8 @@ def approve_report(report_id):
             print(f"❌ User {user_id} with role {user_role} not authorized to approve reports")
             return jsonify({"status": "error", "message": "Not authorized to approve reports"}), 403
         
-        # Check if report exists and get reporter info
-        report_resp = supabase.table("reports").select("id, user_id, title, is_approved").eq("id", report_id).execute()
+        # Check if report exists and get full report info for priority processing
+        report_resp = supabase.table("reports").select("*").eq("id", report_id).execute()
         report = getattr(report_resp, "data", [None])[0]
         
         if not report:
@@ -1367,6 +1398,36 @@ def approve_report(report_id):
         if reporter_id:
             from utils.notifications import create_report_approval_notification
             create_report_approval_notification(reporter_id, report_id, report_title, user_id)
+        
+        # =================================================================
+        # TRIGGER PRIORITY-BASED RESPONSE ON APPROVAL
+        # =================================================================
+        # Now that the report is approved, trigger the priority response
+        # This ensures high-risk reports get immediate attention from responders
+        try:
+            report_category = report.get("category", "Others")
+            report_priority = get_priority_from_category(report_category)
+            
+            # Only trigger urgent response for high-risk approved reports
+            if is_high_risk_report(priority=report_priority, category=report_category):
+                priority_result = trigger_priority_response(
+                    report_data={
+                        'id': report_id,
+                        'title': report_title,
+                        'category': report_category,
+                        'user_id': reporter_id,
+                        'address_barangay': report.get('address_barangay'),
+                        'description': report.get('description'),
+                        'priority': report_priority
+                    },
+                    actor_id=user_id
+                )
+                print(f"🚨 HIGH-RISK APPROVED: Urgent response triggered - {priority_result.get('notifications_sent')} notifications")
+            else:
+                print(f"📋 Standard priority report approved - no urgent response needed")
+                
+        except Exception as priority_err:
+            print(f"⚠️ Priority response on approval failed: {priority_err}")
         
         return jsonify({"status": "success", "message": "Report approved successfully"}), 200
         

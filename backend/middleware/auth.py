@@ -68,6 +68,7 @@ def token_required(f):
             return jsonify({"status": "error", "message": "Invalid authorization format"}), 401
 
         token = parts[1]
+        token_preview = f"{token[:8]}...{token[-4:]}" if len(token) > 12 else token
 
         try:
             # Find session by token with retry logic
@@ -89,7 +90,10 @@ def token_required(f):
                     time.sleep(0.1)  # Brief delay before retry
             
             if not sessions:
+                print(f"[Auth] ❌ No session found")
                 return jsonify({"status": "error", "message": "Invalid session token"}), 401
+            
+            print(f"[Auth] ✅ Session validated successfully")
         except Exception as e:
             print(f"Session lookup error after retries: {e}")
             # Return 401 instead of 500 to prevent logout cascade

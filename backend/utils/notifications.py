@@ -432,3 +432,548 @@ def create_report_approval_notification(user_id, report_id, report_title, approv
     except Exception as e:
         print(f"❌ Failed to create report approval notification: {e}")
         return None
+
+
+# =============================================================================
+# PRIORITY-BASED AUTOMATIC RESPONSE AND NOTIFICATION SYSTEM
+# =============================================================================
+
+# Priority levels and their thresholds
+PRIORITY_LEVELS = {
+    'Critical': {'score_min': 9, 'auto_respond': True, 'urgent': True, 'color': '#c0392b'},
+    'High': {'score_min': 7, 'auto_respond': True, 'urgent': True, 'color': '#d35400'},
+    'Medium': {'score_min': 4, 'auto_respond': False, 'urgent': False, 'color': '#95a5a6'},
+    'Low': {'score_min': 0, 'auto_respond': False, 'urgent': False, 'color': '#95a5a6'},
+}
+
+# Category to priority mapping (matches ml_categorizer.py CATEGORY_PRIORITY)
+CATEGORY_PRIORITY_MAP = {
+    'Crime': 'Critical',
+    'Hazard': 'High', 
+    'Concern': 'Medium',
+    'Lost&Found': 'Low',
+    'Others': 'Low',
+}
+
+
+def get_priority_from_category(category):
+    """
+    Get priority level from report category.
+    Returns: 'Critical', 'High', 'Medium', or 'Low'
+    """
+    return CATEGORY_PRIORITY_MAP.get(category, 'Low')
+
+
+def is_high_risk_report(priority=None, priority_score=None, category=None):
+    """
+    Determine if a report is high-risk based on priority level or score.
+    High-risk = Critical or High priority (requires immediate response).
+    
+    Args:
+        priority: Priority level string ('Critical', 'High', 'Medium', 'Low')
+        priority_score: Numeric priority score (1-10)
+        category: Report category (used as fallback)
+    
+    Returns:
+        bool: True if high-risk, False otherwise
+    """
+    # Check by priority level first
+    if priority:
+        priority_upper = str(priority).strip().title()
+        if priority_upper in ['Critical', 'High']:
+            return True
+    
+    # Check by priority score
+    if priority_score is not None:
+        try:
+            score = int(priority_score)
+            if score >= 7:  # Critical (10) or High (7-9)
+                return True
+        except (ValueError, TypeError):
+            pass
+    
+    # Fallback to category-based determination
+    if category:
+        cat_priority = get_priority_from_category(category)
+        return cat_priority in ['Critical', 'High']
+    
+    return False
+
+
+def process_report_by_priority(report_id, report_title, report_category, reporter_id, 
+                                priority=None, priority_score=None, barangay=None,
+                                actor_id=None, description=None):
+    """
+    Main function to process a report based on its priority level.
+    
+    For HIGH-RISK reports (Critical/High):
+        - Automatically trigger response workflow
+        - Send urgent notifications to admins, barangay officials, and responders
+        - Mark report for immediate attention
+        - Return response actions taken
+    
+    For LOWER priority reports (Medium/Low):
+        - Queue for evaluation/assessment
+        - Send standard notification to appropriate parties
+        - Return evaluation queue status
+    
+    Args:
+        report_id: UUID of the report
+        report_title: Title of the report
+        report_category: Category (Crime, Hazard, Concern, etc.)
+        reporter_id: User ID of the reporter
+        priority: Priority level from AI ('Critical', 'High', 'Medium', 'Low')
+        priority_score: Numeric priority score (1-10)
+        barangay: Barangay name for the report location
+        actor_id: ID of the user/system triggering this (for audit trail)
+        description: Report description (for context in notifications)
+    
+    Returns:
+        dict: {
+            'is_high_risk': bool,
+            'priority': str,
+            'actions_taken': list,
+            'notifications_sent': int,
+            'response_type': 'automatic' | 'evaluation_queue'
+        }
+    """
+    # Determine priority if not provided
+    if not priority:
+        priority = get_priority_from_category(report_category)
+    
+    priority = str(priority).strip().title()
+    high_risk = is_high_risk_report(priority, priority_score, report_category)
+    
+    result = {
+        'is_high_risk': high_risk,
+        'priority': priority,
+        'priority_score': priority_score,
+        'actions_taken': [],
+        'notifications_sent': 0,
+        'response_type': 'automatic' if high_risk else 'evaluation_queue'
+    }
+    
+    try:
+        if high_risk:
+            # HIGH-RISK: Automatic Response Flow
+            print(f"🚨 HIGH-RISK REPORT DETECTED: {report_title} (Priority: {priority})")
+            result = _handle_high_risk_report(
+                report_id, report_title, report_category, reporter_id,
+                priority, priority_score, barangay, actor_id, description, result
+            )
+        else:
+            # LOWER PRIORITY: Evaluation Queue Flow
+            print(f"📋 EVALUATION QUEUE: {report_title} (Priority: {priority})")
+            result = _handle_evaluation_queue_report(
+                report_id, report_title, report_category, reporter_id,
+                priority, priority_score, barangay, actor_id, description, result
+            )
+    except Exception as e:
+        print(f"❌ Error processing report by priority: {e}")
+        result['error'] = str(e)
+    
+    return result
+
+
+def _handle_high_risk_report(report_id, report_title, report_category, reporter_id,
+                              priority, priority_score, barangay, actor_id, description, result):
+    """
+    Handle high-risk (Critical/High priority) reports with automatic response.
+    
+    Actions:
+    1. Notify the reporter with confirmation
+    2. Alert all admins with urgent notification
+    3. Alert barangay officials in the affected area
+    4. Alert available responders
+    5. Create audit trail in admin_notifications
+    """
+    notifications_sent = 0
+    actions = result['actions_taken']
+    
+    # Priority-specific messaging
+    if priority == 'Critical':
+        urgency_label = "🔴 CRITICAL EMERGENCY"
+        urgency_message = "This report requires IMMEDIATE attention and response."
+    else:
+        urgency_label = "🟠 HIGH PRIORITY"
+        urgency_message = "This report requires urgent attention."
+    
+    # 1. Notify the reporter (confirmation their urgent report is being handled)
+    try:
+        reporter_notification = _create_priority_notification(
+            user_id=reporter_id,
+            report_id=report_id,
+            title=f"{urgency_label} - Report Received",
+            message=f'Your urgent report "{report_title}" has been received and flagged as {priority.upper()} priority. Authorities have been immediately notified and will respond shortly.',
+            notif_type="urgent_confirmation",
+            priority=priority
+        )
+        if reporter_notification:
+            notifications_sent += 1
+            actions.append(f"Reporter notified of {priority} priority status")
+    except Exception as e:
+        print(f"⚠️ Failed to notify reporter: {e}")
+    
+    # 2. Alert all admins with urgent notification
+    try:
+        admin_count = _notify_all_admins_urgent(
+            report_id=report_id,
+            report_title=report_title,
+            report_category=report_category,
+            priority=priority,
+            barangay=barangay,
+            description=description,
+            reporter_id=reporter_id,
+            actor_id=actor_id or reporter_id
+        )
+        notifications_sent += admin_count
+        actions.append(f"Notified {admin_count} admin(s) with urgent alert")
+    except Exception as e:
+        print(f"⚠️ Failed to notify admins: {e}")
+    
+    # 3. Alert barangay officials in the affected barangay
+    try:
+        if barangay:
+            barangay_count = _notify_barangay_officials_urgent(
+                report_id=report_id,
+                report_title=report_title,
+                report_category=report_category,
+                priority=priority,
+                barangay=barangay,
+                description=description
+            )
+            notifications_sent += barangay_count
+            actions.append(f"Notified {barangay_count} barangay official(s) in {barangay}")
+    except Exception as e:
+        print(f"⚠️ Failed to notify barangay officials: {e}")
+    
+    # 4. Alert responders (if available)
+    try:
+        responder_count = _notify_responders_urgent(
+            report_id=report_id,
+            report_title=report_title,
+            report_category=report_category,
+            priority=priority,
+            barangay=barangay
+        )
+        notifications_sent += responder_count
+        actions.append(f"Notified {responder_count} responder(s)")
+    except Exception as e:
+        print(f"⚠️ Failed to notify responders: {e}")
+    
+    # 5. Create admin audit trail
+    try:
+        _create_admin_audit_notification(
+            actor_id=actor_id or reporter_id,
+            user_id=reporter_id,
+            report_id=report_id,
+            title=f"{urgency_label} - Auto Response Triggered",
+            type_label="high_risk_alert",
+            message=f'HIGH-RISK report "{report_title}" ({report_category}) automatically triggered emergency response. Priority: {priority}. Location: {barangay or "Unknown"}. {notifications_sent} notifications dispatched.',
+            priority=priority
+        )
+        actions.append("Admin audit trail created")
+    except Exception as e:
+        print(f"⚠️ Failed to create admin audit: {e}")
+    
+    result['notifications_sent'] = notifications_sent
+    result['actions_taken'] = actions
+    
+    print(f"✅ High-risk report processed: {notifications_sent} notifications sent, {len(actions)} actions taken")
+    return result
+
+
+def _handle_evaluation_queue_report(report_id, report_title, report_category, reporter_id,
+                                      priority, priority_score, barangay, actor_id, description, result):
+    """
+    Handle lower priority (Medium/Low) reports by queuing for evaluation.
+    
+    Actions:
+    1. Notify the reporter with standard confirmation
+    2. Notify barangay officials for review
+    3. Add to evaluation queue (standard admin notification)
+    """
+    notifications_sent = 0
+    actions = result['actions_taken']
+    
+    # Priority-specific messaging
+    if priority == 'Medium':
+        status_label = "⚪ MEDIUM PRIORITY"
+    else:
+        status_label = "⚪ LOW PRIORITY"
+    
+    # 1. Notify the reporter (standard confirmation)
+    try:
+        reporter_notification = _create_priority_notification(
+            user_id=reporter_id,
+            report_id=report_id,
+            title="Report Received",
+            message=f'Your report "{report_title}" has been received and is queued for review. Our team will assess and respond accordingly.',
+            notif_type="report_confirmation",
+            priority=priority
+        )
+        if reporter_notification:
+            notifications_sent += 1
+            actions.append("Reporter notified of report submission")
+    except Exception as e:
+        print(f"⚠️ Failed to notify reporter: {e}")
+    
+    # 2. Notify barangay officials (if barangay is specified)
+    try:
+        if barangay:
+            barangay_count = _notify_barangay_for_evaluation(
+                report_id=report_id,
+                report_title=report_title,
+                report_category=report_category,
+                priority=priority,
+                barangay=barangay
+            )
+            notifications_sent += barangay_count
+            actions.append(f"Queued for evaluation by {barangay_count} barangay official(s)")
+    except Exception as e:
+        print(f"⚠️ Failed to queue for barangay evaluation: {e}")
+    
+    # 3. Create evaluation queue entry (admin notification)
+    try:
+        _create_admin_audit_notification(
+            actor_id=actor_id or reporter_id,
+            user_id=reporter_id,
+            report_id=report_id,
+            title=f"{status_label} - Queued for Evaluation",
+            type_label="evaluation_queue",
+            message=f'Report "{report_title}" ({report_category}) added to evaluation queue. Priority: {priority}. Location: {barangay or "Unknown"}. Awaiting assessment.',
+            priority=priority
+        )
+        actions.append("Added to evaluation queue")
+    except Exception as e:
+        print(f"⚠️ Failed to create evaluation queue entry: {e}")
+    
+    result['notifications_sent'] = notifications_sent
+    result['actions_taken'] = actions
+    
+    print(f"📋 Evaluation queue report processed: {notifications_sent} notifications sent, {len(actions)} actions taken")
+    return result
+
+
+def _create_priority_notification(user_id, report_id, title, message, notif_type, priority):
+    """
+    Create a notification with priority context.
+    """
+    if not user_id:
+        return None
+    
+    try:
+        res = supabase.table("notifications").insert({
+            "user_id": user_id,
+            "report_id": report_id,
+            "title": title,
+            "type": notif_type,
+            "message": message,
+            "is_read": False,
+            "created_at": datetime.now(timezone.utc).isoformat()
+        }).execute()
+        
+        inserted = getattr(res, "data", []) or []
+        return inserted[0] if inserted else None
+    except Exception as e:
+        print(f"❌ Failed to create priority notification: {e}")
+        return None
+
+
+def _notify_all_admins_urgent(report_id, report_title, report_category, priority, 
+                               barangay, description, reporter_id, actor_id):
+    """
+    Send urgent notifications to all admin users.
+    """
+    count = 0
+    try:
+        # Get all admin users
+        admin_resp = supabase.table("users").select("id, firstname, lastname, email").eq("role", "Admin").execute()
+        admins = getattr(admin_resp, "data", []) or []
+        
+        for admin in admins:
+            admin_id = admin.get('id')
+            if not admin_id:
+                continue
+            
+            # Create admin_notifications entry for urgent alert
+            try:
+                priority_emoji = "🔴" if priority == "Critical" else "🟠"
+                supabase.table("admin_notifications").insert({
+                    "actor_id": actor_id,
+                    "user_id": reporter_id,
+                    "report_id": report_id,
+                    "title": f"{priority_emoji} {priority.upper()} ALERT",
+                    "type": "high_risk_alert",
+                    "message": f'URGENT: {priority} priority report "{report_title}" ({report_category}) requires immediate attention. Location: {barangay or "Unknown"}.',
+                    "is_read": False,
+                    "created_at": datetime.now(timezone.utc).isoformat()
+                }).execute()
+                count += 1
+            except Exception as admin_err:
+                print(f"⚠️ Failed to notify admin {admin_id}: {admin_err}")
+        
+    except Exception as e:
+        print(f"❌ Failed to fetch admins: {e}")
+    
+    return count
+
+
+def _notify_barangay_officials_urgent(report_id, report_title, report_category, priority, barangay, description):
+    """
+    Send urgent notifications to barangay officials in the affected area.
+    """
+    count = 0
+    try:
+        # Get barangay officials for this barangay
+        officials_resp = supabase.table("users").select("id, firstname, lastname").eq("role", "Barangay Official").eq("barangay", barangay).execute()
+        officials = getattr(officials_resp, "data", []) or []
+        
+        for official in officials:
+            official_id = official.get('id')
+            if not official_id:
+                continue
+            
+            try:
+                priority_emoji = "🔴" if priority == "Critical" else "🟠"
+                supabase.table("notifications").insert({
+                    "user_id": official_id,
+                    "report_id": report_id,
+                    "title": f"{priority_emoji} URGENT: {priority} Report in {barangay}",
+                    "type": "urgent_barangay_alert",
+                    "message": f'{priority.upper()} PRIORITY: Report "{report_title}" ({report_category}) requires immediate response in your barangay.',
+                    "is_read": False,
+                    "created_at": datetime.now(timezone.utc).isoformat()
+                }).execute()
+                count += 1
+            except Exception as off_err:
+                print(f"⚠️ Failed to notify barangay official {official_id}: {off_err}")
+        
+    except Exception as e:
+        print(f"❌ Failed to fetch barangay officials: {e}")
+    
+    return count
+
+
+def _notify_responders_urgent(report_id, report_title, report_category, priority, barangay):
+    """
+    Send urgent notifications to available responders.
+    """
+    count = 0
+    try:
+        # Get responders (optionally filter by barangay if needed)
+        responders_resp = supabase.table("users").select("id, firstname, lastname").eq("role", "Responder").execute()
+        responders = getattr(responders_resp, "data", []) or []
+        
+        for responder in responders:
+            responder_id = responder.get('id')
+            if not responder_id:
+                continue
+            
+            try:
+                priority_emoji = "🔴" if priority == "Critical" else "🟠"
+                supabase.table("notifications").insert({
+                    "user_id": responder_id,
+                    "report_id": report_id,
+                    "title": f"{priority_emoji} URGENT DISPATCH: {priority} Incident",
+                    "type": "urgent_responder_alert",
+                    "message": f'{priority.upper()} INCIDENT: "{report_title}" ({report_category}) at {barangay or "Unknown location"}. Immediate response required.',
+                    "is_read": False,
+                    "created_at": datetime.now(timezone.utc).isoformat()
+                }).execute()
+                count += 1
+            except Exception as resp_err:
+                print(f"⚠️ Failed to notify responder {responder_id}: {resp_err}")
+        
+    except Exception as e:
+        print(f"❌ Failed to fetch responders: {e}")
+    
+    return count
+
+
+def _notify_barangay_for_evaluation(report_id, report_title, report_category, priority, barangay):
+    """
+    Notify barangay officials about a report queued for evaluation.
+    """
+    count = 0
+    try:
+        officials_resp = supabase.table("users").select("id").eq("role", "Barangay Official").eq("barangay", barangay).execute()
+        officials = getattr(officials_resp, "data", []) or []
+        
+        for official in officials:
+            official_id = official.get('id')
+            if not official_id:
+                continue
+            
+            try:
+                supabase.table("notifications").insert({
+                    "user_id": official_id,
+                    "report_id": report_id,
+                    "title": f"New Report for Review - {barangay}",
+                    "type": "evaluation_request",
+                    "message": f'Report "{report_title}" ({report_category}) submitted in your barangay. Priority: {priority}. Please assess and take appropriate action.',
+                    "is_read": False,
+                    "created_at": datetime.now(timezone.utc).isoformat()
+                }).execute()
+                count += 1
+            except Exception as off_err:
+                print(f"⚠️ Failed to notify barangay official for evaluation: {off_err}")
+        
+    except Exception as e:
+        print(f"❌ Failed to queue for barangay evaluation: {e}")
+    
+    return count
+
+
+def _create_admin_audit_notification(actor_id, user_id, report_id, title, type_label, message, priority):
+    """
+    Create an admin audit trail notification.
+    """
+    try:
+        supabase.table("admin_notifications").insert({
+            "actor_id": actor_id,
+            "user_id": user_id,
+            "report_id": report_id,
+            "title": title,
+            "type": type_label,
+            "message": message,
+            "is_read": False,
+            "created_at": datetime.now(timezone.utc).isoformat()
+        }).execute()
+        return True
+    except Exception as e:
+        print(f"❌ Failed to create admin audit notification: {e}")
+        return False
+
+
+def trigger_priority_response(report_data, actor_id=None):
+    """
+    Convenience function to trigger priority-based response from a report object.
+    Call this when a new report is created or when priority is updated.
+    
+    Args:
+        report_data: dict containing report fields:
+            - id: Report UUID
+            - title: Report title
+            - category: Report category
+            - user_id: Reporter's user ID
+            - address_barangay / barangay: Location
+            - description: Report description
+            - ai_priority / priority: Priority level (if available)
+            - ai_priority_score / priority_score: Priority score (if available)
+        actor_id: ID of the user/system triggering this
+    
+    Returns:
+        dict: Result from process_report_by_priority()
+    """
+    return process_report_by_priority(
+        report_id=report_data.get('id'),
+        report_title=report_data.get('title', 'Untitled Report'),
+        report_category=report_data.get('category', 'Others'),
+        reporter_id=report_data.get('user_id'),
+        priority=report_data.get('ai_priority') or report_data.get('priority'),
+        priority_score=report_data.get('ai_priority_score') or report_data.get('priority_score'),
+        barangay=report_data.get('address_barangay') or report_data.get('barangay'),
+        actor_id=actor_id,
+        description=report_data.get('description')
+    )

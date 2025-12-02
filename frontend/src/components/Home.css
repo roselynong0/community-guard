@@ -63,8 +63,8 @@
 }
 
 .stat-card:hover {
-  transform: translateX(-6px);
   box-shadow: var(--shadow-2);
+  /* No transform - keep cards static on hover */
 }
 
 /* Stat card variations based on content */

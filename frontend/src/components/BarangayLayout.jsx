@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import {
   FaHome,
   FaSignOutAlt,
@@ -9,11 +9,13 @@ import {
   FaUsers,
   FaBell,
   FaChartLine,
+  FaArchive,
 } from "react-icons/fa";
 import { Outlet, NavLink, useNavigate } from "react-router-dom";
 import { API_CONFIG, getApiUrl } from "../utils/apiConfig";
-import { logout } from "../utils/session";
+import { logout, handleSessionExpired, isSessionExpired } from "../utils/session";
 import Toast from "./Toast";
+import ChatBot from "./ChatBot";
 import { registerToastCallback, registerNotificationCountCallback, startNotificationPolling, stopNotificationPolling } from "../utils/notificationService";
 import "./Layout.css";
 import logo from "../assets/logo.png";
@@ -30,10 +32,47 @@ function BarangayLayout({ session, setSession, setNotification }) {
   });
   const [loading, setLoading] = useState(true);
   const [notificationCount, setNotificationCount] = useState(0);
+  const [showChatBot, setShowChatBot] = useState(false);
+  const [autoEvaluationTrigger, setAutoEvaluationTrigger] = useState(false);
   const toastRef = useRef(null);
   const pollingIntervalRef = useRef(null);
+  const logoutConfirmBtnRef = useRef(null);
+  const hasCheckedEvaluations = useRef(false);
 
   const navigate = useNavigate();
+
+  // Check for new AI evaluations (for Barangay Officials)
+  const checkForNewEvaluations = useCallback(async () => {
+    if (!session?.token || hasCheckedEvaluations.current) return;
+    
+    try {
+      const res = await fetch(getApiUrl('/api/chat/check-new-evaluations'), {
+        headers: { Authorization: `Bearer ${session.token}` },
+      });
+      
+      if (res.ok) {
+        const data = await res.json();
+        
+        if (data.should_notify && data.has_new_evaluations) {
+          hasCheckedEvaluations.current = true;
+          
+          // Auto-open chatbot with evaluation prompt for officials
+          setAutoEvaluationTrigger(true);
+          setShowChatBot(true);
+          
+          // Show toast notification
+          if (toastRef.current) {
+            toastRef.current.show(
+              `🤖 AI found ${data.count} new report(s) to evaluate - Check Community Helper`,
+              'info'
+            );
+          }
+        }
+      }
+    } catch (e) {
+      console.warn('Error checking for new evaluations:', e);
+    }
+  }, [session?.token]);
 
   // Fetch barangay official profile if session exists
   useEffect(() => {
@@ -47,16 +86,21 @@ function BarangayLayout({ session, setSession, setNotification }) {
         const res = await fetch(getApiUrl(API_CONFIG.endpoints.profile), {
           headers: { Authorization: `Bearer ${session.token}` },
         });
+        
+        // Check for session expiration (401/403)
+        if (isSessionExpired(res)) {
+          handleSessionExpired(setSession, setNotification, navigate, 'barangay');
+          setUser(null);
+          return;
+        }
+        
         const data = await res.json();
         
         if (!res.ok || data.status !== "success") {
           console.error("Profile fetch failed:", data);
-          if (res.status === 401) {
-            // Only logout on authentication errors
-            setSession(null);
-            setUser(null);
-            navigate("/login");
-          }
+          handleSessionExpired(setSession, setNotification, navigate, 'barangay', 'Your session is no longer valid. Please log in again to continue.');
+          setUser(null);
+          return;
         } else {
           if (data.profile?.role !== "Barangay Official") {
             setSession(null);
@@ -65,7 +109,7 @@ function BarangayLayout({ session, setSession, setNotification }) {
               message: "Access denied. Barangay Official privileges required.",
               type: "error",
             });
-            navigate("/login");
+            navigate("/login?role=barangay");
             return;
           }
           setUser({
@@ -84,6 +128,29 @@ function BarangayLayout({ session, setSession, setNotification }) {
     
     loadProfile();
   }, [session, setSession, setNotification, navigate]);
+
+  // Check for AI evaluations after user profile is loaded
+  useEffect(() => {
+    if (user && session?.token && !hasCheckedEvaluations.current) {
+      // Small delay to not overwhelm initial load
+      const timer = setTimeout(() => {
+        checkForNewEvaluations();
+      }, 2000);
+      return () => clearTimeout(timer);
+    }
+  }, [user, session?.token, checkForNewEvaluations]);
+
+  // Handle evaluation completion callback
+  const handleEvaluationComplete = (approvalResult) => {
+    if (approvalResult?.approved_count > 0) {
+      if (toastRef.current) {
+        toastRef.current.show(
+          `✅ Auto-approved ${approvalResult.approved_count} HIGH/CRITICAL report(s)`,
+          'success'
+        );
+      }
+    }
+  };
 
   // 🔹 Setup real-time notifications via SSE for barangay official
   useEffect(() => {
@@ -129,6 +196,16 @@ function BarangayLayout({ session, setSession, setNotification }) {
     return () => clearInterval(interval);
   }, []);
 
+  // Focus confirm button when logout modal opens (match Layout.jsx behavior)
+  useEffect(() => {
+    if (showLogoutConfirm) {
+      const t = setTimeout(() => {
+        try { logoutConfirmBtnRef.current?.focus(); } catch { /* noop */ }
+      }, 60);
+      return () => clearTimeout(t);
+    }
+  }, [showLogoutConfirm]);
+
   const formattedDateTime = dateTime.toLocaleString("en-US", {
     weekday: "long",
     month: "short",
@@ -141,21 +218,22 @@ function BarangayLayout({ session, setSession, setNotification }) {
   });
 
   const handleLogout = async () => {
+    // Close the modal first
     setShowLogoutConfirm(false);
-    
+
     // Capture user name before clearing
     const userName = user?.firstname || "user";
-    
-    // Use the same logout utility as Layout.jsx
+
+    // Use the shared logout utility
     await logout(setSession);
     setUser(null);
-    
+
     setNotification({
       message: `Barangay Official ${userName} logged out successfully`,
       type: "success",
     });
-    
-    navigate("/login");
+
+    navigate("/login?role=barangay");
   };
 
   if (loading) {
@@ -199,6 +277,9 @@ function BarangayLayout({ session, setSession, setNotification }) {
             <NavLink to="/barangay/reports">
               <FaChartLine /> Reports
             </NavLink>
+            <NavLink to="/barangay/archived">
+              <FaArchive /> Archived
+            </NavLink>
             <NavLink to="/barangay/maps">
               <FaMap /> Maps
             </NavLink>
@@ -218,33 +299,11 @@ function BarangayLayout({ session, setSession, setNotification }) {
 
           {/* Logout */}
           <button
-            className="logout-btn admin-logout-btn"
+            className="logout-btn"
             onClick={() => setShowLogoutConfirm(true)}
-            style={{
-              background: "none",
-              border: "none",
-              padding: "0.8rem",
-              color: "#c7c7c7",
-              cursor: "pointer",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              gap: "0.5rem",
-              borderRadius: "8px",
-              transition: "all 0.3s ease",
-              width: "100%",
-            }}
-            onMouseEnter={(e) => {
-              e.target.style.background =
-                "linear-gradient(135deg, #d9534f, #c9302c)";
-              e.target.style.color = "#fff";
-            }}
-            onMouseLeave={(e) => {
-              e.target.style.background = "none";
-              e.target.style.color = "#c7c7c7";
-            }}
+            aria-label="Sign Out"
           >
-            <FaSignOutAlt /> Logout
+            <FaSignOutAlt /> Sign Out
           </button>
         </aside>
       )}
@@ -370,12 +429,18 @@ function BarangayLayout({ session, setSession, setNotification }) {
         <FaSignOutAlt />
       </div>
 
-      {/* Logout confirmation modal */}
+      {/* Logout confirmation modal (shared design with Layout.jsx) */}
       {showLogoutConfirm && (
         <div className="modal-overlay">
-          <div className="modal">
-            <h3>Confirm Logout</h3>
-            <p>Are you sure you want to log out?</p>
+          <div
+            className="modal logout-confirm"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="logout-title"
+            aria-describedby="logout-desc"
+          >
+            <h3 id="logout-title">Confirm Sign Out</h3>
+            <p id="logout-desc">You're about to sign out of your Community Guard account. Don’t worry, you can always sign back in whenever you need to.</p>
             <div className="modal-actions">
               <button
                 onClick={() => setShowLogoutConfirm(false)}
@@ -383,12 +448,32 @@ function BarangayLayout({ session, setSession, setNotification }) {
               >
                 Cancel
               </button>
-              <button onClick={handleLogout} className="confirm-btn">
-                Logout
+              <button
+                ref={logoutConfirmBtnRef}
+                onClick={handleLogout}
+                className="confirm-btn"
+                aria-label="Confirm sign out"
+              >
+                <FaSignOutAlt style={{ marginRight: 8 }} /> Sign Out
               </button>
             </div>
           </div>
         </div>
+      )}
+
+      {/* ChatBot Component with AI Evaluation - Premium feature for Officials */}
+      {session?.token && (
+        <ChatBot 
+          isOpen={showChatBot} 
+          onClose={() => {
+            setShowChatBot(false);
+            setAutoEvaluationTrigger(false);
+          }}
+          token={session.token}
+          isPremium={true}
+          autoEvaluationTrigger={autoEvaluationTrigger}
+          onEvaluationComplete={handleEvaluationComplete}
+        />
       )}
     </div>
   );

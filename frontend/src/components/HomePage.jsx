@@ -677,7 +677,7 @@ const HomePage = () => {
                     <div className="footer-column">
                         <h3>Stay Connected</h3>
                         <ul>
-                            <li><Link to="/login">Admin Console</Link></li>
+                            <li><Link to="/login?role=admin">Admin Console</Link></li>
                             <li><Link to="/register">Create Community</Link></li>
                             <li><a href="#overview">Platform Tour</a></li>
                             <li><a href="#faq">FAQs</a></li>

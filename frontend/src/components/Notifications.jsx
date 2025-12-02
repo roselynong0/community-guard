@@ -10,7 +10,9 @@ import {
   FaSync,       
   FaCheck,      
   FaTrashAlt,
-  FaUserShield    
+  FaUserShield,
+  FaExclamationTriangle,
+  FaBell
 } from 'react-icons/fa';
 
 import { getApiUrl } from "../utils/apiConfig";
@@ -22,6 +24,17 @@ import LoadingScreen from "./LoadingScreen";
 const getFinalNotificationType = (n) => {
     const textContext = String(n.title || '') + ' ' + String(n.message || '') + ' ' + String(n.type || '');
     const normalizedText = textContext.trim().toLowerCase();
+    const notifType = String(n.type || '').toLowerCase();
+
+    // Emergency alerts - highest priority detection
+    if (notifType === 'urgent_emergency' || notifType === 'emergency_alert' || notifType === 'emergency_report') {
+        return 'emergency';
+    }
+    
+    // Check for emergency keywords
+    if (normalizedText.includes('emergency alert') || normalizedText.includes('🚨') || normalizedText.includes('community alert')) {
+        return 'emergency';
+    }
 
     // Report/post deletion should be detected first
     if (normalizedText.includes('report deleted') || normalizedText.includes('post deleted') || (normalizedText.includes('deleted') && (normalizedText.includes('report') || normalizedText.includes('post')))) {
@@ -60,6 +73,13 @@ const getNotificationIcon = (type) => {
     case 'complete': 
       return <FaCheckCircle className="icon icon-success" />;
     
+    // Emergency alert icons
+    case 'emergency':
+    case 'urgent_emergency':
+    case 'emergency_alert':
+    case 'emergency_report':
+      return <FaBell className="icon icon-emergency" />;
+
     // ✅ NEW CASE FOR ACCOUNT/VERIFICATION ALERTS
     case 'account_alert':
     case 'security':

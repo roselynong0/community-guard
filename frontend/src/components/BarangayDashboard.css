@@ -114,3 +114,30 @@
     opacity: 1;
   }
 }
+
+/* Override hover styles for Barangay dashboard: shadow-only, no transform */
+.stat-card:hover {
+  transform: none !important;
+  box-shadow: var(--shadow-2);
+  /* No color change on hover */
+}
+
+.reports-chart .recharts-surface .recharts-pie-sector:hover {
+  transform: none !important;
+  transition: none !important;
+}
+
+/* Simple tab styles used in the section-card */
+.tab-active {
+  background: var(--accent-primary);
+  color: white;
+  border: none;
+}
+.tab-inactive {
+  background: transparent;
+  color: var(--muted);
+  border: 1px solid rgba(17,22,62,0.04);
+}
+
+/* Ensure map area stays static */
+.map-section { animation: none !important; }

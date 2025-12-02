@@ -17,8 +17,14 @@ function RoleValidator({ expectedRole, currentRole, onLogout }) {
         onLogout(null);
       }
       
-      // Navigate to login
-      navigate("/login", { replace: true });
+      // Navigate to role-aware login
+      const roleKey =
+        expectedRole === "Admin" ? "admin" :
+        expectedRole === "Barangay Official" ? "barangay" :
+        expectedRole === "Responder" ? "responder" :
+        "resident";
+
+      navigate(`/login?role=${roleKey}`, { replace: true });
     }
   }, [currentRole, expectedRole, navigate, onLogout]);
 

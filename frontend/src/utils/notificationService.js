@@ -252,10 +252,46 @@ const processNewNotifications = (notifications, role) => {
 const generateToastMessage = (notification, role) => {
   const msg = String(notification.message || '').toLowerCase();
   const title = String(notification.title || '').toLowerCase();
+  const notifType = String(notification.type || '').toLowerCase();
   const content = `${title} ${msg}`.trim().toLowerCase();
 
+  // =================================================================
+  // EMERGENCY ALERT HANDLING - Priority over other notification types
+  // =================================================================
+  if (notifType === 'urgent_emergency' || notifType === 'emergency_alert' || notifType === 'emergency_report') {
+    // Extract category from title if possible
+    const originalTitle = notification.title || 'Emergency Alert';
+    const originalMessage = notification.message || 'An incident has been reported in your area.';
+    
+    if (notifType === 'urgent_emergency') {
+      return { 
+        message: `🚨 ${originalTitle}`, 
+        type: 'emergency' 
+      };
+    }
+    return { 
+      message: `📢 ${originalTitle}`, 
+      type: 'warning' 
+    };
+  }
+
+  // Check for emergency keywords in content
+  if (content.includes('emergency alert') || content.includes('🚨')) {
+    return { 
+      message: notification.title || '🚨 Emergency Alert in your area!', 
+      type: 'emergency' 
+    };
+  }
+
+  if (content.includes('community alert') || content.includes('📢')) {
+    return { 
+      message: notification.title || '📢 Community Alert', 
+      type: 'warning' 
+    };
+  }
+
   // Regular User Messages
-  if (!role) {
+  if (!role || role === 'Resident') {
     if (content.includes('report deleted') || content.includes('post deleted')) {
       return { message: '🗑️ Your post had been deleted due to violations!', type: 'deleted' };
     }

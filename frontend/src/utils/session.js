@@ -1,6 +1,86 @@
 // utils/session.js
 import { API_CONFIG, getApiUrl } from './apiConfig';
 
+/**
+ * Handle session expiration - shows notification and logs user out
+ * @param {Function} setSession - State setter for session
+ * @param {Function} setNotification - State setter for notification
+ * @param {Function} navigate - React Router navigate function
+ * @param {string} role - User role for redirect (admin, barangay, responder, or empty for resident)
+ * @param {string} message - Custom message (optional)
+ */
+export function handleSessionExpired(setSession, setNotification, navigate, role = '', message = null) {
+  const defaultMessage = 'Your session has expired. Please log in again to continue using Community Guard.';
+  
+  // Clear local storage
+  localStorage.removeItem("token");
+  localStorage.removeItem("session");
+  sessionStorage.clear();
+  
+  // Set session to null
+  if (setSession) {
+    setSession(null);
+  }
+  
+  // Show notification
+  if (setNotification) {
+    setNotification({
+      message: message || defaultMessage,
+      type: 'error'
+    });
+  }
+  
+  // Navigate to appropriate login page
+  if (navigate) {
+    const loginPath = role ? `/login?role=${role}` : '/login';
+    navigate(loginPath);
+  }
+  
+  console.log('🔐 Session expired - user logged out');
+}
+
+/**
+ * Check if an API response indicates session expiration (401)
+ * @param {Response} response - Fetch response object
+ * @returns {boolean} - True if session expired
+ */
+export function isSessionExpired(response) {
+  return response && (response.status === 401 || response.status === 403);
+}
+
+/**
+ * Wrapper for API calls that handles session expiration automatically
+ * @param {Function} apiCall - Async function that makes the API call
+ * @param {Object} handlers - Object with setSession, setNotification, navigate, role
+ * @returns {Promise} - Result of API call or null if session expired
+ */
+export async function withSessionCheck(apiCall, handlers) {
+  try {
+    const response = await apiCall();
+    
+    if (response && isSessionExpired(response)) {
+      const data = await response.json().catch(() => ({}));
+      const message = data.code === 'SESSION_EXPIRED' 
+        ? 'Your session has expired. Please log in again.'
+        : 'Session invalid. Please log in again.';
+      
+      handleSessionExpired(
+        handlers.setSession,
+        handlers.setNotification,
+        handlers.navigate,
+        handlers.role,
+        message
+      );
+      return null;
+    }
+    
+    return response;
+  } catch (err) {
+    console.error('API call failed:', err);
+    throw err;
+  }
+}
+
 export async function fetchSession() {
   try {
     const token = localStorage.getItem("token");

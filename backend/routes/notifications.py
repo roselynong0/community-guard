@@ -183,10 +183,11 @@ def admin_get_admin_notifications():
     Admin-only endpoint returning only admin_notifications enriched with actor and recipient info
     """
     try:
-        # Verify admin role
+        # Verify admin-type role (Admin, Barangay Official, or Responder)
         current_user_resp = supabase.table("users").select("role").eq("id", request.user_id).single().execute()
         current_user = current_user_resp.data if current_user_resp.data else {}
-        if current_user.get("role") != "Admin":
+        allowed_roles = ("Admin", "Barangay Official", "Responder")
+        if current_user.get("role") not in allowed_roles:
             return jsonify({"status": "error", "message": "Admin access required"}), 403
 
         # Fetch admin notifications (gracefully handle if table doesn't exist)
@@ -688,3 +689,235 @@ def notifications_stream():
             "Connection": "keep-alive"
         }
     )
+
+
+# =============================================================================
+# EMERGENCY ALERT SYSTEM
+# =============================================================================
+
+def create_emergency_alert_for_barangay(report_data, barangay):
+    """
+    Create emergency alert notifications for all users in a specific barangay.
+    
+    Args:
+        report_data: dict containing report info (id, title, category, description, priority)
+        barangay: The barangay to notify (address_barangay)
+    
+    Returns:
+        dict: Result with count of users notified
+    """
+    if not barangay or barangay == "No barangay selected":
+        return {"status": "skipped", "message": "No valid barangay provided", "notified_count": 0}
+    
+    try:
+        # Find all users in this barangay
+        info_resp = supabase.table("info").select("user_id").eq("address_barangay", barangay).execute()
+        barangay_users = getattr(info_resp, "data", []) or []
+        
+        if not barangay_users:
+            return {"status": "success", "message": "No users in barangay", "notified_count": 0}
+        
+        user_ids = [u.get("user_id") for u in barangay_users if u.get("user_id")]
+        
+        # Get the reporter's user_id to exclude them from notifications
+        reporter_id = report_data.get("user_id") or report_data.get("reporter_id")
+        
+        # Filter out the reporter
+        user_ids = [uid for uid in user_ids if str(uid) != str(reporter_id)]
+        
+        if not user_ids:
+            return {"status": "success", "message": "No other users to notify", "notified_count": 0}
+        
+        # Determine alert level and message based on category/priority
+        category = report_data.get("category", "Others")
+        priority = report_data.get("priority", "Medium")
+        title = report_data.get("title", "Untitled Report")
+        
+        # Emergency alert styling based on priority
+        alert_type = "emergency_alert"
+        if priority in ["Critical", "High"] or category in ["Crime", "Hazard", "Fire", "Accident"]:
+            alert_type = "urgent_emergency"
+            alert_title = f"🚨 EMERGENCY ALERT: {category}"
+            alert_message = f"A {priority} priority {category} incident has been reported in {barangay}: '{title}'. Stay alert and take necessary precautions."
+        else:
+            alert_title = f"📢 Community Alert: {category}"
+            alert_message = f"A new {category} report has been submitted in {barangay}: '{title}'. Stay informed about your community."
+        
+        # Create notifications for all users in the barangay
+        notifications_to_insert = []
+        for uid in user_ids:
+            notifications_to_insert.append({
+                "user_id": uid,
+                "title": alert_title,
+                "message": alert_message,
+                "type": alert_type,
+                "report_id": report_data.get("id"),
+                "is_read": False,
+                "created_at": datetime.now(timezone.utc).isoformat()
+            })
+        
+        # Batch insert notifications
+        if notifications_to_insert:
+            supabase.table("notifications").insert(notifications_to_insert).execute()
+        
+        print(f"🚨 Emergency Alert: Notified {len(notifications_to_insert)} users in {barangay}")
+        
+        return {
+            "status": "success",
+            "message": f"Emergency alert sent to {len(notifications_to_insert)} users",
+            "notified_count": len(notifications_to_insert),
+            "barangay": barangay,
+            "alert_type": alert_type
+        }
+        
+    except Exception as e:
+        print(f"❌ Error creating emergency alerts: {e}")
+        return {"status": "error", "message": str(e), "notified_count": 0}
+
+
+def create_admin_emergency_alert(report_data):
+    """
+    Create emergency alert for all admins (no barangay filtering).
+    Admins receive all emergency alerts regardless of location.
+    
+    Args:
+        report_data: dict containing report info
+    
+    Returns:
+        dict: Result with count of admins notified
+    """
+    try:
+        # Find all admins
+        admin_resp = supabase.table("users").select("id").eq("role", "Admin").execute()
+        admins = getattr(admin_resp, "data", []) or []
+        
+        if not admins:
+            return {"status": "success", "message": "No admins to notify", "notified_count": 0}
+        
+        admin_ids = [a.get("id") for a in admins if a.get("id")]
+        
+        category = report_data.get("category", "Others")
+        priority = report_data.get("priority", "Medium")
+        title = report_data.get("title", "Untitled Report")
+        barangay = report_data.get("address_barangay") or report_data.get("barangay") or "Unknown"
+        
+        # All admin alerts are treated as high priority
+        alert_title = f"🚨 NEW REPORT: {category} in {barangay}"
+        alert_message = f"Priority: {priority} | '{title}' reported in {barangay}. Immediate review recommended."
+        
+        # Create admin notifications
+        admin_notifications = []
+        for admin_id in admin_ids:
+            admin_notifications.append({
+                "user_id": admin_id,
+                "actor_id": report_data.get("user_id"),
+                "report_id": report_data.get("id"),
+                "title": alert_title,
+                "message": alert_message,
+                "type": "emergency_report",
+                "is_read": False,
+                "created_at": datetime.now(timezone.utc).isoformat()
+            })
+        
+        # Insert into admin_notifications table
+        if admin_notifications:
+            try:
+                supabase.table("admin_notifications").insert(admin_notifications).execute()
+            except Exception as e:
+                print(f"⚠️ admin_notifications insert failed, trying notifications table: {e}")
+                # Fallback to regular notifications table
+                for notif in admin_notifications:
+                    del notif["actor_id"]  # Remove actor_id for regular notifications table
+                supabase.table("notifications").insert(admin_notifications).execute()
+        
+        print(f"🚨 Admin Alert: Notified {len(admin_notifications)} admins about report in {barangay}")
+        
+        return {
+            "status": "success",
+            "message": f"Admin alert sent to {len(admin_notifications)} admins",
+            "notified_count": len(admin_notifications)
+        }
+        
+    except Exception as e:
+        print(f"❌ Error creating admin emergency alerts: {e}")
+        return {"status": "error", "message": str(e), "notified_count": 0}
+
+
+def trigger_emergency_alerts(report_data):
+    """
+    Main function to trigger emergency alerts for a new report.
+    
+    1. Notifies all users in the same barangay as the report
+    2. Notifies all admins (regardless of barangay)
+    
+    Args:
+        report_data: dict containing report info
+    
+    Returns:
+        dict: Combined result of all notifications
+    """
+    barangay = report_data.get("address_barangay") or report_data.get("barangay")
+    
+    results = {
+        "barangay_alerts": None,
+        "admin_alerts": None,
+        "total_notified": 0
+    }
+    
+    # 1. Notify users in the same barangay
+    if barangay and barangay != "No barangay selected":
+        results["barangay_alerts"] = create_emergency_alert_for_barangay(report_data, barangay)
+        results["total_notified"] += results["barangay_alerts"].get("notified_count", 0)
+    
+    # 2. Notify all admins (no barangay filtering)
+    results["admin_alerts"] = create_admin_emergency_alert(report_data)
+    results["total_notified"] += results["admin_alerts"].get("notified_count", 0)
+    
+    print(f"🔔 Emergency Alerts Complete: {results['total_notified']} total notifications sent")
+    
+    return results
+
+
+@notifications_bp.route("/emergency-alerts/trigger", methods=["POST"])
+@token_required
+def trigger_emergency_alert_endpoint():
+    """
+    Manual endpoint to trigger emergency alerts for a report.
+    Only accessible by Admin, Barangay Official, or the report creator.
+    """
+    user_id = request.user_id
+    
+    try:
+        data = request.get_json() or {}
+        report_id = data.get("report_id")
+        
+        if not report_id:
+            return jsonify({"status": "error", "message": "report_id is required"}), 400
+        
+        # Fetch the report
+        report_resp = supabase.table("reports").select("*").eq("id", report_id).single().execute()
+        report = getattr(report_resp, "data", None)
+        
+        if not report:
+            return jsonify({"status": "error", "message": "Report not found"}), 404
+        
+        # Check authorization
+        user_resp = supabase.table("users").select("role").eq("id", user_id).single().execute()
+        user_role = getattr(user_resp, "data", {}).get("role", "Resident")
+        
+        # Allow report creator, admins, or barangay officials
+        if str(report.get("user_id")) != str(user_id) and user_role not in ["Admin", "Barangay Official"]:
+            return jsonify({"status": "error", "message": "Unauthorized"}), 403
+        
+        # Trigger emergency alerts
+        results = trigger_emergency_alerts(report)
+        
+        return jsonify({
+            "status": "success",
+            "message": f"Emergency alerts sent to {results['total_notified']} users",
+            "results": results
+        }), 200
+        
+    except Exception as e:
+        print(f"Error in trigger_emergency_alert_endpoint: {e}")
+        return jsonify({"status": "error", "message": str(e)}), 500

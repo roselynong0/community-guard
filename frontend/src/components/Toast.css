@@ -91,6 +91,34 @@
   border-left: 4px solid #20c997;
 }
 
+/* Emergency Alert variant - urgent red pulsing style */
+.toast-emergency {
+  background: linear-gradient(135deg, #c0392b 0%, #e74c3c 100%);
+  color: #fff;
+  border-left: 4px solid #a93226;
+  animation: slideIn 0.3s ease-out, emergencyPulse 1.5s ease-in-out infinite;
+  box-shadow: 0 4px 20px rgba(231, 76, 60, 0.4);
+}
+
+@keyframes emergencyPulse {
+  0%, 100% {
+    box-shadow: 0 4px 20px rgba(231, 76, 60, 0.4);
+  }
+  50% {
+    box-shadow: 0 4px 30px rgba(231, 76, 60, 0.7);
+  }
+}
+
+.toast-emergency .toast-icon {
+  animation: shake 0.5s ease-in-out;
+}
+
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  25% { transform: translateX(-3px); }
+  75% { transform: translateX(3px); }
+}
+
 .toast-content {
   display: flex;
   align-items: center;

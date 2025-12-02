@@ -4,6 +4,8 @@ Uses postgrest directly to avoid auth client compatibility issues
 """
 import os
 import time
+import requests
+from types import SimpleNamespace
 from postgrest import SyncPostgrestClient
 from config import Config
 
@@ -57,6 +59,38 @@ try:
                                 "Check your internet connection or firewall settings."
                             ) from e
                         raise
+
+        def rpc(self, fn_name, params=None):
+            """Call a Postgres function via Supabase REST RPC endpoint.
+
+            Returns a SimpleNamespace with a `data` attribute (list or object) to
+            match the minimal interface expected by route handlers.
+            """
+            params = params or {}
+            # Prefer using the postgrest client if it exposes rpc
+            try:
+                client = self._get_client()
+                if hasattr(client, 'rpc'):
+                    resp = client.rpc(fn_name, params)
+                    # postgrest client typically returns an object we can read
+                    return resp
+            except Exception:
+                # Fall through to direct HTTP call
+                pass
+
+            # Fallback: call REST RPC endpoint directly
+            url = f"{self.rest_url}/rpc/{fn_name}"
+            headers = self.headers.copy()
+            try:
+                r = requests.post(url, headers=headers, json=params, timeout=10)
+                r.raise_for_status()
+                try:
+                    data = r.json()
+                except ValueError:
+                    data = None
+                return SimpleNamespace(data=data, status_code=r.status_code, text=r.text)
+            except Exception as e:
+                raise
     
     supabase = SimpleSupabaseClient(Config.SUPABASE_URL, Config.SUPABASE_KEY)
     print("✅ Supabase client initialized successfully (direct PostgreSQL mode)")

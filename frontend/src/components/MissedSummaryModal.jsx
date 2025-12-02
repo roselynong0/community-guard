@@ -146,12 +146,14 @@ export default function MissedSummaryModal({ open, onClose, data, onProceed, sho
                   <div className="chart-card">
                     <h4>By Category</h4>
                     <div className="category-scroller" role="list">
-                      {categoryEntries.map(([k,v], i)=> (
-                        <div key={k} className="category-card" role="listitem">
-                          <div className="category-name">{k}</div>
-                          <div className="category-count">{v}</div>
-                        </div>
-                      ))}
+                      {categoryEntries.map(([k,v])=> {
+                        return (
+                          <div key={k} className="category-card" role="listitem">
+                            <div className="category-name">{k}</div>
+                            <div className="category-count">{v}</div>
+                          </div>
+                        );
+                      })}
                     </div>
                   </div>
                 ) : null}
@@ -183,7 +185,7 @@ export default function MissedSummaryModal({ open, onClose, data, onProceed, sho
             } else {
               onClose();
             }
-          }}>{showProceedAsNext ? 'Next →' : 'Continue to dashboard'}</button>
+          }}>{showProceedAsNext ? 'Continue' : 'Continue to Dashboard'}</button>
         </footer>
       </div>
     </div>

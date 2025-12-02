@@ -43,13 +43,122 @@ class IncidentCategorizer:
         'lostfound': 'Lost&Found',  # Lost & Found -> Lost&Found
     }
 
-    # Severity mapping for frontend display (used for highlight colors)
-    CATEGORY_SEVERITY = {
-        'Crime': 'critical',        # Red: violence, harassment, theft, vandalism
-        'Hazard': 'high',           # Orange: fire, flood, accidents
-        'Concern': 'medium',        # Gray: suspicious, general concerns
-        'Lost&Found': 'low',        # Gray: lost items
-        'Others': 'low',            # Gray: others
+    # Enhanced priority mapping with numeric scores for precise ranking
+    # Score: 1-10 scale where 10 = most critical/urgent
+    # Priority values are CAPITALIZED to match frontend filter options exactly
+    CATEGORY_PRIORITY = {
+        'Crime': {'level': 'Critical', 'score': 10, 'color': '#c0392b', 'label': '🔴 Critical'},
+        'Hazard': {'level': 'High', 'score': 8, 'color': '#d35400', 'label': '🟠 High'},
+        'Concern': {'level': 'Medium', 'score': 5, 'color': '#95a5a6', 'label': '⚪ Medium'},
+        'Lost&Found': {'level': 'Low', 'score': 2, 'color': '#95a5a6', 'label': '⚪ Low'},
+        'Others': {'level': 'Low', 'score': 1, 'color': '#95a5a6', 'label': '⚪ Low'},
+    }
+    
+    # Sub-category priority modifiers (adjusts base priority score)
+    # Positive = higher priority, Negative = lower priority
+    SUBCATEGORY_PRIORITY_MODIFIERS = {
+        'violence': 2,      # Violence is most critical crime
+        'theft': 0,         # Standard crime severity
+        'harassment': -1,   # Slightly less urgent than physical crimes
+        'vandalism': -2,    # Property crime, lower priority
+        'fire': 2,          # Fire is most critical hazard
+        'flood': 1,         # Flood is high priority
+        'hazard': 0,        # Standard hazard
+        'accident': 1,      # Accidents need quick response
+        'suspicious': 0,    # Standard concern
+        'lostfound': 0,     # Standard low priority
+        'other': 0,         # Baseline
+    }
+
+    # Enhanced weighted keywords with urgency indicators
+    # critical = 5 points (life-threatening), high = 4 points, medium = 2 points, low = 1 point
+    WEIGHTED_KEYWORDS = {
+        'theft': {
+            'critical': ['armed robbery', 'robbery at gunpoint', 'holdup', 'kidnapping', 'carjacking', 'home invasion'],
+            'high': ['robbery', 'burglary', 'carnapping', 'mugging', 'heist', 'break-in', 'forced entry'],
+            'medium': ['stolen', 'steal', 'stole', 'theft', 'robbed', 'snatching', 'pickpocket', 'shoplifting', 'took my'],
+            'low': ['intruder', 'trespassing', 'missing items', 'items gone', 'belongings missing']
+        },
+        'fire': {
+            'critical': ['building on fire', 'house fire', 'trapped in fire', 'explosion', 'gas explosion', 'inferno', 'engulfed'],
+            'high': ['fire', 'blaze', 'ablaze', 'burning building', 'fire spreading', 'flames everywhere'],
+            'medium': ['smoke', 'burning', 'flames', 'combustion', 'on fire', 'fire alarm', 'smell of burning'],
+            'low': ['smoldering', 'spark', 'overheating', 'electrical smell']
+        },
+        'flood': {
+            'critical': ['flash flood', 'people stranded', 'cars submerged', 'rising water level', 'flood emergency'],
+            'high': ['flood', 'flooding', 'deluge', 'inundated', 'severe flooding', 'water rising fast'],
+            'medium': ['waterlogged', 'submerged', 'overflow', 'water rising', 'heavy rain flooding'],
+            'low': ['water damage', 'wet floor', 'puddle', 'drainage issue', 'minor flooding']
+        },
+        'accident': {
+            'critical': ['fatal accident', 'multiple casualties', 'hit and run', 'pedestrian hit', 'serious collision', 'unconscious'],
+            'high': ['car crash', 'collision', 'vehicular accident', 'motorcycle accident', 'major accident', 'severely injured'],
+            'medium': ['accident', 'crash', 'injured', 'wounded', 'emergency', 'wreck', 'traffic accident'],
+            'low': ['minor accident', 'fender bender', 'traffic incident', 'slight damage', 'small collision']
+        },
+        'violence': {
+            'critical': ['murder', 'stabbing', 'shooting', 'gunfire', 'killed', 'shot', 'knife attack', 'deadly assault', 'hostage'],
+            'high': ['assault', 'attack', 'beaten', 'physical assault', 'violent attack', 'badly hurt', 'bleeding'],
+            'medium': ['violence', 'fight', 'fighting', 'aggressive', 'struck', 'punched', 'hit someone', 'attacked'],
+            'low': ['altercation', 'confrontation', 'scuffle', 'pushing', 'shoving', 'verbal threat']
+        },
+        'harassment': {
+            'critical': ['sexual assault', 'attempted rape', 'sexual harassment', 'child abuse', 'domestic violence'],
+            'high': ['stalking', 'death threat', 'intimidation', 'severe harassment', 'threatening with weapon'],
+            'medium': ['harassment', 'bullying', 'threatening', 'threat', 'harassed', 'molested', 'following me'],
+            'low': ['pestered', 'annoying', 'unwanted attention', 'rude behavior', 'verbal harassment']
+        },
+        'vandalism': {
+            'critical': ['arson', 'building destroyed', 'vehicle destroyed', 'massive property damage'],
+            'high': ['vandalism', 'destroyed', 'smashed', 'major damage', 'completely wrecked'],
+            'medium': ['graffiti', 'defaced', 'damaged property', 'spray paint', 'broken windows', 'slashed tires'],
+            'low': ['scratched', 'minor damage', 'littering', 'small graffiti', 'minor vandalism']
+        },
+        'suspicious': {
+            'critical': ['suspicious package', 'bomb threat', 'armed person', 'terrorist activity', 'unknown armed individual'],
+            'high': ['suspicious person', 'prowler', 'unknown person lurking', 'watching children', 'casing the area'],
+            'medium': ['suspicious', 'strange', 'loitering', 'trespassing', 'watching', 'following', 'strange behavior'],
+            'low': ['unusual', 'weird', 'unfamiliar person', 'acting odd', 'strange activity']
+        },
+        'hazard': {
+            'critical': ['gas leak', 'electrocution', 'building collapse', 'landslide', 'exposed live wire', 'toxic spill'],
+            'high': ['major pothole', 'dangerous intersection', 'broken infrastructure', 'fallen power line', 'sinkhole'],
+            'medium': ['hazard', 'danger', 'pothole', 'unsafe', 'broken utility', 'road damage'],
+            'low': ['streetlight out', 'minor debris', 'obstruction', 'drainage problem', 'cracked sidewalk']
+        },
+        'lostfound': {
+            'critical': ['lost child', 'missing child', 'missing person', 'missing elderly', 'lost senior citizen'],
+            'high': ['found child', 'found elderly', 'lost pet', 'missing pet', 'found person'],
+            'medium': ['lost', 'found', 'missing', 'wallet', 'phone', 'keys', 'bag', 'dog', 'cat', 'purse'],
+            'low': ['misplaced', 'left behind', 'forgotten item', 'found item']
+        },
+        'other': {
+            'critical': [],
+            'high': [],
+            'medium': ['other', 'misc', 'issue', 'concern', 'general', 'report'],
+            'low': ['help', 'inquiry', 'question', 'request', 'information']
+        }
+    }
+    
+    # Context modifiers that boost confidence when present
+    CONTEXT_BOOSTERS = {
+        'urgency_words': {
+            'words': ['urgent', 'emergency', 'immediately', 'help', 'please help', 'asap', 'right now', 'quickly', 'hurry'],
+            'boost': 0.05
+        },
+        'time_indicators': {
+            'words': ['just happened', 'happening now', 'ongoing', 'currently', 'right now', 'in progress', 'just saw'],
+            'boost': 0.04
+        },
+        'location_specificity': {
+            'words': ['at the', 'near the', 'in front of', 'behind', 'beside', 'corner of', 'intersection', 'street', 'avenue', 'road'],
+            'boost': 0.03
+        },
+        'witness_indicators': {
+            'words': ['i saw', 'i witnessed', 'i noticed', 'we saw', 'someone saw', 'caught on camera', 'cctv', 'video evidence'],
+            'boost': 0.04
+        }
     }
 
     def __init__(self):
@@ -240,6 +349,9 @@ class IncidentCategorizer:
                 'category': str (AI category),
                 'frontend_category': str (mapped frontend category),
                 'confidence': float (0-1),
+                'severity': str (critical/high/medium/low),
+                'severity_score': int (1-10),
+                'severity_label': str (emoji + label),
                 'alternative_categories': list,
                 'method': str ('ml' or 'keyword')
             }
@@ -249,6 +361,13 @@ class IncidentCategorizer:
                 'category': 'other',
                 'frontend_category': 'Others',
                 'confidence': 0.0,
+                'confidence_percent': 0,
+                'priority': 'Low',  # Capitalized for frontend filter match
+                'priority_score': 1,
+                'priority_label': '⚪ Low',
+                'severity': 'low',  # Backward compatibility
+                'severity_score': 1,
+                'severity_label': '⚪ Low',
                 'alternative_categories': [],
                 'method': 'default',
                 'reason': 'Description too short'
@@ -257,15 +376,39 @@ class IncidentCategorizer:
         # Clean and lowercase text
         clean_text = description.lower().strip()
 
+        # Helper to get priority info for a category
+        def get_priority_for_category(ai_cat, frontend_cat):
+            priority_info = self.CATEGORY_PRIORITY.get(frontend_cat, {'level': 'Low', 'score': 1, 'label': '⚪ Low'})
+            priority_modifier = self.SUBCATEGORY_PRIORITY_MODIFIERS.get(ai_cat, 0)
+            adjusted_score = max(1, min(10, priority_info['score'] + priority_modifier))
+            return {
+                'priority': priority_info['level'],  # Capitalized: Critical/High/Medium/Low
+                'priority_score': adjusted_score,
+                'priority_label': priority_info.get('label', '⚪ Low'),
+                # Keep severity for backward compatibility
+                'severity': priority_info['level'].lower(),
+                'severity_score': adjusted_score,
+                'severity_label': priority_info.get('label', '⚪ Low')
+            }
+
         # 1. PHRASE PATTERN DETECTION (highest priority for accuracy)
         # Check multi-word phrases first as they're highly contextual
         for category, phrases in self.phrase_patterns.items():
             for phrase in phrases:
                 if phrase.lower() in clean_text:
+                    frontend_cat = self._map_to_frontend_category(category)
+                    pri = get_priority_for_category(category, frontend_cat)
                     return {
                         'category': category,
-                        'frontend_category': self._map_to_frontend_category(category),
+                        'frontend_category': frontend_cat,
                         'confidence': 0.92,
+                        'confidence_percent': 92,
+                        'priority': pri['priority'],
+                        'priority_score': pri['priority_score'],
+                        'priority_label': pri['priority_label'],
+                        'severity': pri['severity'],
+                        'severity_score': pri['severity_score'],
+                        'severity_label': pri['severity_label'],
                         'alternative_categories': [],
                         'method': 'phrase_pattern',
                         'reason': f'Matched phrase pattern: "{phrase}"'
@@ -276,10 +419,19 @@ class IncidentCategorizer:
         lost_indicators = ['lost', 'found', 'missing', 'lost & found', 'lost and found', 'locate']
         lost_objects = ['wallet', 'phone', 'bag', 'purse', 'keys', 'backpack', 'id', 'passport', 'dog', 'cat', 'keychain']
         if any(ind in clean_text for ind in lost_indicators) and any(obj in clean_text for obj in lost_objects):
+            frontend_cat = self._map_to_frontend_category('lostfound')
+            pri = get_priority_for_category('lostfound', frontend_cat)
             return {
                 'category': 'lostfound',
-                'frontend_category': self._map_to_frontend_category('lostfound'),
+                'frontend_category': frontend_cat,
                 'confidence': 0.95,
+                'confidence_percent': 95,
+                'priority': pri['priority'],
+                'priority_score': pri['priority_score'],
+                'priority_label': pri['priority_label'],
+                'severity': pri['severity'],
+                'severity_score': pri['severity_score'],
+                'severity_label': pri['severity_label'],
                 'alternative_categories': [],
                 'method': 'keyword',
                 'reason': 'Heuristic matched Lost & Found'
@@ -300,10 +452,19 @@ class IncidentCategorizer:
 
         for cat, keywords in heuristics:
             if any(k in clean_text for k in keywords):
+                frontend_cat = self._map_to_frontend_category(cat)
+                pri = get_priority_for_category(cat, frontend_cat)
                 return {
                     'category': cat,
-                    'frontend_category': self._map_to_frontend_category(cat),
+                    'frontend_category': frontend_cat,
                     'confidence': 0.90,
+                    'confidence_percent': 90,
+                    'priority': pri['priority'],
+                    'priority_score': pri['priority_score'],
+                    'priority_label': pri['priority_label'],
+                    'severity': pri['severity'],
+                    'severity_score': pri['severity_score'],
+                    'severity_label': pri['severity_label'],
                     'alternative_categories': [],
                     'method': 'keyword',
                     'reason': f'Heuristic matched {cat}'
@@ -350,10 +511,23 @@ class IncidentCategorizer:
             if num_images > 0:
                 confidence = min(1.0, confidence + (0.1 * num_images))
 
+            # Get priority info for the category
+            frontend_cat = self._map_to_frontend_category(category)
+            priority_info = self.CATEGORY_PRIORITY.get(frontend_cat, {'level': 'Low', 'score': 1, 'label': '⚪ Low'})
+            priority_modifier = self.SUBCATEGORY_PRIORITY_MODIFIERS.get(category, 0)
+            adjusted_priority_score = max(1, min(10, priority_info['score'] + priority_modifier))
+
             return {
                 'category': category,
-                'frontend_category': self._map_to_frontend_category(category),
+                'frontend_category': frontend_cat,
                 'confidence': confidence,
+                'confidence_percent': int(round(confidence * 100)),
+                'priority': priority_info['level'],  # Capitalized for frontend
+                'priority_score': adjusted_priority_score,
+                'priority_label': priority_info.get('label', '⚪ Low'),
+                'severity': priority_info['level'].lower(),  # Backward compatibility
+                'severity_score': adjusted_priority_score,
+                'severity_label': priority_info.get('label', '⚪ Low'),
                 'alternative_categories': alternatives,
                 'method': 'ml',
                 'reason': f'ML model prediction: {confidence:.2%} confidence'
@@ -363,73 +537,222 @@ class IncidentCategorizer:
             return self._keyword_categorize(text, num_images)
 
     def _keyword_categorize(self, text: str, num_images: int = 0) -> Dict[str, any]:
-        """Categorize using keyword matching with weighted scoring"""
-        keyword_scores = {category: 0 for category in self.categories}
-        phrase_scores = {category: 0 for category in self.phrase_patterns}
-
-        # Score each category based on keyword matches (weight: 1 point each)
-        for category, keywords in self.categories.items():
-            for keyword in keywords:
-                if keyword in text:
-                    keyword_scores[category] += 1
-
-        # Score phrase patterns more heavily (weight: 3 points each for better accuracy)
-        for category, phrases in self.phrase_patterns.items():
-            for phrase in phrases:
-                if phrase in text:
-                    phrase_scores[category] += 3
-
-        # Combine scores (phrase + keyword)
-        combined_scores = {}
-        for category in self.categories:
-            combined_scores[category] = keyword_scores.get(category, 0) + phrase_scores.get(category, 0)
-
-        # Find best match
-        if max(combined_scores.values()) > 0:
-            best_category = max(combined_scores, key=combined_scores.get)
-            score_value = combined_scores[best_category]
+        """
+        Advanced categorization using weighted keyword matching with severity scoring.
+        Uses a multi-tier keyword system (critical/high/medium/low) for accurate confidence.
+        """
+        
+        # Calculate word count for description quality assessment
+        word_count = len(text.split())
+        
+        # Quality bonus based on description detail (0-12%)
+        if word_count >= 50:
+            length_bonus = 0.12
+        elif word_count >= 30:
+            length_bonus = 0.08
+        elif word_count >= 15:
+            length_bonus = 0.05
+        elif word_count >= 8:
+            length_bonus = 0.02
+        else:
+            length_bonus = 0.0
+        
+        # Context boost calculation
+        context_boost = 0.0
+        context_matches = []
+        for booster_name, booster_data in self.CONTEXT_BOOSTERS.items():
+            for word in booster_data['words']:
+                if word.lower() in text:
+                    context_boost += booster_data['boost']
+                    context_matches.append(booster_name)
+                    break  # Only count each category once
+        context_boost = min(0.12, context_boost)  # Cap at 12%
+        
+        # Score each category using weighted keywords
+        category_scores = {}
+        category_details = {}
+        
+        for category, weight_groups in self.WEIGHTED_KEYWORDS.items():
+            weighted_score = 0
+            total_possible = 0
+            matched_keywords = []
+            severity_level = 'low'  # Track highest matched severity
             
-            # Confidence calculation: base on weighted score
-            # Phrases are worth more, so max is typically 3+1=4 per hit
-            confidence = min(0.95, 0.4 + (score_value * 0.15))  # Scale 0.4 → 0.95
+            # Critical keywords (weight: 5) - life-threatening situations
+            for kw in weight_groups.get('critical', []):
+                total_possible += 5
+                if kw.lower() in text:
+                    weighted_score += 5
+                    matched_keywords.append(f"[CRITICAL] {kw}")
+                    severity_level = 'critical'
+            
+            # High priority keywords (weight: 4)
+            for kw in weight_groups.get('high', []):
+                total_possible += 4
+                if kw.lower() in text:
+                    weighted_score += 4
+                    matched_keywords.append(f"[HIGH] {kw}")
+                    if severity_level not in ['critical']:
+                        severity_level = 'high'
+            
+            # Medium priority keywords (weight: 2)
+            for kw in weight_groups.get('medium', []):
+                total_possible += 2
+                if kw.lower() in text:
+                    weighted_score += 2
+                    matched_keywords.append(f"[MED] {kw}")
+                    if severity_level not in ['critical', 'high']:
+                        severity_level = 'medium'
+            
+            # Low priority keywords (weight: 1)
+            for kw in weight_groups.get('low', []):
+                total_possible += 1
+                if kw.lower() in text:
+                    weighted_score += 1
+                    matched_keywords.append(f"[LOW] {kw}")
+            
+            # Also check phrase patterns (weight: 6 - highest contextual priority)
+            for phrase in self.phrase_patterns.get(category, []):
+                if phrase.lower() in text:
+                    weighted_score += 6
+                    total_possible += 6
+                    matched_keywords.append(f"[PHRASE] {phrase}")
+                    if severity_level not in ['critical']:
+                        severity_level = 'high'
+            
+            # Calculate raw score (0-1 range based on matches, not total possible)
+            # This rewards having more keyword matches
+            match_count = len(matched_keywords)
+            if match_count > 0:
+                # Score based on quality of matches (weighted score) and quantity
+                raw_score = min(1.0, (weighted_score / max(total_possible, 1)) + (match_count * 0.05))
+            else:
+                raw_score = 0
+            
+            category_scores[category] = raw_score
+            category_details[category] = {
+                'weighted_score': weighted_score,
+                'total_possible': total_possible,
+                'matched': matched_keywords,
+                'match_count': match_count,
+                'severity_level': severity_level
+            }
+        
+        # Find best matching category
+        if max(category_scores.values()) > 0:
+            best_category = max(category_scores, key=category_scores.get)
+            raw_score = category_scores[best_category]
+            details = category_details[best_category]
+            match_count = details['match_count']
+            severity_level = details['severity_level']
+            
+            # Calculate confidence using improved tiered formula
+            # Base confidence depends on severity of matched keywords
+            if severity_level == 'critical':
+                base_confidence = 0.78  # Critical matches start high
+            elif severity_level == 'high':
+                base_confidence = 0.70  # High priority matches
+            elif severity_level == 'medium':
+                base_confidence = 0.62  # Medium matches
+            else:
+                base_confidence = 0.55  # Low priority matches
+            
+            # Keyword quality contribution (up to 15%)
+            keyword_contribution = min(0.15, raw_score * 0.18)
+            
+            # Match quantity bonus (up to 8%)
+            quantity_bonus = min(0.08, match_count * 0.015)
+            
+            # Image evidence bonus (up to 8% for 3+ images)
+            image_bonus = min(0.08, num_images * 0.028)
+            
+            # Calculate final confidence
+            confidence = base_confidence + keyword_contribution + quantity_bonus + length_bonus + context_boost + image_bonus
+            
+            # Apply category-specific adjustments
+            if best_category in ['violence', 'fire']:
+                confidence = min(0.98, confidence + 0.03)  # Boost for most critical
+            elif best_category == 'other':
+                confidence = min(0.72, confidence)  # Cap "other" category confidence
+            
+            # Clamp between 55-98%
+            confidence = max(0.55, min(0.98, confidence))
+            
+            # Get priority info
+            frontend_category = self._map_to_frontend_category(best_category)
+            priority_info = self.CATEGORY_PRIORITY.get(frontend_category, {'level': 'Low', 'score': 1})
+            
+            # Apply subcategory priority modifier
+            priority_modifier = self.SUBCATEGORY_PRIORITY_MODIFIERS.get(best_category, 0)
+            adjusted_priority_score = max(1, min(10, priority_info['score'] + priority_modifier))
+            
+            # Map severity_level to capitalized priority for frontend
+            priority_level_map = {'critical': 'Critical', 'high': 'High', 'medium': 'Medium', 'low': 'Low'}
+            priority_from_matched = priority_level_map.get(severity_level, 'Low')
 
-            # Get alternatives
+            # Get alternative categories
             sorted_categories = sorted(
-                combined_scores.items(),
+                category_scores.items(),
                 key=lambda x: x[1],
                 reverse=True
             )
-            alternatives = [
-                {
-                    'category': cat,
-                    'frontend_category': self._map_to_frontend_category(cat),
-                    'confidence': min(0.95, 0.4 + (score * 0.15))
-                }
-                for cat, score in sorted_categories[1:3]
-                if score > 0
-            ]
-
-            # Boost confidence if images provided
-            if num_images > 0:
-                confidence = min(1.0, confidence + (0.05 * num_images))
+            alternatives = []
+            for cat, score in sorted_categories[1:3]:
+                if score > 0:
+                    alt_details = category_details[cat]
+                    alt_severity = alt_details['severity_level']
+                    if alt_severity == 'critical':
+                        alt_base = 0.75
+                    elif alt_severity == 'high':
+                        alt_base = 0.68
+                    elif alt_severity == 'medium':
+                        alt_base = 0.60
+                    else:
+                        alt_base = 0.55
+                    alt_conf = max(0.55, min(0.90, alt_base + score * 0.15))
+                    alternatives.append({
+                        'category': cat,
+                        'frontend_category': self._map_to_frontend_category(cat),
+                        'confidence': round(alt_conf, 2),
+                        'confidence_percent': int(round(alt_conf * 100))
+                    })
 
             return {
                 'category': best_category,
-                'frontend_category': self._map_to_frontend_category(best_category),
-                'confidence': confidence,
+                'frontend_category': frontend_category,
+                'confidence': round(confidence, 2),
+                'confidence_percent': int(round(confidence * 100)),
+                'priority': priority_from_matched,  # Capitalized for frontend filter
+                'priority_score': adjusted_priority_score,
+                'priority_label': priority_info.get('label', '⚪ Low'),
+                'severity': severity_level,  # Backward compatibility (lowercase)
+                'severity_score': adjusted_priority_score,
+                'severity_label': priority_info.get('label', '⚪ Low'),
                 'alternative_categories': alternatives,
-                'method': 'keyword',
-                'reason': f'Keyword matching: {score_value} scoring points'
+                'method': 'weighted_keyword',
+                'reason': f"Matched {match_count} keywords ({severity_level} priority) with {details['weighted_score']} weighted points",
+                'matched_keywords': details['matched'][:6],  # Return top 6 matched keywords
+                'context_factors': context_matches[:3] if context_matches else []
             }
         else:
             # No keywords matched, default to "other"
+            base_confidence = 0.55 + length_bonus + context_boost + min(0.05, num_images * 0.02)
             return {
                 'category': 'other',
                 'frontend_category': 'Others',
-                'confidence': 0.3,
+                'confidence': round(max(0.55, min(0.68, base_confidence)), 2),
+                'confidence_percent': int(round(max(0.55, min(0.68, base_confidence)) * 100)),
+                'priority': 'Low',  # Capitalized for frontend filter
+                'priority_score': 1,
+                'priority_label': '⚪ Low',
+                'severity': 'low',  # Backward compatibility
+                'severity_score': 1,
+                'severity_label': '⚪ Low',
                 'alternative_categories': [],
                 'method': 'default',
-                'reason': 'No specific keywords matched'
+                'reason': 'No specific keywords matched - categorized as general report',
+                'matched_keywords': [],
+                'context_factors': context_matches[:3] if context_matches else []
             }
 
     def get_category_suggestions(self, partial_text: str) -> list:
@@ -440,7 +763,7 @@ class IncidentCategorizer:
             partial_text (str): Partial incident description
             
         Returns:
-            list: Suggested categories with scores
+            list: Suggested categories with scores and severity
         """
         if len(partial_text) < 3:
             return []
@@ -450,12 +773,24 @@ class IncidentCategorizer:
             {
                 'category': result['category'],
                 'frontend_category': result.get('frontend_category', 'Others'),
-                'confidence': result['confidence']
+                'confidence': result['confidence'],
+                'confidence_percent': result.get('confidence_percent', int(round(result['confidence'] * 100))),
+                'severity': result.get('severity', 'low'),
+                'severity_score': result.get('severity_score', 1),
+                'severity_label': result.get('severity_label', '⚪ Low')
             }
         ]
 
         if result['alternative_categories']:
-            suggestions.extend(result['alternative_categories'][:2])
+            for alt in result['alternative_categories'][:2]:
+                alt['confidence_percent'] = int(round(alt['confidence'] * 100))
+                # Add severity info for alternatives
+                alt_frontend = alt.get('frontend_category', 'Others')
+                alt_severity = self.CATEGORY_SEVERITY.get(alt_frontend, {'level': 'low', 'score': 1, 'label': '⚪ Low'})
+                alt['severity'] = alt_severity['level']
+                alt['severity_score'] = alt_severity['score']
+                alt['severity_label'] = alt_severity.get('label', '⚪ Low')
+                suggestions.append(alt)
 
         return suggestions
 

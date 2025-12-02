@@ -3,10 +3,65 @@ import {
     FaEdit,
     FaTrashAlt,
     FaSearch,
-    FaRedo, FaCheckCircle, FaTimesCircle, FaCheck, FaTimes } from "react-icons/fa";
+    FaRedo, FaCheckCircle, FaTimesCircle, FaCheck, FaTimes,
+    FaSyncAlt, FaClock, FaFileCsv, FaFilePdf, FaThLarge, FaList, FaArchive, FaFileAlt } from "react-icons/fa";
 import { API_CONFIG, getApiUrl } from "../utils/apiConfig";
 import "./Admin-Reports.css";
 const REPORT_STATUSES = ["Pending", "Ongoing", "Resolved"];
+
+// Priority level colors and styling (copied from BarangayReports)
+const PRIORITY_COLORS = {
+    Crime: { borderColor: '#c0392b', bgColor: '#fdedec', priority: 'Critical', label: '🔴 Critical' },
+    Hazard: { borderColor: '#d35400', bgColor: '#fef5e7', priority: 'High', label: '🟠 High' },
+    Concern: { borderColor: '#95a5a6', bgColor: '#ecf0f1', priority: 'Medium', label: '⚪ Medium' },
+    'Lost&Found': { borderColor: '#95a5a6', bgColor: '#ecf0f1', priority: 'Low', label: '⚪ Low' },
+    Others: { borderColor: '#95a5a6', bgColor: '#ecf0f1', priority: 'Low', label: '⚪ Low' },
+};
+
+const getPriorityStyle = (category) => {
+    return PRIORITY_COLORS[category] || PRIORITY_COLORS['Others'];
+};
+
+// Category keywords - kept for reference only, actual confidence is computed by backend AI
+// The backend ml_categorizer.py uses weighted keyword matching for accurate confidence scoring
+const CATEGORY_KEYWORDS = {
+    Crime: ['theft', 'robbery', 'assault', 'violence', 'vandalism'],
+    Hazard: ['fire', 'flood', 'explosion', 'gas leak', 'collapse'],
+    Concern: ['emergency', 'accident', 'suspicious', 'disturbance'],
+    'Lost&Found': ['lost', 'found', 'missing', 'wallet', 'phone'],
+    Others: ['other', 'misc', 'general']
+};
+
+// Fallback confidence computation - only used when backend AI is unavailable
+// The primary confidence comes from backend's weighted keyword matching algorithm
+const computeConfidence = (description = '', numImages = 0) => {
+    // Simple fallback - returns baseline confidence
+    // Real confidence is calculated by backend AI using weighted keyword matching
+    const text = (description || '').toLowerCase().trim();
+    if (!text) return 55;
+    
+    // Basic length and image bonus for fallback
+    const wordCount = text.split(/\s+/).length;
+    const lengthBonus = Math.min(10, Math.floor(wordCount / 5));
+    const imageBonus = Math.min(7, numImages * 2.5);
+    
+    // Base confidence with simple bonuses
+    return Math.max(55, Math.min(75, 58 + lengthBonus + imageBonus));
+};
+
+// Status badge icon helper
+const getStatusIcon = (status) => {
+    switch (status?.toLowerCase()) {
+        case 'pending':
+            return <FaClock aria-hidden="true" />;
+        case 'ongoing':
+            return <FaSyncAlt aria-hidden="true" />;
+        case 'resolved':
+            return <FaCheckCircle aria-hidden="true" />;
+        default:
+            return null;
+    }
+};
 
 // Utility Hook for Modal Accessibility (Focus trap and Esc key)
 const useAriaModal = (isOpen, onClose) => {
@@ -126,12 +181,172 @@ function AdminReports({ token, reportTitle = 'All Community Reports', showTitle 
     const [loading, setLoading] = useState(true);
     const [search, setSearch] = useState("");
     const [category, setCategory] = useState("All");
+    const [priorityFilter, setPriorityFilter] = useState("All");
     const [barangay, setBarangay] = useState("All");
     const [statusFilter, setStatusFilter] = useState("All"); 
     const [sort, setSort] = useState("latest");
+    const [smartSort, setSmartSort] = useState("latest"); // When Smart Filter active, controls date ordering for smart mode
     const [previewImage, setPreviewImage] = useState(null);
     const [notification, setNotification] = useState(null);
     const [highlightedReportId, setHighlightedReportId] = useState(null);
+    const [viewMode, setViewMode] = useState("card"); // "card" or "list" view
+    // Smart Filter states (copied from BarangayReports)
+    const [showSmartFilter, setShowSmartFilter] = useState(false);
+    const [aiUsagePercent, setAiUsagePercent] = useState(0);
+    const [timeRemainingHMS, setTimeRemainingHMS] = useState('48:00:00'); // HH:MM:SS format
+    const [timeRemainingSeconds, setTimeRemainingSeconds] = useState(172800); // 48 hours in seconds
+    const [showUsageModal, setShowUsageModal] = useState(false);
+    const [smartFilterStartTime, setSmartFilterStartTime] = useState(null);
+    const [hasAcceptedAiWarning, setHasAcceptedAiWarning] = useState(false);
+    const [showSmartFilterWarning, setShowSmartFilterWarning] = useState(false);
+    const [liveSessionSeconds, setLiveSessionSeconds] = useState(0);
+    const [showCommunityHelper] = useState(true); // show inline category suggestion
+    const [isPremium, setIsPremium] = useState(false); // Admin premium status - unlimited AI usage
+
+    // --- Smart Filter helpers (copied and adapted from BarangayReports) ---
+    const trackAiUsage = useCallback(async (durationSeconds = 0) => {
+        // Premium users bypass AI usage tracking completely
+        if (isPremium) {
+            console.log('[Smart Filter] ✨ Premium user - skipping usage tracking');
+            return;
+        }
+        
+        if (!token || token.length < 10) {
+            console.warn('[Smart Filter] No valid token - skipping usage tracking');
+            return;
+        }
+
+        // Don't track if duration is 0 or negative
+        if (durationSeconds <= 0) {
+            console.log('[Smart Filter] Skipping zero-duration tracking');
+            return;
+        }
+
+        try {
+            const response = await fetch(getApiUrl('/api/ai/log-usage'), {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    interaction_type: 'smart_filter_session',
+                    duration_seconds: durationSeconds,
+                    metadata: { timestamp: new Date().toISOString() }
+                })
+            });
+
+            if (!response.ok) {
+                console.error('[Smart Filter] API error', response.status);
+                return;
+            }
+
+            const data = await response.json();
+            if (data.status === 'success' && data.data) {
+                const premiumStatus = data.data.is_premium || false;
+                setIsPremium(premiumStatus);
+                setAiUsagePercent(data.data.usage_percent || 0);
+                setTimeRemainingHMS(data.data.time_remaining_hms || '48:00:00');
+                setTimeRemainingSeconds(data.data.time_remaining_seconds ?? 172800);
+                if (premiumStatus) {
+                    console.log(`[Smart Filter] ✨ Premium admin - Unlimited access`);
+                } else {
+                    console.log(`[Smart Filter] ✅ Usage updated: ${data.data.usage_percent}% used, ${data.data.time_remaining_hms} remaining`);
+                }
+            }
+        } catch (err) {
+            console.error('[Smart Filter] Error logging usage', err);
+        }
+    }, [token, isPremium]);
+
+    const handleSmartFilterToggle = useCallback(() => {
+        // Premium users (Admin) skip the warning modal
+        if (!showSmartFilter && !hasAcceptedAiWarning && !isPremium) {
+            setShowSmartFilterWarning(true);
+            return;
+        }
+
+        if (showSmartFilter && smartFilterStartTime && (hasAcceptedAiWarning || isPremium)) {
+            const durationSeconds = Math.floor((Date.now() - smartFilterStartTime) / 1000);
+            trackAiUsage(durationSeconds);
+            setSmartFilterStartTime(null);
+            setLiveSessionSeconds(0);
+        } else if (!showSmartFilter && (hasAcceptedAiWarning || isPremium)) {
+            setSmartFilterStartTime(Date.now());
+            if (isPremium) {
+                setHasAcceptedAiWarning(true); // Auto-accept for premium
+            }
+        }
+
+        setShowSmartFilter(!showSmartFilter);
+    }, [showSmartFilter, smartFilterStartTime, hasAcceptedAiWarning, isPremium, trackAiUsage]);
+
+    const handleAcceptSmartFilterWarning = useCallback(() => {
+        const startTime = Date.now();
+        setHasAcceptedAiWarning(true);
+        setShowSmartFilterWarning(false);
+        setShowSmartFilter(true);
+        setSmartFilterStartTime(startTime);
+        setLiveSessionSeconds(0);
+    }, []);
+
+    const handleRejectSmartFilterWarning = useCallback(() => {
+        setShowSmartFilterWarning(false);
+    }, []);
+
+    // Real-time countdown timer for active Smart Filter session
+    // Updates: liveSessionSeconds, live aiUsagePercent, live timeRemainingHMS  
+    const WEEK_LIMIT_SECONDS = 172800; // 48 hours
+    
+    useEffect(() => {
+        if (!showSmartFilter || !smartFilterStartTime) {
+            setLiveSessionSeconds(0);
+            return;
+        }
+
+        console.log('[Smart Filter] ⏱️ Session timer started - tracking real-time usage');
+
+        const timer = setInterval(() => {
+            const elapsed = Math.floor((Date.now() - smartFilterStartTime) / 1000);
+            setLiveSessionSeconds(elapsed);
+            
+            // Premium users don't need countdown - always show unlimited
+            if (isPremium) {
+                // Just track session time, no percentage updates needed
+                if (elapsed > 0 && elapsed % 30 === 0) {
+                    const minutes = Math.floor(elapsed / 60);
+                    const seconds = elapsed % 60;
+                    console.log(`[Smart Filter] ✨ Premium session: ${minutes}m ${seconds}s (Unlimited)`);
+                }
+                return;
+            }
+            
+            // Calculate real-time usage: base usage + current session elapsed time
+            const baseUsedSeconds = WEEK_LIMIT_SECONDS - timeRemainingSeconds;
+            const totalUsedNow = baseUsedSeconds + elapsed;
+            const livePercent = Math.min(100, Math.round((totalUsedNow / WEEK_LIMIT_SECONDS) * 100));
+            const liveRemaining = Math.max(0, WEEK_LIMIT_SECONDS - totalUsedNow);
+            
+            // Update usage percent in real-time
+            setAiUsagePercent(livePercent);
+            
+            // Format live time remaining as HH:MM:SS
+            const hrs = Math.floor(liveRemaining / 3600);
+            const mins = Math.floor((liveRemaining % 3600) / 60);
+            const secs = liveRemaining % 60;
+            setTimeRemainingHMS(`${String(hrs).padStart(2, '0')}:${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`);
+            
+            // Log progress every 30 seconds
+            if (elapsed > 0 && elapsed % 30 === 0) {
+                const minutes = Math.floor(elapsed / 60);
+                const seconds = elapsed % 60;
+                console.log(`[Smart Filter] ⏳ Session: ${minutes}m ${seconds}s | Usage: ${livePercent}% | Remaining: ${hrs}:${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`);
+            }
+        }, 1000); // Update every second for countdown display
+
+        return () => clearInterval(timer);
+    }, [showSmartFilter, smartFilterStartTime, timeRemainingSeconds, isPremium]);
+    // ---------------------------------------------------------------------
 
     // States for the Status Update Modal
     const [isStatusModalOpen, setIsStatusModalOpen] = useState(false);
@@ -168,6 +383,8 @@ function AdminReports({ token, reportTitle = 'All Community Reports', showTitle 
     // Elements we want to navigate between with arrow keys
     const filterSelector = 'input.admin-search-input, .admin-top-controls .admin-filter-select, .reports-list button:first-child'; 
     useKeyboardNavigation(filterContainerRef, filterSelector);
+    // Keep a ref for timer updates (if needed elsewhere)
+    const smartFilterTimerRef = useRef(null);
     // -----------------------------------
 
     // Notification handler
@@ -287,7 +504,72 @@ function AdminReports({ token, reportTitle = 'All Community Reports', showTitle 
                         images: report.images?.map(img => img.url) || []
                     };
                 });
-                setReports(transformedReports);
+                // Try to get ML-based confidences from backend in a single batch call.
+                try {
+                    const items = transformedReports.map(r => ({ id: r.id, description: r.description, images: r.images?.length || 0 }));
+                    const resp = await fetch(getApiUrl('/api/ai/categorize/batch'), {
+                        method: 'POST',
+                        headers: {
+                            'Authorization': `Bearer ${token}`,
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({ items })
+                    });
+
+                    if (resp.ok) {
+                        const json = await resp.json();
+                        const results = json.results || {};
+                        const annotated = transformedReports.map(r => {
+                            const res = results[r.id] || {};
+                            // Use backend's confidence_percent directly, or calculate from confidence, or fallback to local computation
+                            const aiConfidence = res.confidence_percent 
+                                ?? (typeof res.confidence === 'number' ? Math.round(res.confidence * 100) : null)
+                                ?? computeConfidence(r.description, r.category, r.images?.length || 0);
+                            return {
+                                ...r,
+                                ai_confidence: aiConfidence,
+                                ai_category: res.category || r.category,
+                                ai_method: res.method || 'batch',
+                                ai_reason: res.reason || '',
+                                // Include priority data from backend (capitalized: Critical/High/Medium/Low)
+                                ai_priority: res.priority || 'Low',
+                                ai_priority_score: res.priority_score || 1,
+                                ai_priority_label: res.priority_label || '⚪ Low'
+                            };
+                        });
+                        setReports(annotated);
+                    } else {
+                        // fallback to deterministic client-side heuristic
+                        const fallback = transformedReports.map(r => {
+                            const catPriority = getPriorityStyle(r.category);
+                            return {
+                                ...r,
+                                ai_confidence: computeConfidence(r.description, r.category, r.images?.length || 0),
+                                ai_category: r.category,
+                                ai_method: 'heuristic',
+                                ai_priority: catPriority.priority,  // Already capitalized: Critical/High/Medium/Low
+                                ai_priority_score: catPriority.priority === 'Critical' ? 10 : (catPriority.priority === 'High' ? 8 : (catPriority.priority === 'Medium' ? 5 : 2)),
+                                ai_priority_label: catPriority.label
+                            };
+                        });
+                        setReports(fallback);
+                    }
+                } catch (err) {
+                    console.error('AI batch classify failed, falling back to heuristic', err);
+                    const fallback = transformedReports.map(r => {
+                        const catPriority = getPriorityStyle(r.category);
+                        return {
+                            ...r,
+                            ai_confidence: computeConfidence(r.description, r.category, r.images?.length || 0),
+                            ai_category: r.category,
+                            ai_method: 'error',
+                            ai_priority: catPriority.priority,  // Already capitalized: Critical/High/Medium/Low
+                            ai_priority_score: catPriority.priority === 'Critical' ? 10 : (catPriority.priority === 'High' ? 8 : (catPriority.priority === 'Medium' ? 5 : 2)),
+                            ai_priority_label: catPriority.label
+                        };
+                    });
+                    setReports(fallback);
+                }
             } else {
                 throw new Error(data.message || 'Failed to fetch reports');
             }
@@ -297,11 +579,49 @@ function AdminReports({ token, reportTitle = 'All Community Reports', showTitle 
         } finally {
             setLoading(false);
         }
-    }, [token, sort]);
+    }, [token]);
 
     useEffect(() => {
         fetchReports();
     }, [fetchReports]);
+
+    // Fetch current week AI usage on component mount
+    useEffect(() => {
+        if (!token) return;
+        
+        const fetchCurrentUsage = async () => {
+            try {
+                const response = await fetch(getApiUrl('/api/ai/current-usage'), {
+                    method: 'GET',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    }
+                });
+
+                if (response.ok) {
+                    const data = await response.json();
+                    if (data.status === 'success' && data.data) {
+                        const premiumStatus = data.data.is_premium || false;
+                        setIsPremium(premiumStatus);
+                        setAiUsagePercent(data.data.usage_percent || 0);
+                        setTimeRemainingHMS(data.data.time_remaining_hms || '48:00:00');
+                        setTimeRemainingSeconds(data.data.time_remaining_seconds ?? 172800);
+                        
+                        if (premiumStatus) {
+                            console.log('[Admin-Reports] ✨ PREMIUM USER - Unlimited Smart Filter access');
+                        } else {
+                            console.log('[Admin-Reports] ✅ AI Usage loaded:', data.data.usage_percent + '% used, Time remaining:', data.data.time_remaining_hms, `(${data.data.time_remaining_seconds}s)`);
+                        }
+                    }
+                }
+            } catch (err) {
+                console.warn('[Admin-Reports] Could not fetch AI usage:', err);
+            }
+        };
+
+        fetchCurrentUsage();
+    }, [token]);
 
     // Handle highlight parameter from URL (kept original logic)
     useEffect(() => {
@@ -499,26 +819,349 @@ function AdminReports({ token, reportTitle = 'All Community Reports', showTitle 
         }
     };
 
-    // Filtered reports (kept original logic)
+    // Filtered reports with Smart Filter aware ordering
+    const priorityRank = (priorityLabel) => {
+        if (!priorityLabel) return 0;
+        switch (priorityLabel) {
+            case 'Critical': return 3;
+            case 'High': return 2;
+            case 'Medium': return 1;
+            default: return 0;
+        }
+    };
+
+    const smartComparator = (a, b) => {
+        // 1) Unapproved/pending (is_approved === false) come first
+        const aApproved = !!a.is_approved;
+        const bApproved = !!b.is_approved;
+        if (aApproved !== bApproved) return aApproved ? 1 : -1;
+
+        // 2) Priority ranking: Critical > High > Medium > Low
+        const aPri = priorityRank(getPriorityStyle(a.category).priority);
+        const bPri = priorityRank(getPriorityStyle(b.category).priority);
+        if (aPri !== bPri) return bPri - aPri; // higher priority first
+
+        // 3) Within same priority, prioritize higher confidence percentage
+        const aConf = (typeof a.ai_confidence === 'number') ? a.ai_confidence : computeConfidence(a.description || '', a.category, (a.images || []).length);
+        const bConf = (typeof b.ai_confidence === 'number') ? b.ai_confidence : computeConfidence(b.description || '', b.category, (b.images || []).length);
+        if (aConf !== bConf) return bConf - aConf; // higher confidence first
+
+        // 4) Fallback to date ordering based on smartSort
+        const aT = new Date(a.created_at).getTime() || 0;
+        const bT = new Date(b.created_at).getTime() || 0;
+        return smartSort === 'latest' ? bT - aT : aT - bT;
+    };
+
+    const dateComparator = (a, b) => {
+        const aT = new Date(a.created_at).getTime() || 0;
+        const bT = new Date(b.created_at).getTime() || 0;
+        if (sort === 'latest') return bT - aT;
+        return aT - bT;
+    };
+
+    // Helper to get priority label from AI or fallback to category-based
+    const getReportPriority = (report) => {
+        // Use AI priority if available
+        if (report.ai_priority) {
+            const pri = String(report.ai_priority).toLowerCase().trim();
+            console.log(`[Admin Priority Debug] Report ${report.id}: ai_priority="${report.ai_priority}" normalized="${pri}"`);
+            if (pri === 'critical') return 'Critical';
+            if (pri === 'high') return 'High';
+            if (pri === 'medium') return 'Medium';
+            if (pri === 'low') return 'Low';
+            return 'Low';
+        }
+        // Fallback to category-based priority
+        const catPriority = getPriorityStyle(report.category);
+        console.log(`[Admin Priority Debug] Report ${report.id}: Using fallback category="${report.category}" priority="${catPriority.priority}"`);
+        return catPriority.priority || 'Low';
+    };
+
+    // Export to CSV
+    const exportToCSV = () => {
+        const headers = ["ID", "Title", "Category", "Status", "Barangay", "Address", "Reporter", "Priority", "Created At", "Description"];
+        const rows = filteredReports.map((r) => [
+            r.id,
+            `"${(r.title || "").replace(/"/g, '""')}"`,
+            r.category || "N/A",
+            r.status || "N/A",
+            r.barangay || r.address_barangay || "N/A",
+            `"${(r.addressStreet || r.address_street || "").replace(/"/g, '""')}"`,
+            r.reporter ? `${r.reporter.firstname || ""} ${r.reporter.lastname || ""}`.trim() : "Unknown",
+            getReportPriority(r),
+            r.created_at ? new Date(r.created_at).toLocaleString() : "N/A",
+            `"${(r.description || "").replace(/"/g, '""').substring(0, 200)}..."`
+        ]);
+        
+        const csvContent = [headers.join(","), ...rows.map((r) => r.join(","))].join("\n");
+        const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        link.href = url;
+        link.download = `admin_reports_${new Date().toISOString().split("T")[0]}.csv`;
+        link.click();
+    };
+
+    // Export to PDF with Community Helper AI Analytics
+    const exportToPDF = async () => {
+        const reportDate = new Date().toLocaleDateString("en-US", {
+            weekday: "long",
+            year: "numeric",
+            month: "long",
+            day: "numeric",
+        });
+        
+        // Calculate analytics
+        const totalReports = filteredReports.length;
+        const categoryStats = {};
+        const barangayStats = {};
+        const statusStats = { Pending: 0, Ongoing: 0, Resolved: 0 };
+        const priorityStats = { Critical: 0, High: 0, Medium: 0, Low: 0 };
+        
+        filteredReports.forEach((report) => {
+            const cat = report.category || "Unknown";
+            categoryStats[cat] = (categoryStats[cat] || 0) + 1;
+            
+            const brgy = report.barangay || report.address_barangay || "Unknown";
+            barangayStats[brgy] = (barangayStats[brgy] || 0) + 1;
+            
+            const status = report.status || "Pending";
+            statusStats[status] = (statusStats[status] || 0) + 1;
+            
+            const priority = getReportPriority(report);
+            priorityStats[priority] = (priorityStats[priority] || 0) + 1;
+        });
+        
+        const sortedCategories = Object.entries(categoryStats).sort((a, b) => b[1] - a[1]);
+        const sortedBarangays = Object.entries(barangayStats).sort((a, b) => b[1] - a[1]);
+        
+        const logoPath = new URL('../assets/logo.png', import.meta.url).href;
+        
+        const printContent = `
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <title>Community Guard - Admin Reports Analytics</title>
+                <style>
+                    * { box-sizing: border-box; margin: 0; padding: 0; }
+                    body { font-family: 'Segoe UI', Arial, sans-serif; padding: 40px; color: #333; }
+                    .header { text-align: center; margin-bottom: 30px; border-bottom: 3px solid #2d3b8f; padding-bottom: 20px; }
+                    .header-logo { display: flex; align-items: center; justify-content: center; gap: 12px; margin-bottom: 10px; }
+                    .header-logo img { width: 48px; height: 48px; object-fit: contain; }
+                    .header h1 { color: #2d3b8f; font-size: 28px; margin-bottom: 5px; }
+                    .header .subtitle { color: #666; font-size: 14px; }
+                    .header .role-badge { background: #2d3b8f; color: white; padding: 4px 12px; border-radius: 12px; font-size: 12px; margin-top: 8px; display: inline-block; }
+                    .ai-badge { background: linear-gradient(135deg, #2d3b8f, #1e2966); color: white; padding: 10px 20px; border-radius: 20px; display: inline-flex; align-items: center; gap: 10px; margin: 15px 0; font-size: 14px; font-weight: 500; }
+                    .ai-badge img { width: 24px; height: 24px; object-fit: contain; border-radius: 4px; }
+                    .section { margin-bottom: 30px; }
+                    .section-title { font-size: 18px; color: #2d3b8f; margin-bottom: 15px; padding-bottom: 8px; border-bottom: 2px solid #e5e7eb; }
+                    .stats-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 15px; margin-bottom: 25px; }
+                    .stat-card { background: #f8fafc; padding: 20px; border-radius: 10px; text-align: center; border: 1px solid #e5e7eb; }
+                    .stat-card .number { font-size: 32px; font-weight: bold; color: #2d3b8f; }
+                    .stat-card .label { font-size: 12px; color: #666; margin-top: 5px; }
+                    .analytics-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 25px; }
+                    .analytics-card { background: #f8fafc; padding: 20px; border-radius: 10px; border: 1px solid #e5e7eb; }
+                    .analytics-card h3 { font-size: 14px; color: #2d3b8f; margin-bottom: 15px; }
+                    .analytics-item { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #e5e7eb; }
+                    .analytics-item:last-child { border-bottom: none; }
+                    .analytics-item .name { font-size: 13px; }
+                    .analytics-item .count { font-weight: bold; color: #2d3b8f; }
+                    table { width: 100%; border-collapse: collapse; font-size: 11px; margin-top: 15px; }
+                    th { background: #2d3b8f; color: white; padding: 10px 8px; text-align: left; }
+                    td { padding: 10px 8px; border-bottom: 1px solid #e5e7eb; vertical-align: top; }
+                    tr:nth-child(even) { background: #f8fafc; }
+                    .priority-critical, .priority-high { color: #dc2626; font-weight: bold; }
+                    .priority-medium { color: #f59e0b; font-weight: bold; }
+                    .priority-low { color: #22c55e; }
+                    .footer { margin-top: 40px; text-align: center; font-size: 12px; color: #666; padding-top: 20px; border-top: 2px solid #2d3b8f; }
+                    .footer-brand { display: flex; align-items: center; justify-content: center; gap: 10px; margin-bottom: 8px; }
+                    .footer-brand img { width: 28px; height: 28px; object-fit: contain; }
+                    .footer-brand span { font-weight: 600; color: #2d3b8f; font-size: 14px; }
+                    .footer-subtitle { margin-top: 8px; font-size: 11px; color: #888; font-style: italic; }
+                    @media print { body { padding: 20px; } .stats-grid { grid-template-columns: repeat(4, 1fr); } }
+                </style>
+            </head>
+            <body>
+                <div class="header">
+                    <div class="header-logo">
+                        <img src="${logoPath}" alt="Community Guard Logo" onerror="this.style.display='none'" />
+                        <h1>Community Guard</h1>
+                    </div>
+                    <p class="subtitle">Admin Reports - Complete Analytics Report</p>
+                    <div class="ai-badge">💡 Community Helper</div>
+                    <p style="margin-top: 10px; font-size: 13px; color: #666;">Generated: ${reportDate}</p>
+                </div>
+                
+                <div class="section">
+                    <div class="stats-grid">
+                        <div class="stat-card">
+                            <div class="number">${totalReports}</div>
+                            <div class="label">Total Reports</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="number" style="color: #f59e0b;">${statusStats.Pending}</div>
+                            <div class="label">Pending</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="number" style="color: #3b82f6;">${statusStats.Ongoing}</div>
+                            <div class="label">Ongoing</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="number" style="color: #22c55e;">${statusStats.Resolved}</div>
+                            <div class="label">Resolved</div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="analytics-grid">
+                    <div class="analytics-card">
+                        <h3>📁 Reports by Category</h3>
+                        ${sortedCategories.map(([name, count]) => `
+                            <div class="analytics-item">
+                                <span class="name">${name}</span>
+                                <span class="count">${count}</span>
+                            </div>
+                        `).join("")}
+                    </div>
+                    <div class="analytics-card">
+                        <h3>📍 Reports by Barangay</h3>
+                        ${sortedBarangays.slice(0, 8).map(([name, count]) => `
+                            <div class="analytics-item">
+                                <span class="name">${name}</span>
+                                <span class="count">${count}</span>
+                            </div>
+                        `).join("")}
+                        ${sortedBarangays.length > 8 ? `<div class="analytics-item"><span class="name" style="color: #999;">... and ${sortedBarangays.length - 8} more</span><span></span></div>` : ""}
+                    </div>
+                </div>
+                
+                <div class="section">
+                    <h2 class="section-title">📋 Detailed Report List</h2>
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>ID</th>
+                                <th>Title</th>
+                                <th>Category</th>
+                                <th>Status</th>
+                                <th>Barangay</th>
+                                <th>Priority</th>
+                                <th>Created</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${filteredReports.slice(0, 50).map((report) => `
+                                <tr>
+                                    <td>${report.id}</td>
+                                    <td>${report.title || "Untitled"}</td>
+                                    <td>${report.category || "N/A"}</td>
+                                    <td>${report.status || "N/A"}</td>
+                                    <td>${report.barangay || report.address_barangay || "N/A"}</td>
+                                    <td class="priority-${getReportPriority(report).toLowerCase()}">${getReportPriority(report)}</td>
+                                    <td>${new Date(report.created_at).toLocaleDateString()}</td>
+                                </tr>
+                            `).join("")}
+                        </tbody>
+                    </table>
+                    ${filteredReports.length > 50 ? `<p style="margin-top: 15px; color: #666; font-size: 12px; text-align: center;">Showing first 50 of ${filteredReports.length} reports</p>` : ""}
+                </div>
+                
+                <div class="footer">
+                    <div class="footer-brand">
+                        <img src="${logoPath}" alt="Community Guard Logo" onerror="this.style.display='none'" />
+                        <span>Community Guard</span>
+                    </div>
+                    <p>Protecting Communities Together</p>
+                    <p class="footer-subtitle">This report was generated with Community Helper Smart Analytics</p>
+                </div>
+            </body>
+            </html>
+        `;
+        
+        const printWindow = window.open("", "_blank");
+        printWindow.document.write(printContent);
+        printWindow.document.close();
+        printWindow.print();
+    };
+
     const filteredReports = reports
-        .filter((r) => !r.is_rejected) // Hide rejected reports from admin view
+        .filter((r) => !r.is_rejected)
         .filter((r) => (category === "All" ? true : r.category === category))
         .filter((r) => (barangay === "All" ? true : r.barangay === barangay))
         .filter((r) => (statusFilter === "All" ? true : r.status === statusFilter))
-        .filter(
-            (r) => {
-                const reporterName = r.reporter 
-                    ? `${r.reporter.firstname || ""} ${r.reporter.lastname || ""}`.trim()
-                    : "Unknown User";
-                return r.title.toLowerCase().includes(search.toLowerCase()) ||
-                        reporterName.toLowerCase().includes(search.toLowerCase());
-            }
-        );
+        .filter((r) => {
+            // Priority filter only applies when Smart Filter is ON
+            if (!showSmartFilter) return true;
+            if (priorityFilter === "All") return true;
+            // Use AI-generated priority for filtering
+            const reportPriority = getReportPriority(r);
+            return reportPriority === priorityFilter;
+        })
+        .filter((r) => {
+            const reporterName = r.reporter 
+                ? `${r.reporter.firstname || ""} ${r.reporter.lastname || ""}`.trim()
+                : "Unknown User";
+            if (!search || search.trim() === '') return true;
+            return r.title.toLowerCase().includes(search.toLowerCase()) ||
+                    reporterName.toLowerCase().includes(search.toLowerCase());
+        })
+        .sort((a, b) => {
+            // Always prioritize unapproved/pending reports on top
+            const aApproved = !!a.is_approved;
+            const bApproved = !!b.is_approved;
+            if (aApproved !== bApproved) return aApproved ? 1 : -1;
+
+            // If both have same approval status, apply smart ordering when enabled,
+            // otherwise fallback to the regular date comparator.
+            if (showSmartFilter) return smartComparator(a, b);
+            return dateComparator(a, b);
+        });
 
     return (
         <div className="admin-container">
             <div className="admin-header-row">
                 {showTitle && <h2>{loading ? reportTitle : reportTitle}</h2>}
+                <div className="header-right">
+                    {/* View Toggle */}
+                    <div className="view-toggle">
+                        <button
+                            className={`view-toggle-btn ${viewMode === 'card' ? 'active' : ''}`}
+                            onClick={() => setViewMode('card')}
+                            title="Card View"
+                            aria-label="Switch to card view"
+                        >
+                            <FaThLarge />
+                        </button>
+                        <button
+                            className={`view-toggle-btn ${viewMode === 'list' ? 'active' : ''}`}
+                            onClick={() => setViewMode('list')}
+                            title="List View"
+                            aria-label="Switch to list view"
+                        >
+                            <FaList />
+                        </button>
+                    </div>
+                    
+                    {/* Export Buttons */}
+                    <div className="export-buttons">
+                        <button
+                            className="export-btn csv"
+                            onClick={exportToCSV}
+                            title="Export to CSV"
+                            aria-label="Export reports to CSV"
+                        >
+                            <FaFileCsv /> CSV
+                        </button>
+                        <button
+                            className="export-btn pdf"
+                            onClick={exportToPDF}
+                            title="Export to PDF with Analytics"
+                            aria-label="Export reports to PDF with AI analytics"
+                        >
+                            <FaFilePdf /> PDF
+                        </button>
+                    </div>
+                </div>
             </div>
 
             {/* IMPROVEMENT: Added ref to the filter container for keyboard navigation */}
@@ -552,6 +1195,26 @@ function AdminReports({ token, reportTitle = 'All Community Reports', showTitle 
                     <option value="Others">Others</option>
                 </select>
                 
+                {/* Priority Filter - Only visible when Smart Filter is ON */}
+                {showSmartFilter && (
+                    <>
+                        <label htmlFor="priority-filter" className="sr-only">Filter by Priority</label>
+                        <select
+                            id="priority-filter"
+                            value={priorityFilter}
+                            onChange={(e) => setPriorityFilter(e.target.value)}
+                            className="admin-filter-select"
+                            aria-label="Filter reports by priority"
+                        >
+                            <option value="All">All Priorities</option>
+                            <option value="Critical">Critical</option>
+                            <option value="High">High</option>
+                            <option value="Medium">Medium</option>
+                            <option value="Low">Low</option>
+                        </select>
+                    </>
+                )}
+                
                 <label htmlFor="barangay-filter" className="sr-only">Filter by Barangay</label>
                 <select 
                     id="barangay-filter"
@@ -580,17 +1243,241 @@ function AdminReports({ token, reportTitle = 'All Community Reports', showTitle 
                 </select>
                 
                 <label htmlFor="sort-order" className="sr-only">Sort Order</label>
-                <select 
-                    id="sort-order"
-                    value={sort} 
-                    onChange={(e) => setSort(e.target.value)}
-                    className="admin-filter-select"
-                    aria-label="Sort reports by date"
-                >
-                    <option value="latest">Latest → Oldest</option>
-                    <option value="oldest">Oldest → Latest</option>
-                </select>
+                {showSmartFilter ? (
+                    <select
+                        id="smart-sort-order"
+                        value={smartSort}
+                        onChange={(e) => setSmartSort(e.target.value)}
+                        className="admin-filter-select"
+                        aria-label="Smart sort reports by priority/date"
+                    >
+                        <option value="latest">Smart: Latest → Oldest</option>
+                        <option value="oldest">Smart: Oldest → Latest</option>
+                    </select>
+                ) : (
+                    <select 
+                        id="sort-order"
+                        value={sort} 
+                        onChange={(e) => setSort(e.target.value)}
+                        className="admin-filter-select"
+                        aria-label="Sort reports by date"
+                    >
+                        <option value="latest">Latest → Oldest</option>
+                        <option value="oldest">Oldest → Latest</option>
+                    </select>
+                )}
+                {/* Smart Filter Toggle - Premium golden bar for Admin users */}
+                <div className="admin-smart-filter-container">
+                    <button
+                        onClick={() => {
+                            if (aiUsagePercent >= 100 && !isPremium) {
+                                setShowUsageModal(true);
+                            } else {
+                                handleSmartFilterToggle();
+                            }
+                        }}
+                        className={`admin-smart-filter-btn ${isPremium ? 'premium' : (aiUsagePercent >= 100 ? 'limit-reached' : (showSmartFilter ? 'active' : 'inactive'))}`}
+                        title={isPremium ? (showSmartFilter ? 'Disable Smart Filter (Premium - Unlimited)' : 'Enable Smart Filter (Premium - Unlimited)') : (aiUsagePercent >= 100 ? 'Premium feature - Upgrade now' : (showSmartFilter ? 'Disable Smart Filter' : 'Enable Smart Filter'))}
+                        aria-pressed={showSmartFilter}
+                    >
+                        <span>{isPremium ? '👑' : '✨'}</span>
+                        {isPremium ? 'Smart Filter' : (aiUsagePercent >= 100 ? 'Premium' : 'Smart Filter')}
+                    </button>
+
+                    <div className="admin-progress-container">
+                        <div className="admin-progress-row">
+                            {/* Progress Bar */}
+                            <div className={`admin-progress-bar ${isPremium ? 'premium' : ''}`}>
+                                <div 
+                                    className={`admin-progress-fill ${isPremium ? 'premium' : (aiUsagePercent >= 100 ? 'limit-reached' : '')} ${showSmartFilter && !isPremium ? 'active' : ''}`}
+                                    style={{ width: isPremium ? '100%' : `${aiUsagePercent}%` }}
+                                />
+                            </div>
+                            {/* Premium: Show infinity icon with Active label below, Non-premium: ? button */}
+                            {isPremium ? (
+                                <div className="admin-premium-btn-container">
+                                    <button 
+                                        onClick={() => setShowUsageModal(true)} 
+                                        className="admin-usage-btn premium"
+                                        title="Premium - Unlimited Access" 
+                                        aria-label="Premium unlimited access"
+                                    >∞</button>
+                                    {showSmartFilter && hasAcceptedAiWarning && (
+                                        <span className="admin-premium-active-label">Active</span>
+                                    )}
+                                </div>
+                            ) : (
+                                <button 
+                                    onClick={() => setShowUsageModal(true)} 
+                                    className={`admin-usage-btn ${aiUsagePercent >= 100 ? 'limit-reached' : ''}`}
+                                    title="View AI usage details" 
+                                    aria-label="AI usage information"
+                                >?</button>
+                            )}
+                        </div>
+
+                        {/* Session timer - only for non-premium users */}
+                        {!isPremium && showSmartFilter && hasAcceptedAiWarning && (
+                            <div className="admin-session-timer">
+                                <span>🕐 Session: {Math.floor(liveSessionSeconds / 60)}m {liveSessionSeconds % 60}s</span>
+                                <span>{aiUsagePercent}% used | {timeRemainingHMS}</span>
+                            </div>
+                        )}
+                    </div>
+                </div>
             </div>
+
+            {/* Smart Filter Warning Modal */}
+            {showSmartFilterWarning && (
+                <div className="modal-overlay" onClick={handleRejectSmartFilterWarning} style={{ zIndex: 1100 }}>
+                    <div className="modal" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '450px', borderLeft: '6px solid #2d3b8f', backgroundColor: '#f0f8ff' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', borderBottom: '2px solid #2d3b8f', paddingBottom: '12px' }}>
+                            <h3 style={{ margin: 0, color: '#2d3b8f' }}>✨ Smart Filter Usage Limit</h3>
+                            <button onClick={handleRejectSmartFilterWarning} style={{ background: 'none', border: 'none', fontSize: '1.5em', cursor: 'pointer', color: '#666' }}>✕</button>
+                        </div>
+
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', marginBottom: '20px' }}>
+                            <div style={{ padding: '14px', backgroundColor: '#fff9e6', borderRadius: '6px', borderLeft: '4px solid #f39c12' }}>
+                                <div style={{ fontWeight: '600', color: '#f39c12', marginBottom: '8px' }}>⏱️ Free Usage Policy</div>
+                                <p style={{ margin: 0, fontSize: '0.95em', color: '#666', lineHeight: '1.4' }}>You have <strong>48 free hours per week</strong> to use the Smart Filter for AI-powered incident categorization.</p>
+                            </div>
+
+                            <div style={{ padding: '12px', backgroundColor: '#e8f4f8', borderRadius: '6px' }}>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '6px' }}>
+                                    <span style={{ fontWeight: '500' }}>Your Weekly Usage:</span>
+                                    <span style={{ fontWeight: 'bold', color: '#2d3b8f' }}>{aiUsagePercent}%</span>
+                                </div>
+                                <div style={{ height: '6px', backgroundColor: '#d0e0f0', borderRadius: '3px', overflow: 'hidden' }}>
+                                    <div style={{ height: '100%', width: `${aiUsagePercent}%`, backgroundColor: '#2d3b8f', transition: 'width 0.3s ease' }} />
+                                </div>
+                                <div style={{ marginTop: '6px', fontSize: '0.85em', color: '#666' }}>{Math.ceil((100 - aiUsagePercent) / 100 * 48)} hours remaining this week</div>
+                            </div>
+                        </div>
+
+                        <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
+                            <button onClick={handleRejectSmartFilterWarning} style={{ padding: '10px 20px', backgroundColor: '#ccc', color: '#333', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: '500', fontSize: '0.95em' }}>✕ Cancel</button>
+                            <button onClick={handleAcceptSmartFilterWarning} style={{ padding: '10px 20px', backgroundColor: '#2d3b8f', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: '600', fontSize: '0.95em' }}>✅ Accept & Enable Smart Filter</button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* AI Usage Modal - Premium-aware */}
+            {showUsageModal && (
+                <div className="modal-overlay" onClick={() => setShowUsageModal(false)} style={{ zIndex: 1000 }}>
+                    <div className={`modal ${isPremium ? 'admin-premium-modal' : ''}`} onClick={(e) => e.stopPropagation()} style={{ 
+                        maxWidth: '420px', 
+                        backgroundColor: isPremium ? 'var(--admin-premium-bg)' : (aiUsagePercent >= 100 ? 'var(--admin-premium-bg)' : 'white')
+                    }}>
+                        <div className={isPremium ? 'admin-premium-modal-header' : ''} style={{ 
+                            display: 'flex', 
+                            justifyContent: 'space-between', 
+                            alignItems: 'center', 
+                            marginBottom: '20px', 
+                            borderBottom: `2px solid ${isPremium ? 'var(--admin-premium-primary)' : '#e0e0e0'}`, 
+                            paddingBottom: '12px' 
+                        }}>
+                            <h3 style={{ margin: 0, color: isPremium ? 'var(--admin-premium-secondary)' : '#333' }}>
+                                {isPremium ? '👑 Premium AI Access' : '📊 AI Usage Status'}
+                            </h3>
+                            <button onClick={() => setShowUsageModal(false)} style={{ background: 'none', border: 'none', fontSize: '1.5em', cursor: 'pointer' }}>✕</button>
+                        </div>
+
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                            {/* Premium Badge */}
+                            {isPremium && (
+                                <div className="admin-premium-status-card">
+                                    <div className="admin-premium-status-icon">👑</div>
+                                    <div className="admin-premium-status-title">Admin Premium Status</div>
+                                    <div className="admin-premium-status-subtitle">Unlimited Smart Filter access</div>
+                                </div>
+                            )}
+
+                            {/* Live Session Timer - only for non-premium users */}
+                            {!isPremium && showSmartFilter && hasAcceptedAiWarning && (
+                                <div className="admin-session-info">
+                                    <div className="admin-session-info-title">🕐 Live Session Timer</div>
+                                    <div className="admin-session-info-time">
+                                        {Math.floor(liveSessionSeconds / 60)}m {liveSessionSeconds % 60}s
+                                    </div>
+                                    <div className="admin-session-info-desc">
+                                        This session is being tracked in real-time and will be logged when you disable Smart Filter.
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Usage Bar - Premium shows golden full bar */}
+                            <div className="admin-usage-bar-container">
+                                <div className="admin-usage-bar-header">
+                                    <span className="admin-usage-bar-label">
+                                        {isPremium ? 'Access Level:' : 'Weekly AI Limit Usage:'}
+                                    </span>
+                                    {isPremium ? (
+                                        <span className="admin-usage-bar-value premium">
+                                            <span className="infinity-icon">∞</span> Unlimited
+                                        </span>
+                                    ) : (
+                                        <span className={`admin-usage-bar-value ${aiUsagePercent >= 100 ? 'limit-reached' : ''}`}>
+                                            {aiUsagePercent}%
+                                        </span>
+                                    )}
+                                </div>
+                                <div className={`admin-modal-progress-bar ${isPremium ? 'premium' : ''}`}>
+                                    <div 
+                                        className={`admin-modal-progress-fill ${isPremium ? 'premium' : (aiUsagePercent >= 100 ? 'limit-reached' : '')} ${showSmartFilter && !isPremium ? 'active' : ''}`}
+                                        style={{ width: isPremium ? '100%' : `${aiUsagePercent}%` }}
+                                    />
+                                </div>
+                            </div>
+
+                            {/* Premium Benefits List */}
+                            {isPremium && (
+                                <div className="admin-premium-benefits">
+                                    <div className="admin-premium-benefits-title">✨ Your Premium Benefits</div>
+                                    <ul className="admin-premium-benefits-list">
+                                        <li>📊 <strong>Unlimited</strong> Smart Filter usage</li>
+                                        <li>⚡ AI-powered incident categorization</li>
+                                        <li>🎯 Priority severity sorting</li>
+                                        <li>📈 Real-time confidence scores</li>
+                                        <li>🔄 No weekly time limits</li>
+                                    </ul>
+                                </div>
+                            )}
+
+                            {/* Time Remaining (only for non-premium) */}
+                            {!isPremium && (
+                                <div className="admin-time-remaining">
+                                    <div style={{ marginBottom: '8px' }}>
+                                        <span style={{ color: '#666' }}>⏱️ Time Remaining: </span>
+                                        <span className="admin-time-remaining-value">{timeRemainingHMS}</span>
+                                    </div>
+                                    <div style={{ color: '#666', fontSize: '0.85em' }}>Maximum: 48 hours per week</div>
+                                </div>
+                            )}
+
+                            {/* Status Message */}
+                            {!isPremium && aiUsagePercent >= 100 ? (
+                                <div className="admin-limit-warning">
+                                    <div className="admin-limit-warning-title">🔒 AI Limit Reached</div>
+                                    <p className="admin-limit-warning-text">
+                                        You've reached your weekly AI suggestion limit. Upgrade to Premium for unlimited access!
+                                    </p>
+                                    <button onClick={() => { setShowUsageModal(false); }} className="admin-upgrade-btn">
+                                        ✨ Upgrade to Premium
+                                    </button>
+                                </div>
+                            ) : !isPremium && (
+                                <div className="admin-available-status">
+                                    <div className="admin-available-status-title">✅ Smart Filter Available</div>
+                                    <p className="admin-available-status-text">
+                                        You have {100 - aiUsagePercent}% of your weekly AI suggestions remaining.
+                                    </p>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            )}
 
             <div className="reports-list">
                 {loading ? (
@@ -606,6 +1493,7 @@ function AdminReports({ token, reportTitle = 'All Community Reports', showTitle 
                         </button>
                     </div>
                 ) : filteredReports.length > 0 ? (
+                    viewMode === "card" ? (
                     filteredReports.map((report, index) => {
                         const isExpanded = expandedPosts.includes(report.id);
                         const isPending = !report.is_approved;
@@ -623,12 +1511,19 @@ function AdminReports({ token, reportTitle = 'All Community Reports', showTitle 
                             cardClasses.push("highlighted-report");
                         }
 
+                        // Determine border color when Smart Filter is ON and report is approved
+                        const priorityStyle = getPriorityStyle(report.category);
+                        const showPriorityBorder = showSmartFilter && report.is_approved;
+
                         return (
                             <div
                                 key={report.id}
                                 id={`report-${report.id}`}
                                 className={cardClasses.join(' ')}
-                                style={{ animationDelay: `${index * 0.1}s` }} 
+                                style={{
+                                    animationDelay: `${index * 0.1}s`,
+                                    border: showPriorityBorder ? `2px solid ${priorityStyle.borderColor}` : undefined
+                                }} 
                                 aria-labelledby={`report-title-${report.id}`}
                             >
                                 <div className="report-header">
@@ -682,15 +1577,35 @@ function AdminReports({ token, reportTitle = 'All Community Reports', showTitle 
                                     </div>
 
                                     <div className="report-header-actions">
+                                        {/* Inline priority label when Smart Filter active and report approved */}
+                                        {showSmartFilter && report.is_approved && (
+                                            <span style={{
+                                                display: 'inline-flex',
+                                                alignItems: 'center',
+                                                gap: '6px',
+                                                padding: '6px 10px',
+                                                borderRadius: '999px',
+                                                fontSize: '12px',
+                                                fontWeight: 700,
+                                                background: priorityStyle.bgColor,
+                                                color: '#111',
+                                                border: `1px solid ${priorityStyle.borderColor}`,
+                                                marginRight: '8px'
+                                            }}>
+                                                <span aria-hidden="true">{priorityStyle.label}</span>
+                                                <span style={{ fontSize: '11px', fontWeight: 600, marginLeft: 4 }}>{priorityStyle.priority}</span>
+                                            </span>
+                                        )}
                                         {!(report.is_approved === true && report.status === "Pending") && (
-                                            <span className={`status-badge status-${report.status.toLowerCase()}`}>
+                                            <span className={`admin-status-badge admin-status-${report.status.toLowerCase()}`}>
+                                                {getStatusIcon(report.status)}
                                                 {report.status}
                                             </span>
                                         )}
                                         {isPending ? (
                                             <>
                                                 <button 
-                                                    className="icon-btn approve-btn" 
+                                                    className="admin-action-btn admin-approve-btn" 
                                                     onClick={() => handleApproveReport(report.id)}
                                                     disabled={isApprovingReport}
                                                     aria-label={`Approve report: ${report.title}`}
@@ -698,46 +1613,106 @@ function AdminReports({ token, reportTitle = 'All Community Reports', showTitle 
                                                 >
                                                     {isApprovingReport ? (
                                                         <>
-                                                            <span className="spinner-small" aria-hidden="true"></span>
-                                                            {/* Still show check icon but with loading state */}
-                                                            <FaCheck aria-hidden="true" style={{ opacity: 0.5 }} />
+                                                            <span className="admin-btn-spinner" aria-hidden="true"></span>
+                                                            <span>Approving...</span>
                                                         </>
                                                     ) : (
-                                                        <FaCheck aria-hidden="true" />
+                                                        <>
+                                                            <FaCheck aria-hidden="true" />
+                                                            <span>Accept</span>
+                                                        </>
                                                     )}
                                                 </button>
                                                 <button 
-                                                    className="icon-btn reject-btn" 
+                                                    className="admin-action-btn admin-reject-btn" 
                                                     onClick={() => handleRejectReport(report.id)}
                                                     disabled={isRejectingReport}
                                                     aria-label={`Reject report: ${report.title}`}
                                                     title="Reject Report"
                                                 >
-                                                    <FaTimes aria-hidden="true" />
+                                                    {isRejectingReport ? (
+                                                        <>
+                                                            <span className="admin-btn-spinner" aria-hidden="true"></span>
+                                                            <span>Rejecting...</span>
+                                                        </>
+                                                    ) : (
+                                                        <>
+                                                            <FaTimes aria-hidden="true" />
+                                                            <span>Reject</span>
+                                                        </>
+                                                    )}
                                                 </button>
                                             </>
                                         ) : (
                                             <>
                                                 <button 
-                                                    className="icon-btn edit-btn" 
+                                                    className="admin-action-btn admin-update-btn" 
                                                     onClick={() => openStatusModal(report)}
-                                                    aria-label={`Edit status for report: ${report.title}`}
-                                                    title="Edit Status"
+                                                    aria-label={`Update status for report: ${report.title}`}
+                                                    title="Update Status"
                                                 >
                                                     <FaEdit aria-hidden="true" />
+                                                    <span>Update</span>
                                                 </button>
                                                 <button 
-                                                    className="icon-btn delete-btn" 
+                                                    className="admin-action-btn admin-delete-btn" 
                                                     onClick={() => openDeleteReason(report)}
                                                     aria-label={`Delete report: ${report.title}`}
                                                     title="Delete Report"
                                                 >
                                                     <FaTrashAlt aria-hidden="true" />
+                                                    <span>Delete</span>
                                                 </button>
                                             </>
                                         )}
                                     </div>
                                 </div>
+
+                                {/* Community Helper Inline Container - Below Profile, Above Title */}
+                                {showCommunityHelper && showSmartFilter && (
+                                    <div style={{
+                                        display: 'flex',
+                                        flexDirection: 'column',
+                                        gap: '8px',
+                                        padding: '12px',
+                                        backgroundColor: `${priorityStyle.bgColor}`,
+                                        border: `1px solid ${priorityStyle.borderColor}`,
+                                        borderRadius: '6px',
+                                        marginBottom: '12px',
+                                        marginLeft: '0px',
+                                        marginRight: '0px'
+                                    }}>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', justifyContent: 'space-between' }}>
+                                            <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '4px 10px', backgroundColor: '#2d3b8f', color: 'white', borderRadius: '12px', fontSize: '0.75em', fontWeight: '600' }}>
+                                                <span>💡</span>
+                                                <span>Community Helper</span>
+                                            </span>
+                                        </div>
+
+                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', fontSize: '0.9em' }}>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                                                <span style={{ color: '#666', fontWeight: '500' }}>✨ Suggest:</span>
+                                                <span
+                                                    role="button"
+                                                    tabIndex={0}
+                                                    onClick={() => { setCategory(report.category); setPriorityFilter('All'); }}
+                                                    onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { setCategory(report.category); setPriorityFilter('All'); } }}
+                                                    style={{ fontWeight: '600', color: priorityStyle.borderColor, cursor: 'pointer', textDecoration: 'underline' }}
+                                                    title={`Filter admin list by category: ${report.category}`}
+                                                >
+                                                    {report.category}
+                                                </span>
+                                                <span style={{ color: '#888' }}>·</span>
+                                                <span style={{ padding: '2px 8px', backgroundColor: priorityStyle.borderColor, color: 'white', borderRadius: '12px', fontSize: '0.85em', fontWeight: '600' }}>
+                                                    {priorityStyle.label}
+                                                </span>
+                                                <span style={{ marginLeft: 'auto', fontWeight: '600', color: priorityStyle.borderColor }}>
+                                                    Confidence: {(typeof report.ai_confidence === 'number' ? report.ai_confidence : computeConfidence(report.description, report.category, report.images ? report.images.length : 0))}%
+                                                </span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                )}
 
                                 <div className="report-caption">
                                     <strong id={`report-title-${report.id}`}>{report.title}</strong>
@@ -777,6 +1752,129 @@ function AdminReports({ token, reportTitle = 'All Community Reports', showTitle 
                             </div>
                         );
                     })
+                    ) : (
+                    // List View
+                    <div className="admin-list-table">
+                        <div className="list-header">
+                            <div className="list-col col-image">Image</div>
+                            <div className="list-col col-title">Title</div>
+                            <div className="list-col col-category">Category</div>
+                            <div className="list-col col-barangay">Barangay</div>
+                            <div className="list-col col-priority">Priority</div>
+                            <div className="list-col col-reporter">Reporter</div>
+                            <div className="list-col col-date">Date</div>
+                            <div className="list-col col-status">Status</div>
+                            <div className="list-col col-actions">Actions</div>
+                        </div>
+                        {filteredReports.map((report, index) => {
+                            const isExpanded = expandedPosts.includes(report.id);
+                            const isPending = !report.is_approved;
+                            
+                            return (
+                                <div 
+                                    key={report.id} 
+                                    className={`list-row ${isPending ? 'list-row-pending' : ''}`}
+                                    style={{ animationDelay: `${index * 0.05}s` }}
+                                >
+                                    <div className="list-col col-image">
+                                        {report.images && report.images.length > 0 ? (
+                                            <img
+                                                src={report.images[0]}
+                                                alt="Report thumbnail"
+                                                className="list-thumbnail"
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    setPreviewImage(report.images[0]);
+                                                }}
+                                            />
+                                        ) : (
+                                            <div className="no-thumbnail">
+                                                <FaFileAlt />
+                                            </div>
+                                        )}
+                                    </div>
+                                    <div className="list-col col-title" onClick={() => toggleExpand(report.id)}>
+                                        <span className="list-title">{report.title || "Untitled"}</span>
+                                        {isExpanded && (
+                                            <p className="list-description">{report.description}</p>
+                                        )}
+                                    </div>
+                                    <div className="list-col col-category">
+                                        <span className="category-tag">{report.category || "N/A"}</span>
+                                    </div>
+                                    <div className="list-col col-barangay">{report.barangay || report.address_barangay || "N/A"}</div>
+                                    <div className="list-col col-priority">
+                                        <span className={`priority-tag priority-${(report.ai_priority || getPriorityStyle(report.category).priority || "low").toLowerCase()}`}>
+                                            {report.ai_priority || getPriorityStyle(report.category).priority || "N/A"}
+                                        </span>
+                                    </div>
+                                    <div className="list-col col-reporter">
+                                        <div className="reporter-info">
+                                            <img
+                                                src={report.reporter?.avatar_url || "/src/assets/profile.png"}
+                                                alt=""
+                                                className="reporter-avatar"
+                                                onError={(e) => {
+                                                    e.target.src = "/src/assets/profile.png";
+                                                }}
+                                            />
+                                            <span>{report.reporter?.firstname || "Unknown"}</span>
+                                        </div>
+                                    </div>
+                                    <div className="list-col col-date">
+                                        {report.date || report.created_at
+                                            ? new Date(report.date || report.created_at).toLocaleDateString()
+                                            : "N/A"}
+                                    </div>
+                                    <div className="list-col col-status">
+                                        <span className={`admin-status-badge admin-status-${report.status.toLowerCase()}`}>
+                                            {getStatusIcon(report.status)} {report.status}
+                                        </span>
+                                    </div>
+                                    <div className="list-col col-actions">
+                                        {isPending ? (
+                                            <div className="list-actions">
+                                                <button 
+                                                    className="list-action-btn accept"
+                                                    onClick={() => handleApproveReport(report.id)}
+                                                    disabled={isApprovingReport}
+                                                    title="Accept"
+                                                >
+                                                    <FaCheck />
+                                                </button>
+                                                <button 
+                                                    className="list-action-btn reject"
+                                                    onClick={() => handleRejectReport(report.id)}
+                                                    disabled={isRejectingReport}
+                                                    title="Reject"
+                                                >
+                                                    <FaTimes />
+                                                </button>
+                                            </div>
+                                        ) : (
+                                            <div className="list-actions">
+                                                <button 
+                                                    className="list-action-btn edit"
+                                                    onClick={() => openStatusModal(report)}
+                                                    title="Update Status"
+                                                >
+                                                    <FaEdit />
+                                                </button>
+                                                <button 
+                                                    className="list-action-btn delete"
+                                                    onClick={() => openDeleteReason(report)}
+                                                    title="Delete"
+                                                >
+                                                    <FaTrashAlt />
+                                                </button>
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+                            );
+                        })}
+                    </div>
+                    )
                 ) : (
                     <div style={{ padding: '20px', textAlign: 'center' }}>
                         <p>No reports match your current filters.</p>

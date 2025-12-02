@@ -212,7 +212,10 @@ function Profile({ token }) {
             });
             const data = await res.json();
             if (data.status === "success") {
-                navigate("/login"); // cascades to info & reports
+                // Determine role-aware login path
+                const role = (user && user.role) || (data && data.profile && data.profile.role) || 'Resident';
+                const roleKey = role === 'Admin' ? 'admin' : (role === 'Barangay Official' ? 'barangay' : (role === 'Responder' ? 'responder' : 'resident'));
+                navigate(`/login?role=${encodeURIComponent(roleKey)}`); // cascades to info & reports
             } else {
                 addNotification("Failed to delete account. Please try again.", "error");
             }
@@ -618,16 +621,33 @@ function Profile({ token }) {
                 </div>
             )}
 
-            {/* ------------------- DELETE ACCOUNT MODAL ------------------- */}
+            {/* ------------------- DELETE ACCOUNT MODAL (re-styled to match Delete Report modal) ------------------- */}
             {showDeleteAccount && (
-                <div className="modal-overlay">
-                    <div className="modal-content">
+                <div
+                    className="modal-overlay"
+                    role="dialog"
+                    aria-modal="true"
+                    aria-labelledby="delete-account-title"
+                    onClick={() => setShowDeleteAccount(false)}
+                >
+                    <div className="modal" onClick={(e) => e.stopPropagation()}>
+                        <h3 id="delete-account-title">Delete Account</h3>
                         <p>Are you sure you want to delete your account? This cannot be undone.</p>
                         <div className="modal-actions">
-                            <button onClick={handleDeleteAccount} style={{ background: "#e74c3c", color: "#fff" }}>
+                            <button
+                                className="cancel-btn"
+                                onClick={() => setShowDeleteAccount(false)}
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                className="confirm-btn"
+                                onClick={handleDeleteAccount}
+                                style={{ background: "linear-gradient(135deg, #d9534f, #c9302c)", color: '#fff' }}
+                                autoFocus
+                            >
                                 Yes, Delete
                             </button>
-                            <button onClick={() => setShowDeleteAccount(false)}>Cancel</button>
                         </div>
                     </div>
                 </div>

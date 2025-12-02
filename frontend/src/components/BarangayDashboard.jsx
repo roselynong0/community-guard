@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import {
   FaExclamationTriangle,
   FaCheckCircle,
@@ -26,6 +26,7 @@ import {
 import { API_CONFIG, getApiUrl } from "../utils/apiConfig";
 import MapView from "../components/Mapview";
 import "./BarangayDashboard.css";
+import LoadingScreen from "./LoadingScreen";
 
 // ✅ Fetch helper (same as resident)
 async function fetchWithToken(url, token, retries = 3) {
@@ -62,6 +63,40 @@ async function fetchWithToken(url, token, retries = 3) {
 }
 
 export default function BarangayDashboard({ token }) {
+
+  // Small animated number helper: counts from previous to new value smoothly
+  function AnimatedNumber({ value, duration = 800 }) {
+    const [display, setDisplay] = useState(0);
+    const startRef = useRef(null);
+    const fromRef = useRef(0);
+
+    useEffect(() => {
+      const to = Number(value) || 0;
+      const from = fromRef.current || 0;
+      const start = performance.now();
+      startRef.current = start;
+      let raf = null;
+
+      function easeOutQuad(t) {
+        return t * (2 - t);
+      }
+
+      function frame(now) {
+        const t = Math.min(1, (now - start) / duration);
+        const eased = easeOutQuad(t);
+        const current = Math.round(from + (to - from) * eased);
+        setDisplay(current);
+        if (t < 1) raf = requestAnimationFrame(frame);
+        else fromRef.current = to;
+      }
+
+      raf = requestAnimationFrame(frame);
+      return () => { if (raf) cancelAnimationFrame(raf); };
+    }, [value, duration]);
+
+    return <p>{display}</p>;
+  }
+
   const [stats, setStats] = useState([
     { title: "Total Reports", value: 0, icon: <FaExclamationTriangle />, color: "#2d2d73" },
     { title: "Ongoing", value: 0, icon: <FaSyncAlt />, color: "#f40014ff" },
@@ -71,11 +106,18 @@ export default function BarangayDashboard({ token }) {
 
   const [trendData, setTrendData] = useState([]);
   const [topBarangays, setTopBarangays] = useState([]);
+  const [userBarangay, setUserBarangay] = useState(null);
   const [loading, setLoading] = useState(true);
   const [reportView, setReportView] = useState("barangay"); // Toggle between "barangay" and "monthly"
   const [onpremium, setOnpremium] = useState(false); // Premium status
   const [showPremiumModal, setShowPremiumModal] = useState(false); // Premium upgrade modal
   const [notification, setNotification] = useState(null); // Toast notification
+  const [overlayExited, setOverlayExited] = useState(false);
+
+  const loadingFeatures = [
+    { title: "Barangay Overview", description: "Loading barangay statistics and trends." },
+    { title: "Maps & Hotspots", description: "Preparing high-risk zones and top barangays." },
+  ];
 
   // Notification handler
   const showNotification = (message, type = "success") => {
@@ -92,8 +134,9 @@ export default function BarangayDashboard({ token }) {
     
     const fetchAllData = async () => {
       setLoading(true);
+      setOverlayExited(false);
       try {
-        // 1. Fetch profile first to get barangay and premium status
+        // 1. Fetch profile first to get barangay from info table and premium status
         const profileResponse = await fetchWithToken(getApiUrl('/api/profile'), token);
         if (profileResponse.status !== "success") {
           console.error("Failed to load profile:", profileResponse);
@@ -108,24 +151,35 @@ export default function BarangayDashboard({ token }) {
         setOnpremium(isPremium);
         console.log('📊 User premium status:', isPremium);
         
-        const selectedBarangay = profile?.address_barangay || "All";
-        console.log("🔄 Fetching dashboard data for barangay:", selectedBarangay);
+        // Get address_barangay from info table (via profile endpoint)
+        const userBarangayValue = profile?.address_barangay;
+        // Only use barangay if it's a valid value (not the default placeholder)
+        const selectedBarangay = (userBarangayValue && userBarangayValue !== "No barangay selected") 
+          ? userBarangayValue 
+          : null;
         
-        // 2. Fetch dashboard data with barangay filter
-        const dashboardEndpoint = getApiUrl(`/api/dashboard/barangay/stats${
-          selectedBarangay !== "All"
-            ? `?barangay=${encodeURIComponent(selectedBarangay)}`
-            : ""
-        }`);
+        setUserBarangay(selectedBarangay);
+        console.log('🏘️ User barangay from info table:', selectedBarangay || 'Not set');
         
-        console.log("📊 Fetching all data from:", dashboardEndpoint);
-        const response = await fetchWithToken(dashboardEndpoint, token);
+        if (!selectedBarangay) {
+          console.warn('No address_barangay set in info table — skipping barangay-specific dashboard fetch');
+          setTopBarangays([]);
+          setTrendData([]);
+          // still allow stats to be empty or default
+        } else {
+          console.log("🔄 Fetching dashboard data for barangay:", selectedBarangay);
+          // 2. Fetch dashboard data scoped to the user's barangay from info table
+          // This includes stats, top barangays, and monthly trends filtered by this barangay
+          const dashboardEndpoint = getApiUrl(`/api/dashboard/barangay/stats?barangay=${encodeURIComponent(selectedBarangay)}`);
+          console.log("📊 Fetching all data from:", dashboardEndpoint);
+          const response = await fetchWithToken(dashboardEndpoint, token);
         
-        if (response.status === "success") {
-          console.log("✅ Dashboard data loaded:", response);
+          if (response.status === "success") {
+          console.log("✅ Dashboard data loaded for barangay:", selectedBarangay, response);
           
-          // Update stats
+          // Update stats (filtered by user's barangay from info table)
           if (response.stats) {
+            console.log("📊 Stats for barangay", selectedBarangay, ":", response.stats);
             setStats([
               {
                 title: "Total Reports",
@@ -154,24 +208,25 @@ export default function BarangayDashboard({ token }) {
             ]);
           }
           
-          // Update trends
+          // Update monthly trends (filtered by user's barangay from info table)
           if (response.trends && response.trends.length > 0) {
-            console.log("✅ Trends loaded:", response.trends.length, "months");
+            console.log("📅 Monthly trends for barangay", selectedBarangay, ":", response.trends.length, "months");
             setTrendData(response.trends);
           } else {
-            console.warn("⚠️ No trend data available");
+            console.warn("⚠️ No trend data available for barangay:", selectedBarangay);
             setTrendData([]);
           }
           
-          // Update top barangays
+          // Update top barangays (shows all barangays for comparison)
           if (response.topBarangays && response.topBarangays.length > 0) {
-            console.log("✅ Top barangays loaded:", response.topBarangays.length);
+            console.log("🏘️ Top barangays loaded:", response.topBarangays.length);
             setTopBarangays(response.topBarangays);
           } else {
             setTopBarangays([]);
           }
-        } else {
-          console.warn("⚠️ Dashboard response not successful:", response);
+          } else {
+            console.warn("⚠️ Dashboard response not successful:", response);
+          }
         }
 
         console.log("✅ Dashboard data fetch completed");
@@ -187,24 +242,16 @@ export default function BarangayDashboard({ token }) {
     fetchAllData();
   }, [token]); // Only depend on token, not userProfile
 
-  if (loading) {
-    return (
-      <div className="loading-overlay">
-        <div className="spinner"></div>
-        <p>Loading Barangay Dashboard...</p>
-      </div>
-    );
-  }
+  const mapRef = useRef(null);
 
-  return (
-    <div className="dashboard">
+  const content = (
+    <div className={`dashboard ${overlayExited ? 'overlay-exited' : ''}`}>
       {/* --- STAT CARDS (Dynamic) --- */}
       <div className="stats-grid">
         {stats.map((stat, i) => (
           <div
             key={i}
-            className="stat-card animate-up"
-            style={{ borderLeft: `4px solid ${stat.color}`, animationDelay: `${i * 0.1}s` }}
+            className={`stat-card ${['primary','danger','success','warning'][i] || ''}`}
           >
             <div className="stat-content">
               <span className="stat-icon" style={{ color: stat.color }}>
@@ -212,7 +259,7 @@ export default function BarangayDashboard({ token }) {
               </span>
               <div className="stat-text">
                 <h4>{stat.title}</h4>
-                <p>{stat.value}</p>
+                <AnimatedNumber value={stat.value} duration={900} />
               </div>
             </div>
           </div>
@@ -220,7 +267,7 @@ export default function BarangayDashboard({ token }) {
       </div>
 
       {/* --- COMBINED TRENDS SECTION (Barangay Trends & Monthly Reports) --- */}
-      <div className="section-card animate-up">
+      <div className="section-card">
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1.5rem" }}>
           <h3 style={{ margin: 0 }}>
             {reportView === "barangay" ? "Barangays with Most Reports" : "Monthly Report Summary"}
@@ -259,38 +306,19 @@ export default function BarangayDashboard({ token }) {
           </div>
         </div>
 
-        <div className="chart-container">
-          <ResponsiveContainer width="100%" height={260}>
-            {reportView === "barangay" ? (
-              /* Barangay Trends - Bar Chart */
-              <BarChart data={topBarangays.map(item => ({...item, Total: parseInt(item.total) || 0}))}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="barangay" />
-                <YAxis allowDecimals={false} type="number" domain={[0, 'dataMax + 1']} />
-                <Tooltip formatter={(value) => parseInt(value)} />
-                <Legend />
-                <Bar dataKey="Total" fill="#2d2d73" />
-              </BarChart>
-            ) : (
-              /* Monthly Report Summary - Line Chart */
-              <LineChart data={trendData.map(item => ({...item, Count: parseInt(item.count) || 0}))}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="month" />
-                <YAxis allowDecimals={false} type="number" domain={[0, 'dataMax + 1']} />
-                <Tooltip formatter={(value) => parseInt(value)} />
-                <Legend />
-                <Line type="monotone" dataKey="Count" stroke="#2d2d73" strokeWidth={2} />
-              </LineChart>
-            )}
-          </ResponsiveContainer>
-        </div>
+        {/* Single section-card: tabs to switch between Chart and Pie (pie shown in same container) */}
+        <ChartTabs
+          reportView={reportView}
+          trendData={trendData}
+          topBarangays={topBarangays}
+        />
       </div>
 
       {/* --- MAP --- */}
-      <div className="map-section animate-up">
+      <div className="map-section">
         <h3>High-Risk Zones Map</h3>
         <div className="map-placeholder">
-          <MapView reports={topBarangays} />
+          <MapView ref={mapRef} barangay={userBarangay} />
         </div>
       </div>
 
@@ -423,6 +451,152 @@ export default function BarangayDashboard({ token }) {
         </div>
       )}
 
+    </div>
+  );
+
+  return (
+    <LoadingScreen
+      variant="inline"
+      features={loadingFeatures}
+      title={loading ? "Loading Dashboard..." : undefined}
+      subtitle={loading ? "Fetching barangay stats and trends" : undefined}
+      stage={loading ? "loading" : "exit"}
+      onExited={() => {
+        setOverlayExited(true);
+        setTimeout(() => {
+          // Trigger a window resize then invalidate the Leaflet map twice with a short delay
+          // to ensure Leaflet recalculates container size after the loading overlay is removed.
+          window.dispatchEvent(new Event('resize'));
+          try {
+            mapRef.current?.invalidate();
+            // Second invalidate after a short delay as a safeguard for stubborn layouts
+            setTimeout(() => {
+              try { mapRef.current?.invalidate(); } catch { /* ignore */ }
+            }, 160);
+          } catch {
+            // ignore
+          }
+        }, 120);
+      }}
+      inlineOffset="18vh"
+    >
+      {content}
+    </LoadingScreen>
+  );
+}
+
+// Small presentational tab component kept in same file for convenience
+function ChartTabs({ reportView, trendData, topBarangays }) {
+  const [tab, setTab] = useState('chart');
+
+  // Color palette for pies/legends
+  const palette = ["#4a76b9","#d9534f","#f0ad4e","#5cb85c","#777777","#8e44ad","#16a085"];
+
+  // Build the pie data depending on the active report view
+  const pieData = React.useMemo(() => {
+    if (reportView === 'barangay') {
+      return (topBarangays || []).map(b => ({ name: b.barangay, value: parseInt(b.total) || 0 }));
+    }
+    // monthly view -> use trendData (month / count)
+    return (trendData || []).map(t => ({ name: t.month || t.label || 'Unknown', value: parseInt(t.count) || 0 }));
+  }, [reportView, topBarangays, trendData]);
+
+  const pieTotal = (pieData || []).reduce((s, d) => s + (d.value || 0), 0);
+
+  return (
+    <div>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <button
+            className={tab === 'chart' ? 'tab-active' : 'tab-inactive'}
+            onClick={() => setTab('chart')}
+            style={{ padding: '8px 12px', borderRadius: 8, cursor: 'pointer' }}
+          >Chart</button>
+          <button
+            className={tab === 'pie' ? 'tab-active' : 'tab-inactive'}
+            onClick={() => setTab('pie')}
+            style={{ padding: '8px 12px', borderRadius: 8, cursor: 'pointer' }}
+          >Pie</button>
+        </div>
+      </div>
+
+      <div>
+        {tab === 'chart' ? (
+          <div className="chart-container">
+            <ResponsiveContainer width="100%" height={260}>
+              {reportView === 'barangay' ? (
+                <BarChart data={topBarangays.map(item => ({...item, Total: parseInt(item.total) || 0}))}>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis dataKey="barangay" />
+                  <YAxis allowDecimals={false} type="number" domain={[0, 'dataMax + 1']} />
+                  <Tooltip formatter={(value) => parseInt(value)} />
+                  <Legend />
+                  <Bar dataKey="Total" fill="#2d2d73" isAnimationActive={true} animationDuration={900} />
+                </BarChart>
+              ) : (
+                <LineChart data={trendData.map(item => ({...item, Count: parseInt(item.count) || 0}))}>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis dataKey="month" />
+                  <YAxis allowDecimals={false} type="number" domain={[0, 'dataMax + 1']} />
+                  <Tooltip formatter={(value) => parseInt(value)} />
+                  <Legend />
+                  <Line type="monotone" dataKey="Count" stroke="#2d2d73" strokeWidth={2} isAnimationActive={true} animationDuration={900} />
+                </LineChart>
+              )}
+            </ResponsiveContainer>
+          </div>
+        ) : (
+          <div className="reports-chart">
+            <h4 style={{ marginTop: 0 }}>{reportView === 'barangay' ? 'Top Barangays' : 'Monthly Distribution'}</h4>
+            <div className="chart-container">
+              <div className="chart-wrapper" style={{ height: 260 }}>
+                <ResponsiveContainer width="100%" height={260}>
+                  <PieChart>
+                    <Pie
+                      data={pieData}
+                      cx="50%"
+                      cy="50%"
+                      innerRadius={60}
+                      outerRadius={90}
+                      dataKey="value"
+                      paddingAngle={2}
+                      nameKey="name"
+                    >
+                      {pieData.map((entry, idx) => (
+                        <Cell key={`cell-${idx}`} fill={palette[idx % palette.length]} />
+                      ))}
+                    </Pie>
+                    <Tooltip />
+                  </PieChart>
+                </ResponsiveContainer>
+
+                <div className="chart-center" aria-hidden={true}>
+                  <div className="value">{pieTotal}</div>
+                  <div className="label">Total reports</div>
+                </div>
+              </div>
+
+              <div className="custom-legend">
+                {pieData.length === 0 ? (
+                  <div style={{ padding: 12, color: '#666' }}>No data to display.</div>
+                ) : (
+                  pieData.map((d, idx) => (
+                    <div key={idx} className="legend-item">
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                        <span className="legend-chip" style={{ background: palette[idx % palette.length] }} />
+                        <span className="legend-name">{d.name}</span>
+                      </div>
+                      <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                        <span className="legend-pct">{d.value}</span>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   );
 }

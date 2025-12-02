@@ -10,9 +10,10 @@ import {
   FaUserFriends,
   FaMap,
   FaChartLine,
+  FaArchive,
 } from "react-icons/fa";
 import { Outlet, NavLink, useNavigate } from "react-router-dom";
-import { logout } from "../utils/session";
+import { logout, handleSessionExpired, isSessionExpired } from "../utils/session";
 import { API_CONFIG, getApiUrl } from "../utils/apiConfig";
 import Toast from "./Toast";
 import ChatBot from "./ChatBot";
@@ -53,10 +54,19 @@ function Layout({ session, setSession, setNotification }) {
         const res = await fetch(getApiUrl(API_CONFIG.endpoints.profile), {
           headers: { Authorization: `Bearer ${session.token}` },
         });
+        
+        // Check for session expiration (401/403)
+        if (isSessionExpired(res)) {
+          handleSessionExpired(setSession, setNotification, navigate, '');
+          setUser(null);
+          return;
+        }
+        
         const data = await res.json();
         if (!res.ok || data.status !== "success") {
-          setSession(null);
+          handleSessionExpired(setSession, setNotification, navigate, '', 'Your session is no longer valid. Please log in again to continue.');
           setUser(null);
+          return;
         } else {
           setUser({
             ...data.profile,
@@ -65,7 +75,7 @@ function Layout({ session, setSession, setNotification }) {
         }
       } catch (err) {
         console.error("Profile fetch error:", err);
-        setSession(null);
+        handleSessionExpired(setSession, setNotification, navigate, '');
         setUser(null);
       } finally {
         setLoading(false);
@@ -73,16 +83,22 @@ function Layout({ session, setSession, setNotification }) {
     };
 
     loadProfile();
-  }, [session, setSession]);
+  }, [session, setSession, setNotification, navigate]);
 
   // 🔹 Fetch missed reports summary once after profile and session load
   useEffect(() => {
     const tryFetchSummary = async () => {
       if (!session?.token || !user) return;
 
-      // Prevent repeated calls in same browser session
-      const shownKey = `missed_shown_${user.id || user?.email || 'anon'}`;
-      if (sessionStorage.getItem(shownKey)) return;
+      // Only show missed-summary when the user was redirected from the Resident login.
+      // ResidentLogin navigates to `/home?showMissed=1` after successful login.
+      const params = new URLSearchParams(window.location.search || "");
+      const showMissedParam = params.get('showMissed') || params.get('show_missed');
+      if (!showMissedParam) return; // not a login redirect, don't flash the modal
+
+      // Persist a per-user flag so the modal is only shown once ever (per-browser).
+      const persistKey = `missed_modal_shown_once_${user.id || user?.email || 'anon'}`;
+      if (localStorage.getItem(persistKey)) return;
 
       try {
         const res = await fetch(getApiUrl('/reports/missed_summary'), {
@@ -111,12 +127,15 @@ function Layout({ session, setSession, setNotification }) {
             // If no reports, still show a friendly summary message
             setMissedSummary(data);
             setShowMissedModal(true);
+            // Mark as shown so we never flash this again for this user
+            try { localStorage.setItem(persistKey, '1'); } catch { /* ignore */ }
             // Show a single gentle toast (do not spam)
             if (toastRef.current) {
               const msg = data.summary.total && data.summary.total > 0 ? data.summary.message : (data.summary.message || "Community Helper detected no missed reports while you were away.");
               toastRef.current.show(msg, 'info');
             }
-            sessionStorage.setItem(shownKey, '1');
+            // Keep legacy sessionStorage key for compatibility
+            try { sessionStorage.setItem(`missed_shown_${user.id || user?.email || 'anon'}`, '1'); } catch { /* ignore */ }
 
             // If user is partially verified (isverified true but verified false) show verify modal after summary
             try {
@@ -213,7 +232,7 @@ function Layout({ session, setSession, setNotification }) {
     await logout(setSession);
     setUser(null);
     setNotification({ message: "Logged out successfully.", type: "success" });
-    navigate("/login");
+    navigate("/login?role=resident");
   };
 
   if (loading)
@@ -281,6 +300,9 @@ function Layout({ session, setSession, setNotification }) {
             </NavLink>
             <NavLink to="/reports">
               <FaChartLine /> Reports
+            </NavLink>
+            <NavLink to="/archived">
+              <FaArchive /> Archived
             </NavLink>
             <NavLink to="/notifications">
               <FaBell /> Notifications
@@ -457,12 +479,14 @@ function Layout({ session, setSession, setNotification }) {
       {/* Verification prompt modal (shows after summary if needed) */}
       <VerificationModal open={showVerifyModal} onClose={() => setShowVerifyModal(false)} user={verifyUserData} />
 
-      {/* ChatBot Component */}
+      {/* ChatBot Component - Basic for residents (AI evaluation moved to official layouts) */}
       {session?.token && (
         <ChatBot 
           isOpen={showChatBot} 
           onClose={() => setShowChatBot(false)}
           token={session.token}
+          isPremium={false}
+          autoEvaluationTrigger={false}
         />
       )}
     </div>

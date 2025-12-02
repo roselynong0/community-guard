@@ -5,7 +5,7 @@ import { Navigate } from "react-router-dom";
 function AdminRouteGuard({ session, children }) {
   // If no session, redirect to login
   if (!session) {
-    return <Navigate to="/login" replace />;
+    return <Navigate to="/login?role=admin" replace />;
   }
 
   // If user is not an admin, redirect to resident home

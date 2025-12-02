@@ -96,7 +96,7 @@
 .chatbot-container.minimized .chatbot-header {
   padding: 12px 14px;
   border-radius: 8px;
-  min-height: auto;
+  min-height: 0;
   flex-wrap: nowrap;
   white-space: nowrap;
 }
@@ -554,3 +554,283 @@
     max-width: 80%;
     font-size: 12px;
   }
+
+/* ===========================================
+   PREMIUM USER STYLES
+   =========================================== */
+
+/* Premium container styling */
+.chatbot-container.premium {
+  border: 2px solid #f39c12;
+  box-shadow: 0 5px 40px rgba(243, 156, 18, 0.25);
+}
+
+/* Premium header with golden accent */
+.chatbot-header.premium-header {
+  background: linear-gradient(135deg, #f39c12 0%, #e67e22 100%);
+}
+
+/* Premium badge in header */
+.premium-badge {
+  background: rgba(255, 255, 255, 0.25);
+  padding: 2px 8px;
+  border-radius: 12px;
+  font-size: 11px;
+  font-weight: 600;
+  margin-left: 6px;
+}
+
+/* Notification indicator for new evaluations */
+.notification-indicator {
+  color: #fff;
+  animation: bellRing 1s ease-in-out infinite;
+  margin-left: 6px;
+  font-size: 14px;
+}
+
+@keyframes bellRing {
+  0%, 100% { transform: rotate(0deg); }
+  25% { transform: rotate(10deg); }
+  50% { transform: rotate(-10deg); }
+  75% { transform: rotate(5deg); }
+}
+
+/* Quick Actions Bar for Premium Users */
+.chatbot-quick-actions {
+  display: flex;
+  gap: 8px;
+  padding: 10px 12px;
+  background: linear-gradient(135deg, #fffbf0 0%, #fff8e6 100%);
+  border-bottom: 1px solid #f0e6d3;
+}
+
+.quick-action-btn {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 8px 12px;
+  background: linear-gradient(135deg, #f39c12 0%, #e67e22 100%);
+  color: white;
+  border: none;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.quick-action-btn:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(243, 156, 18, 0.35);
+}
+
+.quick-action-btn:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+
+.quick-action-btn svg {
+  font-size: 14px;
+}
+
+/* Evaluation Message Styling */
+.message.evaluation-message .message-content {
+  background: linear-gradient(135deg, #fffbf0 0%, #fff8e6 100%);
+  border: 1px solid #f0e6d3;
+  border-left: 4px solid #f39c12;
+}
+
+.evaluation-content {
+  max-width: 95% !important;
+}
+
+.evaluation-content p {
+  font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+/* Priority Colors in Evaluation Messages */
+.evaluation-content .priority-critical {
+  color: #c0392b;
+  font-weight: 700;
+}
+
+.evaluation-content .priority-high {
+  color: #d35400;
+  font-weight: 600;
+}
+
+.evaluation-content .priority-medium {
+  color: #7f8c8d;
+}
+
+.evaluation-content .priority-low {
+  color: #95a5a6;
+}
+
+/* Responsive adjustments for premium features */
+@media (max-width: 500px) {
+  .chatbot-quick-actions {
+    padding: 8px;
+  }
+
+  .quick-action-btn {
+    padding: 6px 10px;
+    font-size: 11px;
+  }
+
+  .premium-badge {
+    font-size: 9px;
+    padding: 2px 6px;
+  }
+
+  .evaluation-content p {
+    font-size: 10px;
+  }
+}
+
+/* Confirmation Prompt Modal */
+.chatbot-confirm-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+  -webkit-backdrop-filter: blur(3px);
+  backdrop-filter: blur(3px);
+  animation: fadeIn 0.2s ease;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.chatbot-confirm-modal {
+  background: white;
+  border-radius: 16px;
+  padding: 24px;
+  max-width: 320px;
+  width: 90%;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+  animation: slideUp 0.3s ease;
+  text-align: center;
+}
+
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.chatbot-confirm-modal .confirm-icon {
+  width: 60px;
+  height: 60px;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 auto 16px;
+  font-size: 28px;
+  color: white;
+  box-shadow: 0 8px 24px rgba(102, 126, 234, 0.4);
+}
+
+.chatbot-confirm-modal h3 {
+  margin: 0 0 12px;
+  font-size: 18px;
+  font-weight: 700;
+  color: #1a1a2e;
+}
+
+.chatbot-confirm-modal p {
+  margin: 0 0 8px;
+  font-size: 14px;
+  color: #666;
+  line-height: 1.5;
+}
+
+.chatbot-confirm-modal .confirm-details {
+  font-size: 12px;
+  color: #888;
+  background: #f8f9fa;
+  padding: 12px;
+  border-radius: 8px;
+  margin: 12px 0 16px;
+  text-align: left;
+}
+
+.chatbot-confirm-modal .confirm-details strong {
+  color: #27ae60;
+}
+
+.confirm-actions {
+  display: flex;
+  gap: 10px;
+  justify-content: center;
+}
+
+.confirm-decline-btn,
+.confirm-accept-btn {
+  flex: 1;
+  padding: 12px 16px;
+  border: none;
+  border-radius: 10px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  transition: all 0.2s ease;
+}
+
+.confirm-decline-btn {
+  background: #f5f5f5;
+  color: #666;
+}
+
+.confirm-decline-btn:hover:not(:disabled) {
+  background: #e0e0e0;
+}
+
+.confirm-accept-btn {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+}
+
+.confirm-accept-btn:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(102, 126, 234, 0.4);
+}
+
+.confirm-accept-btn:disabled,
+.confirm-decline-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.confirm-accept-btn .spinner {
+  animation: spin 1s linear infinite;
+}
+
+/* Approval message styling */
+.message-bot .isApproval {
+  background: linear-gradient(135deg, #e8f5e9 0%, #c8e6c9 100%);
+  border-left: 4px solid #27ae60;
+}

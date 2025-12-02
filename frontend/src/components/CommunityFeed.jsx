@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useMemo } from "react";
 import "./CommunityFeed.css";
 import "./Notifications.css";
-import { FaPaperPlane, FaUsers, FaTrash } from "react-icons/fa";
+import { FaPaperPlane, FaUsers, FaTrash, FaHeart, FaRegHeart } from "react-icons/fa";
 import { getApiUrl, API_CONFIG } from "../utils/apiConfig";
 import LoadingScreen from "./LoadingScreen";
 
@@ -36,6 +36,14 @@ const BARANGAYS = [
   "West Bajac-Bajac",
   "West Tapinac",
 ];
+
+// Sort options for newsfeed algorithm
+const SORT_OPTIONS = [
+  { value: "trending", label: "🔥 Trending", description: "Popular + Recent" },
+  { value: "latest", label: "🕐 Latest", description: "Most Recent First" },
+  { value: "top", label: "⭐ Top", description: "Most Engagement" },
+];
+
 const CommunityFeed = () => {
   const [posts, setPosts] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -44,12 +52,15 @@ const CommunityFeed = () => {
   const [searchTerm, setSearchTerm] = useState("");
   const [barangayFilter, setBarangayFilter] = useState("All");
   const [postTypeFilter, setPostTypeFilter] = useState("all");
+  const [sortBy, setSortBy] = useState("trending"); // Newsfeed algorithm
   const [userBarangay, setUserBarangay] = useState("");
   const [postingState, setPostingState] = useState(false);
   const [overlayExited, setOverlayExited] = useState(false);
+  const [announcements, setAnnouncements] = useState([]); // LGU Announcements
 
   useEffect(() => {
     fetchUserBarangay();
+    fetchAnnouncements();
   }, []);
 
   const fetchUserBarangay = async () => {
@@ -65,6 +76,10 @@ const CommunityFeed = () => {
         const data = await response.json();
         const barangay = data.profile?.address_barangay || data.address_barangay || "Barretto";
         setUserBarangay(barangay);
+        // Auto-filter to user's barangay for Residents
+        if (data.profile?.role === "Resident" && barangay) {
+          setBarangayFilter(barangay);
+        }
       } else {
         console.error("Error fetching user info:", response.statusText);
         setUserBarangay("Barretto");
@@ -72,6 +87,25 @@ const CommunityFeed = () => {
     } catch (error) {
       console.error("Error fetching user info:", error);
       setUserBarangay("Barretto");
+    }
+  };
+
+  // Fetch LGU Announcements
+  const fetchAnnouncements = async () => {
+    try {
+      const token = localStorage.getItem("token");
+      if (!token) return;
+
+      const response = await fetch(getApiUrl('/api/announcements'), {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setAnnouncements(data.announcements || []);
+      }
+    } catch (error) {
+      console.error("Error fetching announcements:", error);
     }
   };
 
@@ -92,6 +126,9 @@ const CommunityFeed = () => {
         params.append("post_type", postTypeFilter);
       }
 
+      // Add sort algorithm parameter
+      params.append("sort", sortBy);
+
       const response = await fetch(url + (params.toString() ? `?${params.toString()}` : ''), {
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
       });
@@ -107,7 +144,7 @@ const CommunityFeed = () => {
     } finally {
       setLoading(false);
     }
-  }, [barangayFilter, postTypeFilter]);
+  }, [barangayFilter, postTypeFilter, sortBy]);
 
   useEffect(() => {
     fetchPosts();
@@ -166,17 +203,23 @@ const CommunityFeed = () => {
     }
   };
 
-  const handleDeletePost = async (postId) => {
-    if (!window.confirm("Are you sure you want to delete this post?")) return;
+  const handleDeletePost = async (postId, permanent = false) => {
+    const confirmMsg = permanent 
+      ? "This will permanently delete the post. This action cannot be undone. Continue?"
+      : "Are you sure you want to delete this post?";
+    if (!window.confirm(confirmMsg)) return;
     try {
       const token = localStorage.getItem("token");
-      const response = await fetch(getApiUrl(`/api/community/posts/${postId}`), {
+      const url = permanent 
+        ? getApiUrl(`/api/community/posts/${postId}?permanent=true`)
+        : getApiUrl(`/api/community/posts/${postId}`);
+      const response = await fetch(url, {
         method: "DELETE",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
       });
       if (response.ok) {
         setPosts((prev) => prev.filter((p) => p.id !== postId));
-        setNotification({ type: "success", message: "✅ Post deleted successfully!" });
+        setNotification({ type: "success", message: permanent ? "✅ Post permanently deleted!" : "✅ Post deleted successfully!" });
       } else {
         setNotification({ type: "error", message: "❌ Failed to delete post" });
       }
@@ -226,6 +269,31 @@ const CommunityFeed = () => {
     }
   };
 
+  // ✅ LIKE/UNLIKE POST
+  const handleLikePost = async (postId) => {
+    try {
+      const token = localStorage.getItem("token");
+      const response = await fetch(getApiUrl(`/api/community/posts/${postId}/react`), {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ reaction_type: "like" }),
+      });
+      if (response.ok) {
+        const data = await response.json();
+        // Update local state
+        setPosts((prev) =>
+          prev.map((p) =>
+            p.id === postId
+              ? { ...p, user_liked: data.liked, reaction_count: data.reaction_count }
+              : p
+          )
+        );
+      }
+    } catch (error) {
+      console.error("Error liking post:", error);
+    }
+  };
+
   const filteredPosts = posts.filter((p) => {
     const text = searchTerm.toLowerCase();
     const authorName = p.author?.firstname + " " + p.author?.lastname;
@@ -239,6 +307,29 @@ const CommunityFeed = () => {
   const main = (
     <div className={`feed-container ${overlayExited ? "overlay-exited" : ""}`}>
       {notification && <div className={`notif notif-${notification.type}`}>{notification.message}</div>}
+      
+      {/* LGU Announcements Banner */}
+      {announcements.length > 0 && (
+        <div className="announcements-banner">
+          <div className="announcements-header">
+            <span className="announcements-icon">📢</span>
+            <span className="announcements-title">LGU Announcements</span>
+          </div>
+          <div className="announcements-list">
+            {announcements.slice(0, 3).map((ann) => (
+              <div key={ann.id} className={`announcement-item priority-${ann.priority || 'normal'}`}>
+                <div className="announcement-type">{ann.announcement_type === 'policy' ? '📜' : ann.announcement_type === 'emergency' ? '🚨' : ann.announcement_type === 'event' ? '📅' : '📣'}</div>
+                <div className="announcement-content">
+                  <strong>{ann.title}</strong>
+                  <p>{ann.content.slice(0, 100)}{ann.content.length > 100 ? '...' : ''}</p>
+                  <small>{ann.barangay || 'City-wide'} • {new Date(ann.created_at).toLocaleDateString()}</small>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+      
       <div className="feed-header">
         <h2 className="feed-title"><FaUsers className="feed-icon" /> Community Feed</h2>
         <div className="header-actions">
@@ -246,6 +337,19 @@ const CommunityFeed = () => {
           <button className="feed-btn" onClick={() => setOpenModal(true)}>+ New Post</button>
         </div>
         <div className="feed-filters">
+          {/* Sort Algorithm Selector */}
+          <div className="feed-sort-tabs">
+            {SORT_OPTIONS.map((opt) => (
+              <button
+                key={opt.value}
+                className={`sort-tab ${sortBy === opt.value ? 'active' : ''}`}
+                onClick={() => setSortBy(opt.value)}
+                title={opt.description}
+              >
+                {opt.label}
+              </button>
+            ))}
+          </div>
           <select className="feed-filter-select" value={barangayFilter} onChange={(e) => setBarangayFilter(e.target.value)}>
             <option value="All">All Barangays</option>
             {BARANGAYS.map((b) => <option key={b} value={b}>{b}</option>)}
@@ -267,7 +371,7 @@ const CommunityFeed = () => {
           <>
             {filteredPosts.length === 0 && <p>No posts found.</p>}
             {filteredPosts.map((post) => (
-              <PostCard key={post.id} post={post} onAddComment={handleAddComment} onDeleteComment={handleDeleteComment} onDeletePost={handleDeletePost} />
+              <PostCard key={post.id} post={post} onAddComment={handleAddComment} onDeleteComment={handleDeleteComment} onDeletePost={handleDeletePost} onLikePost={handleLikePost} />
             ))}
           </>
         )}
@@ -293,7 +397,7 @@ const CommunityFeed = () => {
 };
 
 // ✅ POST CARD
-const PostCard = ({ post, onAddComment, onDeleteComment, onDeletePost }) => {
+const PostCard = ({ post, onAddComment, onDeleteComment, onDeletePost, onLikePost }) => {
   const [comment, setComment] = useState("");
   const [showComments, setShowComments] = useState(false);
 
@@ -308,15 +412,17 @@ const PostCard = ({ post, onAddComment, onDeleteComment, onDeletePost }) => {
   const authorName = `${post.author?.firstname} ${post.author?.lastname}`;
   const postedDate = new Date(post.created_at).toLocaleDateString();
 
-  const isPending = (post.status && post.status !== 'approved') || post.is_pending;
+  const isPending = post.status === 'pending' && !post.is_accepted && !post.is_rejected;
+  const isRejected = post.is_rejected || post.status === 'rejected';
 
   return (
-    <div className={`post-card ${post.is_pinned ? "post-pinned" : ""} ${isPending ? 'pending' : ''}`}>
+    <div className={`post-card ${post.is_pinned ? "post-pinned" : ""} ${isPending ? 'pending' : ''} ${isRejected ? 'rejected' : ''}`}>
       <div className="post-header">
         <div className="post-title-section">
           <h3>{post.title}</h3>
             {post.is_pinned && <span className="badge-pinned">📌 Pinned</span>}
             {isPending && <span className="badge-pending">⏳ Pending</span>}
+            {isRejected && <span className="badge-rejected">❌ Rejected</span>}
         </div>
         <div className="post-header-right">
           <div className="post-meta">
@@ -371,13 +477,72 @@ const PostCard = ({ post, onAddComment, onDeleteComment, onDeletePost }) => {
         By {authorName} · {postedDate} · {post.barangay}
       </p>
 
-      {!post.allow_comments && (
+      {/* Rejected post notice */}
+      {isRejected && post.can_delete && (
+        <div className="rejected-notice">
+          <p style={{ color: "#dc2626", fontSize: "0.9rem", marginBottom: "0.5rem" }}>
+            ⚠️ This post was rejected by moderators for not meeting community guidelines.
+          </p>
+          <button 
+            className="delete-rejected-btn"
+            onClick={() => onDeletePost(post.id, true)}
+            style={{
+              backgroundColor: "#dc2626",
+              color: "white",
+              border: "none",
+              padding: "0.5rem 1rem",
+              borderRadius: "8px",
+              cursor: "pointer",
+              fontSize: "0.85rem",
+              fontWeight: "600"
+            }}
+          >
+            🗑️ Delete This Post
+          </button>
+        </div>
+      )}
+
+      {/* Like button - only for accepted/approved posts */}
+      {(post.is_accepted || post.status === 'approved') && !isRejected && (
+        <div className="post-engagement" style={{ 
+          display: 'flex', 
+          alignItems: 'center', 
+          gap: '16px', 
+          marginTop: '12px',
+          paddingTop: '12px',
+          borderTop: '1px solid #eee'
+        }}>
+          <button
+            className={`like-btn ${post.user_liked ? 'liked' : ''}`}
+            onClick={() => onLikePost(post.id)}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              padding: '8px 14px',
+              background: post.user_liked ? 'rgba(239, 68, 68, 0.1)' : 'rgba(156, 163, 175, 0.1)',
+              color: post.user_liked ? '#ef4444' : '#6b7280',
+              border: 'none',
+              borderRadius: '20px',
+              cursor: 'pointer',
+              fontSize: '14px',
+              fontWeight: '500',
+              transition: 'all 0.2s ease',
+            }}
+          >
+            {post.user_liked ? <FaHeart /> : <FaRegHeart />}
+            {post.reaction_count || 0} {post.reaction_count === 1 ? 'Like' : 'Likes'}
+          </button>
+        </div>
+      )}
+
+      {!post.allow_comments && !isRejected && (
         <p style={{ color: "#ef4444", fontSize: "0.9rem", marginTop: "0.5rem" }}>
           💬 Comments are disabled for this post
         </p>
       )}
 
-      {post.status && post.status !== 'approved' && (
+      {isPending && !isRejected && (
         <p style={{ color: "#f97316", fontSize: "0.9rem", marginTop: "0.5rem" }}>
           💬 Comments are only available once this post is approved
         </p>

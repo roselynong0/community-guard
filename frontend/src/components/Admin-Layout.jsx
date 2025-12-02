@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import {
   FaHome,
   FaPlusCircle,
@@ -11,11 +11,14 @@ import {
   FaChartLine,
   FaChartBar,
   FaComment,
+  FaArchive,
 } from "react-icons/fa";
 import { Outlet, NavLink, useNavigate } from "react-router-dom";
 import Toast from "./Toast";
+import ChatBot from "./ChatBot";
 import { registerToastCallback, registerNotificationCountCallback, startNotificationPolling, stopNotificationPolling } from "../utils/notificationService";
 import { API_CONFIG, getApiUrl } from "../utils/apiConfig";
+import { handleSessionExpired, isSessionExpired } from "../utils/session";
 import "./Layout.css";
 import logo from "../assets/logo.png";
 import LoadingScreen from "./LoadingScreen";
@@ -27,10 +30,46 @@ function AdminLayout({ session, setSession, setNotification }) {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
   const [notificationCount, setNotificationCount] = useState(0);
+  const [showChatBot, setShowChatBot] = useState(false);
+  const [autoEvaluationTrigger, setAutoEvaluationTrigger] = useState(false);
   const toastRef = useRef(null);
   const pollingIntervalRef = useRef(null);
+  const hasCheckedEvaluations = useRef(false);
 
   const navigate = useNavigate();
+
+  // Check for new AI evaluations (for Admin)
+  const checkForNewEvaluations = useCallback(async () => {
+    if (!session?.token || hasCheckedEvaluations.current) return;
+    
+    try {
+      const res = await fetch(getApiUrl('/api/chat/check-new-evaluations'), {
+        headers: { Authorization: `Bearer ${session.token}` },
+      });
+      
+      if (res.ok) {
+        const data = await res.json();
+        
+        if (data.should_notify && data.has_new_evaluations) {
+          hasCheckedEvaluations.current = true;
+          
+          // Auto-open chatbot with evaluation prompt for admins
+          setAutoEvaluationTrigger(true);
+          setShowChatBot(true);
+          
+          // Show toast notification
+          if (toastRef.current) {
+            toastRef.current.show(
+              `🤖 AI found ${data.count} new report(s) to evaluate - Check Community Helper`,
+              'info'
+            );
+          }
+        }
+      }
+    } catch (e) {
+      console.warn('Error checking for new evaluations:', e);
+    }
+  }, [session?.token]);
 
   // Fetch admin profile if session exists
   useEffect(() => {
@@ -49,10 +88,18 @@ function AdminLayout({ session, setSession, setNotification }) {
           signal: controller.signal,
         });
         clearTimeout(timeout);
+        
+        // Check for session expiration (401/403)
+        if (isSessionExpired(res)) {
+          handleSessionExpired(setSession, setNotification, navigate, 'admin');
+          return;
+        }
+        
         const data = await res.json();
         if (!res.ok || data.status !== "success") {
-          setSession(null);
+          handleSessionExpired(setSession, setNotification, navigate, 'admin', 'Your session is no longer valid. Please log in again to access the admin panel.');
           setUser(null);
+          return;
         } else {
           if (data.profile?.role !== "Admin") {
             setSession(null);
@@ -61,9 +108,39 @@ function AdminLayout({ session, setSession, setNotification }) {
               message: "Access denied. Admin privileges required.",
               type: "error",
             });
-            navigate("/login");
+            navigate("/login?role=admin");
             return;
           }
+          
+          // Auto-set onpremium = true for Admin users (ensures premium status in database)
+          // This is a fire-and-forget call - Admin always has premium access regardless of DB state
+          if (data.profile?.role === "Admin") {
+            // Always set premium in the profile state for Admin users
+            data.profile.onpremium = true;
+            
+            // Try to sync with database if not already premium
+            if (!data.profile?.onpremium) {
+              const premiumUrl = getApiUrl('/api/admin/set-premium');
+              fetch(premiumUrl, {
+                method: 'POST',
+                headers: { 
+                  'Authorization': `Bearer ${session.token}`,
+                  'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ onpremium: true })
+              }).then(resp => {
+                if (resp.ok) {
+                  console.log('[Admin] ✅ Auto-set onpremium=true for Admin user');
+                } else {
+                  console.log('[Admin] ⚠️ Premium sync returned:', resp.status, '- Admin still has premium access');
+                }
+              }).catch(err => {
+                // Silently ignore - Admin always has premium access in the app
+                console.log('[Admin] ℹ️ Premium sync skipped (network) - Admin has premium access by default');
+              });
+            }
+          }
+          
           setUser({
             ...data.profile,
             avatar_url: data.profile?.avatar_url || "/default-avatar.png",
@@ -103,7 +180,7 @@ function AdminLayout({ session, setSession, setNotification }) {
             message: "Admin session expired. Please login again.",
             type: "error",
           });
-          navigate("/login");
+          navigate("/login?role=admin");
         }
       } finally {
         setLoading(false);
@@ -111,6 +188,29 @@ function AdminLayout({ session, setSession, setNotification }) {
     };
     loadProfile();
   }, [session, setSession, setNotification, navigate]);
+
+  // Check for AI evaluations after user profile is loaded
+  useEffect(() => {
+    if (user && session?.token && !hasCheckedEvaluations.current) {
+      // Small delay to not overwhelm initial load
+      const timer = setTimeout(() => {
+        checkForNewEvaluations();
+      }, 2000);
+      return () => clearTimeout(timer);
+    }
+  }, [user, session?.token, checkForNewEvaluations]);
+
+  // Handle evaluation completion callback
+  const handleEvaluationComplete = (approvalResult) => {
+    if (approvalResult?.approved_count > 0) {
+      if (toastRef.current) {
+        toastRef.current.show(
+          `✅ Auto-approved ${approvalResult.approved_count} HIGH/CRITICAL report(s)`,
+          'success'
+        );
+      }
+    }
+  };
 
   // 🔹 Setup real-time notifications via SSE for admin
   useEffect(() => {
@@ -188,7 +288,7 @@ function AdminLayout({ session, setSession, setNotification }) {
         message: `Admin ${user?.firstname || "user"} logged out successfully`,
         type: "success",
       });
-      navigate("/login");
+      navigate("/login?role=admin");
     }
   };
 
@@ -238,6 +338,9 @@ function AdminLayout({ session, setSession, setNotification }) {
             </NavLink>
             <NavLink to="/admin/reports">
               <FaChartLine /> Reports
+            </NavLink>
+            <NavLink to="/admin/archived">
+              <FaArchive /> Archived
             </NavLink>
             <NavLink to="/admin/communityfeedadmin">
               <FaComment /> Community Feed
@@ -421,6 +524,21 @@ function AdminLayout({ session, setSession, setNotification }) {
             </div>
           </div>
         </div>
+      )}
+
+      {/* ChatBot Component with AI Evaluation - Premium feature for Admin */}
+      {session?.token && (
+        <ChatBot 
+          isOpen={showChatBot} 
+          onClose={() => {
+            setShowChatBot(false);
+            setAutoEvaluationTrigger(false);
+          }}
+          token={session.token}
+          isPremium={true}
+          autoEvaluationTrigger={autoEvaluationTrigger}
+          onEvaluationComplete={handleEvaluationComplete}
+        />
       )}
     </div>
   );

@@ -71,6 +71,122 @@
   flex-wrap: wrap;
 }
 
+/* Sort Algorithm Tabs */
+.feed-sort-tabs {
+  display: flex;
+  gap: 4px;
+  background: #f1f5f9;
+  padding: 4px;
+  border-radius: 8px;
+}
+
+.sort-tab {
+  padding: 6px 12px;
+  border: none;
+  background: transparent;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 500;
+  color: #64748b;
+  transition: all 0.2s ease;
+  white-space: nowrap;
+}
+
+.sort-tab:hover {
+  background: rgba(45, 45, 115, 0.1);
+  color: #2d2d73;
+}
+
+.sort-tab.active {
+  background: #2d2d73;
+  color: white;
+  box-shadow: 0 2px 4px rgba(45, 45, 115, 0.2);
+}
+
+/* LGU Announcements Banner */
+.announcements-banner {
+  background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
+  border: 1px solid #f59e0b;
+  border-radius: 12px;
+  padding: 16px;
+  margin-bottom: 20px;
+  box-shadow: 0 2px 8px rgba(245, 158, 11, 0.15);
+}
+
+.announcements-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.announcements-icon {
+  font-size: 1.4rem;
+}
+
+.announcements-title {
+  font-weight: 600;
+  color: #92400e;
+  font-size: 1rem;
+}
+
+.announcements-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.announcement-item {
+  display: flex;
+  gap: 12px;
+  background: white;
+  padding: 12px;
+  border-radius: 8px;
+  border-left: 4px solid #f59e0b;
+}
+
+.announcement-item.priority-high {
+  border-left-color: #ef4444;
+  background: #fef2f2;
+}
+
+.announcement-item.priority-normal {
+  border-left-color: #f59e0b;
+}
+
+.announcement-item.priority-low {
+  border-left-color: #22c55e;
+  background: #f0fdf4;
+}
+
+.announcement-type {
+  font-size: 1.2rem;
+}
+
+.announcement-content {
+  flex: 1;
+}
+
+.announcement-content strong {
+  display: block;
+  color: #1e293b;
+  font-size: 0.95rem;
+  margin-bottom: 4px;
+}
+
+.announcement-content p {
+  color: #475569;
+  font-size: 0.85rem;
+  margin: 0 0 4px 0;
+  line-height: 1.4;
+}
+
+.announcement-content small {
+  color: #94a3b8;
+  font-size: 0.75rem;
+}
+
 .feed-filter-select {
   padding: 8px 12px;
   border: 1px solid #bbb;
@@ -227,6 +343,34 @@
   font-size: 12px;
   border-radius: 6px;
   font-weight: 600;
+}
+
+.badge-rejected {
+  background: #fecaca;
+  color: #b91c1c;
+  padding: 4px 8px;
+  font-size: 12px;
+  border-radius: 6px;
+  font-weight: 600;
+}
+
+.post-card.rejected {
+  border: 2px dashed #dc2626;
+  background: linear-gradient(135deg, #fef2f2 0%, #fee2e2 100%);
+  opacity: 0.9;
+}
+
+.rejected-notice {
+  margin-top: 12px;
+  padding: 12px;
+  background: rgba(220, 38, 38, 0.1);
+  border-radius: 8px;
+  border: 1px solid rgba(220, 38, 38, 0.2);
+}
+
+.delete-rejected-btn:hover {
+  background-color: #b91c1c !important;
+  transform: scale(1.02);
 }
 
 .post-subinfo {

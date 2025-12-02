@@ -633,6 +633,7 @@ function Reports({ session }) {
   // Correct toggle logic
   const filteredReports = reports
     .filter((r) => r.deleted !== true) 
+    .filter((r) => r.status !== "Resolved") // Exclude resolved reports - they go to Archived
     .filter((r) =>
       showMyReports
         ? String(r.user_id) === String(session?.user?.id) // My Reports

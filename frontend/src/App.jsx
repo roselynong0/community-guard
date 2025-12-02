@@ -11,6 +11,7 @@ import Layout from "./components/Layout";
 import AdminLayout from "./components/Admin-Layout";
 import Home from "./components/Home";
 import Reports from "./components/Reports";
+import ArchivedReports from "./components/ArchivedReports";
 import AdminReports from "./components/Admin-Reports";
 import AdminUsers from "./components/Admin-Users";
 import Profile from "./components/Profile";
@@ -272,7 +273,7 @@ function App() {
             ) : session && session.user?.role === "Responder" ? (
               <Navigate to="/responder/home" replace />
             ) : (
-              <Navigate to="/login" replace />
+              <Navigate to="/login?role=resident" replace />
             )
           }
         >
@@ -288,7 +289,7 @@ function App() {
               ) : session?.user?.role === "Responder" ? (
                 <Navigate to="/responder/home" replace />
               ) : (
-                <Navigate to="/login" replace />
+                <Navigate to="/login?role=resident" replace />
               )
             }
           />
@@ -304,7 +305,7 @@ function App() {
               ) : session?.user?.role === "Responder" ? (
                 <Navigate to="/responder/maps" replace />
               ) : (
-                <Navigate to="/login" replace />
+                <Navigate to="/login?role=resident" replace />
               )
             }
           />
@@ -320,7 +321,23 @@ function App() {
               ) : session?.user?.role === "Responder" ? (
                 <Navigate to="/responder/reports" replace />
               ) : (
-                <Navigate to="/login" replace />
+                <Navigate to="/login?role=resident" replace />
+              )
+            }
+          />
+          <Route
+            path="/archived"
+            element={
+              session?.user?.role === "Resident" ? (
+                <ArchivedReports session={session} />
+              ) : session?.user?.role === "Admin" ? (
+                <Navigate to="/admin/reports" replace />
+              ) : session?.user?.role === "Barangay Official" ? (
+                <Navigate to="/barangay/dashboard" replace />
+              ) : session?.user?.role === "Responder" ? (
+                <Navigate to="/responder/reports" replace />
+              ) : (
+                <Navigate to="/login?role=resident" replace />
               )
             }
           />
@@ -336,7 +353,7 @@ function App() {
               ) : session?.user?.role === "Responder" ? (
                 <Navigate to="/responder/notifications" replace />
               ) : (
-                <Navigate to="/login" replace />
+                <Navigate to="/login?role=resident" replace />
               )
             }
           />
@@ -352,7 +369,7 @@ function App() {
               ) : session?.user?.role === "Responder" ? (
                 <Navigate to="/responder/home" replace />
               ) : (
-                <Navigate to="/login" replace />
+                <Navigate to="/login?role=resident" replace />
               )
             }
           />
@@ -368,7 +385,7 @@ function App() {
               ) : session?.user?.role === "Responder" ? (
                 <Navigate to="/responder/community-feed" replace />
               ) : (
-                <Navigate to="/login" replace />
+                <Navigate to="/login?role=resident" replace />
               )
             }
           />
@@ -384,7 +401,7 @@ function App() {
               ) : session?.user?.role === "Responder" ? (
                 <Navigate to="/responder/profile" replace />
               ) : (
-                <Navigate to="/login" replace />
+                <Navigate to="/login?role=resident" replace />
               )
             }
           />
@@ -398,13 +415,14 @@ function App() {
             ) : session ? (
               <Navigate to="/home" replace />
             ) : (
-              <Navigate to="/login" replace />
+              <Navigate to="/login?role=barangay" replace />
             )
           }
         >
           <Route path="/barangay/dashboard" element={<BarangayDashboard token={session?.token} />} />
           <Route path="/barangay/maps" element={<Maps session={session} userRole="Barangay Official" />} />
           <Route path="/barangay/reports" element={<BarangayReports token={session?.token} />} />
+          <Route path="/barangay/archived" element={<ArchivedReports session={session} />} />
           <Route path="/barangay/notifications" element={<Notifications token={session?.token} />} />
           <Route path="/barangay/community-feed" element={<CommunityFeedBarangay token={session?.token} session={session} />} />
           <Route path="/barangay/profile" element={<Profile token={session?.token} />} />
@@ -418,13 +436,14 @@ function App() {
             ) : session ? (
               <Navigate to="/home" replace />
             ) : (
-              <Navigate to="/login" replace />
+              <Navigate to="/login?role=responder" replace />
             )
           }
         >
           <Route path="/responder/home" element={<ResponderHome token={session?.token} session={session} />} />
           <Route path="/responder/maps" element={<Maps session={session} userRole="Responder" />} />
           <Route path="/responder/reports" element={<AdminReports token={session?.token} />} />
+          <Route path="/responder/archived" element={<ArchivedReports session={session} />} />
           <Route path="/responder/notifications" element={<Notifications token={session?.token} />} />
           <Route path="/responder/community-feed" element={<CommunityFeedResponder token={session?.token} session={session} />} />
           <Route path="/responder/profile" element={<Profile token={session?.token} />} />
@@ -443,7 +462,7 @@ function App() {
             ) : session ? (
               <Navigate to="/home" replace />
             ) : (
-              <Navigate to="/login" replace />
+              <Navigate to="/login?role=admin" replace />
             )
           }
         >
@@ -468,6 +487,16 @@ function App() {
                 <Navigate to="/home" replace />
               ) : (
                 <AdminReports token={session?.token} />
+              )
+            }
+          />
+          <Route
+            path="/admin/archived"
+            element={
+              session?.user?.role !== "Admin" ? (
+                <Navigate to="/home" replace />
+              ) : (
+                <ArchivedReports session={session} />
               )
             }
           />

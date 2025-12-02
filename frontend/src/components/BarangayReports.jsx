@@ -1,20 +1,65 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
-import { FaEdit, FaTrashAlt, FaSearch, FaRedo, FaCheckCircle, FaTimesCircle, FaCheck, FaTimes } from "react-icons/fa";
+import { FaEdit, FaTrashAlt, FaSearch, FaRedo, FaCheckCircle, FaTimesCircle, FaCheck, FaTimes, FaSyncAlt, FaClock, FaFileCsv, FaFilePdf, FaThLarge, FaList, FaArchive, FaFileAlt } from "react-icons/fa";
 import { API_CONFIG, getApiUrl } from "../utils/apiConfig";
 import "./BarangayReports.css";
+import LoadingScreen from "./LoadingScreen";
 const REPORT_STATUSES = ["Pending", "Ongoing", "Resolved"];
 
-// Severity level colors and styling
-const SEVERITY_COLORS = {
-  Crime: { borderColor: '#c0392b', bgColor: '#fdedec', severity: 'Critical', label: '🔴 Critical' },
-  Hazard: { borderColor: '#d35400', bgColor: '#fef5e7', severity: 'High', label: '🟠 High' },
-  Concern: { borderColor: '#95a5a6', bgColor: '#ecf0f1', severity: 'Medium', label: '⚪ Medium' },
-  'Lost&Found': { borderColor: '#95a5a6', bgColor: '#ecf0f1', severity: 'Low', label: '⚪ Low' },
-  Others: { borderColor: '#95a5a6', bgColor: '#ecf0f1', severity: 'Low', label: '⚪ Low' },
+// Priority level colors and styling
+const PRIORITY_COLORS = {
+  Crime: { borderColor: '#c0392b', bgColor: '#fdedec', priority: 'Critical', label: '🔴 Critical' },
+  Hazard: { borderColor: '#d35400', bgColor: '#fef5e7', priority: 'High', label: '🟠 High' },
+  Concern: { borderColor: '#95a5a6', bgColor: '#ecf0f1', priority: 'Medium', label: '⚪ Medium' },
+  'Lost&Found': { borderColor: '#95a5a6', bgColor: '#ecf0f1', priority: 'Low', label: '⚪ Low' },
+  Others: { borderColor: '#95a5a6', bgColor: '#ecf0f1', priority: 'Low', label: '⚪ Low' },
 };
 
-const getSeverityStyle = (category) => {
-  return SEVERITY_COLORS[category] || SEVERITY_COLORS['Others'];
+const getPriorityStyle = (category) => {
+  return PRIORITY_COLORS[category] || PRIORITY_COLORS['Others'];
+};
+
+// Category keywords used for deterministic confidence scoring (mirror of backend heuristics)
+const CATEGORY_KEYWORDS = {
+    Crime: ['theft','robbery','burglary','stolen','steal','assault','attack','violence','vandalism','mugging','robbed'],
+    Hazard: ['fire','flood','explosion','smoke','hazard','danger','pothole','streetlight','electric','gas','collapsed'],
+    Concern: ['suspicious','unknown','strange','loitering','accident','injured','emergency','witness','scam','threat'],
+    'Lost&Found': ['lost','found','missing','wallet','phone','keys','pet','dog','cat'],
+    Others: ['other','misc','issue','concern','help']
+};
+
+const computeConfidence = (description = '', category = 'Others', numImages = 0) => {
+    try {
+        const text = (description || '').toLowerCase();
+        const keywords = CATEGORY_KEYWORDS[category] || CATEGORY_KEYWORDS['Others'];
+        if (!text || keywords.length === 0) return 60;
+
+        let matches = 0;
+        for (const kw of keywords) {
+            if (text.includes(kw)) matches += 1;
+        }
+
+        const normalized = Math.min(1, matches / Math.max(1, keywords.length));
+        const imageBonus = numImages > 0 ? 5 : 0;
+        const base = 65;
+        const score = Math.round(base + normalized * 30 + imageBonus);
+        return Math.max(55, Math.min(98, score));
+    } catch {
+        return 65;
+    }
+};
+
+// Status badge icon helper
+const getStatusIcon = (status) => {
+    switch (status?.toLowerCase()) {
+        case 'pending':
+            return <FaClock aria-hidden="true" />;
+        case 'ongoing':
+            return <FaSyncAlt aria-hidden="true" />;
+        case 'resolved':
+            return <FaCheckCircle aria-hidden="true" />;
+        default:
+            return null;
+    }
 };
 
 // Utility Hook for Modal Accessibility (Focus trap and Esc key)
@@ -137,6 +182,8 @@ function BarangayReports({ token }) {
     const [category, setCategory] = useState("All");
     const [statusFilter, setStatusFilter] = useState("All"); 
     const [sort, setSort] = useState("latest");
+    const [smartSort, setSmartSort] = useState("latest"); // When smart filter active, controls primary date ordering
+    const [priorityFilter, setPriorityFilter] = useState("All");
     const [userBarangay, setUserBarangay] = useState(null);
     const [previewImage, setPreviewImage] = useState(null);
     const [notification, setNotification] = useState(null);
@@ -144,7 +191,11 @@ function BarangayReports({ token }) {
     const [showCommunityHelper, setShowCommunityHelper] = useState(true); // Toggle for Community Helper visibility
     const [showSmartFilter, setShowSmartFilter] = useState(false); // Smart Filter toggle - starts GREY (inactive)
     const [aiUsagePercent, setAiUsagePercent] = useState(0); // AI usage percentage (0-100)
+    const [timeRemainingHMS, setTimeRemainingHMS] = useState('48:00:00'); // HH:MM:SS format
+    const [timeRemainingSeconds, setTimeRemainingSeconds] = useState(172800); // 48 hours in seconds
     const [showUsageModal, setShowUsageModal] = useState(false); // Show usage details modal
+    const [isPremiumUser, setIsPremiumUser] = useState(false); // Premium user status for golden UI
+    const [viewMode, setViewMode] = useState("card"); // "card" or "list" view
 
     // States for the Status Update Modal
     const [isStatusModalOpen, setIsStatusModalOpen] = useState(false);
@@ -156,6 +207,7 @@ function BarangayReports({ token }) {
     const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false);
     const [deleteTarget, setDeleteTarget] = useState(null);
     const [isDeleting, setIsDeleting] = useState(false);
+    const [overlayExited, setOverlayExited] = useState(false);
     
     // States for Smart Filter time tracking and warning
     const [smartFilterStartTime, setSmartFilterStartTime] = useState(null);
@@ -190,6 +242,11 @@ function BarangayReports({ token }) {
     const filterSelector = 'input.admin-search-input, .admin-top-controls .admin-filter-select, .reports-list button:first-child'; 
     useKeyboardNavigation(filterContainerRef, filterSelector);
 
+    // Mount animation / cinematic intro state (matches Reports.jsx behavior)
+    const [showMountAnimation, setShowMountAnimation] = useState(false);
+    const [mountStage, setMountStage] = useState("exit");
+    const loadingRef = useRef(loading);
+
     // Notification handler
     const showNotification = useCallback((message, type = "success") => {
         setNotification({ message, type });
@@ -203,13 +260,55 @@ function BarangayReports({ token }) {
         console.log('  - showSmartFilter:', false);
         console.log('  - hasAcceptedAiWarning:', false);
         console.log('  - smartFilterStartTime:', null);
-        console.log('  - aiUsagePercent:', aiUsagePercent);
         console.log('[Smart Filter Init] ⏳ Now fetching current AI usage from backend...');
         
         return () => {
             console.log('🔴 BarangayReports component unmounting');
         };
     }, []);
+
+    // Log aiUsagePercent changes separately to avoid requiring it in the mount-only effect
+    useEffect(() => {
+        console.log('[Smart Filter Init] aiUsagePercent updated:', aiUsagePercent);
+    }, [aiUsagePercent]);
+
+    // Keep a ref of the current loading state for the mount animation logic
+    useEffect(() => {
+        loadingRef.current = loading;
+    }, [loading]);
+
+    // Start a cinematic mount animation only if a real loading fetch is not already running.
+    useEffect(() => {
+        let startTimer = null;
+        let exitTimer = null;
+
+        if (!loadingRef.current) {
+            startTimer = setTimeout(() => {
+                // If a fetch started while waiting, skip mount animation
+                if (loadingRef.current) return;
+                setShowMountAnimation(true);
+                setMountStage("loading");
+
+                // After a short display, transition to exit to play the exit animation
+                exitTimer = setTimeout(() => {
+                    setMountStage("exit");
+                }, 700);
+            }, 180);
+        }
+
+        return () => {
+            if (startTimer) clearTimeout(startTimer);
+            if (exitTimer) clearTimeout(exitTimer);
+        };
+        // Run on mount only
+    }, []);
+
+    // If a real loading starts while the mount animation is visible, cancel the cinematic
+    useEffect(() => {
+        if (loading) {
+            setShowMountAnimation(false);
+        }
+    }, [loading]);
 
     // Track AI smart filter usage - logs duration when Smart Filter turns off
     const trackAiUsage = useCallback(async (durationSeconds = 0) => {
@@ -259,8 +358,11 @@ function BarangayReports({ token }) {
 
             if (data.status === 'success') {
                 // Update local state with backend-persisted usage percent
-                const { usage_percent, hours_remaining, is_premium, total_seconds } = data.data;
+                const { usage_percent, hours_remaining, is_premium, total_seconds, time_remaining_hms, time_remaining_seconds } = data.data;
                 setAiUsagePercent(usage_percent);
+                setTimeRemainingHMS(time_remaining_hms || '48:00:00');
+                setTimeRemainingSeconds(time_remaining_seconds ?? 172800); // Update base for next live countdown
+                setIsPremiumUser(is_premium || false); // Track premium status for golden UI
                 
                 console.log(`[Smart Filter] 📈 Usage Updated:`);
                 console.log(`  Total this week: ${total_seconds}s (${(total_seconds / 3600).toFixed(2)}h)`);
@@ -341,6 +443,9 @@ function BarangayReports({ token }) {
     }, []);
 
     // Real-time countdown timer for active Smart Filter session
+    // Updates: liveSessionSeconds, live aiUsagePercent, live timeRemainingHMS
+    const WEEK_LIMIT_SECONDS = 172800; // 48 hours
+    
     useEffect(() => {
         if (!showSmartFilter || !smartFilterStartTime) {
             setLiveSessionSeconds(0);
@@ -354,19 +459,34 @@ function BarangayReports({ token }) {
             const elapsed = Math.floor((Date.now() - smartFilterStartTime) / 1000);
             setLiveSessionSeconds(elapsed);
             
+            // Calculate real-time usage: base usage + current session elapsed time
+            const baseUsedSeconds = WEEK_LIMIT_SECONDS - timeRemainingSeconds;
+            const totalUsedNow = baseUsedSeconds + elapsed;
+            const livePercent = Math.min(100, Math.round((totalUsedNow / WEEK_LIMIT_SECONDS) * 100));
+            const liveRemaining = Math.max(0, WEEK_LIMIT_SECONDS - totalUsedNow);
+            
+            // Update usage percent in real-time
+            setAiUsagePercent(livePercent);
+            
+            // Format live time remaining as HH:MM:SS
+            const hrs = Math.floor(liveRemaining / 3600);
+            const mins = Math.floor((liveRemaining % 3600) / 60);
+            const secs = liveRemaining % 60;
+            setTimeRemainingHMS(`${String(hrs).padStart(2, '0')}:${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`);
+            
             // Log progress every 30 seconds
             if (elapsed > 0 && elapsed % 30 === 0) {
                 const minutes = Math.floor(elapsed / 60);
                 const seconds = elapsed % 60;
-                console.log(`[Smart Filter] ⏳ Session in progress: ${minutes}m ${seconds}s elapsed`);
+                console.log(`[Smart Filter] ⏳ Session: ${minutes}m ${seconds}s | Usage: ${livePercent}% | Remaining: ${hrs}:${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`);
             }
-        }, 100); // Update every 100ms for smooth progress bar animation
+        }, 1000); // Update every second for countdown display
 
         return () => {
             clearInterval(timer);
             console.log('[Smart Filter] ⏱️ Session timer interval cleared');
         };
-    }, [showSmartFilter, smartFilterStartTime]);
+    }, [showSmartFilter, smartFilterStartTime, timeRemainingSeconds]);
 
     // --- Modal Control Functions for Accessibility ---
     const closeStatusModal = useCallback(() => {
@@ -565,7 +685,70 @@ function BarangayReports({ token }) {
                         images: report.images?.map(img => img.url) || []
                     };
                 });
-                setReports(transformedReports);
+                // Try batch ML annotate via backend
+                try {
+                    const items = transformedReports.map(r => ({ id: r.id, description: r.description, images: r.images?.length || 0 }));
+                    const resp = await fetch(getApiUrl('/api/ai/categorize/batch'), {
+                        method: 'POST',
+                        headers: {
+                            'Authorization': `Bearer ${token}`,
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({ items })
+                    });
+
+                    if (resp.ok) {
+                        const json = await resp.json();
+                        const results = json.results || {};
+                        console.log('[AI Batch Response] Full results:', results);
+                        const annotated = transformedReports.map(r => {
+                            const res = results[r.id] || {};
+                            console.log(`[AI Batch] Report ${r.id}: priority="${res.priority}" score=${res.priority_score} label="${res.priority_label}"`);
+                            return {
+                                ...r,
+                                ai_confidence: typeof res.confidence === 'number' ? Math.round(res.confidence * 100) : computeConfidence(r.description, r.category, r.images?.length || 0),
+                                ai_category: res.category || r.category,
+                                ai_method: res.method || 'batch',
+                                // AI priority data for filtering (capitalized to match filter options: Critical/High/Medium/Low)
+                                ai_priority: res.priority || 'Low',
+                                ai_priority_score: res.priority_score || 1,
+                                ai_priority_label: res.priority_label || '⚪ Low'
+                            };
+                        });
+                        setReports(annotated);
+                    } else {
+                        const fallback = transformedReports.map(r => {
+                            // Fallback priority based on category
+                            const catPriority = getPriorityStyle(r.category);
+                            return {
+                                ...r,
+                                ai_confidence: computeConfidence(r.description, r.category, r.images?.length || 0),
+                                ai_category: r.category,
+                                ai_method: 'heuristic',
+                                ai_priority: catPriority.priority,  // Already capitalized: Critical/High/Medium/Low
+                                ai_priority_score: catPriority.priority === 'Critical' ? 10 : (catPriority.priority === 'High' ? 8 : (catPriority.priority === 'Medium' ? 5 : 2)),
+                                ai_priority_label: catPriority.label
+                            };
+                        });
+                        setReports(fallback);
+                    }
+                } catch (err) {
+                    console.error('AI batch classify failed, falling back to heuristic', err);
+                    const fallback = transformedReports.map(r => {
+                        // Fallback priority based on category
+                        const catPriority = getPriorityStyle(r.category);
+                        return {
+                            ...r,
+                            ai_confidence: computeConfidence(r.description, r.category, r.images?.length || 0),
+                            ai_category: r.category,
+                            ai_method: 'error',
+                            ai_priority: catPriority.priority,  // Already capitalized: Critical/High/Medium/Low
+                            ai_priority_score: catPriority.priority === 'Critical' ? 10 : (catPriority.priority === 'High' ? 8 : (catPriority.priority === 'Medium' ? 5 : 2)),
+                            ai_priority_label: catPriority.label
+                        };
+                    });
+                    setReports(fallback);
+                }
             } else {
                 throw new Error(data.message || 'Failed to fetch barangay reports');
             }
@@ -575,7 +758,8 @@ function BarangayReports({ token }) {
         } finally {
             setLoading(false);
         }
-    }, [token, sort]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [token]);
 
     useEffect(() => {
         fetchReports();
@@ -604,13 +788,19 @@ function BarangayReports({ token }) {
                         const usagePercent = data.data.usage_percent || 0;
                         const totalSeconds = data.data.total_seconds || 0;
                         const isPremium = data.data.is_premium || false;
+                        const timeHMS = data.data.time_remaining_hms || '48:00:00';
+                        const timeSeconds = data.data.time_remaining_seconds ?? 172800;
                         
                         console.log('[Smart Filter Init] ✅ Successfully fetched AI usage:');
                         console.log(`  Usage: ${usagePercent}%`);
                         console.log(`  Total seconds this week: ${totalSeconds}s (${(totalSeconds / 3600).toFixed(2)}h)`);
+                        console.log(`  Time remaining: ${timeHMS} (${timeSeconds}s)`);
                         console.log(`  Premium: ${isPremium ? 'Yes (unlimited)' : 'No (48h/week limit)'}`);
                         
                         setAiUsagePercent(usagePercent);
+                        setTimeRemainingHMS(timeHMS);
+                        setTimeRemainingSeconds(timeSeconds);
+                        setIsPremiumUser(isPremium); // Set premium status for golden UI
                     }
                 } else if (response.status === 404) {
                     console.warn('[Smart Filter Init] ⚠️  Endpoint not found - Migration may not be applied');
@@ -830,10 +1020,226 @@ function BarangayReports({ token }) {
         }
     };
 
-    // Severity scoring function for sorting
-    const getSeverityScore = (category) => {
+    // Priority scoring function for sorting
+    const getPriorityScore = (category) => {
         const scores = { Crime: 4, Hazard: 3, Concern: 2, 'Lost&Found': 1, Others: 1 };
         return scores[category] || 0;
+    };
+
+    // Map priority label (Critical/High/Medium/Low) to numeric rank for smart sorting
+    const priorityRank = (priorityLabel) => {
+        if (!priorityLabel) return 0;
+        switch (priorityLabel) {
+            case 'Critical': return 3;
+            case 'High': return 2;
+            case 'Medium': return 1;
+            default: return 0;
+        }
+    };
+
+    // Helper to get priority label from AI or fallback to category-based
+    const getReportPriority = (report) => {
+        // Use AI priority if available (when Smart Filter is active)
+        if (report.ai_priority) {
+            // Normalize AI priority to match filter options (Critical/High/Medium/Low)
+            const pri = String(report.ai_priority).toLowerCase().trim();
+            console.log(`[Priority Debug] Report ${report.id}: ai_priority="${report.ai_priority}" normalized="${pri}"`);
+            if (pri === 'critical') return 'Critical';
+            if (pri === 'high') return 'High';
+            if (pri === 'medium') return 'Medium';
+            if (pri === 'low') return 'Low';
+            return 'Low';
+        }
+        // Fallback to category-based priority
+        const catPriority = getPriorityStyle(report.category);
+        console.log(`[Priority Debug] Report ${report.id}: Using fallback category="${report.category}" priority="${catPriority.priority}"`);
+        return catPriority.priority || 'Low';
+    };
+
+    // Export to CSV
+    const exportToCSV = () => {
+        const headers = ["ID", "Title", "Category", "Status", "Barangay", "Address", "Reporter", "Priority", "Created At", "Description"];
+        const rows = filteredReports.map((r) => [
+            r.id,
+            `"${(r.title || "").replace(/"/g, '""')}"`,
+            r.category || "N/A",
+            r.status || "N/A",
+            r.barangay || r.address_barangay || "N/A",
+            `"${(r.addressStreet || r.address_street || "").replace(/"/g, '""')}"`,
+            r.reporter ? `${r.reporter.firstname || ""} ${r.reporter.lastname || ""}`.trim() : "Unknown",
+            getReportPriority(r),
+            r.created_at ? new Date(r.created_at).toLocaleString() : "N/A",
+            `"${(r.description || "").replace(/"/g, '""').substring(0, 200)}..."`
+        ]);
+        
+        const csvContent = [headers.join(","), ...rows.map((r) => r.join(","))].join("\n");
+        const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        link.href = url;
+        link.download = `${userBarangay || 'barangay'}_reports_${new Date().toISOString().split("T")[0]}.csv`;
+        link.click();
+    };
+
+    // Export to PDF with Community Helper AI Analytics
+    const exportToPDF = async () => {
+        const reportDate = new Date().toLocaleDateString("en-US", {
+            weekday: "long",
+            year: "numeric",
+            month: "long",
+            day: "numeric",
+        });
+        
+        const totalReports = filteredReports.length;
+        const categoryStats = {};
+        const statusStats = { Pending: 0, Ongoing: 0, Resolved: 0 };
+        const priorityStats = { Critical: 0, High: 0, Medium: 0, Low: 0 };
+        
+        filteredReports.forEach((report) => {
+            const cat = report.category || "Unknown";
+            categoryStats[cat] = (categoryStats[cat] || 0) + 1;
+            
+            const status = report.status || "Pending";
+            statusStats[status] = (statusStats[status] || 0) + 1;
+            
+            const priority = getReportPriority(report);
+            priorityStats[priority] = (priorityStats[priority] || 0) + 1;
+        });
+        
+        const sortedCategories = Object.entries(categoryStats).sort((a, b) => b[1] - a[1]);
+        const logoPath = new URL('../assets/logo.png', import.meta.url).href;
+        
+        const printContent = `
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <title>Community Guard - ${userBarangay || 'Barangay'} Reports</title>
+                <style>
+                    * { box-sizing: border-box; margin: 0; padding: 0; }
+                    body { font-family: 'Segoe UI', Arial, sans-serif; padding: 40px; color: #333; }
+                    .header { text-align: center; margin-bottom: 30px; border-bottom: 3px solid #2d3b8f; padding-bottom: 20px; }
+                    .header-logo { display: flex; align-items: center; justify-content: center; gap: 12px; margin-bottom: 10px; }
+                    .header-logo img { width: 48px; height: 48px; object-fit: contain; }
+                    .header h1 { color: #2d3b8f; font-size: 28px; margin-bottom: 5px; }
+                    .header .subtitle { color: #666; font-size: 14px; }
+                    .header .role-badge { background: #10b981; color: white; padding: 4px 12px; border-radius: 12px; font-size: 12px; margin-top: 8px; display: inline-block; }
+                    .ai-badge { background: linear-gradient(135deg, #2d3b8f, #1e2966); color: white; padding: 10px 20px; border-radius: 20px; display: inline-flex; align-items: center; gap: 10px; margin: 15px 0; font-size: 14px; font-weight: 500; }
+                    .ai-badge img { width: 24px; height: 24px; object-fit: contain; border-radius: 4px; }
+                    .section { margin-bottom: 30px; }
+                    .section-title { font-size: 18px; color: #2d3b8f; margin-bottom: 15px; padding-bottom: 8px; border-bottom: 2px solid #e5e7eb; }
+                    .stats-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 15px; margin-bottom: 25px; }
+                    .stat-card { background: #f8fafc; padding: 20px; border-radius: 10px; text-align: center; border: 1px solid #e5e7eb; }
+                    .stat-card .number { font-size: 32px; font-weight: bold; color: #2d3b8f; }
+                    .stat-card .label { font-size: 12px; color: #666; margin-top: 5px; }
+                    .analytics-card { background: #f8fafc; padding: 20px; border-radius: 10px; border: 1px solid #e5e7eb; margin-bottom: 20px; }
+                    .analytics-card h3 { font-size: 14px; color: #2d3b8f; margin-bottom: 15px; }
+                    .analytics-item { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #e5e7eb; }
+                    .analytics-item:last-child { border-bottom: none; }
+                    .analytics-item .name { font-size: 13px; }
+                    .analytics-item .count { font-weight: bold; color: #2d3b8f; }
+                    table { width: 100%; border-collapse: collapse; font-size: 11px; margin-top: 15px; }
+                    th { background: #2d3b8f; color: white; padding: 10px 8px; text-align: left; }
+                    td { padding: 10px 8px; border-bottom: 1px solid #e5e7eb; vertical-align: top; }
+                    tr:nth-child(even) { background: #f8fafc; }
+                    .priority-critical, .priority-high { color: #dc2626; font-weight: bold; }
+                    .priority-medium { color: #f59e0b; font-weight: bold; }
+                    .priority-low { color: #22c55e; }
+                    .footer { margin-top: 40px; text-align: center; font-size: 12px; color: #666; padding-top: 20px; border-top: 2px solid #2d3b8f; }
+                    .footer-brand { display: flex; align-items: center; justify-content: center; gap: 10px; margin-bottom: 8px; }
+                    .footer-brand img { width: 28px; height: 28px; object-fit: contain; }
+                    .footer-brand span { font-weight: 600; color: #2d3b8f; font-size: 14px; }
+                    @media print { body { padding: 20px; } }
+                </style>
+            </head>
+            <body>
+                <div class="header">
+                    <div class="header-logo">
+                        <img src="${logoPath}" alt="Community Guard Logo" onerror="this.style.display='none'" />
+                        <h1>Community Guard</h1>
+                    </div>
+                    <p class="subtitle">${userBarangay || 'Barangay'} Reports - Analytics Report</p>
+                    <div class="ai-badge">
+                        <span>💡 Community Helper</span>
+                    </div>
+                    <p style="margin-top: 10px; font-size: 13px; color: #666;">Generated: ${reportDate}</p>
+                </div>
+                
+                <div class="section">
+                    <div class="stats-grid">
+                        <div class="stat-card">
+                            <div class="number">${totalReports}</div>
+                            <div class="label">Total Reports</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="number" style="color: #f59e0b;">${statusStats.Pending}</div>
+                            <div class="label">Pending</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="number" style="color: #3b82f6;">${statusStats.Ongoing}</div>
+                            <div class="label">Ongoing</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="number" style="color: #22c55e;">${statusStats.Resolved}</div>
+                            <div class="label">Resolved</div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="analytics-card">
+                    <h3>📁 Reports by Category</h3>
+                    ${sortedCategories.map(([name, count]) => `
+                        <div class="analytics-item">
+                            <span class="name">${name}</span>
+                            <span class="count">${count}</span>
+                        </div>
+                    `).join("")}
+                </div>
+                
+                <div class="section">
+                    <h2 class="section-title">📋 Detailed Report List</h2>
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>ID</th>
+                                <th>Title</th>
+                                <th>Category</th>
+                                <th>Status</th>
+                                <th>Priority</th>
+                                <th>Created</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${filteredReports.slice(0, 50).map((report) => `
+                                <tr>
+                                    <td>${report.id}</td>
+                                    <td>${report.title || "Untitled"}</td>
+                                    <td>${report.category || "N/A"}</td>
+                                    <td>${report.status || "N/A"}</td>
+                                    <td class="priority-${getReportPriority(report).toLowerCase()}">${getReportPriority(report)}</td>
+                                    <td>${new Date(report.created_at).toLocaleDateString()}</td>
+                                </tr>
+                            `).join("")}
+                        </tbody>
+                    </table>
+                    ${filteredReports.length > 50 ? `<p style="margin-top: 15px; color: #666; font-size: 12px; text-align: center;">Showing first 50 of ${filteredReports.length} reports</p>` : ""}
+                </div>
+                
+                <div class="footer">
+                    <div class="footer-brand">
+                        <img src="${logoPath}" alt="Community Guard Logo" onerror="this.style.display='none'" />
+                        <span>Community Guard</span>
+                    </div>
+                    <p>Protecting Communities Together</p>
+                    <p style="margin-top: 8px; font-size: 11px; color: #888; font-style: italic;">This report was generated with Community Helper Smart Analytics</p>
+                </div>
+            </body>
+            </html>
+        `;
+        
+        const printWindow = window.open("", "_blank");
+        printWindow.document.write(printContent);
+        printWindow.document.close();
+        printWindow.print();
     };
 
     // Filtered reports (removed barangay filter - fetched from backend already filtered)
@@ -841,6 +1247,14 @@ function BarangayReports({ token }) {
         .filter((r) => !r.is_rejected) // Hide rejected reports from barangay view
         .filter((r) => (category === "All" ? true : r.category === category))
         .filter((r) => (statusFilter === "All" ? true : r.status === statusFilter))
+        .filter((r) => {
+            // Priority filter only applies when Smart Filter is ON
+            if (!showSmartFilter) return true;
+            if (!priorityFilter || priorityFilter === 'All') return true;
+            // Use AI-generated priority for filtering
+            const reportPriority = getReportPriority(r);
+            return reportPriority === priorityFilter;
+        })
         .filter(
             (r) => {
                 const reporterName = r.reporter 
@@ -851,27 +1265,116 @@ function BarangayReports({ token }) {
             }
         )
         .sort((a, b) => {
-            // Primary sort: Pending status first (is_approved = false means pending)
-            const aPending = !a.is_approved ? 1 : 0;
-            const bPending = !b.is_approved ? 1 : 0;
-            if (aPending !== bPending) return bPending - aPending;
+            // Always prioritize unapproved/pending reports on top
+            const aApproved = !!a.is_approved;
+            const bApproved = !!b.is_approved;
+            if (aApproved !== bApproved) return aApproved ? 1 : -1;
 
-            // Secondary sort: Severity level (high to low)
-            const aSeverity = getSeverityScore(a.category);
-            const bSeverity = getSeverityScore(b.category);
-            if (aSeverity !== bSeverity) return bSeverity - aSeverity;
+            // If Smart Filter is active, use smart prioritization within the approval group
+            if (showSmartFilter) {
+                // Use priority label mapping (Critical > High > Medium > Low)
+                const aPri = priorityRank(getPriorityStyle(a.category).priority);
+                const bPri = priorityRank(getPriorityStyle(b.category).priority);
+                if (aPri !== bPri) return bPri - aPri;
 
-            // Tertiary sort: Date (based on sort preference)
-            const aTime = new Date(a.timestamp || a.created_at).getTime();
-            const bTime = new Date(b.timestamp || b.created_at).getTime();
+                // Within same priority, order by confidence (higher first)
+                const aConf = (typeof a.ai_confidence === 'number') ? a.ai_confidence : computeConfidence(a.description || '', a.category, (a.images || []).length);
+                const bConf = (typeof b.ai_confidence === 'number') ? b.ai_confidence : computeConfidence(b.description || '', b.category, (b.images || []).length);
+                if (aConf !== bConf) return bConf - aConf;
+
+                // Fallback to date based on smartSort
+                const aT = new Date(a.timestamp || a.created_at).getTime() || 0;
+                const bT = new Date(b.timestamp || b.created_at).getTime() || 0;
+                return smartSort === 'latest' ? bT - aT : aT - bT;
+            }
+
+            // Default behavior when Smart Filter is not active: priority then date
+            const aPriority = getPriorityScore(a.category);
+            const bPriority = getPriorityScore(b.category);
+            if (aPriority !== bPriority) return bPriority - aPriority;
+
+            const aTime = new Date(a.timestamp || a.created_at).getTime() || 0;
+            const bTime = new Date(b.timestamp || b.created_at).getTime() || 0;
             return sort === 'latest' ? bTime - aTime : aTime - bTime;
         });
 
+    // Compute a consistent header title.
+    // Show the user's barangay immediately if available (so the header displays
+    // a meaningful barangay during loading). Fall back to the first report's
+    // `address_barangay`, then a generic label.
+    const headerBase = userBarangay || (reports && reports[0] && reports[0].address_barangay) || 'Barangay';
+
+    // Loading / mount animation features (cards shown during mount/loading)
+    const loadingFeatures = [
+        { title: "Incident Triage", description: "Fast structured intake for actionable follow-up." },
+        { title: "Smart Filter", description: "Optional AI-assisted categorization for faster triage." },
+        { title: "Responder Assignment", description: "Assign responders quickly from your barangay team." },
+    ];
+
+    const effectiveStage = showMountAnimation ? mountStage : (loading ? "loading" : "exit");
+
+    const handleLoadingExited = () => {
+        setShowMountAnimation(false);
+        setOverlayExited(true);
+    };
+
     return (
-        <div className="admin-container">
-            <div className="admin-header-row">
-                <h2>{userBarangay ? `${userBarangay} Reports` : 'Loading...'}</h2>
-            </div>
+        <LoadingScreen
+            variant="inline"
+            features={loadingFeatures}
+            title={loading ? `${headerBase} Report` : undefined}
+            subtitle={loading ? "Fetching latest barangay reports and resources" : undefined}
+            stage={effectiveStage}
+            onExited={handleLoadingExited}
+            inlineOffset="20vh"
+            successDuration={700}
+            successTitle={`${headerBase} Report Ready`}
+        >
+            <div className="admin-container">
+                <div className="barangay-reports-header">
+                    <h2>{`${headerBase} Reports`}</h2>
+                    <div className="header-right">
+                        {/* View Toggle */}
+                        <div className="view-toggle">
+                            <button
+                                className={`view-toggle-btn ${viewMode === 'card' ? 'active' : ''}`}
+                                onClick={() => setViewMode('card')}
+                                title="Card View"
+                                aria-label="Switch to card view"
+                            >
+                                <FaThLarge />
+                            </button>
+                            <button
+                                className={`view-toggle-btn ${viewMode === 'list' ? 'active' : ''}`}
+                                onClick={() => setViewMode('list')}
+                                title="List View"
+                                aria-label="Switch to list view"
+                            >
+                                <FaList />
+                            </button>
+                        </div>
+                        
+                        {/* Export Buttons */}
+                        <div className="export-buttons">
+                            <button
+                                className="export-btn csv"
+                                onClick={exportToCSV}
+                                title="Export to CSV"
+                                aria-label="Export reports to CSV"
+                            >
+                                <FaFileCsv /> CSV
+                            </button>
+                            <button
+                                className="export-btn pdf"
+                                onClick={exportToPDF}
+                                title="Export to PDF with Analytics"
+                                aria-label="Export reports to PDF with AI analytics"
+                            >
+                                <FaFilePdf /> PDF
+                            </button>
+                        </div>
+                    </div>
+                </div>
 
             {/* IMPROVEMENT: Added ref to the filter container for keyboard navigation */}
             <div className="admin-top-controls" ref={filterContainerRef}>
@@ -917,18 +1420,50 @@ function BarangayReports({ token }) {
                         <option key={status} value={status}>{status}</option>
                     ))}
                 </select>
+                {/* Priority Filter - Only visible when Smart Filter is ON */}
+                {showSmartFilter && (
+                    <>
+                        <label htmlFor="priority-filter" className="sr-only">Filter by Priority</label>
+                        <select
+                            id="priority-filter"
+                            value={priorityFilter}
+                            onChange={(e) => setPriorityFilter(e.target.value)}
+                            className="admin-filter-select"
+                            aria-label="Filter reports by priority"
+                        >
+                            <option value="All">All Priorities</option>
+                            <option value="Critical">Critical</option>
+                            <option value="High">High</option>
+                            <option value="Medium">Medium</option>
+                            <option value="Low">Low</option>
+                        </select>
+                    </>
+                )}
                 
                 <label htmlFor="sort-order" className="sr-only">Sort Order</label>
-                <select 
-                    id="sort-order"
-                    value={sort} 
-                    onChange={(e) => setSort(e.target.value)}
-                    className="admin-filter-select"
-                    aria-label="Sort reports by date"
-                >
-                    <option value="latest">Latest → Oldest</option>
-                    <option value="oldest">Oldest → Latest</option>
-                </select>
+                {showSmartFilter ? (
+                    <select
+                        id="smart-sort-order"
+                        value={smartSort}
+                        onChange={(e) => setSmartSort(e.target.value)}
+                        className="admin-filter-select"
+                        aria-label="Smart sort reports by priority/date"
+                    >
+                        <option value="latest">Smart: Latest → Oldest</option>
+                        <option value="oldest">Smart: Oldest → Latest</option>
+                    </select>
+                ) : (
+                    <select 
+                        id="sort-order"
+                        value={sort} 
+                        onChange={(e) => setSort(e.target.value)}
+                        className="admin-filter-select"
+                        aria-label="Sort reports by date"
+                    >
+                        <option value="latest">Latest → Oldest</option>
+                        <option value="oldest">Oldest → Latest</option>
+                    </select>
+                )}
 
                 {/* Smart Filter Toggle Button with Premium Indicator & Full-Width Timer */}
                 <div style={{
@@ -939,34 +1474,38 @@ function BarangayReports({ token }) {
                 }}>
                     <button
                         onClick={() => {
-                            if (aiUsagePercent >= 100) {
+                            if (aiUsagePercent >= 100 && !isPremiumUser) {
                                 showNotification('🔒 Smart usage limit reached. Upgrade to Premium for unlimited access!', 'caution');
                                 setShowUsageModal(true);
                             } else {
                                 handleSmartFilterToggle();
                             }
                         }}
+                        className={`barangay-smart-filter-btn ${isPremiumUser ? 'premium' : ''}`}
                         style={{
                             padding: '8px 14px',
-                            backgroundColor: aiUsagePercent >= 100 ? '#f39c12' : (showSmartFilter ? '#2d3b8f' : '#ccc'),
+                            background: isPremiumUser 
+                                ? 'linear-gradient(135deg, #f39c12 0%, #e67e22 100%)' 
+                                : (aiUsagePercent >= 100 ? '#f39c12' : (showSmartFilter ? '#2d3b8f' : '#ccc')),
                             color: 'white',
-                            border: 'none',
+                            border: isPremiumUser ? '2px solid #d4881f' : 'none',
                             borderRadius: '4px',
-                            cursor: aiUsagePercent >= 100 ? 'pointer' : 'pointer',
+                            cursor: 'pointer',
                             fontSize: '0.9em',
-                            fontWeight: '500',
+                            fontWeight: isPremiumUser ? '600' : '500',
                             transition: 'all 0.3s ease',
                             display: 'flex',
                             alignItems: 'center',
                             gap: '6px',
                             position: 'relative',
-                            whiteSpace: 'nowrap'
+                            whiteSpace: 'nowrap',
+                            boxShadow: isPremiumUser ? '0 2px 8px rgba(243, 156, 18, 0.4)' : 'none'
                         }}
-                        title={aiUsagePercent >= 100 ? 'Premium feature - Upgrade now' : (showSmartFilter ? 'Disable Smart Filter' : 'Enable Smart Filter')}
+                        title={isPremiumUser ? 'Premium - Unlimited AI Access' : (aiUsagePercent >= 100 ? 'Premium feature - Upgrade now' : (showSmartFilter ? 'Disable Smart Filter' : 'Enable Smart Filter'))}
                         aria-pressed={showSmartFilter}
                     >
-                        <span>{aiUsagePercent >= 100 ? '✨' : '✨'}</span>
-                        {aiUsagePercent >= 100 ? 'Premium' : 'Smart Filter'}
+                        <span>{isPremiumUser ? '👑' : '✨'}</span>
+                        {isPremiumUser ? 'Premium' : (aiUsagePercent >= 100 ? 'Premium' : 'Smart Filter')}
                     </button>
 
                     {/* AI Usage Timer Bar - Full Width with Live Countdown */}
@@ -984,33 +1523,41 @@ function BarangayReports({ token }) {
                             alignItems: 'center',
                             gap: '8px'
                         }}>
-                            <div style={{
-                                flex: 1,
-                                height: '8px',
-                                backgroundColor: '#e0e0e0',
-                                borderRadius: '4px',
-                                overflow: 'hidden',
-                                position: 'relative'
-                            }}>
-                                <div style={{
-                                    height: '100%',
-                                    width: `${aiUsagePercent}%`,
-                                    backgroundColor: aiUsagePercent >= 100 ? '#f39c12' : '#2d3b8f',
-                                    transition: showSmartFilter ? 'none' : 'width 0.3s ease',
-                                    animation: aiUsagePercent >= 100 ? 'pulse 1.5s ease-in-out infinite' : 'none'
-                                }} />
+                            <div 
+                                className={`barangay-progress-bar ${isPremiumUser ? 'premium' : ''}`}
+                                style={{
+                                    flex: 1,
+                                    height: isPremiumUser ? '10px' : '8px',
+                                    backgroundColor: isPremiumUser ? undefined : '#e0e0e0',
+                                    borderRadius: isPremiumUser ? '6px' : '4px',
+                                    overflow: 'hidden',
+                                    position: 'relative'
+                                }}
+                            >
+                                <div 
+                                    className={`barangay-progress-fill ${isPremiumUser ? 'premium' : ''}`}
+                                    style={{
+                                        height: '100%',
+                                        width: isPremiumUser ? '100%' : `${aiUsagePercent}%`,
+                                        backgroundColor: isPremiumUser ? undefined : (aiUsagePercent >= 100 ? '#f39c12' : '#2d3b8f'),
+                                        transition: showSmartFilter && !isPremiumUser ? 'none' : 'width 0.3s ease',
+                                        position: 'relative',
+                                        overflow: 'hidden'
+                                    }} 
+                                />
                             </div>
                             
                             {/* Usage Info Button */}
                             <button
                                 onClick={() => setShowUsageModal(true)}
+                                className={`barangay-usage-btn ${isPremiumUser ? 'premium' : ''}`}
                                 style={{
                                     width: '28px',
                                     height: '28px',
                                     borderRadius: '50%',
-                                    border: `2px solid ${aiUsagePercent >= 100 ? '#f39c12' : '#2d3b8f'}`,
+                                    border: `2px solid ${isPremiumUser ? '#f39c12' : (aiUsagePercent >= 100 ? '#f39c12' : '#2d3b8f')}`,
                                     backgroundColor: 'white',
-                                    color: aiUsagePercent >= 100 ? '#f39c12' : '#2d3b8f',
+                                    color: isPremiumUser ? '#f39c12' : (aiUsagePercent >= 100 ? '#f39c12' : '#2d3b8f'),
                                     cursor: 'pointer',
                                     fontSize: '0.75em',
                                     fontWeight: 'bold',
@@ -1028,8 +1575,8 @@ function BarangayReports({ token }) {
                             </button>
                         </div>
 
-                        {/* Live countdown timer - shows when Smart Filter is ON */}
-                        {showSmartFilter && hasAcceptedAiWarning && (
+                        {/* Live countdown timer - shows when Smart Filter is ON (not for premium users) */}
+                        {showSmartFilter && hasAcceptedAiWarning && !isPremiumUser && (
                             <div style={{
                                 width: '100%',
                                 display: 'flex',
@@ -1044,6 +1591,22 @@ function BarangayReports({ token }) {
                                 <span>
                                     {aiUsagePercent}% used | {Math.max(0, 48 - Math.round(aiUsagePercent / 100 * 48))}h {Math.max(0, 60 - Math.round((aiUsagePercent % 1) * 60))}m remaining
                                 </span>
+                            </div>
+                        )}
+                        
+                        {/* Premium unlimited indicator */}
+                        {isPremiumUser && showSmartFilter && hasAcceptedAiWarning && (
+                            <div style={{
+                                width: '100%',
+                                display: 'flex',
+                                justifyContent: 'center',
+                                alignItems: 'center',
+                                fontSize: '0.85em',
+                                fontWeight: '600',
+                                color: '#f39c12',
+                                padding: '4px 0'
+                            }}>
+                                <span>👑 Premium - Unlimited AI Access</span>
                             </div>
                         )}
                     </div>
@@ -1141,7 +1704,7 @@ function BarangayReports({ token }) {
                                     }} />
                                 </div>
                                 <div style={{ marginTop: '6px', fontSize: '0.85em', color: '#666' }}>
-                                    {Math.ceil((100 - aiUsagePercent) / 100 * 48)} hours remaining this week
+                                    {timeRemainingHMS} remaining this week
                                 </div>
                             </div>
                         </div>
@@ -1288,7 +1851,7 @@ function BarangayReports({ token }) {
                                 <div style={{ marginBottom: '8px' }}>
                                     <span style={{ color: '#666' }}>⏱️ Time Remaining: </span>
                                     <span style={{ fontWeight: '600', color: '#2d3b8f' }}>
-                                        {Math.ceil((100 - aiUsagePercent) / 100 * 48)} hours
+                                        {timeRemainingHMS}
                                     </span>
                                 </div>
                                 <div style={{ color: '#666', fontSize: '0.85em' }}>
@@ -1358,16 +1921,12 @@ function BarangayReports({ token }) {
             `}</style>
 
             <div className="reports-list">
-                {loading ? (
-                    <div className="loading-container" role="status" aria-live="polite">
-                        <div className="spinner"></div>
-                        <p>Loading reports...</p>
-                    </div>
-                ) : reports.length === 0 ? (
+                {reports.length === 0 ? (
                     <div style={{ padding: '20px', textAlign: 'center' }}>
                         <p>No reports found.</p>
                     </div>
                 ) : filteredReports.length > 0 ? (
+                    viewMode === "card" ? (
                     filteredReports.map((report, index) => {
                         const isExpanded = expandedPosts.includes(report.id);
                         const isPending = !report.is_approved;
@@ -1393,35 +1952,11 @@ function BarangayReports({ token }) {
                                 style={{
                                     animationDelay: `${index * 0.1}s`,
                                     position: 'relative',
-                                    // Smart Filter ON: Show severity border | OFF: Hide border for accepted posts
-                                    border: `2px solid ${!isPending ? (showSmartFilter ? getSeverityStyle(report.category).borderColor : 'transparent') : 'transparent'}`,
+                                    // Smart Filter ON: Show priority border | OFF: Hide border for accepted posts
+                                    border: `2px solid ${!isPending ? (showSmartFilter ? getPriorityStyle(report.category).borderColor : 'transparent') : 'transparent'}`,
                                 }} 
                                 aria-labelledby={`report-title-${report.id}`}
                             >
-                                {/* Toggle Button - Top Right */}
-                                {showCommunityHelper && (
-                                    <button
-                                        style={{
-                                            position: 'absolute',
-                                            top: '12px',
-                                            right: '12px',
-                                            background: 'none',
-                                            border: 'none',
-                                            cursor: 'pointer',
-                                            fontSize: '1.3em',
-                                            padding: '4px 8px',
-                                            zIndex: 15,
-                                            opacity: 0.6,
-                                            transition: 'opacity 0.3s ease'
-                                        }}
-                                        onClick={() => setShowCommunityHelper(false)}
-                                        title="Hide Community Helper suggestions"
-                                        aria-label="Hide AI suggestions"
-                                    >
-                                        ✕
-                                    </button>
-                                )}
-
                                 <div className="report-header">
                                     <div className="report-header-left">
                                         <img 
@@ -1473,13 +2008,14 @@ function BarangayReports({ token }) {
                                     </div>
 
                                     <div className="report-header-actions">
-                                        <span className={`status-badge status-${report.status.toLowerCase()}`}>
+                                        <span className={`barangay-status-badge barangay-status-${report.status.toLowerCase()}`}>
+                                            {getStatusIcon(report.status)}
                                             {report.status}
                                         </span>
                                         {isPending ? (
                                             <>
                                                 <button 
-                                                    className="icon-btn approve-btn" 
+                                                    className="barangay-action-btn barangay-approve-btn" 
                                                     onClick={() => handleApproveReport(report.id)}
                                                     disabled={isApprovingReport}
                                                     aria-label={`Approve report: ${report.title}`}
@@ -1487,52 +2023,66 @@ function BarangayReports({ token }) {
                                                 >
                                                     {isApprovingReport ? (
                                                         <>
-                                                            <span className="spinner-small" aria-hidden="true"></span>
-                                                            {/* Still show check icon but with loading state */}
-                                                            <FaCheck aria-hidden="true" style={{ opacity: 0.5 }} />
+                                                            <span className="barangay-btn-spinner" aria-hidden="true"></span>
+                                                            <span>Approving...</span>
                                                         </>
                                                     ) : (
-                                                        <FaCheck aria-hidden="true" />
+                                                        <>
+                                                            <FaCheck aria-hidden="true" />
+                                                            <span>Accept</span>
+                                                        </>
                                                     )}
                                                 </button>
                                                 <button 
-                                                    className="icon-btn reject-btn" 
+                                                    className="barangay-action-btn barangay-reject-btn" 
                                                     onClick={() => handleRejectReport(report.id)}
                                                     disabled={isRejectingReport}
                                                     aria-label={`Reject report: ${report.title}`}
                                                     title="Reject Report"
                                                 >
-                                                    <FaTimes aria-hidden="true" />
+                                                    {isRejectingReport ? (
+                                                        <>
+                                                            <span className="barangay-btn-spinner" aria-hidden="true"></span>
+                                                            <span>Rejecting...</span>
+                                                        </>
+                                                    ) : (
+                                                        <>
+                                                            <FaTimes aria-hidden="true" />
+                                                            <span>Reject</span>
+                                                        </>
+                                                    )}
                                                 </button>
                                             </>
                                         ) : (
                                             <>
                                                 <button 
-                                                    className="icon-btn edit-btn" 
+                                                    className="barangay-action-btn barangay-update-btn" 
                                                     onClick={() => openStatusModal(report)}
-                                                    aria-label={`Edit status for report: ${report.title}`}
-                                                    title="Edit Status"
+                                                    aria-label={`Update status for report: ${report.title}`}
+                                                    title="Update Status"
                                                 >
                                                     <FaEdit aria-hidden="true" />
+                                                    <span>Update</span>
                                                 </button>
                                                 {report.status === "Ongoing" && (
                                                     <button 
-                                                        className="icon-btn assign-responder-btn" 
+                                                        className="barangay-action-btn barangay-assign-btn" 
                                                         onClick={() => openAssignResponderModal(report)}
                                                         aria-label={`Assign responder for report: ${report.title}`}
                                                         title="Assign Responder"
-                                                        style={{ backgroundColor: '#3b82f6', color: '#fff' }}
                                                     >
                                                         👤
+                                                        <span>Assign</span>
                                                     </button>
                                                 )}
                                                 <button 
-                                                    className="icon-btn delete-btn" 
+                                                    className="barangay-action-btn barangay-delete-btn" 
                                                     onClick={() => openDeleteReason(report)}
                                                     aria-label={`Delete report: ${report.title}`}
                                                     title="Delete Report"
                                                 >
                                                     <FaTrashAlt aria-hidden="true" />
+                                                    <span>Delete</span>
                                                 </button>
                                             </>
                                         )}
@@ -1546,8 +2096,8 @@ function BarangayReports({ token }) {
                                         flexDirection: 'column',
                                         gap: '8px',
                                         padding: '12px',
-                                        backgroundColor: `${getSeverityStyle(report.category).bgColor}`,
-                                        border: `1px solid ${getSeverityStyle(report.category).borderColor}`,
+                                        backgroundColor: `${getPriorityStyle(report.category).bgColor}`,
+                                        border: `1px solid ${getPriorityStyle(report.category).borderColor}`,
                                         borderRadius: '6px',
                                         marginBottom: '12px',
                                         marginLeft: '0px',
@@ -1577,7 +2127,7 @@ function BarangayReports({ token }) {
                                             </span>
                                         </div>
                                         
-                                        {/* Category Information with Severity & Confidence */}
+                                        {/* Category Information with Priority & Confidence */}
                                         <div style={{
                                             display: 'flex',
                                             flexDirection: 'column',
@@ -1591,22 +2141,22 @@ function BarangayReports({ token }) {
                                                 flexWrap: 'wrap'
                                             }}>
                                                 <span style={{ color: '#666', fontWeight: '500' }}>✨ Suggest:</span>
-                                                <span style={{ fontWeight: '600', color: getSeverityStyle(report.category).borderColor }}>
+                                                <span style={{ fontWeight: '600', color: getPriorityStyle(report.category).borderColor }}>
                                                     {report.category}
                                                 </span>
                                                 <span style={{ color: '#888' }}>·</span>
                                                 <span style={{
                                                     padding: '2px 8px',
-                                                    backgroundColor: getSeverityStyle(report.category).borderColor,
+                                                    backgroundColor: getPriorityStyle(report.category).borderColor,
                                                     color: 'white',
                                                     borderRadius: '12px',
                                                     fontSize: '0.85em',
                                                     fontWeight: '600'
                                                 }}>
-                                                    {getSeverityStyle(report.category).label}
+                                                    {getPriorityStyle(report.category).label}
                                                 </span>
-                                                <span style={{ marginLeft: 'auto', fontWeight: '600', color: getSeverityStyle(report.category).borderColor }}>
-                                                    Confidence: {(70 + Math.random() * 30).toFixed(0)}%
+                                                <span style={{ marginLeft: 'auto', fontWeight: '600', color: getPriorityStyle(report.category).borderColor }}>
+                                                    Confidence: {(typeof report.ai_confidence === 'number' ? report.ai_confidence : computeConfidence(report.description, report.category, report.images ? report.images.length : 0))}%
                                                 </span>
                                             </div>
                                         </div>
@@ -1651,6 +2201,129 @@ function BarangayReports({ token }) {
                             </div>
                         );
                     })
+                    ) : (
+                    // List View
+                    <div className="barangay-list-table">
+                        <div className="list-header">
+                            <div className="list-col col-image">Image</div>
+                            <div className="list-col col-title">Title</div>
+                            <div className="list-col col-category">Category</div>
+                            <div className="list-col col-barangay">Barangay</div>
+                            <div className="list-col col-priority">Priority</div>
+                            <div className="list-col col-reporter">Reporter</div>
+                            <div className="list-col col-date">Date</div>
+                            <div className="list-col col-status">Status</div>
+                            <div className="list-col col-actions">Actions</div>
+                        </div>
+                        {filteredReports.map((report, index) => {
+                            const isExpanded = expandedPosts.includes(report.id);
+                            const isPending = !report.is_approved;
+                            
+                            return (
+                                <div 
+                                    key={report.id} 
+                                    className={`list-row ${isPending ? 'list-row-pending' : ''}`}
+                                    style={{ animationDelay: `${index * 0.05}s` }}
+                                >
+                                    <div className="list-col col-image">
+                                        {report.images && report.images.length > 0 ? (
+                                            <img
+                                                src={report.images[0]}
+                                                alt="Report thumbnail"
+                                                className="list-thumbnail"
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    setPreviewImage(report.images[0]);
+                                                }}
+                                            />
+                                        ) : (
+                                            <div className="no-thumbnail">
+                                                <FaFileAlt />
+                                            </div>
+                                        )}
+                                    </div>
+                                    <div className="list-col col-title" onClick={() => toggleExpand(report.id)}>
+                                        <span className="list-title">{report.title || "Untitled"}</span>
+                                        {isExpanded && (
+                                            <p className="list-description">{report.description}</p>
+                                        )}
+                                    </div>
+                                    <div className="list-col col-category">
+                                        <span className="category-tag">{report.category || "N/A"}</span>
+                                    </div>
+                                    <div className="list-col col-barangay">{report.barangay || report.address_barangay || "N/A"}</div>
+                                    <div className="list-col col-priority">
+                                        <span className={`priority-tag priority-${(getReportPriority(report) || "low").toLowerCase()}`}>
+                                            {getReportPriority(report) || "N/A"}
+                                        </span>
+                                    </div>
+                                    <div className="list-col col-reporter">
+                                        <div className="reporter-info">
+                                            <img
+                                                src={report.reporter?.avatar_url || "/src/assets/profile.png"}
+                                                alt=""
+                                                className="reporter-avatar"
+                                                onError={(e) => {
+                                                    e.target.src = "/src/assets/profile.png";
+                                                }}
+                                            />
+                                            <span>{report.reporter?.firstname || "Unknown"}</span>
+                                        </div>
+                                    </div>
+                                    <div className="list-col col-date">
+                                        {report.date || report.created_at
+                                            ? new Date(report.date || report.created_at).toLocaleDateString()
+                                            : "N/A"}
+                                    </div>
+                                    <div className="list-col col-status">
+                                        <span className={`barangay-status-badge barangay-status-${report.status.toLowerCase()}`}>
+                                            {getStatusIcon(report.status)} {report.status}
+                                        </span>
+                                    </div>
+                                    <div className="list-col col-actions">
+                                        {isPending ? (
+                                            <div className="list-actions">
+                                                <button 
+                                                    className="list-action-btn accept"
+                                                    onClick={() => handleApproveReport(report.id)}
+                                                    disabled={isApprovingReport}
+                                                    title="Accept"
+                                                >
+                                                    <FaCheck />
+                                                </button>
+                                                <button 
+                                                    className="list-action-btn reject"
+                                                    onClick={() => handleRejectReport(report.id)}
+                                                    disabled={isRejectingReport}
+                                                    title="Reject"
+                                                >
+                                                    <FaTimes />
+                                                </button>
+                                            </div>
+                                        ) : (
+                                            <div className="list-actions">
+                                                <button 
+                                                    className="list-action-btn edit"
+                                                    onClick={() => openStatusModal(report)}
+                                                    title="Update Status"
+                                                >
+                                                    <FaEdit />
+                                                </button>
+                                                <button 
+                                                    className="list-action-btn delete"
+                                                    onClick={() => openDeleteReason(report)}
+                                                    title="Delete"
+                                                >
+                                                    <FaTrashAlt />
+                                                </button>
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+                            );
+                        })}
+                    </div>
+                    )
                 ) : (
                     <div style={{ padding: '20px', textAlign: 'center' }}>
                         <p>No reports match your current filters.</p>
@@ -1687,8 +2360,8 @@ function BarangayReports({ token }) {
                         className="modal" 
                         onClick={(e) => e.stopPropagation()}
                         style={{
-                            borderLeft: `6px solid ${getSeverityStyle(selectedReport.category).borderColor}`,
-                            backgroundColor: getSeverityStyle(selectedReport.category).bgColor
+                            borderLeft: `6px solid ${getPriorityStyle(selectedReport.category).borderColor}`,
+                            backgroundColor: getPriorityStyle(selectedReport.category).bgColor
                         }}
                     >
                         <h3 id="status-modal-title">📝 Update Report Status</h3>
@@ -1711,7 +2384,7 @@ function BarangayReports({ token }) {
                             <span style={{ color: '#888', marginLeft: '5px' }}>|</span>
                             <span style={{ marginLeft: '5px' }}>Category: <strong>{selectedReport.category}</strong></span>
                             <span style={{ color: '#888' }}>|</span>
-                            <span style={{ marginLeft: '5px' }}>{getSeverityStyle(selectedReport.category).label}</span>
+                            <span style={{ marginLeft: '5px' }}>{getPriorityStyle(selectedReport.category).label}</span>
                         </div>
                         
                         <div style={{ marginBottom: '15px' }}>
@@ -2053,6 +2726,7 @@ function BarangayReports({ token }) {
                 </div>
             )}
         </div>
+        </LoadingScreen>
     );
 }
 

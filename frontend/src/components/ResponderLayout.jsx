@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   FaHome,
   FaExclamationTriangle,
@@ -8,14 +8,16 @@ import {
   FaSignOutAlt,
   FaBars,
   FaCalendarAlt,
+  FaArchive,
 } from 'react-icons/fa';
 import { Outlet, NavLink, useNavigate } from 'react-router-dom';
 import { API_CONFIG, getApiUrl } from '../utils/apiConfig';
 import Toast from './Toast';
+import ChatBot from './ChatBot';
 import { registerToastCallback, registerNotificationCountCallback, startNotificationSSE, stopNotificationSSE, startNotificationPolling, stopNotificationPolling } from '../utils/notificationService';
 import './Layout.css';
 import logo from '../assets/logo.png';
-import { logout } from '../utils/session';
+import { logout, handleSessionExpired, isSessionExpired } from '../utils/session';
 import LoadingScreen from './LoadingScreen';
 
 // Enhanced responder layout with improved design matching admin/barangay styles
@@ -26,12 +28,48 @@ export default function ResponderLayout({ session, setSession, setNotification }
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const [dateTime, setDateTime] = useState(new Date());
   const [notificationCount, setNotificationCount] = useState(0);
+  const [showChatBot, setShowChatBot] = useState(false);
+  const [autoEvaluationTrigger, setAutoEvaluationTrigger] = useState(false);
   const toastRef = useRef(null);
   const pollingIntervalRef = useRef(null);
+  const hasCheckedEvaluations = useRef(false);
 
   const navigate = useNavigate();
 
   const token = session?.token || '';
+
+  // Check for new AI evaluations (for Responders)
+  const checkForNewEvaluations = useCallback(async () => {
+    if (!token || hasCheckedEvaluations.current) return;
+    
+    try {
+      const res = await fetch(getApiUrl('/api/chat/check-new-evaluations'), {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      
+      if (res.ok) {
+        const data = await res.json();
+        
+        if (data.should_notify && data.has_new_evaluations) {
+          hasCheckedEvaluations.current = true;
+          
+          // Auto-open chatbot with evaluation prompt for responders
+          setAutoEvaluationTrigger(true);
+          setShowChatBot(true);
+          
+          // Show toast notification
+          if (toastRef.current) {
+            toastRef.current.show(
+              `🤖 AI found ${data.count} new report(s) to evaluate - Check Community Helper`,
+              'info'
+            );
+          }
+        }
+      }
+    } catch (e) {
+      console.warn('Error checking for new evaluations:', e);
+    }
+  }, [token]);
 
   // Fetch user profile
   useEffect(() => {
@@ -44,9 +82,19 @@ export default function ResponderLayout({ session, setSession, setNotification }
         const res = await fetch(getApiUrl(API_CONFIG.endpoints.profile), {
           headers: { Authorization: `Bearer ${token}` },
         });
+        
+        // Check for session expiration (401/403)
+        if (isSessionExpired(res)) {
+          handleSessionExpired(setSession, setNotification, navigate, 'responder');
+          setUser(null);
+          return;
+        }
+        
         const data = await res.json();
         if (!res.ok || data.status !== 'success') {
+          handleSessionExpired(setSession, setNotification, navigate, 'responder', 'Your session is no longer valid. Please log in again to continue.');
           setUser(null);
+          return;
         } else {
           setUser({
             ...data.profile,
@@ -62,7 +110,30 @@ export default function ResponderLayout({ session, setSession, setNotification }
     };
 
     loadProfile();
-  }, [token]);
+  }, [token, setSession, setNotification, navigate]);
+
+  // Check for AI evaluations after user profile is loaded
+  useEffect(() => {
+    if (user && token && !hasCheckedEvaluations.current) {
+      // Small delay to not overwhelm initial load
+      const timer = setTimeout(() => {
+        checkForNewEvaluations();
+      }, 2000);
+      return () => clearTimeout(timer);
+    }
+  }, [user, token, checkForNewEvaluations]);
+
+  // Handle evaluation completion callback
+  const handleEvaluationComplete = (approvalResult) => {
+    if (approvalResult?.approved_count > 0) {
+      if (toastRef.current) {
+        toastRef.current.show(
+          `✅ Auto-approved ${approvalResult.approved_count} HIGH/CRITICAL report(s)`,
+          'success'
+        );
+      }
+    }
+  };
 
   // 🔹 Setup real-time notifications via SSE for responder
   useEffect(() => {
@@ -117,7 +188,7 @@ export default function ResponderLayout({ session, setSession, setNotification }
     await logout(setSession);
     setUser(null);
     setNotification({ message: 'Logged out successfully.', type: 'success' });
-    navigate('/login');
+    navigate('/login?role=responder');
   };
 
   if (loading)
@@ -159,6 +230,7 @@ export default function ResponderLayout({ session, setSession, setNotification }
           >
             <NavLink to="/responder/home"><FaHome /> Home</NavLink>
             <NavLink to="/responder/reports"><FaExclamationTriangle /> Reports</NavLink>
+            <NavLink to="/responder/archived"><FaArchive /> Archived</NavLink>
             <NavLink to="/responder/maps"><FaMap /> Map</NavLink>
             <NavLink to="/responder/notifications"><FaBell /> Notifications
               {notificationCount > 0 && (
@@ -338,6 +410,21 @@ export default function ResponderLayout({ session, setSession, setNotification }
             </div>
           </div>
         </div>
+      )}
+
+      {/* ChatBot Component with AI Evaluation - Premium feature for Responders */}
+      {token && (
+        <ChatBot 
+          isOpen={showChatBot} 
+          onClose={() => {
+            setShowChatBot(false);
+            setAutoEvaluationTrigger(false);
+          }}
+          token={token}
+          isPremium={true}
+          autoEvaluationTrigger={autoEvaluationTrigger}
+          onEvaluationComplete={handleEvaluationComplete}
+        />
       )}
     </div>
   );

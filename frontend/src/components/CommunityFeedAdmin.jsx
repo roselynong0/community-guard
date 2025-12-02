@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from "react";
 import "./CommunityFeed.css";
 import "./Notifications.css";
-import { FaUsers, FaTrash, FaCheck, FaTimes } from "react-icons/fa";
+import { FaUsers, FaTrash, FaCheck, FaTimes, FaComment, FaCommentSlash, FaHeart, FaRegHeart } from "react-icons/fa";
 import { getApiUrl, API_CONFIG } from "../utils/apiConfig";
 
 // ✅ BARANGAYS (Olongapo City)
@@ -92,6 +92,43 @@ const CommunityFeedAdmin = () => {
     }
   }, [barangayFilter, postTypeFilter]);
 
+  // ✅ ACCEPT POST (sets is_accepted = true, shows normally but keeps pending)
+  const handleAcceptPost = async (postId) => {
+    try {
+      const token = localStorage.getItem("token");
+      const response = await fetch(getApiUrl(`/api/community/posts/${postId}/accept`), {
+        method: "PUT",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+      });
+
+      if (response.ok) {
+        setPosts((prev) =>
+          prev.map((p) =>
+            p.id === postId ? { ...p, is_accepted: true } : p
+          )
+        );
+        setNotification({
+          type: "success",
+          message: "✅ Post accepted!",
+        });
+      } else {
+        const error = await response.json();
+        setNotification({
+          type: "error",
+          message: `❌ Error: ${error.message}`,
+        });
+      }
+    } catch (error) {
+      console.error("Error accepting post:", error);
+      setNotification({
+        type: "error",
+        message: "❌ Failed to accept post",
+      });
+    }
+
+    setTimeout(() => setNotification(null), 3000);
+  };
+
   const handleApprovePost = async (postId) => {
     try {
       const token = localStorage.getItem("token");
@@ -103,7 +140,7 @@ const CommunityFeedAdmin = () => {
       if (response.ok) {
         setPosts((prev) =>
           prev.map((p) =>
-            p.id === postId ? { ...p, status: "approved" } : p
+            p.id === postId ? { ...p, status: "approved", is_accepted: true } : p
           )
         );
         setNotification({
@@ -129,7 +166,7 @@ const CommunityFeedAdmin = () => {
   };
 
   const handleRejectPost = async (postId) => {
-    if (!window.confirm("Are you sure you want to reject this post?")) return;
+    if (!window.confirm("Are you sure you want to reject this post? The user will be notified.")) return;
 
     try {
       const token = localStorage.getItem("token");
@@ -139,10 +176,15 @@ const CommunityFeedAdmin = () => {
       });
 
       if (response.ok) {
-        setPosts((prev) => prev.filter((p) => p.id !== postId));
+        // Mark as rejected instead of removing (owner can still see it)
+        setPosts((prev) =>
+          prev.map((p) =>
+            p.id === postId ? { ...p, is_rejected: true, status: "rejected" } : p
+          )
+        );
         setNotification({
           type: "success",
-          message: "✅ Post rejected successfully!",
+          message: "✅ Post rejected and user notified!",
         });
       } else {
         const error = await response.json();
@@ -233,22 +275,55 @@ const CommunityFeedAdmin = () => {
     setTimeout(() => setNotification(null), 3000);
   };
 
-  // ✅ FILTER POSTS
-  const filteredPosts = posts.filter((p) => {
-    const text = searchTerm.toLowerCase();
-    const authorName = p.author?.firstname + " " + p.author?.lastname;
-    const matchesSearch =
-      p.title?.toLowerCase().includes(text) ||
-      p.content?.toLowerCase().includes(text) ||
-      authorName?.toLowerCase().includes(text);
+  const handleLikePost = async (postId) => {
+    try {
+      const token = localStorage.getItem("token");
+      const response = await fetch(getApiUrl(`/api/community/posts/${postId}/react`), {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ reaction_type: "like" }),
+      });
 
-    let matchesStatus = true;
-    if (statusFilter !== "all") {
-      matchesStatus = p.status === statusFilter;
+      if (response.ok) {
+        const data = await response.json();
+        setPosts((prev) =>
+          prev.map((p) =>
+            p.id === postId
+              ? { ...p, user_liked: data.liked, reaction_count: data.reaction_count }
+              : p
+          )
+        );
+      }
+    } catch (error) {
+      console.error("Error liking post:", error);
     }
+  };
 
-    return matchesSearch && matchesStatus;
-  });
+  // ✅ FILTER POSTS - Sort pending posts to top
+  const filteredPosts = posts
+    .filter((p) => {
+      const text = searchTerm.toLowerCase();
+      const authorName = p.author?.firstname + " " + p.author?.lastname;
+      const matchesSearch =
+        p.title?.toLowerCase().includes(text) ||
+        p.content?.toLowerCase().includes(text) ||
+        authorName?.toLowerCase().includes(text);
+
+      let matchesStatus = true;
+      if (statusFilter !== "all") {
+        matchesStatus = p.status === statusFilter;
+      }
+
+      return matchesSearch && matchesStatus;
+    })
+    .sort((a, b) => {
+      // Pending posts first (not accepted), then by date
+      const aIsPending = a.status === 'pending' && !a.is_accepted;
+      const bIsPending = b.status === 'pending' && !b.is_accepted;
+      if (aIsPending && !bIsPending) return -1;
+      if (!aIsPending && bIsPending) return 1;
+      return new Date(b.created_at) - new Date(a.created_at);
+    });
 
   return (
     <div className="feed-container">
@@ -313,6 +388,7 @@ const CommunityFeedAdmin = () => {
             <option value="all">All Status</option>
             <option value="pending">Pending</option>
             <option value="approved">Approved</option>
+            <option value="rejected">Rejected</option>
           </select>
         </div>
       </div>
@@ -331,10 +407,12 @@ const CommunityFeedAdmin = () => {
               <AdminPostCard
                 key={post.id}
                 post={post}
+                onAccept={handleAcceptPost}
                 onApprove={handleApprovePost}
                 onReject={handleRejectPost}
                 onDelete={handleDeletePost}
                 onToggleComments={handleToggleComments}
+                onLike={handleLikePost}
               />
             ))}
           </>
@@ -344,20 +422,39 @@ const CommunityFeedAdmin = () => {
   );
 };
 
-// ✅ ADMIN POST CARD WITH APPROVE/REJECT BUTTONS
-const AdminPostCard = ({ post, onApprove, onReject, onDelete, onToggleComments }) => {
+// ✅ ADMIN POST CARD WITH ACCEPT/APPROVE/REJECT BUTTONS
+const AdminPostCard = ({ post, onAccept, onApprove, onReject, onDelete, onToggleComments, onLike }) => {
   const roleColor = ROLE_COLORS[post.author?.role] || ROLE_COLORS["Resident"];
   const authorName = `${post.author?.firstname} ${post.author?.lastname}`;
   const postedDate = new Date(post.created_at).toLocaleDateString();
-  const isPending = (post.status && post.status !== 'approved') || post.is_pending;
+  const canLike = post.is_accepted || post.status === 'approved';
+  
+  // Pending = status is pending AND is_accepted is false AND not rejected
+  const isPending = post.status === 'pending' && !post.is_accepted && !post.is_rejected;
+  // Accepted = is_accepted is true (regardless of status)
+  const isAccepted = post.is_accepted === true;
+  // Rejected = is_rejected is true or status is rejected
+  const isRejected = post.is_rejected || post.status === 'rejected';
 
   return (
-    <div className={`post-card ${post.is_pinned ? "post-pinned" : ""} ${isPending ? 'pending' : ''}`}>
+    <div className={`post-card ${post.is_pinned ? "post-pinned" : ""} ${isPending ? 'pending' : ''} ${isRejected ? 'rejected' : ''}`}>
       <div className="post-header">
         <div className="post-title-section">
           <h3>{post.title}</h3>
           {post.is_pinned && <span className="badge-pinned">📌 Pinned</span>}
-          {isPending && <span className="badge-pending">⏳ Pending</span>}
+          {isPending && <span className="badge-pending">⏳ Pending Review</span>}
+          {isRejected && <span className="badge-rejected">❌ Rejected</span>}
+          {isAccepted && post.status !== 'approved' && !isRejected && (
+            <span className="badge-accepted" style={{
+              backgroundColor: 'rgba(16, 185, 129, 0.1)',
+              color: '#10b981',
+              padding: '0.25rem 0.75rem',
+              borderRadius: '20px',
+              fontSize: '0.75rem',
+              fontWeight: '600',
+              marginLeft: '8px'
+            }}>✓ Accepted</span>
+          )}
         </div>
         <div className="post-header-right">
           <div className="post-meta">
@@ -402,6 +499,39 @@ const AdminPostCard = ({ post, onApprove, onReject, onDelete, onToggleComments }
         By {authorName} · {postedDate} · {post.barangay} · Status: <strong>{post.status || 'unknown'}</strong>
       </p>
 
+      {/* Like Button - Only for accepted/approved posts */}
+      {canLike && (
+        <div className="post-engagement" style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: '12px',
+          marginTop: '12px',
+          paddingTop: '12px',
+          borderTop: '1px solid #eee',
+        }}>
+          <button
+            onClick={() => onLike(post.id)}
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '6px',
+              padding: '8px 16px',
+              background: post.user_liked ? '#fee2e2' : '#f3f4f6',
+              color: post.user_liked ? '#ef4444' : '#6b7280',
+              border: 'none',
+              borderRadius: '20px',
+              cursor: 'pointer',
+              fontSize: '14px',
+              fontWeight: '500',
+              transition: 'all 0.2s',
+            }}
+          >
+            {post.user_liked ? <FaHeart /> : <FaRegHeart />}
+            {post.reaction_count || 0} {post.reaction_count === 1 ? 'Like' : 'Likes'}
+          </button>
+        </div>
+      )}
+
       {/* ADMIN CONTROLS */}
       <div className="admin-post-controls" style={{
         display: 'flex',
@@ -409,9 +539,31 @@ const AdminPostCard = ({ post, onApprove, onReject, onDelete, onToggleComments }
         marginTop: '12px',
         paddingTop: '12px',
         borderTop: '1px solid #ddd',
+        flexWrap: 'wrap',
       }}>
         {isPending && (
           <>
+            <button
+              className="admin-accept-btn"
+              onClick={() => onAccept(post.id)}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '6px',
+                padding: '8px 12px',
+                background: '#3b82f6',
+                color: 'white',
+                border: 'none',
+                borderRadius: '6px',
+                cursor: 'pointer',
+                fontSize: '14px',
+                fontWeight: '500',
+                transition: 'background 0.2s',
+              }}
+              title="Accept post (shows normally but keeps pending status)"
+            >
+              <FaCheck /> Accept
+            </button>
             <button
               className="admin-approve-btn"
               onClick={() => onApprove(post.id)}
@@ -429,8 +581,7 @@ const AdminPostCard = ({ post, onApprove, onReject, onDelete, onToggleComments }
                 fontWeight: '500',
                 transition: 'background 0.2s',
               }}
-              onMouseEnter={(e) => e.target.style.background = '#059669'}
-              onMouseLeave={(e) => e.target.style.background = '#10b981'}
+              title="Fully approve post"
             >
               <FaCheck /> Approve
             </button>
@@ -451,35 +602,50 @@ const AdminPostCard = ({ post, onApprove, onReject, onDelete, onToggleComments }
                 fontWeight: '500',
                 transition: 'background 0.2s',
               }}
-              onMouseEnter={(e) => e.target.style.background = '#dc2626'}
-              onMouseLeave={(e) => e.target.style.background = '#ef4444'}
             >
               <FaTimes /> Reject
             </button>
           </>
         )}
-        <button
-          className="admin-toggle-comments-btn"
-          onClick={() => onToggleComments(post.id, post.allow_comments)}
-          style={{
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: '6px',
+        
+        {/* Show rejected notice for admin */}
+        {isRejected && (
+          <div style={{
+            width: '100%',
             padding: '8px 12px',
-            background: post.allow_comments ? '#8b5cf6' : '#6366f1',
-            color: 'white',
-            border: 'none',
+            background: 'rgba(220, 38, 38, 0.1)',
             borderRadius: '6px',
-            cursor: 'pointer',
+            color: '#dc2626',
             fontSize: '14px',
-            fontWeight: '500',
-            transition: 'background 0.2s',
-          }}
-          onMouseEnter={(e) => e.target.style.background = post.allow_comments ? '#7c3aed' : '#4f46e5'}
-          onMouseLeave={(e) => e.target.style.background = post.allow_comments ? '#8b5cf6' : '#6366f1'}
-        >
-          💬 {post.allow_comments ? 'Disable' : 'Enable'} Comments
-        </button>
+            marginBottom: '8px',
+          }}>
+            ⚠️ This post was rejected. The user has been notified and can delete it from their feed.
+          </div>
+        )}
+        
+        {!isRejected && (
+          <button
+            className="admin-toggle-comments-btn"
+            onClick={() => onToggleComments(post.id, post.allow_comments)}
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '6px',
+              padding: '8px 12px',
+              background: post.allow_comments ? '#8b5cf6' : '#6366f1',
+              color: 'white',
+              border: 'none',
+              borderRadius: '6px',
+              cursor: 'pointer',
+              fontSize: '14px',
+              fontWeight: '500',
+              transition: 'background 0.2s',
+            }}
+          >
+            {post.allow_comments ? <FaCommentSlash /> : <FaComment />}
+            {post.allow_comments ? 'Disable' : 'Enable'} Comments
+          </button>
+        )}
         <button
           className="admin-delete-btn"
           onClick={() => onDelete(post.id)}
@@ -488,7 +654,7 @@ const AdminPostCard = ({ post, onApprove, onReject, onDelete, onToggleComments }
             alignItems: 'center',
             gap: '6px',
             padding: '8px 12px',
-            background: '#6b7280',
+            background: isRejected ? '#dc2626' : '#6b7280',
             color: 'white',
             border: 'none',
             borderRadius: '6px',
@@ -498,10 +664,9 @@ const AdminPostCard = ({ post, onApprove, onReject, onDelete, onToggleComments }
             marginLeft: 'auto',
             transition: 'background 0.2s',
           }}
-          onMouseEnter={(e) => e.target.style.background = '#4b5563'}
-          onMouseLeave={(e) => e.target.style.background = '#6b7280'}
+          title={isRejected ? "Permanently delete this rejected post" : "Delete post"}
         >
-          <FaTrash /> Delete
+          <FaTrash /> {isRejected ? 'Permanently Delete' : 'Delete'}
         </button>
       </div>
     </div>
