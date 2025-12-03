@@ -264,7 +264,7 @@ function BarangayLayout({ session, setSession, setNotification }) {
             }}>Community Guard</h2>
           </div>
 
-          {/* Sidebar Nav */}
+          {/* Sidebar Nav - Order: Dashboard, Map, Reports, Assign Responders, Archived, Community Feed, Notifications, Profile */}
           <nav
             style={{
               borderBottom: "1px solid rgba(255,255,255,0.1)",
@@ -274,23 +274,26 @@ function BarangayLayout({ session, setSession, setNotification }) {
             <NavLink to="/barangay/dashboard">
               <FaHome /> Dashboard
             </NavLink>
+            <NavLink to="/barangay/maps">
+              <FaMap /> Maps
+            </NavLink>
             <NavLink to="/barangay/reports">
               <FaChartLine /> Reports
+            </NavLink>
+            <NavLink to="/barangay/assign-responders">
+              <FaUsers /> Assign Responders
             </NavLink>
             <NavLink to="/barangay/archived">
               <FaArchive /> Archived
             </NavLink>
-            <NavLink to="/barangay/maps">
-              <FaMap /> Maps
+            <NavLink to="/barangay/community-feed">
+              <FaUserFriends /> Community Feed
             </NavLink>
             <NavLink to="/barangay/notifications">
               <FaBell /> Notifications
               {notificationCount > 0 && (
                 <span className="notification-badge">{notificationCount}</span>
               )}
-            </NavLink>
-            <NavLink to="/barangay/community-feed">
-              <FaUserFriends /> Community Feed
             </NavLink>
             <NavLink to="/barangay/profile">
               <FaUsers /> Profile

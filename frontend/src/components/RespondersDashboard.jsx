@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { NavLink } from "react-router-dom";
 import {
   FaExclamationTriangle,
@@ -21,6 +21,7 @@ import {
 } from "recharts";
 
 import MapView from "../components/Mapview";
+import LoadingScreen from "./LoadingScreen";
 import { getApiUrl } from "../utils/apiConfig";
 import "./RespondersDashboard.css";
 
@@ -54,6 +55,15 @@ const extractBarangay = (report) => {
 };
 
 export default function RespondersDashboard() {
+  const [loading, setLoading] = useState(true);
+  const [overlayExited, setOverlayExited] = useState(false);
+  const mapRef = useRef(null);
+  
+  const loadingFeatures = [
+    { title: "Responder Overview", description: "Loading active reports and statistics." },
+    { title: "Incident Areas", description: "Preparing hotspots and trends." },
+  ];
+
   const [stats, setStats] = useState([
     { title: "Active Reports", value: 0, icon: <FaExclamationTriangle />, color: "#f40014ff" },
     { title: "Resolved Reports", value: 0, icon: <FaCheckCircle />, color: "#2a9d62ff" },
@@ -128,6 +138,8 @@ export default function RespondersDashboard() {
         console.error("Error fetching reports:", error);
         setTrendData([{ month: "No Data", count: 0 }]);
         setHighIncidentAreas([{ area: "No Data", total: 0 }]);
+      } finally {
+        setLoading(false);
       }
     };
     
@@ -202,11 +214,11 @@ export default function RespondersDashboard() {
     );
   };
 
-  return (
-    <div className="dashboard">
+  const content = (
+    <div className={`dashboard ${overlayExited ? 'overlay-exited' : ''}`}>
       {/* BARANGAY HEADER */}
       {userBarangay && (
-        <div className="barangay-header animate-up" style={{ marginBottom: "1rem", padding: "0.5rem 1rem", background: "#f0f4f8", borderRadius: "8px", display: "inline-block" }}>
+        <div className="barangay-header" style={{ marginBottom: "1rem", padding: "0.5rem 1rem", background: "#f0f4f8", borderRadius: "8px", display: "inline-block" }}>
           <span style={{ color: "#2d2d73", fontWeight: 500 }}>📍 {userBarangay}</span>
         </div>
       )}
@@ -216,8 +228,8 @@ export default function RespondersDashboard() {
         {stats.map((stat, i) => (
           <div
             key={i}
-            className="stat-card animate-up"
-            style={{ borderLeft: `4px solid ${stat.color}`, animationDelay: `${i * 0.1}s` }}
+            className="stat-card"
+            style={{ borderLeft: `4px solid ${stat.color}` }}
           >
             <div className="stat-content">
               <span className="stat-icon" style={{ color: stat.color }}>
@@ -233,7 +245,7 @@ export default function RespondersDashboard() {
       </div>
 
       {/* ACTIVE REPORTS TABLE */}
-      <div className="section-card animate-up">
+      <div className="section-card">
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
           <h3>Active Reports</h3>
 
@@ -283,7 +295,7 @@ export default function RespondersDashboard() {
 
       {/* Monthly Trend + High Incident Areas */}
       <div className="two-column">
-        <div className="section-card animate-up">
+        <div className="section-card">
           <h3>High Incident Areas</h3>
           <div className="chart-container">
             <ResponsiveContainer width="100%" height={260}>
@@ -299,7 +311,7 @@ export default function RespondersDashboard() {
           </div>
         </div>
 
-        <div className="trend-section animate-up">
+        <div className="trend-section">
           <h3>Monthly Report Summary</h3>
           <div className="chart-container">
             <ResponsiveContainer width="100%" height={260}>
@@ -317,12 +329,33 @@ export default function RespondersDashboard() {
       </div>
 
       {/* HOTSPOTS MAP */}
-      <div className="map-section animate-up">
+      <div className="map-section">
         <h3>Hotspots</h3>
         <div className="map-placeholder">
-          <MapView />
+          <MapView ref={mapRef} />
         </div>
       </div>
     </div>
+  );
+
+  return (
+    <LoadingScreen
+      variant="inline"
+      features={loadingFeatures}
+      title={loading ? "Loading Dashboard..." : undefined}
+      subtitle={loading ? "Fetching responder stats" : undefined}
+      stage={loading ? "loading" : "exit"}
+      successTitle="Dashboard Ready!"
+      onExited={() => {
+        setOverlayExited(true);
+        setTimeout(() => {
+          window.dispatchEvent(new Event('resize'));
+          try { mapRef.current?.invalidate?.(); } catch (e) { console.debug('map invalidate error', e); }
+        }, 120);
+      }}
+      inlineOffset="18vh"
+    >
+      {content}
+    </LoadingScreen>
   );
 }

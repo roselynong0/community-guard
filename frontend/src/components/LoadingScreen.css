@@ -149,27 +149,53 @@ html, body, #root {
   position: relative;
   /* lowered to match fullscreen loading stack (below modals/notifications) */
   z-index: 2;
+  min-height: 85vh;
 }
 
+/* Prevent scrolling while loading is active */
+.loading-inline-container:has(.loading-hidden) {
+  overflow: hidden;
+  max-height: 85vh;
+}
+
+/* Children visibility states - completely hide during loading */
 .loading-inline-children {
-  /* keep normal layout and stacking for children */
-  /* Content should remain visible during loading */
-  transition: filter 420ms cubic-bezier(.2,.9,.2,1), opacity 420ms ease;
+  /* Base state - prepare for transitions */
+  transition: opacity 380ms cubic-bezier(.2,.9,.2,1), 
+              transform 380ms cubic-bezier(.2,.9,.2,1);
+  min-height: 85vh;
+}
+
+/* Hidden state - children invisible during loading */
+.loading-inline-children.loading-hidden {
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transform: translateY(8px);
+  overflow: hidden;
+  max-height: 85vh;
+}
+
+/* Revealed state - smooth fade-in after loading completes */
+.loading-inline-children.loading-revealed {
   opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+  transform: translateY(0);
 }
 
 .loading-inline-overlay {
   position: absolute;
   inset: 0;
-  background: rgba(241,245,249,0.28);
+  bottom: auto;
+  min-height: 85vh;
+  background: #f2f2f2;
   display: flex;
   align-items: flex-start;
   justify-content: center;
   padding-top: var(--loading-inline-padding-top, 0);
   z-index: 2;
   pointer-events: auto;
-  -webkit-backdrop-filter: blur(4px);
-  backdrop-filter: blur(4px);
 }
 
 .loading-inline-overlay.center-viewport {
@@ -188,7 +214,32 @@ html, body, #root {
 }
 
 /* Inline card exit animation */
+.loading-inline-overlay.exit {
+  animation: overlayFadeOut 420ms cubic-bezier(.2,.9,.2,1) forwards;
+}
+
 .loading-inline-overlay.exit .loading-inline-card {
+  animation: cardSlideUp 420ms cubic-bezier(.2,.9,.2,1) forwards;
+}
+
+@keyframes overlayFadeOut {
+  0% { opacity: 1; }
+  100% { opacity: 0; }
+}
+
+@keyframes cardSlideUp {
+  0% { 
+    opacity: 1; 
+    transform: translateY(0) translateX(-50%); 
+  }
+  100% { 
+    opacity: 0; 
+    transform: translateY(-20px) translateX(-50%); 
+  }
+}
+
+/* Legacy animation support - keep for non-center-viewport overlays */
+.loading-inline-overlay.exit:not(.center-viewport) .loading-inline-card {
   animation: cinematicExit 420ms cubic-bezier(.2,.9,.2,1) forwards;
 }
 
@@ -222,40 +273,28 @@ html, body, #root {
 
 .loading-inline-card {
   background: rgba(255,255,255,0.98);
-  border-radius: 12px;
-  padding: 12px 14px;
-  box-shadow: 0 8px 24px rgba(17,22,62,0.12);
+  border-radius: 14px;
+  padding: 16px 18px;
+  box-shadow: 0 12px 32px rgba(17,22,62,0.15), 0 4px 12px rgba(17,22,62,0.08);
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 8px;
-  min-width: 180px;
-  max-width: 320px;
-}
-
-/* Pause animations/transitions */
-.loading-inline-children.loading-paused {
-  animation: none !important;
-  transition: none !important;
-  filter: blur(4px);
-}
-
-.loading-inline-children.loading-paused * {
-  animation: none !important;
-  transition: none !important;
-  opacity: 1 !important;
+  gap: 10px;
+  min-width: 200px;
+  max-width: 340px;
+  border: 1px solid rgba(255,255,255,0.8);
 }
 
 .loading-inline-logo {
-  width: 40px;
-  height: 40px;
+  width: 44px;
+  height: 44px;
 }
 
 .logo-holder {
   position: relative;
-  width: 40px;
-  height: 40px;
-  margin: 0 auto 0.25rem;
+  width: 44px;
+  height: 44px;
+  margin: 0 auto 0.35rem;
 }
 
 .logo-holder .loading-inline-logo {

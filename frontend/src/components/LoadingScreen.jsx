@@ -33,6 +33,7 @@ function LoadingScreen({
   const [showOverlay, setShowOverlay] = useState(stage !== "exit");
   const [showSuccess, setShowSuccess] = useState(false);
   const [animatingExit, setAnimatingExit] = useState(false);
+  const [childrenReady, setChildrenReady] = useState(stage === "exit"); // Controls children visibility
 
   useEffect(() => {
     let tSuccess;
@@ -42,21 +43,25 @@ function LoadingScreen({
       setShowOverlay(true);
       setShowSuccess(false);
       setAnimatingExit(false);
+      setChildrenReady(false); // Hide children during loading
     } else if (stage === "exit") {
       setShowSuccess(true);
 
       tSuccess = setTimeout(() => {
-        // start the exit animation phase but keep the success visuals
-        // visible during the exit animation so we don't flash back to
-        // the logo/loading content.
+        // Start the exit animation phase
         setAnimatingExit(true);
 
         tExit = setTimeout(() => {
-          setAnimatingExit(false);
-          // now hide overlay and success state
-          setShowSuccess(false);
-          setShowOverlay(false);
-          if (typeof onExited === "function") onExited();
+          // Reveal children FIRST, then remove overlay
+          setChildrenReady(true);
+          
+          // Small delay to let children start appearing before removing overlay completely
+          requestAnimationFrame(() => {
+            setAnimatingExit(false);
+            setShowSuccess(false);
+            setShowOverlay(false);
+            if (typeof onExited === "function") onExited();
+          });
         }, EXIT_ANIMATION_MS);
       }, typeof successDuration === 'number' ? successDuration : 700);
     }
@@ -122,7 +127,9 @@ function LoadingScreen({
 
   const inlineWrapper = (
     <div className="loading-inline-container">
-      <div className={`loading-inline-children ${stage === "exit" && showOverlay ? "loading-paused" : ""}`}>{children}</div>
+      <div className={`loading-inline-children ${!childrenReady ? 'loading-hidden' : 'loading-revealed'}`}>
+        {children}
+      </div>
 
       {/* Overlay covering only the component area. */}
       {showOverlay && (

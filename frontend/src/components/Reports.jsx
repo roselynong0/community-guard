@@ -8,7 +8,8 @@ import {
   FaCheckCircle,
   FaTimesCircle,
   FaQuestionCircle,
-  FaTimes } from "react-icons/fa";
+  FaTimes,
+  FaChartLine } from "react-icons/fa";
 import {
   MapContainer,
   TileLayer, Marker,
@@ -729,7 +730,6 @@ function Reports({ session }) {
       {/* Filters - Added ref for keyboard navigation */}
       <div className="top-controls" ref={filterContainerRef}>
         <div className="search-bar-container">
-          <FaSearch className="search-icon" /> {/* Visual Search Icon */}
           <label htmlFor="report-search" className="sr-only">Search reports by title</label>
           <input
             id="report-search"
@@ -740,6 +740,7 @@ function Reports({ session }) {
             className="search-input real-time-search-input" // Add a class for styling the input part
             tabIndex="0" // Ensure this is focusable
           />
+          <FaSearch className="search-icon" aria-hidden="true" />
         </div>
 
         {/* Category filter - Now uses useEffect for real-time application */}
@@ -830,7 +831,7 @@ function Reports({ session }) {
                   (report.description?.length || 0) > 130 ? "..." : ""
                 }`;
 
-            const cardClasses = ["report-card", "animate-up"];
+            const cardClasses = ["report-card"];
             if (highlightedReportId === String(report.id)) {
               cardClasses.push("highlighted-report");
             }
@@ -845,7 +846,6 @@ function Reports({ session }) {
                 key={report.id} 
                 id={`report-${report.id}`}
                 className={cardClasses.join(" ")}
-                style={{ animationDelay: `${index * 0.1}s` }}
                  role="article"
               >
                 {/* Header */}
@@ -1052,7 +1052,13 @@ function Reports({ session }) {
           })
         ) : (
           // Only show "No reports found" when loading is complete AND there are no reports
-          !loading && <p className="no-report-msg">No reports found.</p>
+          !loading && (
+            <div className="no-reports" role="status">
+              <FaChartLine style={{ fontSize: '3rem', color: '#ccc', marginBottom: '1rem' }} />
+              <p>No reports found.</p>
+              <p className="muted">Active incidents will appear here.</p>
+            </div>
+          )
         )}
       </div>
 

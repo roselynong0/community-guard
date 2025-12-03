@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import { FaEdit, FaTrashAlt, FaSearch, FaRedo, FaCheckCircle, FaTimesCircle, FaCheck, FaTimes, FaSyncAlt, FaClock, FaFileCsv, FaFilePdf, FaThLarge, FaList, FaArchive, FaFileAlt } from "react-icons/fa";
 import { API_CONFIG, getApiUrl } from "../utils/apiConfig";
+import LoadingScreen from "./LoadingScreen";
 import "./ResponderReports.css";
 
 const REPORT_STATUSES = ["Pending", "Ongoing", "Resolved"];
@@ -128,6 +129,7 @@ const useKeyboardNavigation = (containerRef, selector) => {
 function ResponderReports({ token }) {
     const [reports, setReports] = useState([]);
     const [loading, setLoading] = useState(true);
+    const [overlayExited, setOverlayExited] = useState(false);
     const [search, setSearch] = useState("");
     const [category, setCategory] = useState("All");
     const [barangay, setBarangay] = useState("All");
@@ -138,6 +140,11 @@ function ResponderReports({ token }) {
     const [highlightedReportId, setHighlightedReportId] = useState(null);
     const [responderBarangay, setResponderBarangay] = useState(null);
     const [viewMode, setViewMode] = useState("card"); // "card" or "list" view
+
+    const loadingFeatures = [
+        { icon: "📋", text: "Loading reports data..." },
+        { icon: "🔍", text: "Preparing search filters..." },
+    ];
 
     // States for the Status Update Modal
     const [isStatusModalOpen, setIsStatusModalOpen] = useState(false);
@@ -639,7 +646,14 @@ function ResponderReports({ token }) {
         );
 
     return (
-        <div className="admin-container">
+        <LoadingScreen
+            variant="inline"
+            inlineOffset="20vh"
+            stage={loading ? "loading" : "exit"}
+            features={loadingFeatures}
+            onExited={() => setOverlayExited(true)}
+        >
+        <div className={`admin-container ${overlayExited ? 'loading-revealed' : 'loading-hidden'}`}>
             <div className="responder-header-row">
                 <h2>{responderBarangay ? `${responderBarangay} Reports` : 'Loading...'}</h2>
                 <div className="header-right">
@@ -1229,6 +1243,7 @@ function ResponderReports({ token }) {
                 </div>
             )}
         </div>
+        </LoadingScreen>
     );
 }
 

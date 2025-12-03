@@ -154,6 +154,34 @@ def fetch_reports(limit=10, sort="desc", user_only=False, barangay_filter=False,
         for report in reports_list:
             report["images"] = images_data.get(report["id"], [])
 
+        # Batch fetch assigned responder data
+        assigned_responder_ids = list(set([
+            report.get("assigned_responder_id") 
+            for report in reports_list 
+            if report.get("assigned_responder_id")
+        ]))
+        
+        assigned_responders_data = {}
+        if assigned_responder_ids:
+            def fetch_assigned_responders():
+                return supabase.table("users").select("id, firstname, lastname, phone_number").in_("id", assigned_responder_ids).execute()
+            
+            try:
+                responders_resp = supabase_retry(fetch_assigned_responders)
+                responders_list = getattr(responders_resp, "data", []) or []
+                assigned_responders_data = {resp["id"]: resp for resp in responders_list}
+                print(f"👥 Loaded {len(responders_list)} assigned responders")
+            except Exception as e:
+                print(f"⚠️ Failed to fetch assigned responders: {e}")
+        
+        # Attach assigned responder info to each report
+        for report in reports_list:
+            responder_id = report.get("assigned_responder_id")
+            if responder_id and responder_id in assigned_responders_data:
+                report["assigned_responder"] = assigned_responders_data[responder_id]
+            else:
+                report["assigned_responder"] = None
+
         total_time = round((time.time() - start_time) * 1000, 1)
         print(f"✅ Reports processed in {total_time}ms total")
         
@@ -1686,4 +1714,150 @@ def reject_report(report_id):
         
     except Exception as e:
         print(f"❌ Failed to reject report {report_id}: {str(e)}")
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+
+@reports_bp.route("/reports/<report_id>/assign", methods=["PUT"])
+@token_required
+def assign_responder(report_id):
+    """
+    Assign a responder to a report.
+    Only barangay officials can assign responders.
+    """
+    user_id = request.user_id
+    try:
+        # Get user role to check authorization
+        user_resp = supabase.table("users").select("role").eq("id", user_id).execute()
+        user_data = getattr(user_resp, "data", [None])[0]
+        user_role = user_data.get("role") if user_data else None
+        
+        if user_role not in ["Admin", "Barangay Official"]:
+            return jsonify({"status": "error", "message": "Not authorized to assign responders"}), 403
+        
+        data = request.get_json()
+        responder_id = data.get("responder_id")
+        
+        if not responder_id:
+            return jsonify({"status": "error", "message": "Responder ID is required"}), 400
+        
+        # Check if report exists
+        report_resp = supabase.table("reports").select("id, title, address_barangay").eq("id", report_id).execute()
+        report = getattr(report_resp, "data", [None])[0]
+        
+        if not report:
+            return jsonify({"status": "error", "message": "Report not found"}), 404
+        
+        # Check if responder exists and is actually a responder
+        responder_resp = supabase.table("users").select("id, role, firstname, lastname").eq("id", responder_id).execute()
+        responder = getattr(responder_resp, "data", [None])[0]
+        
+        if not responder or responder.get("role") != "Responder":
+            return jsonify({"status": "error", "message": "Invalid responder"}), 400
+        
+        # Update report with assigned responder
+        supabase.table("reports").update({
+            "assigned_responder_id": responder_id,
+            "assigned_at": datetime.now(timezone.utc).isoformat(),
+            "assigned_by": user_id
+        }).eq("id", report_id).execute()
+        
+        print(f"✅ Report {report_id} assigned to responder {responder_id} by user {user_id}")
+        
+        # Notify the responder about the assignment
+        from utils.notifications import create_notification
+        create_notification(
+            responder_id,
+            "New Report Assignment",
+            f'You have been assigned to report: "{report.get("title")}" in {report.get("address_barangay")}.',
+            "Report Alert"
+        )
+        
+        return jsonify({"status": "success", "message": "Responder assigned successfully"}), 200
+        
+    except Exception as e:
+        print(f"❌ Failed to assign responder to report {report_id}: {str(e)}")
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+
+@reports_bp.route("/reports/<report_id>/unassign", methods=["PUT"])
+@token_required
+def unassign_responder(report_id):
+    """
+    Remove responder assignment from a report.
+    Only barangay officials can unassign responders.
+    """
+    user_id = request.user_id
+    try:
+        # Get user role to check authorization
+        user_resp = supabase.table("users").select("role").eq("id", user_id).execute()
+        user_data = getattr(user_resp, "data", [None])[0]
+        user_role = user_data.get("role") if user_data else None
+        
+        if user_role not in ["Admin", "Barangay Official"]:
+            return jsonify({"status": "error", "message": "Not authorized to unassign responders"}), 403
+        
+        # Check if report exists
+        report_resp = supabase.table("reports").select("id, assigned_responder_id").eq("id", report_id).execute()
+        report = getattr(report_resp, "data", [None])[0]
+        
+        if not report:
+            return jsonify({"status": "error", "message": "Report not found"}), 404
+        
+        # Update report to remove assignment
+        supabase.table("reports").update({
+            "assigned_responder_id": None,
+            "assigned_at": None,
+            "assigned_by": None
+        }).eq("id", report_id).execute()
+        
+        print(f"✅ Responder unassigned from report {report_id} by user {user_id}")
+        
+        return jsonify({"status": "success", "message": "Responder unassigned successfully"}), 200
+        
+    except Exception as e:
+        print(f"❌ Failed to unassign responder from report {report_id}: {str(e)}")
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+
+@reports_bp.route("/users/responders", methods=["GET"])
+@token_required
+def get_responders():
+    """
+    Get list of responders, optionally filtered by barangay.
+    """
+    user_id = request.user_id
+    barangay = request.args.get("barangay")
+    
+    try:
+        # Get user role to check authorization
+        user_resp = supabase.table("users").select("role").eq("id", user_id).execute()
+        user_data = getattr(user_resp, "data", [None])[0]
+        user_role = user_data.get("role") if user_data else None
+        
+        if user_role not in ["Admin", "Barangay Official"]:
+            return jsonify({"status": "error", "message": "Not authorized to view responders"}), 403
+        
+        # Query users with Responder role
+        query = supabase.table("users").select("id, firstname, lastname, phone_number, email").eq("role", "Responder")
+        responders_resp = query.execute()
+        responders = getattr(responders_resp, "data", [])
+        
+        # If barangay filter is provided, filter responders by their address_barangay from info table
+        if barangay and responders:
+            responder_ids = [r["id"] for r in responders]
+            
+            # Get info for these responders
+            info_resp = supabase.table("info").select("user_id, address_barangay").in_("user_id", responder_ids).execute()
+            info_data = getattr(info_resp, "data", [])
+            
+            # Create mapping of user_id to barangay
+            barangay_map = {info["user_id"]: info.get("address_barangay") for info in info_data}
+            
+            # Filter responders by barangay
+            responders = [r for r in responders if barangay_map.get(r["id"]) == barangay]
+        
+        return jsonify({"status": "success", "responders": responders}), 200
+        
+    except Exception as e:
+        print(f"❌ Failed to get responders: {str(e)}")
         return jsonify({"status": "error", "message": str(e)}), 500

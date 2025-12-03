@@ -269,23 +269,13 @@ function Layout({ session, setSession, setNotification }) {
         <aside className="sidebar">
           <div className="logo">
             <img src={logo} alt="Community Guard Logo" className="logo-img" width={40} height={40} loading="eager" fetchpriority="high" decoding="async" />
-            <h2>Community Guard</h2>
-
-            {/* User Profile Section */}
-            {!loading && user && (
-              <div
-                className="user-profile"
-                style={{
-                  borderBottom: "1px solid rgba(255,255,255,0.1)",
-                  marginBottom: "1rem",
-                  textAlign: "center",
-                }}
-              > 
-              </div>
-            )}
+            <h2 style={{
+              borderBottom: '1px solid rgba(255,255,255,0.1)',
+              textAlign: 'center'
+            }}>Community Guard</h2>
           </div>
 
-          {/* Nav links */}
+          {/* Nav links - Order: Dashboard, Map, Reports, Archived, Community Feed, Safety Tips, Notifications, Profile */}
           <nav
             style={{
               borderBottom: "1px solid rgba(255,255,255,0.1)",
@@ -304,17 +294,17 @@ function Layout({ session, setSession, setNotification }) {
             <NavLink to="/archived">
               <FaArchive /> Archived
             </NavLink>
-            <NavLink to="/notifications">
-              <FaBell /> Notifications
-              {notificationCount > 0 && (
-                <span className="notification-badge">{notificationCount}</span>
-              )}
-            </NavLink>
             <NavLink to="/community-feed">
               <FaUserFriends /> Community Feed
             </NavLink>
             <NavLink to="/safety-tips">
               <FaLightbulb /> Safety Tips
+            </NavLink>
+            <NavLink to="/notifications">
+              <FaBell /> Notifications
+              {notificationCount > 0 && (
+                <span className="notification-badge">{notificationCount}</span>
+              )}
             </NavLink>
             <NavLink
               to={user ? "/profile" : "#"}
@@ -332,7 +322,7 @@ function Layout({ session, setSession, setNotification }) {
           <button
             className="logout-btn"
             onClick={() => setShowLogoutConfirm(true)}
-            aria-label="Logout"
+            aria-label="Sign Out"
           >
             <FaSignOutAlt /> Sign Out
           </button>

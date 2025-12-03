@@ -323,7 +323,7 @@ function AdminLayout({ session, setSession, setNotification }) {
             }}>Community Guard</h2>
           </div>
 
-          {/* Sidebar Nav - Users prioritized; admin no longer has direct Dashboard/Map/Reports links */}
+          {/* Sidebar Nav - Order: Users(Admin Dashboard), Maps, Reports, Archived, Community Feed, Notifications */}
           <nav
             style={{
               borderBottom: "1px solid rgba(255,255,255,0.1)",
@@ -353,35 +353,13 @@ function AdminLayout({ session, setSession, setNotification }) {
             </NavLink>
           </nav>
 
-          {/* Logout */}
+          {/* Logout - matching Layout/BarangayLayout design */}
           <button
-            className="logout-btn admin-logout-btn"
+            className="logout-btn"
             onClick={() => setShowLogoutConfirm(true)}
-            style={{
-              background: "none",
-              border: "none",
-              padding: "0.8rem",
-              color: "#c7c7c7",
-              cursor: "pointer",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              gap: "0.5rem",
-              borderRadius: "8px",
-              transition: "all 0.3s ease",
-              width: "100%",
-            }}
-            onMouseEnter={(e) => {
-              e.target.style.background =
-                "linear-gradient(135deg, #d9534f, #c9302c)";
-              e.target.style.color = "#fff";
-            }}
-            onMouseLeave={(e) => {
-              e.target.style.background = "none";
-              e.target.style.color = "#c7c7c7";
-            }}
+            aria-label="Sign Out"
           >
-            <FaSignOutAlt /> Logout
+            <FaSignOutAlt /> Sign Out
           </button>
         </aside>
       )}
@@ -500,17 +478,23 @@ function AdminLayout({ session, setSession, setNotification }) {
       <div
         className="mobile-logout-bubble"
         onClick={() => setShowLogoutConfirm(true)}
-        title="Admin Logout"
+        title="Sign Out"
       >
         <FaSignOutAlt />
       </div>
 
-      {/* Logout confirmation modal */}
+      {/* Logout confirmation modal - matching Layout/BarangayLayout design */}
       {showLogoutConfirm && (
         <div className="modal-overlay">
-          <div className="modal">
-            <h3>Confirm Logout</h3>
-            <p>Are you sure you want to log out?</p>
+          <div
+            className="modal logout-confirm"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="logout-title"
+            aria-describedby="logout-desc"
+          >
+            <h3 id="logout-title">Confirm Sign Out</h3>
+            <p id="logout-desc">You're about to sign out of your Community Guard account. Don't worry, you can always sign back in whenever you need to.</p>
             <div className="modal-actions">
               <button
                 onClick={() => setShowLogoutConfirm(false)}
@@ -518,8 +502,8 @@ function AdminLayout({ session, setSession, setNotification }) {
               >
                 Cancel
               </button>
-              <button onClick={handleLogout} className="confirm-btn">
-                Logout
+              <button onClick={handleLogout} className="confirm-btn" aria-label="Confirm sign out">
+                <FaSignOutAlt style={{ marginRight: 8 }} /> Sign Out
               </button>
             </div>
           </div>

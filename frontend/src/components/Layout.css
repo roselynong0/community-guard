@@ -19,6 +19,9 @@
 
 .sidebar {
   width: 240px;
+  height: 100vh;
+  position: sticky;
+  top: 0;
   background: var(--primary);
   color: white;
   display: flex;
@@ -64,7 +67,7 @@
   text-align: center;
 }
 .logo-img {
-  height: 200px;
+  height: 80px;
   width: auto;
   display: inline-block;
   margin-bottom: 8px;

@@ -325,7 +325,7 @@ function Profile({ token }) {
             ))}
 
             {/* HEADER - Apply fade-in-up animation and stagger delay */}
-            <div className="profile-header-card fade-in-up animate-up" style={{ animationDelay: '0s' }}>
+            <div className="profile-header-card">
                 <button
                     type="button"
                     className="edit-card-button"
@@ -405,7 +405,7 @@ function Profile({ token }) {
                 {/* SIDEBAR */}
                 <div className="profile-sidebar">
                     {/* Card 1 - Apply stagger delay */}
-                    <div className="profile-card fade-in-up animate-up" style={{ animationDelay: '0.1s' }}>
+                    <div className="profile-card">
                         <div className="card-header">
                             <h3>About</h3>
                             <button
@@ -422,7 +422,7 @@ function Profile({ token }) {
                     </div>
 
                     {/* Card 2 - Apply stagger delay */}
-                    <div className="profile-card fade-in-up animate-up" style={{ animationDelay: '0.2s' }}>
+                    <div className="profile-card">
                         <div className="card-header">
                             <h3>Personal Info</h3>
                             <button
@@ -456,7 +456,7 @@ function Profile({ token }) {
                     </div>
 
                     {/* Profile Card */}
-                    <div className="profile-card fade-in-up animate-up" style={{ animationDelay: '0.3s' }}>
+                    <div className="profile-card">
                         <div className="card-header">
                             <h3>
                                 Role & Status
@@ -501,7 +501,7 @@ function Profile({ token }) {
 
                     {/* Activity Card - Only show for Residents */}
                     {safeUser.role === "Resident" && (
-                        <div className="profile-card fade-in-up animate-up" style={{ animationDelay: '0.4s' }}>
+                        <div className="profile-card">
                             <h3>Activity</h3>
                             <p>📌 Reports Submitted: <strong>{reportsSubmitted}</strong></p>
                             <p>✅ Reports Resolved: <strong>{reportsResolved}</strong></p>

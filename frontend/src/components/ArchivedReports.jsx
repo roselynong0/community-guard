@@ -628,17 +628,12 @@ function ArchivedReports({ session }) {
                             ? new Date(report.created_at).toLocaleString()
                             : ""}
                           {" "}· {report.category}
+                          {" "}· <span className="status-tag status-resolved"><FaCheckCircle /> Resolved</span>
                         </p>
                         <p className="report-address-info">
                           {report.address_street || ""}, {report.address_barangay || ""}, Olongapo City
                         </p>
                       </div>
-                    </div>
-
-                    <div className="report-header-actions">
-                      <span className="status-badge status-resolved">
-                        <FaCheckCircle /> RESOLVED
-                      </span>
                     </div>
                   </div>
 
@@ -696,8 +691,7 @@ function ArchivedReports({ session }) {
               {filteredReports.map((report, index) => (
                 <div 
                   key={report.id} 
-                  className="list-row animate-up"
-                  style={{ animationDelay: `${index * 0.05}s` }}
+                  className="list-row"
                   onClick={() => toggleExpand(report.id)}
                 >
                   <div className="list-col col-image">

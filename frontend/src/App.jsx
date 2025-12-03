@@ -36,6 +36,7 @@ import CommunityFeedAdmin from "./components/CommunityFeedAdmin";
 import BarangayDashboard from "./components/BarangayDashboard";
 import BarangayReports from "./components/BarangayReports";
 import BarangayNotifications from "./components/BarangayNotifications";
+import AssignResponders from "./components/AssignResponders";
 
 import RespondersLayout from "./components/RespondersLayout";
 import RespondersDashboard from "./components/RespondersDashboard";
@@ -422,6 +423,7 @@ function App() {
           <Route path="/barangay/dashboard" element={<BarangayDashboard token={session?.token} />} />
           <Route path="/barangay/maps" element={<Maps session={session} userRole="Barangay Official" />} />
           <Route path="/barangay/reports" element={<BarangayReports token={session?.token} />} />
+          <Route path="/barangay/assign-responders" element={<AssignResponders token={session?.token} />} />
           <Route path="/barangay/archived" element={<ArchivedReports session={session} />} />
           <Route path="/barangay/notifications" element={<Notifications token={session?.token} />} />
           <Route path="/barangay/community-feed" element={<CommunityFeedBarangay token={session?.token} session={session} />} />

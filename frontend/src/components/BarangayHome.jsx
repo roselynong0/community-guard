@@ -213,8 +213,8 @@ function Home({ token, session }) {
         {stats.map((stat, i) => (
           <div
             key={i}
-            className="stat-card animate-up"
-            style={{ borderLeft: `4px solid ${stat.color}`, animationDelay: `${i * 0.1}s` }}
+            className="stat-card"
+            style={{ borderLeft: `4px solid ${stat.color}` }}
           >
             <div className="stat-content">
               <div className="stat-icon" style={{ color: stat.color }}>{stat.icon}</div>
@@ -227,8 +227,8 @@ function Home({ token, session }) {
         ))}
       </div>
 
-      <div className="middle-grid animate-up" style={{ animationDelay: "0.2s" }}>
-        <div className="recent-reports animate-up" style={{ animationDelay: "0.3s" }}>
+      <div className="middle-grid">
+        <div className="recent-reports">
           <h3>Recent Reports</h3>
           <ul>
             {recentReports.length ? (
@@ -269,7 +269,7 @@ function Home({ token, session }) {
           </ul>
         </div>
 
-        <div className="reports-chart animate-up" style={{ animationDelay: "0.4s" }}>
+        <div className="reports-chart">
           <h3>Reports by Category</h3>
           <div className="chart-container">
             {/* Use a numeric height so Recharts can measure reliably */}
@@ -288,7 +288,7 @@ function Home({ token, session }) {
         </div>
       </div>
 
-      <div className="map-section animate-up" style={{ animationDelay: "0.5s" }}>
+      <div className="map-section">
         <h3>Community Map</h3>
         <div className="map-placeholder">
           <MapView reports={recentReports} /> 
