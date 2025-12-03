@@ -600,23 +600,6 @@ const HomePage = () => {
                     {/* Process note removed per request */}
                 </section>
 
-                {/* Platform section removed per request */}
-
-                {/* Deployment section removed per request */}
-
-                <section id="integrations" className="section dark">
-                    <div className="section-heading">
-                        <h2>Powered by trusted technology</h2>
-                        <p className="section-desc">
-                            We use reliable tools to ensure your reports are delivered, your data is safe, and the app works smoothly.
-                        </p>
-                    </div>
-                    <div className="integration-banner">
-                        <FaMapMarkedAlt />
-                        <span>Interactive Maps • Secure Login • Email Notifications • Works Offline</span>
-                    </div>
-                </section>
-
                 <section id="faq" className="section light">
                     <div className="section-heading">
                         <h2>Frequently asked questions</h2>
