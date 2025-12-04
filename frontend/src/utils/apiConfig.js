@@ -63,6 +63,8 @@ export const API_CONFIG = {
     safezones: '/api/safezones',
     map_reports: '/api/map_reports',
     hotspotsRefresh: '/api/hotspots/refresh',
+    hotspotsAutoCheck: '/api/hotspots/auto-check',
+    hotspotsCheckAll: '/api/hotspots/check-all-barangays',
     // Authentication
     login: '/api/login',
     register: '/api/register',

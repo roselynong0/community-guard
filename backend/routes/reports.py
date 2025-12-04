@@ -499,6 +499,40 @@ def add_report():
         except Exception as emergency_err:
             print(f"⚠️ Emergency alert system error: {emergency_err}")
 
+        # =================================================================
+        # AUTO-HOTSPOT GENERATION - Check if this barangay qualifies
+        # =================================================================
+        # For HIGH/CRITICAL reports, check if the barangay now meets hotspot thresholds
+        try:
+            high_priority_categories = ['Crime', 'Hazard', 'Fire', 'Accident']
+            report_category = report.get('category')
+            report_barangay = report.get('address_barangay')
+            
+            if report_category in high_priority_categories and report_barangay:
+                from routes.maps import check_and_create_hotspot_for_barangay
+                
+                hotspot_result = check_and_create_hotspot_for_barangay(
+                    report_barangay,
+                    report_data={
+                        'id': report_id,
+                        'category': report_category,
+                        'latitude': report.get('latitude'),
+                        'longitude': report.get('longitude')
+                    }
+                )
+                
+                if hotspot_result.get('status') == 'created':
+                    print(f"🔥 AUTO-HOTSPOT: Created hotspot for {report_barangay} - {hotspot_result.get('reason')}")
+                    report['auto_hotspot'] = hotspot_result
+                elif hotspot_result.get('status') == 'updated':
+                    print(f"🔄 AUTO-HOTSPOT: Updated existing hotspot in {report_barangay}")
+                    report['auto_hotspot'] = hotspot_result
+                else:
+                    print(f"📊 AUTO-HOTSPOT: {report_barangay} - {hotspot_result.get('status')}")
+                    
+        except Exception as hotspot_err:
+            print(f"⚠️ Auto-hotspot check error: {hotspot_err}")
+
         return jsonify({"status": "success", "report": report}), 201
     except Exception as e:
         print("add_report error:", e)
@@ -833,13 +867,13 @@ def get_map_report_counts():
 @reports_bp.route("/stats", methods=["GET"])
 @token_required
 def get_stats():
-    """Get report statistics by status (excluding rejected reports)"""
+    """Get report statistics by status (only approved, non-rejected reports)"""
     try:
         barangay_filter = request.args.get("barangay")
         
-        # Use retry mechanism for stats query
+        # Use retry mechanism for stats query - only approved reports
         def fetch_stats():
-            query = supabase.table("reports").select("status").is_("deleted_at", "null").eq("is_rejected", False)
+            query = supabase.table("reports").select("status").is_("deleted_at", "null").eq("is_rejected", False).eq("is_approved", True)
             if barangay_filter and barangay_filter != "all":
                 query = query.eq("address_barangay", barangay_filter)
             return query.execute()
@@ -882,7 +916,7 @@ def get_report_categories():
         user_data = getattr(user_resp, "data", [])
         is_admin = user_data and user_data[0].get("role") == "Admin"
         
-        # Use retry mechanism for Supabase query
+        # Use retry mechanism for Supabase query - only approved reports
         def fetch_categories():
             query = (
                 supabase
@@ -890,6 +924,7 @@ def get_report_categories():
                 .select("category")
                 .is_("deleted_at", "null")
                 .eq("is_rejected", False)
+                .eq("is_approved", True)
             )
             
             # Apply barangay filter for all users if provided
@@ -985,10 +1020,10 @@ def get_responder_reports():
         
         print(f"📍 Fetching responder reports for user {user_id}, barangay: {user_barangay}")
         
-        # Build query - filter by barangay if set, exclude rejected reports
+        # Build query - filter by barangay if set, only approved and non-rejected reports
         query = supabase.table("reports").select(
             "id, title, category, status, address_barangay, address_street, latitude, longitude, created_at, updated_at, user_id"
-        ).is_("deleted_at", "null").eq("is_rejected", False)
+        ).is_("deleted_at", "null").eq("is_rejected", False).eq("is_approved", True)
         
         # Filter by responder's barangay if they have one set
         if user_barangay and user_barangay != "No barangay selected":
@@ -1201,12 +1236,16 @@ def get_barangay_dashboard_stats():
         elif time_filter == "this-year":
             date_filter = now.replace(month=1, day=1, hour=0, minute=0, second=0, microsecond=0)
             print(f"🕐 Filtering for this year: {date_filter}")
+        elif time_filter == "all":
+            date_filter = None  # No date filter - get all reports
+            print(f"🕐 No date filter - fetching ALL reports")
         else:
-            date_filter = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)  # Default to this month
+            date_filter = None  # Default to all reports for barangay dashboard
+            print(f"🕐 Unknown filter '{time_filter}' - defaulting to all reports")
         
-        # Fetch reports with barangay and date filters
+        # Fetch reports with barangay and date filters - only approved reports
         def fetch_reports_for_stats():
-            query = supabase.table("reports").select("status, created_at, address_barangay").is_("deleted_at", "null").eq("is_rejected", False)
+            query = supabase.table("reports").select("status, created_at, address_barangay").is_("deleted_at", "null").eq("is_rejected", False).eq("is_approved", True)
             if filter_barangay:
                 query = query.eq("address_barangay", filter_barangay)
                 print(f"📊 Filtering reports by barangay: {filter_barangay}")
@@ -1238,10 +1277,10 @@ def get_barangay_dashboard_stats():
             elif status == "resolved":
                 stats["resolved"] += 1
         
-        # Calculate barangay counts from ALL reports (lifetime data)
+        # Calculate barangay counts from ALL approved reports (lifetime data)
         # This shows trends across ALL barangays with NO date filtering for lifetime view
         def fetch_all_barangay_reports():
-            query = supabase.table("reports").select("address_barangay").is_("deleted_at", "null").eq("is_rejected", False)
+            query = supabase.table("reports").select("address_barangay").is_("deleted_at", "null").eq("is_rejected", False).eq("is_approved", True)
             return query.execute()
         
         barangay_reports_resp = supabase_retry(fetch_all_barangay_reports)
@@ -1263,9 +1302,9 @@ def get_barangay_dashboard_stats():
         
         print(f"✅ Stats (for user's barangay): {stats}, Total Barangays (all barangays): {len(all_barangays_sorted)}")
         
-        # Calculate monthly trends ONLY for the barangay official's own barangay
+        # Calculate monthly trends ONLY for the barangay official's own barangay (approved reports only)
         def fetch_barangay_reports_for_trends():
-            query = supabase.table("reports").select("created_at").is_("deleted_at", "null").eq("is_rejected", False)
+            query = supabase.table("reports").select("created_at").is_("deleted_at", "null").eq("is_rejected", False).eq("is_approved", True)
             if user_barangay:
                 query = query.eq("address_barangay", user_barangay)
             return query.execute()
@@ -1331,9 +1370,9 @@ def get_monthly_trends():
         except Exception as rpc_error:
             print(f"⚠️ RPC function not available, using fallback: {rpc_error}")
             
-            # Fallback to manual query
+            # Fallback to manual query - only approved reports
             def fetch_monthly():
-                query = supabase.table("reports").select("created_at").is_("deleted_at", "null")
+                query = supabase.table("reports").select("created_at").is_("deleted_at", "null").eq("is_rejected", False).eq("is_approved", True)
                 if barangay_filter and barangay_filter != "All":
                     query = query.eq("address_barangay", barangay_filter)
                 return query.execute()
@@ -1373,9 +1412,9 @@ def get_top_barangays():
         except Exception as rpc_error:
             print(f"⚠️ RPC function not available, using fallback: {rpc_error}")
             
-            # Fallback to manual query
+            # Fallback to manual query - only approved reports
             def fetch_all_barangays():
-                return supabase.table("reports").select("address_barangay").is_("deleted_at", "null").execute()
+                return supabase.table("reports").select("address_barangay").is_("deleted_at", "null").eq("is_rejected", False).eq("is_approved", True).execute()
             
             resp = supabase_retry(fetch_all_barangays)
             reports = getattr(resp, "data", []) or []

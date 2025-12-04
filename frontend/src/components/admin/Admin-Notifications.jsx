@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState, useCallback } from 'react';
-import { API_CONFIG, getApiUrl } from "../utils/apiConfig";
-import './Notifications.css';
+import { API_CONFIG, getApiUrl } from "../../utils/apiConfig";
+import '../resident/Notifications.css';
 import {
   FaInfoCircle,
   FaCheckCircle,

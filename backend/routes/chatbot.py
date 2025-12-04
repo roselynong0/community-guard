@@ -1657,13 +1657,19 @@ def get_ai_evaluation_summary_endpoint():
 @token_required
 def check_new_evaluations():
     """
-    Quick check endpoint to see if there are new reports to evaluate.
-    Used by frontend to decide whether to auto-open chatbot.
+    Quick check endpoint to see if there are HIGH/CRITICAL pending reports to evaluate.
+    Used by frontend to decide whether to auto-open chatbot for AI evaluation.
+    
+    Specifically checks for:
+    - Reports with is_approved=FALSE (pending approval)
+    - Reports with HIGH or CRITICAL category (Crime, Hazard)
+    - Reports from user's barangay (for Barangay Officials)
     
     Returns:
     - has_new_evaluations: bool
-    - count: number of reports in last 24 hours
-    - should_notify: bool (true if premium user with new reports)
+    - count: number of pending HIGH/CRITICAL reports
+    - should_notify: bool (true if premium user with pending reports)
+    - high_priority_count: count of Crime/Hazard reports pending
     """
     user_id = request.user_id
     
@@ -1678,8 +1684,12 @@ def check_new_evaluations():
         is_premium = user_data.get("onpremium", False)
         user_role = user_data.get("role", "Resident")
         
+        # Premium check: User must have onpremium=TRUE OR be Admin (Admin bypasses premium check)
+        # Note: Admin bypasses but this doesn't auto-grant premium to non-premium admins
+        effective_premium = is_premium is True or user_role == "Admin"
+        
         # Only notify premium users or officials
-        if not is_premium and user_role not in ["Admin", "Barangay Official"]:
+        if not effective_premium:
             return jsonify({
                 "has_new_evaluations": False, 
                 "count": 0, 
@@ -1697,26 +1707,52 @@ def check_new_evaluations():
         except:
             pass
         
-        # Quick count of recent reports
-        now = datetime.now()
-        yesterday = now - timedelta(days=1)
+        # Query for pending reports (is_approved=FALSE) that are HIGH/CRITICAL priority
+        # Crime = Critical, Hazard = High priority
+        high_priority_categories = ['Crime', 'Hazard']
         
-        query = supabase.table("reports").select("id", count="exact").is_("deleted_at", "null").eq("is_rejected", False)
+        # First, get total pending reports
+        query_total = supabase.table("reports").select("id", count="exact")\
+            .is_("deleted_at", "null")\
+            .eq("is_rejected", False)\
+            .eq("is_approved", False)  # Only pending (not yet approved) reports
         
-        if user_barangay and user_barangay != "No barangay selected":
-            query = query.eq("address_barangay", user_barangay)
+        if user_barangay and user_barangay != "No barangay selected" and user_role == "Barangay Official":
+            query_total = query_total.eq("address_barangay", user_barangay)
         
-        query = query.gte("created_at", yesterday.isoformat())
+        total_response = query_total.execute()
+        total_pending = total_response.count if hasattr(total_response, 'count') else len(getattr(total_response, "data", []))
         
-        response = query.execute()
-        count = response.count if hasattr(response, 'count') else len(getattr(response, "data", []))
+        # Get HIGH/CRITICAL pending reports (Crime or Hazard category)
+        high_priority_count = 0
+        for category in high_priority_categories:
+            query_high = supabase.table("reports").select("id", count="exact")\
+                .is_("deleted_at", "null")\
+                .eq("is_rejected", False)\
+                .eq("is_approved", False)\
+                .eq("category", category)
+            
+            if user_barangay and user_barangay != "No barangay selected" and user_role == "Barangay Official":
+                query_high = query_high.eq("address_barangay", user_barangay)
+            
+            high_response = query_high.execute()
+            high_priority_count += high_response.count if hasattr(high_response, 'count') else len(getattr(high_response, "data", []))
+        
+        # Only notify if there are HIGH/CRITICAL pending reports
+        should_notify = high_priority_count > 0 and effective_premium
+        
+        logger.info(f"[AI Evaluation Check] User {user_id} ({user_role}): "
+                   f"Total pending={total_pending}, HIGH/CRITICAL pending={high_priority_count}, "
+                   f"Premium={effective_premium}, ShouldNotify={should_notify}")
         
         return jsonify({
-            "has_new_evaluations": count > 0,
-            "count": count,
-            "should_notify": count > 0 and (is_premium or user_role in ["Admin", "Barangay Official"]),
-            "is_premium": is_premium,
-            "user_barangay": user_barangay
+            "has_new_evaluations": high_priority_count > 0,
+            "count": total_pending,
+            "high_priority_count": high_priority_count,
+            "should_notify": should_notify,
+            "is_premium": effective_premium,
+            "user_barangay": user_barangay,
+            "message": f"{high_priority_count} HIGH/CRITICAL reports pending approval" if high_priority_count > 0 else "No high priority pending reports"
         }), 200
         
     except Exception as e:

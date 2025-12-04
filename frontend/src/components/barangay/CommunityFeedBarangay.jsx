@@ -1,0 +1,897 @@
+import React, { useState, useEffect, useCallback } from "react";
+import { useOutletContext } from "react-router-dom";
+import "../resident/CommunityFeed.css";
+import "../resident/Notifications.css";
+import ModalPortal from "../shared/ModalPortal";
+import { 
+  FaPaperPlane, 
+  FaUsers, 
+  FaTrash, 
+  FaExclamationTriangle,
+  FaCheck,
+  FaTimes,
+  FaComment,
+  FaCommentSlash,
+  FaHeart,
+  FaRegHeart
+} from "react-icons/fa";
+import { getApiUrl, API_CONFIG } from "../../utils/apiConfig";
+
+// ✅ POST TYPES
+const POST_TYPES = ["incident", "safety", "suggestion", "recommendation", "general"];
+
+// ✅ ROLE COLORS
+const ROLE_COLORS = {
+  "Admin": { bg: "rgba(139, 92, 246, 0.1)", text: "#8b5cf6" },
+  "Barangay Official": { bg: "rgba(37, 99, 235, 0.1)", text: "#2563eb" },
+  "Responder": { bg: "rgba(239, 68, 68, 0.1)", text: "#ef4444" },
+  "Resident": { bg: "rgba(59, 130, 246, 0.1)", text: "#3b82f6" },
+};
+
+const CommunityFeedBarangay = ({ session, token }) => {
+  const outlet = useOutletContext?.() || {};
+  const selectedBarangay = outlet.selectedBarangay || "All";
+
+  const [posts, setPosts] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [openModal, setOpenModal] = useState(false);
+  const [notification, setNotification] = useState(null);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [statusFilter, setStatusFilter] = useState("all"); // all, pending, approved
+  const [userInfo, setUserInfo] = useState(null);
+  const [isOfficialUser, setIsOfficialUser] = useState(false);
+
+  const authToken = token || session?.token || localStorage.getItem("token") || "";
+
+  const fetchUserInfo = useCallback(async () => {
+    if (!authToken) return;
+    try {
+      const response = await fetch(getApiUrl(API_CONFIG.endpoints.profile), {
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${authToken}` },
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setUserInfo(data);
+        setIsOfficialUser(data.role === "Barangay Official" || data.role === "Admin");
+      }
+    } catch (error) {
+      console.error("Error fetching user info:", error);
+    }
+  }, [authToken]);
+
+  useEffect(() => {
+    fetchUserInfo();
+  }, [fetchUserInfo]);
+
+  const fetchPosts = useCallback(async () => {
+    if (!authToken) return;
+    setLoading(true);
+
+    try {
+      let url = getApiUrl('/api/community/posts/barangay');
+      const params = new URLSearchParams();
+
+      if (userInfo && userInfo.role === "Admin") {
+        if (selectedBarangay && selectedBarangay !== "All") {
+          params.append("barangay", selectedBarangay);
+        }
+      }
+
+      if (statusFilter && statusFilter !== "all") {
+        params.append("status", statusFilter);
+      }
+
+      const response = await fetch(url + (params.toString() ? `?${params.toString()}` : ''), {
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${authToken}` },
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setPosts(data.posts || []);
+      } else if (response.status === 403) {
+        setPosts([]);
+        console.warn("Not authorized to view posts");
+      } else {
+        console.error("Error fetching posts:", response.statusText);
+      }
+    } catch (error) {
+      console.error("Error fetching posts:", error);
+    } finally {
+      setLoading(false);
+    }
+  }, [selectedBarangay, authToken, userInfo, statusFilter]);
+
+  useEffect(() => {
+    fetchPosts();
+  }, [fetchPosts]);
+
+  const handleNewPost = async (newPost) => {
+    try {
+      const response = await fetch(getApiUrl('/api/community/posts'), {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${authToken}` },
+        body: JSON.stringify(newPost),
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setPosts((prev) => [data.post, ...prev]);
+        setNotification({ type: "success", message: "✅ Post published successfully!" });
+        setOpenModal(false);
+      } else {
+        const error = await response.json();
+        setNotification({ type: "error", message: `❌ Error: ${error.message}` });
+      }
+    } catch (error) {
+      console.error("Error creating post:", error);
+      setNotification({ type: "error", message: "❌ Failed to create post" });
+    }
+    setTimeout(() => setNotification(null), 3000);
+  };
+
+  // ✅ ACCEPT POST (sets is_accepted = true, shows normally)
+  const handleAcceptPost = async (postId) => {
+    try {
+      const response = await fetch(getApiUrl(`/api/community/posts/${postId}/accept`), {
+        method: "PUT",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${authToken}` },
+      });
+
+      if (response.ok) {
+        setPosts((prev) => prev.map((p) => 
+          p.id === postId ? { ...p, is_accepted: true } : p
+        ));
+        setNotification({ type: "success", message: "✅ Post accepted!" });
+      } else {
+        const error = await response.json();
+        setNotification({ type: "error", message: `❌ ${error.message}` });
+      }
+    } catch (error) {
+      console.error("Error accepting post:", error);
+      setNotification({ type: "error", message: "❌ Failed to accept post" });
+    }
+    setTimeout(() => setNotification(null), 3000);
+  };
+
+  // ✅ APPROVE POST (sets status = approved)
+  const handleApprovePost = async (postId) => {
+    try {
+      const response = await fetch(getApiUrl(`/api/community/posts/${postId}/approve`), {
+        method: "PUT",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${authToken}` },
+      });
+
+      if (response.ok) {
+        setPosts((prev) => prev.map((p) => 
+          p.id === postId ? { ...p, status: 'approved', is_accepted: true } : p
+        ));
+        setNotification({ type: "success", message: "✅ Post approved!" });
+      } else {
+        const error = await response.json();
+        setNotification({ type: "error", message: `❌ ${error.message}` });
+      }
+    } catch (error) {
+      console.error("Error approving post:", error);
+      setNotification({ type: "error", message: "❌ Failed to approve post" });
+    }
+    setTimeout(() => setNotification(null), 3000);
+  };
+
+  // ✅ REJECT POST
+  const handleRejectPost = async (postId) => {
+    if (!window.confirm("Are you sure you want to reject this post? The user will be notified.")) return;
+
+    try {
+      const response = await fetch(getApiUrl(`/api/community/posts/${postId}/reject`), {
+        method: "PUT",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${authToken}` },
+      });
+
+      if (response.ok) {
+        // Mark as rejected instead of removing
+        setPosts((prev) => prev.map((p) => 
+          p.id === postId ? { ...p, is_rejected: true, status: 'rejected' } : p
+        ));
+        setNotification({ type: "success", message: "✅ Post rejected and user notified!" });
+      } else {
+        const error = await response.json();
+        setNotification({ type: "error", message: `❌ ${error.message}` });
+      }
+    } catch (error) {
+      console.error("Error rejecting post:", error);
+      setNotification({ type: "error", message: "❌ Failed to reject post" });
+    }
+    setTimeout(() => setNotification(null), 3000);
+  };
+
+  // ✅ DELETE POST
+  const handleDeletePost = async (postId) => {
+    if (!window.confirm("Are you sure you want to delete this post?")) return;
+
+    try {
+      const response = await fetch(getApiUrl(`/api/community/posts/${postId}`), {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${authToken}` },
+      });
+
+      if (response.ok) {
+        setPosts((prev) => prev.filter((p) => p.id !== postId));
+        setNotification({ type: "success", message: "✅ Post deleted!" });
+      }
+    } catch (error) {
+      console.error("Error deleting post:", error);
+      setNotification({ type: "error", message: "❌ Failed to delete post" });
+    }
+    setTimeout(() => setNotification(null), 3000);
+  };
+
+  // ✅ TOGGLE COMMENTS
+  const handleToggleComments = async (postId, currentAllow) => {
+    try {
+      const response = await fetch(getApiUrl(`/api/community/posts/${postId}/toggle-comments`), {
+        method: "PUT",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${authToken}` },
+        body: JSON.stringify({ allow_comments: !currentAllow }),
+      });
+
+      if (response.ok) {
+        setPosts((prev) => prev.map((p) => 
+          p.id === postId ? { ...p, allow_comments: !currentAllow } : p
+        ));
+        setNotification({ 
+          type: "success", 
+          message: `✅ Comments ${!currentAllow ? 'enabled' : 'disabled'}!` 
+        });
+      }
+    } catch (error) {
+      console.error("Error toggling comments:", error);
+      setNotification({ type: "error", message: "❌ Failed to toggle comments" });
+    }
+    setTimeout(() => setNotification(null), 3000);
+  };
+
+  // ✅ ADD COMMENT
+  const handleAddComment = async (postId, commentText) => {
+    if (!commentText.trim()) return;
+
+    try {
+      const response = await fetch(getApiUrl(`/api/community/posts/${postId}/comments`), {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${authToken}` },
+        body: JSON.stringify({ content: commentText }),
+      });
+
+      if (response.ok) {
+        fetchPosts();
+        setNotification({ type: "success", message: "✅ Comment added!" });
+      }
+    } catch (error) {
+      console.error("Error adding comment:", error);
+      setNotification({ type: "error", message: "❌ Failed to add comment" });
+    }
+    setTimeout(() => setNotification(null), 2000);
+  };
+
+  // ✅ DELETE COMMENT
+  const handleDeleteComment = async (postId, commentId) => {
+    if (!window.confirm("Delete this comment?")) return;
+
+    try {
+      const response = await fetch(getApiUrl(`/api/community/comments/${commentId}`), {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${authToken}` },
+      });
+
+      if (response.ok) {
+        fetchPosts();
+      }
+    } catch (error) {
+      console.error("Error deleting comment:", error);
+    }
+  };
+
+  // ✅ LIKE POST
+  const handleLikePost = async (postId) => {
+    try {
+      const response = await fetch(getApiUrl(`/api/community/posts/${postId}/react`), {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${authToken}` },
+        body: JSON.stringify({ reaction_type: "like" }),
+      });
+      if (response.ok) {
+        const data = await response.json();
+        setPosts((prev) =>
+          prev.map((p) =>
+            p.id === postId
+              ? { ...p, user_liked: data.liked, reaction_count: data.reaction_count }
+              : p
+          )
+        );
+      }
+    } catch (error) {
+      console.error("Error liking post:", error);
+    }
+  };
+
+  // ✅ FILTER POSTS - Sort pending posts to top
+  const filteredPosts = posts
+    .filter((p) => {
+      const text = searchTerm.toLowerCase();
+      const authorName = p.author?.firstname + " " + p.author?.lastname;
+      const matchesSearch =
+        p.title?.toLowerCase().includes(text) ||
+        p.content?.toLowerCase().includes(text) ||
+        authorName?.toLowerCase().includes(text);
+
+      let matchesStatus = true;
+      if (statusFilter !== "all") {
+        matchesStatus = p.status === statusFilter;
+      }
+
+      return matchesSearch && matchesStatus;
+    })
+    .sort((a, b) => {
+      // Pending posts first, then by date
+      const aIsPending = a.status === 'pending' && !a.is_accepted;
+      const bIsPending = b.status === 'pending' && !b.is_accepted;
+      if (aIsPending && !bIsPending) return -1;
+      if (!aIsPending && bIsPending) return 1;
+      return new Date(b.created_at) - new Date(a.created_at);
+    });
+
+  const userBarangay = userInfo?.info?.address_barangay || userInfo?.address_barangay;
+  const feedTitle = isOfficialUser
+    ? `Community Feed Moderation — ${userBarangay || selectedBarangay || "All"}`
+    : "Community Feed";
+
+  return (
+    <div className="feed-container">
+      {notification && (
+        <div className={`notif notif-${notification.type}`}>
+          {notification.message}
+        </div>
+      )}
+
+      <div className="feed-header">
+        <h2 className="feed-title">
+          <FaUsers className="feed-icon" />
+          {feedTitle}
+        </h2>
+
+        {/* ✅ SEARCH + REFRESH ROW */}
+        <div className="header-actions">
+          <input
+            className="feed-search"
+            type="text"
+            placeholder="Search post or user..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+          />
+
+          <button className="feed-btn" onClick={fetchPosts}>
+            ↻ Refresh
+          </button>
+
+          <button className="feed-btn" onClick={() => setOpenModal(true)}>
+            + New Post
+          </button>
+        </div>
+
+        {/* ✅ FILTERS ROW - Only show for officials */}
+        {isOfficialUser && (
+          <div className="feed-filters">
+            <select
+              className="feed-filter-select"
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value)}
+            >
+              <option value="all">All Status</option>
+              <option value="pending">Pending</option>
+              <option value="approved">Approved</option>
+            </select>
+          </div>
+        )}
+      </div>
+
+      <div className="feed-list">
+        {loading ? (
+          <div className="feed-loading">
+            <div className="spinner" />
+            <p>Loading posts...</p>
+          </div>
+        ) : (
+          <>
+            {filteredPosts.length === 0 && <p>No posts found.</p>}
+
+            {filteredPosts.map((post) => (
+              <BarangayPostCard
+                key={post.id}
+                post={post}
+                isOfficial={isOfficialUser}
+                onAccept={handleAcceptPost}
+                onApprove={handleApprovePost}
+                onReject={handleRejectPost}
+                onDelete={handleDeletePost}
+                onToggleComments={handleToggleComments}
+                onAddComment={handleAddComment}
+                onDeleteComment={handleDeleteComment}
+                onLike={handleLikePost}
+              />
+            ))}
+          </>
+        )}
+      </div>
+
+      {openModal && (
+        <ModalPortal>
+        <PostModal 
+          onClose={() => setOpenModal(false)} 
+          onSubmit={handleNewPost}
+          userBarangay={userBarangay}
+          selectedBarangay={selectedBarangay}
+          isOfficialUser={isOfficialUser}
+        />
+        </ModalPortal>
+      )}
+    </div>
+  );
+};
+
+// ✅ BARANGAY POST CARD WITH MODERATION (Same design as Admin)
+const BarangayPostCard = ({ 
+  post, 
+  isOfficial,
+  onAccept,
+  onApprove, 
+  onReject, 
+  onDelete, 
+  onToggleComments,
+  onAddComment,
+  onDeleteComment,
+  onLike
+}) => {
+  const [comment, setComment] = useState("");
+  const [showComments, setShowComments] = useState(false);
+
+  const roleColor = ROLE_COLORS[post.author?.role] || ROLE_COLORS["Resident"];
+  const authorName = `${post.author?.firstname} ${post.author?.lastname}`;
+  const postedDate = new Date(post.created_at).toLocaleDateString();
+  
+  // Pending = status is pending AND is_accepted is false AND not rejected
+  const isPending = post.status === 'pending' && !post.is_accepted && !post.is_rejected;
+  // Accepted = is_accepted is true (regardless of status)
+  const isAccepted = post.is_accepted === true;
+  // Rejected = is_rejected is true
+  const isRejected = post.is_rejected || post.status === 'rejected';
+  // Can like = post is accepted or approved
+  const canLike = isAccepted || post.status === 'approved';
+
+  const handleCommentKey = (e) => {
+    if (e.key === "Enter" && comment.trim()) {
+      onAddComment(post.id, comment);
+      setComment("");
+    }
+  };
+
+  return (
+    <div className={`post-card ${post.is_pinned ? "post-pinned" : ""} ${isPending ? 'pending' : ''} ${isRejected ? 'rejected' : ''}`}>
+      <div className="post-header">
+        <div className="post-title-section">
+          <h3>{post.title}</h3>
+          {post.is_pinned && <span className="badge-pinned">📌 Pinned</span>}
+          {isPending && <span className="badge-pending">⏳ Pending Review</span>}
+          {isRejected && <span className="badge-rejected">❌ Rejected</span>}
+          {isAccepted && post.status !== 'approved' && !isRejected && (
+            <span className="badge-accepted" style={{
+              backgroundColor: 'rgba(16, 185, 129, 0.1)',
+              color: '#10b981',
+              padding: '0.25rem 0.75rem',
+              borderRadius: '20px',
+              fontSize: '0.75rem',
+              fontWeight: '600',
+              marginLeft: '8px'
+            }}>✓ Accepted</span>
+          )}
+        </div>
+        <div className="post-header-right">
+          <div className="post-meta">
+            <span
+              className="role-badge"
+              style={{
+                backgroundColor: roleColor.bg,
+                color: roleColor.text,
+                padding: "0.25rem 0.75rem",
+                borderRadius: "20px",
+                fontSize: "0.75rem",
+                fontWeight: "600",
+                textTransform: "uppercase",
+              }}
+            >
+              {post.author?.role || "Resident"}
+            </span>
+          </div>
+        </div>
+      </div>
+
+      <div className="post-type-container">
+        <span
+          className="post-type-badge"
+          style={{
+            backgroundColor: "rgba(156, 163, 175, 0.15)",
+            color: "#6b7280",
+            padding: "0.25rem 0.75rem",
+            borderRadius: "20px",
+            fontSize: "0.75rem",
+            fontWeight: "600",
+            textTransform: "capitalize",
+          }}
+        >
+          {post.post_type}
+        </span>
+      </div>
+
+      <p className="post-content">{post.content}</p>
+
+      <p className="post-subinfo">
+        By {authorName} · {postedDate} · {post.barangay} · Status: <strong>{post.status || 'unknown'}</strong>
+      </p>
+
+      {/* Like Button - Only for accepted/approved posts */}
+      {canLike && (
+        <div className="post-engagement" style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: '12px',
+          marginTop: '12px',
+          paddingTop: '12px',
+          borderTop: '1px solid #eee',
+        }}>
+          <button
+            onClick={() => onLike(post.id)}
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '6px',
+              padding: '8px 16px',
+              background: post.user_liked ? '#fee2e2' : '#f3f4f6',
+              color: post.user_liked ? '#ef4444' : '#6b7280',
+              border: 'none',
+              borderRadius: '20px',
+              cursor: 'pointer',
+              fontSize: '14px',
+              fontWeight: '500',
+              transition: 'all 0.2s',
+            }}
+          >
+            {post.user_liked ? <FaHeart /> : <FaRegHeart />}
+            {post.reaction_count || 0} {post.reaction_count === 1 ? 'Like' : 'Likes'}
+          </button>
+        </div>
+      )}
+
+      {/* MODERATION CONTROLS - Only for officials */}
+      {isOfficial && (
+        <div className="admin-post-controls" style={{
+          display: 'flex',
+          gap: '8px',
+          marginTop: '12px',
+          paddingTop: '12px',
+          borderTop: '1px solid #ddd',
+          flexWrap: 'wrap',
+        }}>
+          {/* Accept/Approve/Reject - Only for pending posts that aren't accepted */}
+          {isPending && (
+            <>
+              <button
+                className="admin-accept-btn"
+                onClick={() => onAccept(post.id)}
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  padding: '8px 12px',
+                  background: '#3b82f6',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '6px',
+                  cursor: 'pointer',
+                  fontSize: '14px',
+                  fontWeight: '500',
+                  transition: 'background 0.2s',
+                }}
+                title="Accept post (shows normally but keeps pending status)"
+              >
+                <FaCheck /> Accept
+              </button>
+              <button
+                className="admin-approve-btn"
+                onClick={() => onApprove(post.id)}
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  padding: '8px 12px',
+                  background: '#10b981',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '6px',
+                  cursor: 'pointer',
+                  fontSize: '14px',
+                  fontWeight: '500',
+                  transition: 'background 0.2s',
+                }}
+                title="Fully approve post"
+              >
+                <FaCheck /> Approve
+              </button>
+              <button
+                className="admin-reject-btn"
+                onClick={() => onReject(post.id)}
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  padding: '8px 12px',
+                  background: '#ef4444',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '6px',
+                  cursor: 'pointer',
+                  fontSize: '14px',
+                  fontWeight: '500',
+                  transition: 'background 0.2s',
+                }}
+              >
+                <FaTimes /> Reject
+              </button>
+            </>
+          )}
+
+          {/* Toggle Comments - Always available for officials or post owner */}
+          {(post.can_toggle_comments || isOfficial) && (
+            <button
+              className="admin-toggle-comments-btn"
+              onClick={() => onToggleComments(post.id, post.allow_comments)}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '6px',
+                padding: '8px 12px',
+                background: post.allow_comments ? '#8b5cf6' : '#6366f1',
+                color: 'white',
+                border: 'none',
+                borderRadius: '6px',
+                cursor: 'pointer',
+                fontSize: '14px',
+                fontWeight: '500',
+                transition: 'background 0.2s',
+              }}
+            >
+              {post.allow_comments ? <FaCommentSlash /> : <FaComment />}
+              {post.allow_comments ? 'Disable' : 'Enable'} Comments
+            </button>
+          )}
+
+          {/* Delete - For officials or post owner */}
+          {(post.can_delete || isOfficial) && (
+            <button
+              className="admin-delete-btn"
+              onClick={() => onDelete(post.id)}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '6px',
+                padding: '8px 12px',
+                background: '#6b7280',
+                color: 'white',
+                border: 'none',
+                borderRadius: '6px',
+                cursor: 'pointer',
+                fontSize: '14px',
+                fontWeight: '500',
+                marginLeft: 'auto',
+                transition: 'background 0.2s',
+              }}
+            >
+              <FaTrash /> Delete
+            </button>
+          )}
+        </div>
+      )}
+
+      {/* Comments Section */}
+      {!post.allow_comments && (
+        <p style={{ color: "#ef4444", fontSize: "0.9rem", marginTop: "0.5rem" }}>
+          💬 Comments are disabled for this post
+        </p>
+      )}
+
+      <div className="toggle-comment-container" style={{ marginTop: '12px' }}>
+        <button
+          className="toggle-comment-btn"
+          onClick={() => setShowComments(!showComments)}
+        >
+          {showComments ? "Hide Comments" : `View Comments (${post.comment_count || 0})`}
+        </button>
+      </div>
+
+      {showComments && (
+        <div className="comments-box">
+          <div className="comments-scroll">
+            {(post.comments ?? []).map((c) => (
+              <div key={c.id} className="comment-item">
+                <div className="comment-header">
+                  <span className="comment-author">
+                    {c.author?.firstname} {c.author?.lastname}
+                  </span>
+                  <span className="comment-time">
+                    {new Date(c.created_at).toLocaleDateString()}
+                  </span>
+                </div>
+                <p>{c.content}</p>
+                {c.can_delete && (
+                  <FaTrash
+                    className="comment-delete-btn"
+                    onClick={() => onDeleteComment(post.id, c.id)}
+                    title="Delete comment"
+                  />
+                )}
+              </div>
+            ))}
+          </div>
+
+          {post.allow_comments && (
+            <div className="comment-input-section">
+              <input
+                type="text"
+                placeholder="Write a comment..."
+                value={comment}
+                onChange={(e) => setComment(e.target.value)}
+                onKeyDown={handleCommentKey}
+              />
+              <button
+                className="comment-send-btn"
+                onClick={() => {
+                  onAddComment(post.id, comment);
+                  setComment("");
+                }}
+              >
+                <FaPaperPlane />
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+};
+
+// ✅ POST MODAL
+const PostModal = ({ onClose, onSubmit, userBarangay, isOfficialUser }) => {
+  const [title, setTitle] = useState("");
+  const [content, setContent] = useState("");
+  const [postType, setPostType] = useState("general");
+  const [barangay, setBarangay] = useState(userBarangay || "");
+  const [showWarning, setShowWarning] = useState(false);
+
+  const handleSubmit = (e) => {
+    e.preventDefault();
+
+    if (!title.trim() || !content.trim()) {
+      alert("Please fill in all fields");
+      return;
+    }
+
+    if (!barangay) {
+      alert("Please select a barangay");
+      return;
+    }
+
+    const newPost = {
+      title: title.trim(),
+      content: content.trim(),
+      post_type: postType,
+      barangay,
+    };
+
+    onSubmit(newPost);
+  };
+
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+        <div className="modal-header">
+          <h2>Create Community Post</h2>
+          <button className="modal-close" onClick={onClose}>
+            ✕
+          </button>
+        </div>
+
+        {showWarning && (
+          <div className="warning-section">
+            <FaExclamationTriangle className="warning-icon" />
+            <h4>Community Guidelines</h4>
+            <p>
+              Please ensure your post is related to community safety, incidents, or
+              constructive suggestions. Posts must be respectful and factual.
+            </p>
+            <button
+              className="warning-dismiss-btn"
+              onClick={() => setShowWarning(false)}
+            >
+              I Understand
+            </button>
+          </div>
+        )}
+
+        <form onSubmit={handleSubmit} className="post-form">
+          <div className="form-group">
+            <label>Post Type *</label>
+            <select
+              value={postType}
+              onChange={(e) => setPostType(e.target.value)}
+              className="form-select"
+            >
+              {POST_TYPES.map((type) => (
+                <option key={type} value={type}>
+                  {type.charAt(0).toUpperCase() + type.slice(1)}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div className="form-group">
+            <label>Barangay *</label>
+            <input
+              type="text"
+              value={barangay}
+              onChange={(e) => setBarangay(e.target.value)}
+              placeholder="Your barangay"
+              className="form-input"
+              disabled={!isOfficialUser}
+            />
+          </div>
+
+          <div className="form-group">
+            <label>Title *</label>
+            <input
+              type="text"
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              placeholder="Post title..."
+              className="form-input"
+              maxLength="255"
+            />
+          </div>
+
+          <div className="form-group">
+            <label>Content *</label>
+            <textarea
+              value={content}
+              onChange={(e) => setContent(e.target.value)}
+              placeholder="Share your thoughts, incident report, or suggestion..."
+              className="form-textarea"
+              rows="5"
+            />
+          </div>
+
+          <div className="form-actions">
+            <button type="button" className="btn-secondary" onClick={onClose}>
+              Cancel
+            </button>
+            <button
+              type="submit"
+              className="btn-primary"
+              onClick={() => !showWarning && setShowWarning(true)}
+            >
+              Post to Feed
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+};
+
+export default CommunityFeedBarangay;

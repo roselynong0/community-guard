@@ -268,3 +268,283 @@ def refresh_hotspots():
     except Exception as e:
         print(f"❌ Error refreshing hotspots: {e}")
         return jsonify({"status": "error", "message": str(e)}), 500
+
+
+# ============ AUTO-HOTSPOT GENERATION ============
+
+# Hotspot generation thresholds
+HOTSPOT_THRESHOLDS = {
+    'min_reports': 3,           # Minimum HIGH/CRITICAL reports to create hotspot
+    'time_window_days': 7,      # Reports within this time window
+    'critical_threshold': 2,     # If 2+ CRITICAL reports, auto-create
+    'high_threshold': 3,         # If 3+ HIGH reports, auto-create
+}
+
+# Priority categories mapping
+PRIORITY_CATEGORIES = {
+    'Critical': ['Crime'],
+    'High': ['Hazard', 'Fire', 'Accident'],
+}
+
+
+def check_and_create_hotspot_for_barangay(barangay: str, report_data: dict = None):
+    """
+    Check if a barangay qualifies for a hotspot based on HIGH/CRITICAL reports.
+    Auto-creates a hotspot if thresholds are met.
+    
+    Args:
+        barangay: The barangay name to check
+        report_data: Optional - the report that triggered this check
+        
+    Returns:
+        dict with status and hotspot info if created
+    """
+    from datetime import timedelta
+    
+    if not barangay or barangay == "No barangay selected":
+        return {"status": "skipped", "reason": "Invalid barangay"}
+    
+    try:
+        # Calculate time window
+        now = datetime.now(timezone.utc)
+        window_start = now - timedelta(days=HOTSPOT_THRESHOLDS['time_window_days'])
+        
+        # Query for HIGH/CRITICAL reports in this barangay within time window
+        critical_categories = PRIORITY_CATEGORIES.get('Critical', [])
+        high_categories = PRIORITY_CATEGORIES.get('High', [])
+        all_priority_categories = critical_categories + high_categories
+        
+        # Fetch reports with coordinates in this barangay
+        reports_query = supabase.table("reports")\
+            .select("id, category, latitude, longitude, created_at, title, address_barangay")\
+            .eq("address_barangay", barangay)\
+            .eq("is_rejected", False)\
+            .is_("deleted_at", "null")\
+            .gte("created_at", window_start.isoformat())\
+            .execute()
+        
+        reports = getattr(reports_query, "data", []) or []
+        
+        # Filter for HIGH/CRITICAL priority reports
+        priority_reports = [r for r in reports if r.get("category") in all_priority_categories]
+        critical_reports = [r for r in reports if r.get("category") in critical_categories]
+        high_reports = [r for r in reports if r.get("category") in high_categories]
+        
+        print(f"📊 [Auto-Hotspot] Barangay '{barangay}': "
+              f"Critical={len(critical_reports)}, High={len(high_reports)}, "
+              f"Total Priority={len(priority_reports)}")
+        
+        # Check if thresholds are met
+        should_create = False
+        reason = ""
+        
+        if len(critical_reports) >= HOTSPOT_THRESHOLDS['critical_threshold']:
+            should_create = True
+            reason = f"{len(critical_reports)} CRITICAL reports"
+        elif len(high_reports) >= HOTSPOT_THRESHOLDS['high_threshold']:
+            should_create = True
+            reason = f"{len(high_reports)} HIGH priority reports"
+        elif len(priority_reports) >= HOTSPOT_THRESHOLDS['min_reports']:
+            should_create = True
+            reason = f"{len(priority_reports)} combined HIGH/CRITICAL reports"
+        
+        if not should_create:
+            return {
+                "status": "below_threshold",
+                "barangay": barangay,
+                "critical_count": len(critical_reports),
+                "high_count": len(high_reports),
+                "total_priority": len(priority_reports),
+                "thresholds": HOTSPOT_THRESHOLDS
+            }
+        
+        # Calculate centroid from reports with valid coordinates
+        reports_with_coords = [r for r in priority_reports 
+                              if r.get("latitude") and r.get("longitude")]
+        
+        if not reports_with_coords:
+            print(f"⚠️ [Auto-Hotspot] No reports with valid coordinates in {barangay}")
+            return {"status": "no_coordinates", "barangay": barangay}
+        
+        # Calculate centroid (average of all coordinates)
+        avg_lat = sum(r["latitude"] for r in reports_with_coords) / len(reports_with_coords)
+        avg_lng = sum(r["longitude"] for r in reports_with_coords) / len(reports_with_coords)
+        
+        # Count categories
+        category_counts = {}
+        for r in priority_reports:
+            cat = r.get("category", "Others")
+            category_counts[cat] = category_counts.get(cat, 0) + 1
+        
+        # Get first and last report timestamps
+        sorted_reports = sorted(priority_reports, key=lambda x: x.get("created_at", ""))
+        first_report_at = sorted_reports[0].get("created_at") if sorted_reports else now.isoformat()
+        last_report_at = sorted_reports[-1].get("created_at") if sorted_reports else now.isoformat()
+        
+        # Check if hotspot already exists for this area (within ~500m)
+        existing_query = supabase.table("hotspots").select("id, centroid, report_count").execute()
+        existing_hotspots = getattr(existing_query, "data", []) or []
+        
+        # Check for nearby existing hotspot
+        for hs in existing_hotspots:
+            centroid = hs.get("centroid")
+            if centroid and isinstance(centroid, dict):
+                coords = centroid.get("coordinates", [])
+                if len(coords) >= 2:
+                    hs_lng, hs_lat = coords[0], coords[1]
+                    # Simple distance check (~500m threshold using approximate degrees)
+                    dist_lat = abs(avg_lat - hs_lat) * 111000  # ~111km per degree
+                    dist_lng = abs(avg_lng - hs_lng) * 85000   # ~85km at this latitude
+                    if dist_lat < 500 and dist_lng < 500:
+                        # Update existing hotspot instead
+                        print(f"🔄 [Auto-Hotspot] Updating existing hotspot {hs['id']} in {barangay}")
+                        try:
+                            supabase.table("hotspots").update({
+                                "report_count": len(priority_reports),
+                                "category_counts": category_counts,
+                                "last_report_at": last_report_at,
+                                "generated_at": now.isoformat()
+                            }).eq("id", hs["id"]).execute()
+                            
+                            return {
+                                "status": "updated",
+                                "hotspot_id": hs["id"],
+                                "barangay": barangay,
+                                "report_count": len(priority_reports),
+                                "reason": reason
+                            }
+                        except Exception as update_err:
+                            print(f"⚠️ [Auto-Hotspot] Failed to update hotspot: {update_err}")
+        
+        # Create new hotspot
+        print(f"🔥 [Auto-Hotspot] Creating hotspot for {barangay}: {reason}")
+        
+        try:
+            # Insert hotspot with PostGIS geometry
+            # Using raw centroid as JSON for compatibility
+            insert_data = {
+                "centroid": {
+                    "type": "Point",
+                    "coordinates": [avg_lng, avg_lat]
+                },
+                "report_count": len(priority_reports),
+                "category_counts": category_counts,
+                "first_report_at": first_report_at,
+                "last_report_at": last_report_at,
+                "generated_at": now.isoformat()
+            }
+            
+            result = supabase.table("hotspots").insert(insert_data).execute()
+            inserted = getattr(result, "data", [])
+            
+            if inserted:
+                hotspot_id = inserted[0].get("id")
+                print(f"✅ [Auto-Hotspot] Created hotspot {hotspot_id} for {barangay}")
+                
+                return {
+                    "status": "created",
+                    "hotspot_id": hotspot_id,
+                    "barangay": barangay,
+                    "centroid": {"latitude": avg_lat, "longitude": avg_lng},
+                    "report_count": len(priority_reports),
+                    "category_counts": category_counts,
+                    "reason": reason
+                }
+            else:
+                return {"status": "error", "reason": "Insert returned no data"}
+                
+        except Exception as insert_err:
+            print(f"❌ [Auto-Hotspot] Failed to create hotspot: {insert_err}")
+            return {"status": "error", "reason": str(insert_err)}
+        
+    except Exception as e:
+        print(f"❌ [Auto-Hotspot] Error checking barangay {barangay}: {e}")
+        return {"status": "error", "reason": str(e)}
+
+
+@maps_bp.route("/hotspots/auto-check", methods=["POST"])
+@token_required
+def auto_check_hotspot():
+    """
+    Endpoint to manually trigger hotspot check for a barangay.
+    Called automatically after HIGH/CRITICAL report submission.
+    """
+    try:
+        data = request.get_json() or {}
+        barangay = data.get("barangay")
+        report_data = data.get("report")
+        
+        if not barangay:
+            return jsonify({"status": "error", "message": "Barangay is required"}), 400
+        
+        result = check_and_create_hotspot_for_barangay(barangay, report_data)
+        
+        return jsonify(result), 200
+        
+    except Exception as e:
+        print(f"❌ Error in auto-check hotspot: {e}")
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+
+@maps_bp.route("/hotspots/check-all-barangays", methods=["POST"])
+@token_required
+def check_all_barangays_hotspots():
+    """
+    Admin endpoint to check and generate hotspots for all barangays.
+    Useful for batch processing.
+    """
+    try:
+        user_id = request.user_id
+        
+        # Verify admin role
+        user_resp = supabase.table("users").select("role").eq("id", user_id).execute()
+        user_data = getattr(user_resp, "data", [None])[0]
+        if not user_data or user_data.get("role") != "Admin":
+            return jsonify({"status": "error", "message": "Admin access required"}), 403
+        
+        # Get all unique barangays from reports
+        barangays_query = supabase.table("reports")\
+            .select("address_barangay")\
+            .is_("deleted_at", "null")\
+            .execute()
+        
+        barangays_data = getattr(barangays_query, "data", []) or []
+        unique_barangays = list(set(
+            r.get("address_barangay") for r in barangays_data 
+            if r.get("address_barangay") and r.get("address_barangay") != "No barangay selected"
+        ))
+        
+        results = {
+            "checked": 0,
+            "created": 0,
+            "updated": 0,
+            "below_threshold": 0,
+            "details": []
+        }
+        
+        for barangay in unique_barangays:
+            result = check_and_create_hotspot_for_barangay(barangay)
+            results["checked"] += 1
+            
+            if result.get("status") == "created":
+                results["created"] += 1
+            elif result.get("status") == "updated":
+                results["updated"] += 1
+            elif result.get("status") == "below_threshold":
+                results["below_threshold"] += 1
+            
+            results["details"].append({
+                "barangay": barangay,
+                "result": result
+            })
+        
+        print(f"✅ [Auto-Hotspot] Batch check complete: {results['created']} created, {results['updated']} updated")
+        
+        return jsonify({
+            "status": "success",
+            "summary": results
+        }), 200
+        
+    except Exception as e:
+        print(f"❌ Error in batch hotspot check: {e}")
+        return jsonify({"status": "error", "message": str(e)}), 500

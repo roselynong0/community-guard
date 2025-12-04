@@ -1,48 +1,64 @@
 import { HashRouter as Router, Routes, Route, Navigate, useLocation } from "react-router-dom";
 import { useState, useEffect } from "react";
-import RegistrationForm from "./components/RegistrationForm";
-import AdminLogin from "./components/AdminLogin";
-import ResidentLogin from "./components/ResidentLogin";
-import BarangayLogin from "./components/BarangayLogin";
-import ResponderLogin from "./components/ResponderLogin";
-import ForgotPassword from "./components/ForgotPassword";
-import ResetPassword from "./components/ResetPassword";
-import Layout from "./components/Layout";
-import AdminLayout from "./components/Admin-Layout";
-import Home from "./components/Home";
-import Reports from "./components/Reports";
-import ArchivedReports from "./components/ArchivedReports";
-import AdminReports from "./components/Admin-Reports";
-import AdminUsers from "./components/Admin-Users";
-import Profile from "./components/Profile";
-import Notifications from "./components/Notifications";
-import AdminNotifications from "./components/Admin-Notifications";
-import Maps from "./components/Maps";
-import AdminMaps from "./components/Admin-Maps";
-import CommunityMetrics from "./components/CommunityMetrics";
-import BarangayLayout from "./components/BarangayLayout";
-import CommunityFeedBarangay from "./components/CommunityFeedBarangay";
-import ResponderLayout from "./components/ResponderLayout";
-import ResponderHome from "./components/ResponderHome";
-import CommunityFeedResponder from "./components/CommunityFeedResponder";
 import { fetchSession } from "./utils/session";
-import VerificationForm from "./components/VerificationForm";
-import HomePage from "./components/HomePage";
-import SafetyTips from "./components/SafetyTips";
-import CommunityFeed from "./components/CommunityFeed";
-import LoadingScreen from "./components/LoadingScreen";
-import SuccessRedirect from "./components/SuccessRedirect";
-import CommunityFeedAdmin from "./components/CommunityFeedAdmin";
-import BarangayDashboard from "./components/BarangayDashboard";
-import BarangayReports from "./components/BarangayReports";
-import BarangayNotifications from "./components/BarangayNotifications";
-import AssignResponders from "./components/AssignResponders";
 
-import RespondersLayout from "./components/RespondersLayout";
-import RespondersDashboard from "./components/RespondersDashboard";
-import RespondersReports from "./components/RespondersReports"; 
-import RespondersNotifications from "./components/RespondersNotifications";
-import CCTVViewer from "./components/CCTVViewer";
+// Auth components
+import RegistrationForm from "./components/auth/RegistrationForm";
+import ForgotPassword from "./components/auth/ForgotPassword";
+import ResetPassword from "./components/auth/ResetPassword";
+import ResidentLogin from "./components/auth/ResidentLogin";
+import VerificationForm from "./components/auth/VerificationForm";
+
+// Admin components
+import AdminLogin from "./components/admin/AdminLogin";
+import AdminLayout from "./components/admin/Admin-Layout";
+import AdminReports from "./components/admin/Admin-Reports";
+import AdminUsers from "./components/admin/Admin-Users";
+import AdminNotifications from "./components/admin/Admin-Notifications";
+import AdminMaps from "./components/admin/Admin-Maps";
+import ArchivedReports from "./components/admin/ArchivedReports";
+import AssignResponders from "./components/admin/AssignResponders";
+import CommunityFeedAdmin from "./components/admin/CommunityFeedAdmin";
+
+// Barangay components
+import BarangayLogin from "./components/barangay/BarangayLogin";
+import BarangayLayout from "./components/barangay/BarangayLayout";
+import BarangayDashboard from "./components/barangay/BarangayDashboard";
+import BarangayReports from "./components/barangay/BarangayReports";
+import BarangayNotifications from "./components/barangay/BarangayNotifications";
+import CommunityFeedBarangay from "./components/barangay/CommunityFeedBarangay";
+import CCTVViewer from "./components/barangay/CCTVViewer";
+
+// Responder components
+import ResponderLogin from "./components/responder/ResponderLogin";
+import ResponderLayout from "./components/responder/ResponderLayout";
+import ResponderHome from "./components/responder/ResponderHome";
+import RespondersLayout from "./components/responder/RespondersLayout";
+import RespondersDashboard from "./components/responder/RespondersDashboard";
+import RespondersReports from "./components/responder/RespondersReports"; 
+import RespondersNotifications from "./components/responder/RespondersNotifications";
+import CommunityFeedResponder from "./components/responder/CommunityFeedResponder";
+
+// Resident components
+import Home from "./components/resident/Home";
+import Reports from "./components/resident/Reports";
+import Profile from "./components/resident/Profile";
+import Notifications from "./components/resident/Notifications";
+import Maps from "./components/resident/Maps";
+import SafetyTips from "./components/resident/SafetyTips";
+import CommunityFeed from "./components/resident/CommunityFeed";
+
+// Public components
+import HomePage from "./components/public/HomePage";
+import SuccessRedirect from "./components/public/SuccessRedirect";
+
+// Shared components
+import Layout from "./components/shared/Layout";
+import LoadingScreen from "./components/shared/LoadingScreen";
+import CommunityMetrics from "./components/shared/CommunityMetrics";
+
+// Global styles for modal portal (must be imported at app level for z-index to work)
+import "./components/shared/ModalPortal.css";
 
 
 // ---------------- LOGIN WRAPPER ----------------
@@ -424,6 +440,7 @@ function App() {
           <Route path="/barangay/maps" element={<Maps session={session} userRole="Barangay Official" />} />
           <Route path="/barangay/reports" element={<BarangayReports token={session?.token} />} />
           <Route path="/barangay/assign-responders" element={<AssignResponders token={session?.token} />} />
+          <Route path="/barangay/cctv" element={<CCTVViewer />} />
           <Route path="/barangay/archived" element={<ArchivedReports session={session} />} />
           <Route path="/barangay/notifications" element={<Notifications token={session?.token} />} />
           <Route path="/barangay/community-feed" element={<CommunityFeedBarangay token={session?.token} session={session} />} />

@@ -15,9 +15,10 @@ import {
   FaExclamationTriangle,
   FaBell
 } from "react-icons/fa";
-import { API_CONFIG } from "../utils/apiConfig";
+import { API_CONFIG } from "../../utils/apiConfig";
+import ModalPortal from "../shared/ModalPortal";
 import "./Admin-Users.css";
-import "./Notification.css";
+import "../shared/Notification.css";
 import "./Admin-Users-Performance.css"; 
 
 const API_URL = `${API_CONFIG.BASE_URL}/api`;
@@ -847,14 +848,15 @@ const [activeTab, setActiveTab] = useState("Residents");
 
       {/* Create User Modal */}
       {isCreateModalOpen && (
-        <div className="modal-overlay" onClick={closeCreateModal}>
-          <div className="admin-modal" onClick={(e) => e.stopPropagation()}>
-            <div className="admin-modal-header">
+        <ModalPortal>
+        <div className="portal-modal-overlay" onClick={closeCreateModal}>
+          <div className="portal-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="portal-modal-header">
               <h3>Create New Account</h3>
-              <button className="admin-modal-close" onClick={closeCreateModal}>×</button>
+              <button className="portal-modal-close" onClick={closeCreateModal}>×</button>
             </div>
 
-            <div className="admin-modal-content">
+            <div className="portal-modal-body">
               <div style={{ display: 'grid', gap: 12 }}>
                 <div style={{ display: 'flex', gap: 8 }}>
                   <input type="text" placeholder="First name" value={createFirstname} onChange={(e) => setCreateFirstname(e.target.value)} style={{ flex: 1, padding: 10, borderRadius: 8, border: '1px solid #e2e8f0' }} />
@@ -892,24 +894,26 @@ const [activeTab, setActiveTab] = useState("Residents");
               </div>
             </div>
 
-            <div className="admin-modal-actions" style={{ justifyContent: 'flex-end' }}>
-              <button className="cancel-btn" onClick={closeCreateModal} style={{ padding: '10px 16px', borderRadius: 8 }}>Cancel</button>
-              <button className="verify-btn" onClick={handleCreateUser} style={{ marginLeft: 8, padding: '10px 16px', borderRadius: 8 }} disabled={isCreating}>{isCreating ? 'Creating...' : 'Create Account'}</button>
+            <div className="portal-modal-actions">
+              <button className="cancel-btn" onClick={closeCreateModal}>Cancel</button>
+              <button className="confirm-btn" onClick={handleCreateUser} disabled={isCreating}>{isCreating ? 'Creating...' : 'Create Account'}</button>
             </div>
           </div>
         </div>
+        </ModalPortal>
       )}
 
       {/* Delete Confirmation Modal */}
       {isDeleteConfirmOpen && (
-        <div className="modal-overlay" onClick={() => setIsDeleteConfirmOpen(false)}>
-          <div className="admin-modal" onClick={(e) => e.stopPropagation()}>
-            <div className="admin-modal-header">
+        <ModalPortal>
+        <div className="portal-modal-overlay" onClick={() => setIsDeleteConfirmOpen(false)}>
+          <div className="portal-modal delete-confirm" onClick={(e) => e.stopPropagation()}>
+            <div className="portal-modal-header">
               <h3>Confirm Delete</h3>
-              <button className="admin-modal-close" onClick={() => setIsDeleteConfirmOpen(false)}>×</button>
+              <button className="portal-modal-close" onClick={() => setIsDeleteConfirmOpen(false)}>×</button>
             </div>
 
-            <div className="admin-modal-content">
+            <div className="portal-modal-body">
               <p>Are you sure you want to permanently delete <strong>{selectedIds.size}</strong> selected user(s)? This action cannot be undone.</p>
               {deleteReason ? (
                 <div style={{ margin: '12px 0', padding: '12px', background: '#fff7f7', borderRadius: 6, border: '1px solid #ffe0e0' }}>
@@ -919,31 +923,33 @@ const [activeTab, setActiveTab] = useState("Residents");
               ) : null}
             </div>
 
-            <div className="admin-modal-actions" style={{ justifyContent: 'flex-end' }}>
-              <button className="cancel-btn" onClick={() => setIsDeleteConfirmOpen(false)} style={{ padding: '10px 16px', borderRadius: 8 }} disabled={isDeleting}>Cancel</button>
-              <button className="verify-btn" onClick={performDeleteSelected} style={{ marginLeft: 8, padding: '10px 16px', borderRadius: 8, background: '#ef4444', color: '#fff' }} disabled={isDeleting}>{isDeleting ? 'Deleting...' : 'Yes, Delete Permanently'}</button>
+            <div className="portal-modal-actions">
+              <button className="cancel-btn" onClick={() => setIsDeleteConfirmOpen(false)} disabled={isDeleting}>Cancel</button>
+              <button className="danger-btn" onClick={performDeleteSelected} disabled={isDeleting}>{isDeleting ? 'Deleting...' : 'Yes, Delete Permanently'}</button>
             </div>
           </div>
         </div>
+        </ModalPortal>
       )}
 
       {/* Delete Reason Modal: ask admin why the users are being deleted */}
       {isDeleteReasonOpen && (
+        <ModalPortal>
         <div
-          className="modal-overlay"
+          className="portal-modal-overlay"
           onClick={!isDeleting ? closeDeleteReason : undefined}
           role="dialog"
           aria-modal="true"
           aria-labelledby="delete-reason-title"
           tabIndex="-1"
         >
-          <div className="admin-modal" onClick={(e) => e.stopPropagation()}>
-            <div className="admin-modal-header">
+          <div className="portal-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="portal-modal-header">
               <h3 id="delete-reason-title">User Deletion Reason</h3>
-              <button className="admin-modal-close" onClick={closeDeleteReason} disabled={isDeleting}>×</button>
+              <button className="portal-modal-close" onClick={closeDeleteReason} disabled={isDeleting}>×</button>
             </div>
 
-            <div className="admin-modal-content">
+            <div className="portal-modal-body">
               <p>Please select the reason why these user(s) should be deleted. This helps with auditing and prevents misuse.</p>
 
               <label htmlFor="delete-reason-select" style={{ display: 'block', marginBottom: 8, fontWeight: '600' }}>Select reason</label>
@@ -980,33 +986,35 @@ const [activeTab, setActiveTab] = useState("Residents");
               )}
             </div>
 
-            <div className="admin-modal-actions" style={{ justifyContent: 'flex-end', gap: 10 }}>
-              <button onClick={closeDeleteReason} disabled={isDeleting} style={{ padding: '10px 16px', borderRadius: 8 }}>Cancel</button>
+            <div className="portal-modal-actions">
+              <button className="cancel-btn" onClick={closeDeleteReason} disabled={isDeleting}>Cancel</button>
               <button
+                className="danger-btn"
                 onClick={proceedToConfirmDelete}
                 disabled={isDeleting || !deleteReason || (deleteReason === 'Other' && !deleteReasonOther.trim())}
-                style={{ backgroundColor: '#ef4444', color: '#fff', padding: '10px 16px', borderRadius: 8, border: 'none', cursor: 'pointer' }}
               >
                 Continue to Delete
               </button>
             </div>
           </div>
         </div>
+        </ModalPortal>
       )}
 
       {/* Verification Modal */}
       {isVerificationModalOpen && selectedUser && (
-        <div className="modal-overlay" onClick={closeVerificationModal}>
-          <div className="admin-modal" onClick={(e) => e.stopPropagation()}>
-            <div className="admin-modal-header">
+        <ModalPortal>
+        <div className="portal-modal-overlay" onClick={closeVerificationModal}>
+          <div className="portal-modal wide" onClick={(e) => e.stopPropagation()}>
+            <div className="portal-modal-header">
               <h3>User Verification Review</h3>
               <button 
-                className="admin-modal-close" 
+                className="portal-modal-close" 
                 onClick={closeVerificationModal}
               >×</button>
             </div>
 
-            <div className="admin-modal-content">
+            <div className="portal-modal-body">
               {/* User Basic Info */}
               <div className="user-profile-section">
                 <img 
@@ -1205,7 +1213,7 @@ const [activeTab, setActiveTab] = useState("Residents");
               </div>
             </div>
 
-            <div className="admin-modal-actions">
+            <div className="portal-modal-actions" style={{ justifyContent: 'space-between' }}>
               {/* Left side - Check Fields button */}
               <div style={{ display: 'flex', gap: '8px' }}>
                 {userInfo && (
@@ -1255,17 +1263,6 @@ const [activeTab, setActiveTab] = useState("Residents");
                 <button 
                   className="cancel-btn" 
                   onClick={closeVerificationModal}
-                  style={{
-                    padding: '12px 24px',
-                    borderRadius: '8px',
-                    fontSize: '14px',
-                    fontWeight: 500,
-                    cursor: 'pointer',
-                    background: '#f1f5f9',
-                    color: '#64748b',
-                    border: '1px solid #e2e8f0',
-                    transition: 'all 0.3s ease'
-                  }}
                 >
                   Cancel
                 </button>
@@ -1292,52 +1289,30 @@ const [activeTab, setActiveTab] = useState("Residents");
                     ) : userInfo && isInfoComplete(userInfo) ? (
                       /* User has complete info - show verify button */
                       <button 
-                        className="verify-btn" 
+                        className="confirm-btn" 
                         onClick={verifyUserFully}
                         title="Mark user as fully verified - all required fields are complete"
                         style={{
-                          width: 'auto',
-                          padding: '12px 24px',
-                          borderRadius: '8px',
-                          fontSize: '14px',
-                          fontWeight: 500,
-                          cursor: 'pointer',
                           background: '#10b981',
-                          color: 'white',
-                          border: 'none',
                           display: 'flex',
                           alignItems: 'center',
-                          gap: '6px',
-                          transition: 'all 0.3s ease'
+                          gap: '6px'
                         }}
-                        onMouseEnter={(e) => e.target.style.background = '#059669'}
-                        onMouseLeave={(e) => e.target.style.background = '#10b981'}
                       >
                         <FaCheckCircle /> Verify
                       </button>
                     ) : (
                       /* User has incomplete info - show reminder button */
                       <button 
-                        className="remind-btn" 
+                        className="confirm-btn" 
                         onClick={sendVerificationReminder}
                         style={{
-                          width: 'auto',
-                          padding: '12px 24px',
-                          borderRadius: '8px',
-                          fontSize: '14px',
-                          fontWeight: 500,
-                          cursor: 'pointer',
                           background: '#f59e0b',
-                          color: 'white',
-                          border: 'none',
                           display: 'flex',
                           alignItems: 'center',
-                          gap: '6px',
-                          transition: 'all 0.3s ease'
+                          gap: '6px'
                         }}
                         title="Send reminder to complete profile"
-                        onMouseEnter={(e) => e.target.style.background = '#d97706'}
-                        onMouseLeave={(e) => e.target.style.background = '#f59e0b'}
                       >
                         <FaBell style={{ fontSize: '12px' }} /> Notify User
                       </button>
@@ -1348,6 +1323,7 @@ const [activeTab, setActiveTab] = useState("Residents");
             </div>
           </div>
         </div>
+        </ModalPortal>
       )}
 
       {/* Notification with proper styling */}
