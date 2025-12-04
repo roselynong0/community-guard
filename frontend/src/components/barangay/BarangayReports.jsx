@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
-import { FaEdit, FaTrashAlt, FaSearch, FaRedo, FaCheckCircle, FaTimesCircle, FaCheck, FaTimes, FaSyncAlt, FaClock, FaFileCsv, FaFilePdf, FaThLarge, FaList, FaArchive, FaFileAlt } from "react-icons/fa";
+import { FaEdit, FaTrashAlt, FaSearch, FaRedo, FaCheckCircle, FaTimesCircle, FaCheck, FaTimes, FaSyncAlt, FaClock, FaFileCsv, FaFilePdf, FaThLarge, FaList, FaArchive, FaFileAlt, FaHeart, FaRegHeart } from "react-icons/fa";
 import { API_CONFIG, getApiUrl } from "../../utils/apiConfig";
 import ModalPortal from "../shared/ModalPortal";
 import "./BarangayReports.css";
@@ -849,6 +849,47 @@ function BarangayReports({ token }) {
         setExpandedPosts((prev) =>
             prev.includes(id) ? prev.filter((i) => i !== id) : [...prev, id]
         );
+    };
+
+    // Handle heart/like toggle for reports
+    const handleToggleLike = async (reportId) => {
+        if (!token) {
+            showNotification("Please log in to like reports", "error");
+            return;
+        }
+
+        try {
+            const response = await fetch(getApiUrl(`/api/reports/${reportId}/react`), {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ reaction_type: 'heart' })
+            });
+
+            const data = await response.json();
+            
+            if (data.status === 'success') {
+                // Update the report's reaction data in state
+                setReports(prevReports => 
+                    prevReports.map(report => 
+                        report.id === reportId 
+                            ? { 
+                                ...report, 
+                                user_liked: data.action === 'added',
+                                reaction_count: data.reaction_count
+                            }
+                            : report
+                    )
+                );
+            } else {
+                showNotification("Failed to update reaction", "error");
+            }
+        } catch (error) {
+            console.error("Error toggling like:", error);
+            showNotification("Failed to update reaction", "error");
+        }
     };
 
     const handleUpdateStatus = async () => {
@@ -2203,6 +2244,23 @@ function BarangayReports({ token }) {
                                         ))}
                                     </div>
                                 )}
+
+                                {/* Heart/Like Button */}
+                                <div className="report-reactions">
+                                    <button
+                                        className={`reaction-btn heart-btn ${report.user_liked ? 'liked' : ''}`}
+                                        onClick={(e) => { e.stopPropagation(); handleToggleLike(report.id); }}
+                                        aria-label={report.user_liked ? 'Unlike this report' : 'Like this report'}
+                                        title={report.user_liked ? 'Unlike' : 'Like'}
+                                    >
+                                        {report.user_liked ? (
+                                            <FaHeart className="heart-icon filled" aria-hidden="true" />
+                                        ) : (
+                                            <FaRegHeart className="heart-icon" aria-hidden="true" />
+                                        )}
+                                        <span className="reaction-count">{report.reaction_count || 0}</span>
+                                    </button>
+                                </div>
                             </div>
                         );
                     })

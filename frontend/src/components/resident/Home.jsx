@@ -327,9 +327,9 @@ function Home({ token, session }) {
 
   const mapSection = (
     <div className="map-section" style={{ animationDelay: "0.5s" }}>
-      <h3>Community Map</h3>
+      <h3>{userBarangay ? `${userBarangay} Community Map` : 'Community Map'}</h3>
       <div className="map-placeholder">
-        <MapView ref={mapRef} /> 
+        <MapView ref={mapRef} barangay={userBarangay} /> 
       </div>
     </div>
   );
@@ -356,7 +356,7 @@ function Home({ token, session }) {
       </div>
       <div className="middle-grid">
         <div className="recent-reports">
-          <h3>Recent Reports</h3>
+          <h3>{userBarangay ? `Recent Reports in ${userBarangay}` : 'Recent Reports'}</h3>
           <ul>
             {recentReports.length ? (
               recentReports.map(report => (

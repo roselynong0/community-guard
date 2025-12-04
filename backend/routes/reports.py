@@ -189,6 +189,36 @@ def fetch_reports(limit=10, sort="desc", user_only=False, barangay_filter=False,
         for i, report in enumerate(reports_list[:3]):
             print(f"[DEBUG] Report {i+1} ID={report.get('id')}, is_approved={report.get('is_approved')}, status={report.get('status')}")
         
+        # Attach reaction data to reports
+        # Note: reaction_count is already on the reports table from the migration
+        try:
+            report_ids = [r.get("id") for r in reports_list if r.get("id")]
+            if report_ids:
+                # Check if current user has liked each report (if user context available)
+                user_reactions = {}
+                if hasattr(request, 'user_id') and request.user_id:
+                    user_reactions_resp = supabase.table("report_reactions").select("report_id").eq("user_id", request.user_id).in_("report_id", report_ids).execute()
+                    user_reactions_data = getattr(user_reactions_resp, "data", [])
+                    user_reactions = {r["report_id"]: True for r in user_reactions_data}
+                
+                # Attach user_liked status to each report
+                # reaction_count is already in the report data from the database
+                for report in reports_list:
+                    report_id = report.get("id")
+                    # Ensure reaction_count has a default value
+                    if report.get("reaction_count") is None:
+                        report["reaction_count"] = 0
+                    report["user_liked"] = user_reactions.get(report_id, False)
+                    
+                print(f"✅ Attached reaction data to {len(reports_list)} reports")
+        except Exception as e:
+            print(f"⚠️ Failed to fetch user reactions: {e}")
+            # Set defaults if reaction fetch fails
+            for report in reports_list:
+                if report.get("reaction_count") is None:
+                    report["reaction_count"] = 0
+                report["user_liked"] = False
+        
         return reports_list
     except Exception as e:
         print("fetch_reports error:", e)
@@ -752,7 +782,7 @@ def get_barangay_map_reports():
         
         # Fetch only reports from their barangay with valid coordinates (exclude rejected reports)
         response = supabase.table("reports").select(
-            "id, title, address_barangay, address_street, latitude, longitude, user_id, created_at, status"
+            "id, title, category, status, address_barangay, address_street, latitude, longitude, user_id, created_at"
         ).eq("address_barangay", user_barangay).is_("deleted_at", "null").eq("is_rejected", False).execute()
 
         reports_list = getattr(response, "data", []) or []
@@ -800,7 +830,7 @@ def get_map_reports():
     try:
         # Fetch only relevant fields from reports (exclude deleted and rejected reports)
         response = supabase.table("reports").select(
-            "id, title, address_barangay, address_street, latitude, longitude, user_id, created_at"
+            "id, title, category, status, address_barangay, address_street, latitude, longitude, user_id, created_at"
         ).is_("deleted_at", "null").eq("is_rejected", False).execute()
 
         reports_list = response.data or []
@@ -1899,4 +1929,257 @@ def get_responders():
         
     except Exception as e:
         print(f"❌ Failed to get responders: {str(e)}")
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+
+# ============ REPORT REACTIONS (Heart/Like) ============
+
+@reports_bp.route("/reports/<report_id>/react", methods=["POST"])
+@token_required
+def toggle_report_reaction(report_id):
+    """
+    Toggle like/heart reaction on a report.
+    If user already reacted, remove reaction. If not, add reaction.
+    """
+    user_id = request.user_id
+    
+    try:
+        # Check if report exists
+        report_resp = supabase.table("reports").select("id, status, is_approved").eq("id", report_id).is_("deleted_at", "null").execute()
+        report = getattr(report_resp, "data", [None])[0]
+        
+        if not report:
+            return jsonify({"status": "error", "message": "Report not found"}), 404
+        
+        # Check if user already reacted
+        existing_resp = supabase.table("report_reactions").select("id").eq("report_id", report_id).eq("user_id", user_id).execute()
+        existing = getattr(existing_resp, "data", [])
+        
+        if existing:
+            # Remove reaction (unlike)
+            supabase.table("report_reactions").delete().eq("report_id", report_id).eq("user_id", user_id).execute()
+            
+            # Get updated count
+            count_resp = supabase.table("report_reactions").select("id", count="exact").eq("report_id", report_id).execute()
+            new_count = count_resp.count if hasattr(count_resp, 'count') else 0
+            
+            print(f"💔 User {user_id} unliked report {report_id}")
+            return jsonify({
+                "status": "success", 
+                "action": "unliked",
+                "reaction_count": new_count,
+                "user_liked": False
+            }), 200
+        else:
+            # Add reaction (like)
+            supabase.table("report_reactions").insert({
+                "report_id": report_id,
+                "user_id": user_id,
+                "reaction_type": "like",
+                "created_at": datetime.now(timezone.utc).isoformat()
+            }).execute()
+            
+            # Get updated count
+            count_resp = supabase.table("report_reactions").select("id", count="exact").eq("report_id", report_id).execute()
+            new_count = count_resp.count if hasattr(count_resp, 'count') else 1
+            
+            print(f"❤️ User {user_id} liked report {report_id}")
+            return jsonify({
+                "status": "success", 
+                "action": "liked",
+                "reaction_count": new_count,
+                "user_liked": True
+            }), 200
+            
+    except Exception as e:
+        print(f"❌ Error toggling reaction on report {report_id}: {e}")
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+
+@reports_bp.route("/reports/<report_id>/reactions", methods=["GET"])
+@token_required
+def get_report_reactions(report_id):
+    """
+    Get reaction count and whether current user has reacted to a report.
+    """
+    user_id = request.user_id
+    
+    try:
+        # Get total count
+        count_resp = supabase.table("report_reactions").select("id", count="exact").eq("report_id", report_id).execute()
+        reaction_count = count_resp.count if hasattr(count_resp, 'count') else 0
+        
+        # Check if current user has reacted
+        user_resp = supabase.table("report_reactions").select("id").eq("report_id", report_id).eq("user_id", user_id).execute()
+        user_liked = len(getattr(user_resp, "data", [])) > 0
+        
+        return jsonify({
+            "status": "success",
+            "reaction_count": reaction_count,
+            "user_liked": user_liked
+        }), 200
+        
+    except Exception as e:
+        print(f"❌ Error getting reactions for report {report_id}: {e}")
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+
+@reports_bp.route("/reports/trending", methods=["GET"])
+@token_required
+def get_trending_reports():
+    """
+    Get trending reports using engagement algorithm.
+    Returns reports sorted by trending score (reactions + recency).
+    Supports filtering by barangay.
+    """
+    user_id = request.user_id
+    barangay = request.args.get("barangay")
+    limit = int(request.args.get("limit", 10))
+    exclude_own = request.args.get("exclude_own", "true").lower() == "true"
+    
+    try:
+        # Build query for approved, non-resolved reports
+        query = supabase.table("reports").select(
+            "id, title, category, status, address_barangay, created_at, reaction_count, user_id"
+        ).is_("deleted_at", "null").neq("status", "Resolved")
+        
+        # Filter by approval status
+        query = query.or_("is_approved.eq.true,is_rejected.eq.false")
+        
+        if barangay and barangay != "All":
+            query = query.eq("address_barangay", barangay)
+        
+        # Get more reports than needed for scoring
+        response = query.order("created_at", desc=True).limit(limit * 3).execute()
+        reports = getattr(response, "data", []) or []
+        
+        # Filter out own reports if requested
+        if exclude_own:
+            reports = [r for r in reports if str(r.get("user_id")) != str(user_id)]
+        
+        # Calculate trending score for each report
+        now = datetime.now(timezone.utc)
+        scored_reports = []
+        
+        for report in reports:
+            # Parse created_at
+            created_at = report.get("created_at")
+            if isinstance(created_at, str):
+                try:
+                    created_at = datetime.fromisoformat(created_at.replace("Z", "+00:00"))
+                except:
+                    created_at = now
+            
+            hours_old = max(0, (now - created_at).total_seconds() / 3600)
+            
+            # Engagement score from reactions
+            reaction_count = report.get("reaction_count") or 0
+            
+            # Category weight for priority
+            category_weights = {"Crime": 3, "Hazard": 2.5, "Concern": 2, "Lost&Found": 1, "Others": 1}
+            category_weight = category_weights.get(report.get("category"), 1)
+            
+            # Trending score = (reactions * 2 + category_weight) / (hours_old + 2)^1.5
+            engagement = (reaction_count * 2) + category_weight
+            time_decay = pow(hours_old + 2, 1.5)
+            trending_score = engagement / time_decay
+            
+            scored_reports.append({
+                **report,
+                "trending_score": trending_score
+            })
+        
+        # Sort by trending score and limit
+        trending = sorted(scored_reports, key=lambda x: x["trending_score"], reverse=True)[:limit]
+        
+        return jsonify({
+            "status": "success",
+            "reports": trending,
+            "total": len(trending)
+        }), 200
+        
+    except Exception as e:
+        print(f"❌ Error getting trending reports: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({"status": "error", "message": str(e), "reports": []}), 500
+
+
+@reports_bp.route("/reports/trending/by-barangay", methods=["GET"])
+@token_required  
+def get_trending_by_barangay():
+    """
+    Get trending reports grouped by barangay.
+    Returns top reports for user's barangay and other barangays.
+    """
+    user_id = request.user_id
+    limit_per_barangay = int(request.args.get("limit", 3))
+    
+    try:
+        # Get user's barangay
+        info_resp = supabase.table("info").select("address_barangay").eq("user_id", user_id).execute()
+        info_data = getattr(info_resp, "data", [None])[0]
+        user_barangay = info_data.get("address_barangay") if info_data else None
+        
+        # Get all recent reports with reactions
+        query = supabase.table("reports").select(
+            "id, title, category, status, address_barangay, created_at, reaction_count, user_id"
+        ).is_("deleted_at", "null").neq("status", "Resolved")
+        
+        response = query.order("created_at", desc=True).limit(100).execute()
+        reports = getattr(response, "data", []) or []
+        
+        # Exclude own reports
+        reports = [r for r in reports if str(r.get("user_id")) != str(user_id)]
+        
+        # Calculate trending scores
+        now = datetime.now(timezone.utc)
+        for report in reports:
+            created_at = report.get("created_at")
+            if isinstance(created_at, str):
+                try:
+                    created_at = datetime.fromisoformat(created_at.replace("Z", "+00:00"))
+                except:
+                    created_at = now
+            
+            hours_old = max(0, (now - created_at).total_seconds() / 3600)
+            reaction_count = report.get("reaction_count") or 0
+            category_weights = {"Crime": 3, "Hazard": 2.5, "Concern": 2, "Lost&Found": 1, "Others": 1}
+            category_weight = category_weights.get(report.get("category"), 1)
+            
+            engagement = (reaction_count * 2) + category_weight
+            time_decay = pow(hours_old + 2, 1.5)
+            report["trending_score"] = engagement / time_decay
+        
+        # Group by barangay
+        barangay_groups = {}
+        for report in reports:
+            brgy = report.get("address_barangay") or "Unknown"
+            if brgy not in barangay_groups:
+                barangay_groups[brgy] = []
+            barangay_groups[brgy].append(report)
+        
+        # Sort each group and take top N
+        result = {
+            "user_barangay": user_barangay,
+            "your_barangay": [],
+            "other_barangays": {}
+        }
+        
+        for brgy, brgy_reports in barangay_groups.items():
+            sorted_reports = sorted(brgy_reports, key=lambda x: x["trending_score"], reverse=True)[:limit_per_barangay]
+            
+            if brgy == user_barangay:
+                result["your_barangay"] = sorted_reports
+            else:
+                if sorted_reports:  # Only include barangays with reports
+                    result["other_barangays"][brgy] = sorted_reports
+        
+        return jsonify({
+            "status": "success",
+            **result
+        }), 200
+        
+    except Exception as e:
+        print(f"❌ Error getting trending by barangay: {e}")
         return jsonify({"status": "error", "message": str(e)}), 500

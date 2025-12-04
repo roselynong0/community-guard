@@ -117,14 +117,15 @@ def get_all_community_posts_admin():
 @community_feed_bp.route("/community/posts", methods=["GET"])
 @token_required
 def get_community_posts():
-    """Get all community posts with filtering options"""
+    """Get all community posts with filtering options and newsfeed algorithm"""
     try:
         user_id = request.user_id
         barangay_filter = request.args.get("barangay")
         post_type_filter = request.args.get("post_type")
+        sort_algorithm = request.args.get("sort", "trending")  # trending, latest, top
         limit = int(request.args.get("limit", 20))
         
-        print(f"📝 Fetching community posts - barangay: {barangay_filter}, type: {post_type_filter}")
+        print(f"📝 Fetching community posts - barangay: {barangay_filter}, type: {post_type_filter}, sort: {sort_algorithm}")
         
         # Build query - OPTIMIZATION: Select only needed fields (include is_accepted, is_rejected)
         query = supabase.table("community_posts").select(
@@ -138,8 +139,8 @@ def get_community_posts():
         if post_type_filter and post_type_filter in POST_TYPES:
             query = query.eq("post_type", post_type_filter)
 
-        # Order by pinned first, then by created_at
-        response = query.order("is_pinned", desc=True).order("created_at", desc=True).limit(limit).execute()
+        # Order by pinned first, then by created_at (we'll re-sort with algorithm later)
+        response = query.order("is_pinned", desc=True).order("created_at", desc=True).limit(limit * 2).execute()
         posts = getattr(response, "data", []) or []
 
         # Filter out posts that shouldn't be visible to the user.
@@ -217,8 +218,80 @@ def get_community_posts():
                 post["can_delete"] = post["user_id"] == user_id
                 enriched_posts.append(post)
         
-        print(f"✅ Loaded {len(enriched_posts)} community posts")
-        return jsonify({"status": "success", "posts": enriched_posts, "total": len(enriched_posts)}), 200
+        # Apply newsfeed algorithm based on sort type
+        from datetime import datetime, timezone
+        
+        def calculate_trending_score(post):
+            """
+            Trending Score Algorithm:
+            - Combines engagement (reactions + comments) with time decay
+            - Formula: (reactions * 2 + comments * 3) / (hours_old + 2)^1.5
+            - The +2 prevents division by very small numbers for new posts
+            - The ^1.5 creates a smooth decay curve
+            """
+            reactions = post.get("reaction_count", 0)
+            comments = post.get("comment_count", 0)
+            
+            # Calculate age in hours
+            created_at = post.get("created_at", "")
+            try:
+                if created_at:
+                    # Parse ISO format datetime
+                    if created_at.endswith("Z"):
+                        created_at = created_at[:-1] + "+00:00"
+                    post_time = datetime.fromisoformat(created_at.replace("Z", "+00:00"))
+                    now = datetime.now(timezone.utc)
+                    hours_old = (now - post_time).total_seconds() / 3600
+                else:
+                    hours_old = 24  # Default to 24 hours if no date
+            except:
+                hours_old = 24
+            
+            # Engagement score with weighted factors
+            engagement = (reactions * 2) + (comments * 3)
+            
+            # Time decay factor - newer posts get boosted
+            time_factor = (hours_old + 2) ** 1.5
+            
+            # Calculate trending score
+            trending_score = engagement / time_factor
+            
+            # Boost pinned posts significantly
+            if post.get("is_pinned"):
+                trending_score += 10000
+            
+            return trending_score
+        
+        def calculate_top_score(post):
+            """
+            Top Score Algorithm:
+            - Pure engagement ranking, no time decay
+            - Good for "best of all time" sorting
+            """
+            reactions = post.get("reaction_count", 0)
+            comments = post.get("comment_count", 0)
+            
+            # Pinned posts always on top
+            base = 10000 if post.get("is_pinned") else 0
+            return base + (reactions * 2) + (comments * 3)
+        
+        # Sort based on algorithm type
+        if sort_algorithm == "trending":
+            enriched_posts.sort(key=calculate_trending_score, reverse=True)
+            print(f"🔥 Applied TRENDING algorithm")
+        elif sort_algorithm == "top":
+            enriched_posts.sort(key=calculate_top_score, reverse=True)
+            print(f"⭐ Applied TOP algorithm")
+        elif sort_algorithm == "latest":
+            # Already sorted by created_at desc, just ensure pinned stays on top
+            enriched_posts.sort(key=lambda p: (p.get("is_pinned", False), p.get("created_at", "")), reverse=True)
+            print(f"🕐 Applied LATEST algorithm")
+        
+        # Limit results after sorting
+        enriched_posts = enriched_posts[:limit]
+        
+        print(f"✅ Loaded {len(enriched_posts)} community posts with {sort_algorithm} sorting")
+        return jsonify({"status": "success", "posts": enriched_posts, "total": len(enriched_posts), "sort": sort_algorithm}), 200
         
     except Exception as e:
         print(f"❌ Error fetching community posts: {e}")
@@ -1188,6 +1261,151 @@ def create_barangay_official_post():
         
     except Exception as e:
         print(f"❌ Error creating barangay official post: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+
+# ============ LGU ANNOUNCEMENTS ============
+
+@community_feed_bp.route("/announcements", methods=["GET"])
+@token_required
+def get_announcements():
+    """
+    Get LGU/Barangay announcements (pinned posts from officials)
+    Returns pinned posts from Admin and Barangay Officials
+    """
+    try:
+        user_id = request.user_id
+        barangay_filter = request.args.get("barangay")
+        limit = int(request.args.get("limit", 10))
+        
+        # Get user's barangay if not provided
+        if not barangay_filter:
+            user_resp = supabase.table("users").select("address_barangay").eq("id", user_id).execute()
+            user_data = getattr(user_resp, "data", [None])[0]
+            if user_data:
+                barangay_filter = user_data.get("address_barangay")
+        
+        print(f"📢 Fetching announcements for barangay: {barangay_filter}")
+        
+        # Build query for pinned posts from officials
+        query = supabase.table("community_posts").select(
+            "id, user_id, title, content, post_type, barangay, status, "
+            "created_at, updated_at, is_pinned"
+        ).eq("is_pinned", True).eq("status", "approved").is_("deleted_at", "null")
+        
+        # Filter by barangay if provided
+        if barangay_filter and barangay_filter != "All":
+            query = query.eq("barangay", barangay_filter)
+        
+        response = query.order("created_at", desc=True).limit(limit).execute()
+        posts = getattr(response, "data", []) or []
+        
+        # Enrich with author info (only officials)
+        announcements = []
+        for post in posts:
+            # Get author info
+            author_resp = supabase.table("users").select(
+                "id, firstname, lastname, role, avatar_url"
+            ).eq("id", post["user_id"]).execute()
+            author = getattr(author_resp, "data", [None])[0]
+            
+            # Only include posts from Admin or Barangay Official
+            if author and author.get("role") in ["Admin", "Barangay Official"]:
+                post["author"] = author
+                post["is_announcement"] = True
+                announcements.append(post)
+        
+        print(f"✅ Loaded {len(announcements)} announcements")
+        return jsonify({
+            "status": "success", 
+            "announcements": announcements, 
+            "total": len(announcements)
+        }), 200
+        
+    except Exception as e:
+        print(f"❌ Error fetching announcements: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({"status": "error", "message": str(e), "announcements": []}), 500
+
+
+@community_feed_bp.route("/announcements", methods=["POST"])
+@token_required
+def create_announcement():
+    """
+    Create a new LGU announcement (Admin/Barangay Official only)
+    Auto-approves and pins the post
+    """
+    try:
+        user_id = request.user_id
+        data = request.get_json()
+        
+        # Verify user is Admin or Barangay Official
+        user_resp = supabase.table("users").select(
+            "id, role, address_barangay, firstname, lastname, avatar_url"
+        ).eq("id", user_id).execute()
+        user_data = getattr(user_resp, "data", [None])[0]
+        
+        if not user_data:
+            return jsonify({"status": "error", "message": "User not found"}), 403
+        
+        user_role = user_data.get("role")
+        if user_role not in ["Admin", "Barangay Official"]:
+            return jsonify({"status": "error", "message": "Only Admin and Barangay Officials can create announcements"}), 403
+        
+        # Validation
+        required_fields = ["title", "content"]
+        missing_fields = [field for field in required_fields if not data.get(field)]
+        
+        if missing_fields:
+            return jsonify({"status": "error", "message": f"Missing fields: {', '.join(missing_fields)}"}), 400
+        
+        # Determine barangay
+        barangay = data.get("barangay") or user_data.get("address_barangay")
+        if user_role == "Barangay Official" and not barangay:
+            return jsonify({"status": "error", "message": "Barangay not set for official"}), 400
+        
+        # Create announcement (auto-approved and pinned)
+        new_announcement = {
+            "user_id": user_id,
+            "title": data.get("title").strip(),
+            "content": data.get("content").strip(),
+            "post_type": "general",  # Announcements are general posts
+            "barangay": barangay,
+            "status": "approved",
+            "is_pinned": True,  # ✅ Always pinned
+            "is_accepted": True,
+            "allow_comments": data.get("allow_comments", True),
+            "created_at": datetime.now(timezone.utc).isoformat()
+        }
+        
+        response = supabase.table("community_posts").insert(new_announcement).execute()
+        announcement = getattr(response, "data", [None])[0]
+        
+        if not announcement:
+            return jsonify({"status": "error", "message": "Failed to create announcement"}), 500
+        
+        # Add author info
+        announcement["author"] = {
+            "id": user_id,
+            "firstname": user_data.get("firstname", "Unknown"),
+            "lastname": user_data.get("lastname", "User"),
+            "avatar_url": user_data.get("avatar_url"),
+            "role": user_role
+        }
+        announcement["is_announcement"] = True
+        
+        print(f"✅ Announcement created by {user_role} {user_id}")
+        return jsonify({
+            "status": "success", 
+            "announcement": announcement, 
+            "message": "Announcement published successfully!"
+        }), 201
+        
+    except Exception as e:
+        print(f"❌ Error creating announcement: {e}")
         import traceback
         traceback.print_exc()
         return jsonify({"status": "error", "message": str(e)}), 500

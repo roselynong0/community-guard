@@ -65,19 +65,23 @@ const createColoredIcon = (color) => {
 
 const getColor = (barangay) => barangayColors[barangay?.trim()] || "gray";
 
-const hexToColorName = (hex) => {
-  const colorMap = {
-    "#3b82f6": "blue",
-    "#ef4444": "red",
-    "#10b981": "green",
-    "#f97316": "orange",
-    "#a855f7": "violet",
-    "#6b7280": "grey",
-    "#eab308": "yellow",
-    "#000000": "black",
-  };
-  return colorMap[hex] || "gray";
+// Priority colors matching reports - Critical (Crime), High (Hazard), Medium (Concern/Lost&Found), Low (Others)
+const CATEGORY_COLORS = {
+  Crime: { bg: '#fdedec', text: '#c0392b', label: '🔴 Critical' },
+  Hazard: { bg: '#fef5e7', text: '#d35400', label: '🟠 High' },
+  Concern: { bg: '#fef9c3', text: '#ca8a04', label: '🟡 Medium' },
+  'Lost&Found': { bg: '#fef9c3', text: '#ca8a04', label: '🟡 Medium' },
+  Others: { bg: '#ecf0f1', text: '#95a5a6', label: '⚪ Low' },
 };
+
+const STATUS_COLORS = {
+  Resolved: { bg: '#d1fae5', text: '#059669' },
+  Ongoing: { bg: '#fee2e2', text: '#dc2626' },
+  Pending: { bg: '#fef9c3', text: '#ca8a04' },
+};
+
+const getCategoryStyle = (category) => CATEGORY_COLORS[category] || CATEGORY_COLORS.Others;
+const getStatusStyle = (status) => STATUS_COLORS[status] || STATUS_COLORS.Pending;
 
 const normalizeSafezone = (safezone) => {
   if (!safezone) {
@@ -141,6 +145,69 @@ const normalizeSafezone = (safezone) => {
   return null;
 };
 
+const getDistanceInMeters = (lat1, lon1, lat2, lon2) => {
+  const R = 6371000; // Earth's radius in meters
+  const dLat = (lat2 - lat1) * Math.PI / 180;
+  const dLon = (lon2 - lon1) * Math.PI / 180;
+  const a = 
+    Math.sin(dLat/2) * Math.sin(dLat/2) +
+    Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * 
+    Math.sin(dLon/2) * Math.sin(dLon/2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+  return R * c;
+};
+
+// Group overlapping reports within a distance threshold (default 150 meters)
+const groupOverlappingReports = (reports, thresholdMeters = 150) => {
+  const validReports = reports.filter(r => r.latitude && r.longitude);
+  const groups = [];
+  const assigned = new Set();
+  
+  console.log(`📍 Grouping ${validReports.length} reports with ${thresholdMeters}m threshold`);
+  
+  validReports.forEach((report, idx) => {
+    if (assigned.has(idx)) return;
+    
+    // Start a new group with this report
+    const group = {
+      latitude: parseFloat(report.latitude),
+      longitude: parseFloat(report.longitude),
+      reports: [report]
+    };
+    assigned.add(idx);
+    
+    // Find all other reports within threshold distance
+    validReports.forEach((otherReport, otherIdx) => {
+      if (assigned.has(otherIdx)) return;
+      
+      const distance = getDistanceInMeters(
+        parseFloat(report.latitude), parseFloat(report.longitude),
+        parseFloat(otherReport.latitude), parseFloat(otherReport.longitude)
+      );
+      
+      if (distance <= thresholdMeters) {
+        group.reports.push(otherReport);
+        assigned.add(otherIdx);
+        console.log(`  ↳ Grouped report ${otherReport.id} (${distance.toFixed(1)}m away)`);
+      }
+    });
+    
+    // Calculate centroid for the group marker position
+    if (group.reports.length > 1) {
+      const avgLat = group.reports.reduce((sum, r) => sum + parseFloat(r.latitude), 0) / group.reports.length;
+      const avgLng = group.reports.reduce((sum, r) => sum + parseFloat(r.longitude), 0) / group.reports.length;
+      group.latitude = avgLat;
+      group.longitude = avgLng;
+      console.log(`📦 Created group with ${group.reports.length} reports at centroid [${avgLat.toFixed(5)}, ${avgLng.toFixed(5)}]`);
+    }
+    
+    groups.push(group);
+  });
+  
+  console.log(`📍 Result: ${groups.length} marker groups from ${validReports.length} reports`);
+  return groups;
+};
+
 function Maps({ session, userRole }) {
   const [reports, setReports] = useState([]);
   const [hotspots, setHotspots] = useState([]);
@@ -148,6 +215,7 @@ function Maps({ session, userRole }) {
   const [userBarangay, setUserBarangay] = useState(null);
   const [loading, setLoading] = useState(true);
   const [selectedBarangay, setSelectedBarangay] = useState('all');
+  const [statusFilter, setStatusFilter] = useState('active'); // 'active' = all except resolved, 'resolved' = resolved only, 'all' = all
   const [showHotspots, setShowHotspots] = useState(true);
   const [showSafezones, setShowSafezones] = useState(true);
   const [userLocation, setUserLocation] = useState(null);
@@ -263,10 +331,19 @@ function Maps({ session, userRole }) {
   // Get all unique barangays for filter dropdown
   const allBarangays = Object.keys(reportsByBarangay).sort();
 
-  // Filter reports based on selected barangay
-  const filteredReports = selectedBarangay === 'all' 
-    ? reports 
-    : reports.filter(r => r.address_barangay === selectedBarangay);
+  // Filter reports based on selected barangay and status
+  const filteredReports = reports
+    .filter(r => selectedBarangay === 'all' || r.address_barangay === selectedBarangay)
+    .filter(r => {
+      if (statusFilter === 'active') return r.status !== 'Resolved'; // Pending + Ongoing
+      if (statusFilter === 'pending') return r.status === 'Pending';
+      if (statusFilter === 'ongoing') return r.status === 'Ongoing';
+      if (statusFilter === 'resolved') return r.status === 'Resolved';
+      return true; // 'all' shows everything
+    });
+
+  // Group overlapping markers for display
+  const groupedMarkers = groupOverlappingReports(filteredReports);
 
   const content = (
     <div className="maps-page">
@@ -356,61 +433,134 @@ function Maps({ session, userRole }) {
             </Circle>
           ))}
 
-          {/* Report markers grouped by barangay */}
-          {Object.entries(reportsByBarangay).map(([barangay, reportsArray], i) => {
-            // Only show if this barangay is selected or all are selected
-            const markerPosition = [reportsArray[0].latitude, reportsArray[0].longitude];
-            // Dim markers not in the selected barangay
-            const isSelected = selectedBarangay === 'all' || barangay === selectedBarangay;
-
+          {/* Grouped report markers - overlapping reports share one marker with stacked popup */}
+          {groupedMarkers.map((group, groupIdx) => {
+            const primaryReport = group.reports[0];
+            const reportCount = group.reports.length;
+            const isStacked = reportCount > 1;
+            
             return (
               <Marker
-                key={`marker-${i}`}
-                position={markerPosition}
-                icon={createColoredIcon(getColor(barangay))}
-                opacity={isSelected ? 1 : 0.35}
-                className={`barangay-marker barangay-${barangay.replace(/\s+/g, '-')}`}
+                key={`report-group-${groupIdx}`}
+                position={[group.latitude, group.longitude]}
+                icon={createColoredIcon(getColor(primaryReport.address_barangay))}
+                className={`report-marker barangay-${primaryReport.address_barangay?.replace(/\s+/g, '-')}`}
               >
                 <Popup>
-                  <div style={{ fontWeight: "bold", fontSize: "14px", marginBottom: "4px" }}>
-                    📍 {barangay}
-                  </div>
-                  <div style={{ fontSize: "13px", marginBottom: "4px" }}>
-                    📊 Total Reports: {reportsArray.length}
-                  </div>
-
-                  {reportsArray.slice(0, 3).map((r, idx) => (
-                    <div key={idx} style={{ fontSize: "12px", marginBottom: "6px", borderTop: idx === 0 ? 'none' : '1px solid #eee', paddingTop: idx === 0 ? '0' : '6px' }}>
-                      <strong>{r.title}</strong>
-                      <br />
-                      📍 {r.address_street}
-                      <br />
-                      👤 {r.reporter?.first_name || "Unknown"} {r.reporter?.last_name || ""}
+                  <div style={{ minWidth: '200px', maxHeight: isStacked ? '300px' : 'auto', overflowY: isStacked ? 'auto' : 'visible' }}>
+                    {/* Header with barangay */}
+                    <div style={{ 
+                      fontWeight: "bold", 
+                      fontSize: "14px", 
+                      marginBottom: "8px", 
+                      color: '#2d2d73',
+                      borderBottom: '1px solid #e5e7eb',
+                      paddingBottom: '8px'
+                    }}>
+                      📍 {primaryReport.address_barangay}
                     </div>
-                  ))}
-                  {reportsArray.length > 3 && (
-                    <div style={{ fontSize: "11px", color: "#2563eb", marginTop: '6px', paddingTop: '6px', borderTop: '1px solid #eee' }}>
-                      +{reportsArray.length - 3} more reports
-                    </div>
-                  )}
+                    
+                    {/* Render each report in the group */}
+                    {group.reports.map((r, rIdx) => {
+                      const catStyle = getCategoryStyle(r.category);
+                      const statStyle = getStatusStyle(r.status);
+                      
+                      return (
+                        <div 
+                          key={`report-${r.id || rIdx}`}
+                          style={{ 
+                            marginBottom: isStacked && rIdx < reportCount - 1 ? '12px' : '0',
+                            paddingBottom: isStacked && rIdx < reportCount - 1 ? '12px' : '0',
+                            borderBottom: isStacked && rIdx < reportCount - 1 ? '1px solid #e5e7eb' : 'none'
+                          }}
+                        >
+                          {/* Report Count, Category and Status Tags - show on first report only */}
+                          {rIdx === 0 && (
+                            <div style={{ display: 'flex', gap: '6px', marginBottom: '6px', flexWrap: 'wrap', alignItems: 'center' }}>
+                              <span style={{
+                                fontSize: '11px',
+                                fontWeight: '600',
+                                padding: '3px 8px',
+                                borderRadius: '4px',
+                                background: '#3b82f6',
+                                color: '#fff',
+                                border: '1px solid #2563eb'
+                              }}>
+                                {reportCount} {reportCount === 1 ? 'Report' : 'Reports'}
+                              </span>
+                              <span style={{ 
+                                fontSize: '11px', 
+                                fontWeight: '600', 
+                                padding: '3px 8px',
+                                background: catStyle.bg,
+                                color: catStyle.text,
+                                borderRadius: '4px',
+                                border: `1px solid ${catStyle.text}`
+                              }}>
+                                {r.category || 'Others'}
+                              </span>
+                              <span style={{ 
+                                fontSize: '11px', 
+                                fontWeight: '600',
+                                padding: '3px 8px',
+                                borderRadius: '4px',
+                                background: statStyle.bg,
+                                color: statStyle.text,
+                                border: `1px solid ${statStyle.text}`
+                              }}>
+                                {r.status || 'Pending'}
+                              </span>
+                            </div>
+                          )}
+                          
+                          {/* Show category/status for additional stacked reports */}
+                          {rIdx > 0 && (
+                            <div style={{ display: 'flex', gap: '6px', marginBottom: '6px', flexWrap: 'wrap', alignItems: 'center' }}>
+                              <span style={{ 
+                                fontSize: '11px', 
+                                fontWeight: '600', 
+                                padding: '3px 8px',
+                                background: catStyle.bg,
+                                color: catStyle.text,
+                                borderRadius: '4px',
+                                border: `1px solid ${catStyle.text}`
+                              }}>
+                                {r.category || 'Others'}
+                              </span>
+                              <span style={{ 
+                                fontSize: '11px', 
+                                fontWeight: '600',
+                                padding: '3px 8px',
+                                borderRadius: '4px',
+                                background: statStyle.bg,
+                                color: statStyle.text,
+                                border: `1px solid ${statStyle.text}`
+                              }}>
+                                {r.status || 'Pending'}
+                              </span>
+                            </div>
+                          )}
+                          
+                          <div style={{ fontSize: '13px', fontWeight: '600', marginBottom: '4px' }}>
+                            {r.title}
+                          </div>
+                        <div style={{ fontSize: "11px", color: "#555", marginBottom: "3px" }}>
+                          📍 {r.address_street}
+                        </div>
+                        <div style={{ fontSize: "11px", color: "#666", marginBottom: "3px" }}>
+                          👤 {r.reporter?.first_name || r.reporter?.firstname || "Unknown"} {r.reporter?.last_name || r.reporter?.lastname || ""}
+                        </div>
+                          <div style={{ fontSize: '10px', color: '#888' }}>
+                            🕐 {new Date(r.created_at).toLocaleDateString()}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
                 </Popup>
               </Marker>
             );
           })}
-
-          {/* Individual report markers */}
-          {filteredReports.map((r, idx) =>
-            r.latitude && r.longitude ? (
-              <CircleMarker
-                key={`report-${idx}`}
-                center={[r.latitude, r.longitude]}
-                radius={6}
-                color={hexToColorName(getColor(r.address_barangay))}
-                fillColor={hexToColorName(getColor(r.address_barangay))}
-                fillOpacity={0.8}
-              />
-            ) : null
-          )}
 
           {/* User location pointer - residents only */}
           {userLocation && userRole === 'Resident' && (
@@ -428,9 +578,7 @@ function Maps({ session, userRole }) {
               >
                 <Popup>
                   <div>
-                    <strong>Your location</strong>
-                    <br />
-                    <small style={{ color: '#666' }}>Lat: {userLocation.latitude.toFixed(5)}, Lng: {userLocation.longitude.toFixed(5)}</small>
+                    <strong>📍 Your Location</strong>
                   </div>
                 </Popup>
               </Marker>
@@ -486,6 +634,34 @@ function Maps({ session, userRole }) {
                     {barangay} ({reportsByBarangay[barangay].length})
                   </option>
                 ))}
+              </select>
+            </div>
+
+            {/* Status Filter */}
+            <div style={{ marginBottom: '16px' }}>
+              <label style={{ display: 'block', fontSize: '12px', fontWeight: '600', color: '#666', marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                Filter Status
+              </label>
+              <select
+                value={statusFilter}
+                onChange={(e) => setStatusFilter(e.target.value)}
+                style={{
+                  width: '100%',
+                  padding: '8px 12px',
+                  borderRadius: '6px',
+                  border: '1px solid #d1d5db',
+                  fontSize: '14px',
+                  cursor: 'pointer',
+                  backgroundColor: '#fff',
+                  color: '#111',
+                  fontWeight: '500'
+                }}
+              >
+                <option value="active">All Active Reports</option>
+                <option value="pending">Pending Only</option>
+                <option value="ongoing">Ongoing Only</option>
+                <option value="resolved">Resolved Only</option>
+                <option value="all">All Reports</option>
               </select>
             </div>
 

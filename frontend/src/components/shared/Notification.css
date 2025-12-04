@@ -35,6 +35,47 @@
     color: #3c3c3c; /* Dark text for yellow background */
 }
 
+/* Premium notification - golden/yellowish theme */
+.notif-premium {
+    background: linear-gradient(135deg, #f39c12 0%, #e67e22 50%, #f1c40f 100%);
+    color: #1a1a2e;
+    border: 2px solid #ffeeba;
+    box-shadow: 0 4px 20px rgba(243, 156, 18, 0.4), 0 0 30px rgba(241, 196, 15, 0.2);
+    position: relative;
+    overflow: hidden;
+}
+
+.notif-premium::before {
+    content: '✨';
+    position: absolute;
+    left: -5px;
+    top: 50%;
+    transform: translateY(-50%);
+    font-size: 1.2em;
+    animation: premiumSparkle 2s ease-in-out infinite;
+}
+
+.notif-premium::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -100%;
+    width: 50%;
+    height: 100%;
+    background: linear-gradient(90deg, transparent, rgba(255,255,255,0.3), transparent);
+    animation: premiumShine 3s ease-in-out infinite;
+}
+
+@keyframes premiumSparkle {
+    0%, 100% { opacity: 1; transform: translateY(-50%) scale(1); }
+    50% { opacity: 0.7; transform: translateY(-50%) scale(1.2); }
+}
+
+@keyframes premiumShine {
+    0% { left: -100%; }
+    100% { left: 200%; }
+}
+
 /* Inline field errors */
 .error {
   color: red;

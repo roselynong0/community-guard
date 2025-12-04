@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef } from "react";
+import React, { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import axios from "axios";
 import {
   FaEdit,
@@ -9,7 +9,13 @@ import {
   FaTimesCircle,
   FaQuestionCircle,
   FaTimes,
-  FaChartLine } from "react-icons/fa";
+  FaChartLine,
+  FaHeart,
+  FaRegHeart,
+  FaPlus,
+  FaMinus,
+  FaMapPin,
+  FaFire } from "react-icons/fa";
 import {
   MapContainer,
   TileLayer, Marker,
@@ -133,6 +139,15 @@ function Reports({ session }) {
   const [sort, setSort] = useState("latest");
   const [showMyReports, setShowMyReports] = useState(false);
   const [previewImage, setPreviewImage] = useState(null);
+  
+  // ⭐ NEW: User's barangay for "From Your Barangay" section
+  const [userBarangay, setUserBarangay] = useState(null);
+  const [barangayReports, setBarangayReports] = useState([]); // Reports from user's barangay (excluding own)
+  const [otherBarangayReports, setOtherBarangayReports] = useState([]); // Trending from other barangays
+  
+  // ⭐ NEW: Trending container state
+  const [trendingExpanded, setTrendingExpanded] = useState(true); // Collapsible state
+  const [trendingTimeFilter, setTrendingTimeFilter] = useState("this-month"); // today, yesterday, this-month
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [newReport, setNewReport] = useState({
@@ -259,6 +274,169 @@ function Reports({ session }) {
     }, 3000); // Notification disappears after 3 seconds
   };
 
+  // ⭐ NEW: Fetch user's barangay from profile
+  const fetchUserBarangay = useCallback(async () => {
+    if (!token) return;
+    try {
+      const res = await axios.get(
+        getApiUrl(API_CONFIG.endpoints.profile),
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      if (res.data?.status === "success" && res.data?.profile) {
+        const barangayValue = res.data.profile.address_barangay;
+        if (barangayValue && barangayValue !== "No barangay selected") {
+          setUserBarangay(barangayValue);
+          console.log("📍 User barangay:", barangayValue);
+        }
+      }
+    } catch (err) {
+      console.warn("Could not fetch user barangay:", err);
+    }
+  }, [token]);
+
+  // ⭐ NEW: Compute "From Your Barangay" reports with newsfeed algorithm
+  // Shows trending reports from user's barangay (excluding own reports)
+  useEffect(() => {
+    if (!userBarangay || !reports.length || !session?.user?.id) {
+      setBarangayReports([]);
+      return;
+    }
+
+    // Time filter logic
+    const now = new Date();
+    const filterByTime = (createdAt) => {
+      const reportDate = new Date(createdAt);
+      const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+      const yesterday = new Date(today);
+      yesterday.setDate(yesterday.getDate() - 1);
+      const thisMonthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+      
+      switch (trendingTimeFilter) {
+        case "today":
+          return reportDate >= today;
+        case "yesterday":
+          return reportDate >= yesterday && reportDate < today;
+        case "this-month":
+          return reportDate >= thisMonthStart;
+        default:
+          return true;
+      }
+    };
+
+    // Filter reports from user's barangay (excluding own)
+    const fromBarangay = reports.filter((r) => 
+      r.address_barangay === userBarangay && 
+      String(r.user_id) !== String(session.user.id) &&
+      r.status !== "Resolved" &&
+      !r.deleted &&
+      r.is_rejected !== true &&
+      r.is_approved !== false &&
+      filterByTime(r.created_at)
+    );
+
+    // Apply trending algorithm: reactions + engagement + recency
+    // Score = (reactions * 2 + category_weight) / (hours_old + 2)^1.5
+    const scored = fromBarangay.map((r) => {
+      const createdAt = new Date(r.created_at || 0);
+      const hoursOld = Math.max(0, (now - createdAt) / (1000 * 60 * 60));
+      
+      // Engagement: reactions + severity weight
+      const severityWeight = { Crime: 3, Hazard: 2.5, Concern: 2, 'Lost&Found': 1, Others: 1 };
+      const reactionBoost = (r.reaction_count || 0) * 2;
+      const engagement = reactionBoost + (severityWeight[r.category] || 1) * 2;
+      
+      // Time decay factor
+      const timeFactor = Math.pow(hoursOld + 2, 1.5);
+      const trendingScore = engagement / timeFactor;
+      
+      return { ...r, trendingScore, isUserBarangay: true };
+    });
+
+    // Sort by trending score descending, limit to 5
+    const trending = scored
+      .sort((a, b) => b.trendingScore - a.trendingScore)
+      .slice(0, 5);
+
+    setBarangayReports(trending);
+    console.log(`🔥 ${trending.length} trending reports from ${userBarangay}`);
+  }, [userBarangay, reports, session?.user?.id, trendingTimeFilter]);
+
+  // ⭐ Compute trending reports from OTHER barangays
+  useEffect(() => {
+    if (!reports.length || !session?.user?.id) {
+      setOtherBarangayReports([]);
+      return;
+    }
+
+    // Time filter logic
+    const now = new Date();
+    const filterByTime = (createdAt) => {
+      const reportDate = new Date(createdAt);
+      const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+      const yesterday = new Date(today);
+      yesterday.setDate(yesterday.getDate() - 1);
+      const thisMonthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+      
+      switch (trendingTimeFilter) {
+        case "today":
+          return reportDate >= today;
+        case "yesterday":
+          return reportDate >= yesterday && reportDate < today;
+        case "this-month":
+          return reportDate >= thisMonthStart;
+        default:
+          return true;
+      }
+    };
+
+    // Filter reports from OTHER barangays (excluding own reports)
+    const fromOtherBarangays = reports.filter((r) => 
+      r.address_barangay !== userBarangay && 
+      String(r.user_id) !== String(session.user.id) &&
+      r.status !== "Resolved" &&
+      !r.deleted &&
+      r.is_rejected !== true &&
+      r.is_approved !== false &&
+      r.address_barangay &&
+      filterByTime(r.created_at)
+    );
+
+    // Apply trending algorithm with reaction count
+    const scored = fromOtherBarangays.map((r) => {
+      const createdAt = new Date(r.created_at || 0);
+      const hoursOld = Math.max(0, (now - createdAt) / (1000 * 60 * 60));
+      
+      const severityWeight = { Crime: 3, Hazard: 2.5, Concern: 2, 'Lost&Found': 1, Others: 1 };
+      const reactionBoost = (r.reaction_count || 0) * 2;
+      const engagement = reactionBoost + (severityWeight[r.category] || 1) * 2;
+      
+      const timeFactor = Math.pow(hoursOld + 2, 1.5);
+      const trendingScore = engagement / timeFactor;
+      
+      return { ...r, trendingScore, isUserBarangay: false };
+    });
+
+    // Sort by trending score descending, limit to 5
+    const trending = scored
+      .sort((a, b) => b.trendingScore - a.trendingScore)
+      .slice(0, 5);
+
+    setOtherBarangayReports(trending);
+    console.log(`🌍 ${trending.length} trending reports from other barangays`);
+  }, [userBarangay, reports, session?.user?.id, trendingTimeFilter]);
+
+  // ⭐ Combine all trending reports (user's barangay first, then others)
+  const allTrendingReports = useMemo(() => {
+    // Combine and sort: user's barangay reports first (with pin), then others by score
+    const combined = [...barangayReports, ...otherBarangayReports];
+    // Sort by: isUserBarangay first, then by trendingScore
+    return combined.sort((a, b) => {
+      if (a.isUserBarangay && !b.isUserBarangay) return -1;
+      if (!a.isUserBarangay && b.isUserBarangay) return 1;
+      return b.trendingScore - a.trendingScore;
+    });
+  }, [barangayReports, otherBarangayReports]);
+
   // ✅ Fetch reports
   const fetchReports = useCallback(async () => {
     if (!token) return;
@@ -315,7 +493,8 @@ function Reports({ session }) {
   // ✅ Run on mount & whenever token/sort changes
   useEffect(() => {
     fetchReports();
-  }, [fetchReports]);
+    fetchUserBarangay(); // Fetch user's barangay for "From Your Barangay" section
+  }, [fetchReports, fetchUserBarangay]);
 
   // ⭐ ORIGINAL KEYBOARD NAVIGATION EFFECT (FOR MODAL)
   useEffect(() => {
@@ -612,6 +791,47 @@ function Reports({ session }) {
     }
   };
 
+  // Handle heart/like toggle for reports
+  const handleToggleLike = async (reportId) => {
+    if (!session?.token) {
+      showNotification("Please log in to like reports", "caution");
+      return;
+    }
+
+    try {
+      const response = await fetch(getApiUrl(`/api/reports/${reportId}/react`), {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${session.token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ reaction_type: 'heart' })
+      });
+
+      const data = await response.json();
+      
+      if (data.status === 'success') {
+        // Update the report's reaction data in state
+        setReports(prevReports => 
+          prevReports.map(report => 
+            report.id === reportId 
+              ? { 
+                  ...report, 
+                  user_liked: data.action === 'added',
+                  reaction_count: data.reaction_count
+                }
+              : report
+          )
+        );
+      } else {
+        showNotification("Failed to update reaction", "error");
+      }
+    } catch (error) {
+      console.error("Error toggling like:", error);
+      showNotification("Failed to update reaction", "error");
+    }
+  };
+
   const toggleExpand = (id) => {
     setExpandedPosts((prev) =>
       prev.includes(id) ? prev.filter((i) => i !== id) : [...prev, id]
@@ -818,6 +1038,94 @@ function Reports({ session }) {
           </button>
         </div>
       </div>
+
+      {/* ⭐ Trending Pill Button Row - Below search, above reports */}
+      {allTrendingReports.length > 0 && !showMyReports && (
+        <div className="trending-pill-row">
+          <button
+            className="trending-pill-btn"
+            onClick={() => setTrendingExpanded(!trendingExpanded)}
+            title={trendingExpanded ? 'Hide trending reports' : 'Show trending reports'}
+          >
+            <FaFire className="trending-pill-icon" />
+            Trending ({allTrendingReports.length})
+            {trendingExpanded ? <FaMinus className="trending-pill-toggle" /> : <FaPlus className="trending-pill-toggle" />}
+          </button>
+        </div>
+      )}
+
+      {/* ⭐ Unified Trending Reports Section - Collapsible */}
+      {allTrendingReports.length > 0 && !showMyReports && trendingExpanded && (
+        <div className="trending-reports-container expanded">
+          <div className="trending-reports-header">
+            <div className="trending-header-left">
+              <h3><FaMapPin className="trending-pin-icon" /> Current Trending Reports</h3>
+            </div>
+            <div className="trending-header-right">
+              <select
+                className="trending-time-filter"
+                value={trendingTimeFilter}
+                onChange={(e) => setTrendingTimeFilter(e.target.value)}
+              >
+                <option value="today">Today</option>
+                <option value="yesterday">Yesterday</option>
+                <option value="this-month">This Month</option>
+              </select>
+            </div>
+          </div>
+          
+          <div className="trending-reports-list">
+            {allTrendingReports.map((report) => (
+              <div 
+                key={`trending-${report.id}`} 
+                className={`trending-report-card ${report.isUserBarangay ? 'from-your-barangay' : ''}`}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  const element = document.getElementById(`report-${report.id}`);
+                  if (element) {
+                    element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    setHighlightedReportId(report.id);
+                      setTimeout(() => setHighlightedReportId(null), 3000);
+                    }
+                  }}
+                >
+                  {/* Pin badge for user's barangay */}
+                  {report.isUserBarangay && (
+                    <div className="your-barangay-badge">
+                      <FaMapPin /> Your Barangay
+                    </div>
+                  )}
+                  
+                  <div className="trending-report-category" data-category={report.category}>
+                    {report.category}
+                  </div>
+                  <div className="trending-report-title">{report.title}</div>
+                  <div className="trending-report-location">
+                    📍 {report.address_barangay}
+                  </div>
+                  <div className="trending-report-meta">
+                    <span className="trending-report-status" data-status={report.status?.toLowerCase()}>
+                      {report.status}
+                    </span>
+                    <span className="trending-report-time">
+                      {new Date(report.created_at).toLocaleDateString()}
+                    </span>
+                  </div>
+                  <div className="trending-report-likes">
+                    <FaHeart className="heart-icon-small" aria-hidden="true" />
+                    <span>{report.reaction_count || 0}</span>
+                  </div>
+                </div>
+              ))}
+              
+              {allTrendingReports.length === 0 && (
+                <div className="no-trending-reports">
+                  No trending reports for this time period
+                </div>
+              )}
+            </div>
+        </div>
+      )}
 
       {/* Loading Indicator */}
       <div className="reports-list">
@@ -1049,6 +1357,23 @@ function Reports({ session }) {
                     ))}
                   </div>
                 )}
+
+                {/* Heart/Like Button */}
+                <div className="report-reactions">
+                  <button
+                    className={`reaction-btn heart-btn ${report.user_liked ? 'liked' : ''}`}
+                    onClick={() => handleToggleLike(report.id)}
+                    aria-label={report.user_liked ? 'Unlike this report' : 'Like this report'}
+                    title={report.user_liked ? 'Unlike' : 'Like'}
+                  >
+                    {report.user_liked ? (
+                      <FaHeart className="heart-icon filled" aria-hidden="true" />
+                    ) : (
+                      <FaRegHeart className="heart-icon" aria-hidden="true" />
+                    )}
+                    <span className="reaction-count">{report.reaction_count || 0}</span>
+                  </button>
+                </div>
               </div>
             );
           })
