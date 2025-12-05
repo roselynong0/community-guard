@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useMemo } from "react";
 import { useOutletContext } from "react-router-dom";
 import "../resident/CommunityFeed.css";
 import "../resident/Notifications.css";
@@ -13,7 +13,14 @@ import {
   FaComment,
   FaCommentSlash,
   FaHeart,
-  FaRegHeart
+  FaRegHeart,
+  FaSearch,
+  FaFire,
+  FaClock,
+  FaStar,
+  FaPlus,
+  FaMinus,
+  FaMapPin
 } from "react-icons/fa";
 import { getApiUrl, API_CONFIG } from "../../utils/apiConfig";
 
@@ -28,6 +35,9 @@ const ROLE_COLORS = {
   "Resident": { bg: "rgba(59, 130, 246, 0.1)", text: "#3b82f6" },
 };
 
+// Sort options - null means no sort active (show pending first)
+const DEFAULT_SORT = null;
+
 const CommunityFeedBarangay = ({ session, token }) => {
   const outlet = useOutletContext?.() || {};
   const selectedBarangay = outlet.selectedBarangay || "All";
@@ -37,9 +47,18 @@ const CommunityFeedBarangay = ({ session, token }) => {
   const [openModal, setOpenModal] = useState(false);
   const [notification, setNotification] = useState(null);
   const [searchTerm, setSearchTerm] = useState("");
+  const [postTypeFilter, setPostTypeFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState("all"); // all, pending, approved
+  const [sortOrder, setSortOrder] = useState("latest"); // latest or oldest
+  const [sortBy, setSortBy] = useState(DEFAULT_SORT); // null = pending first, 'trending' or 'top'
   const [userInfo, setUserInfo] = useState(null);
   const [isOfficialUser, setIsOfficialUser] = useState(false);
+  
+  // Trending section states
+  const [trendingPosts, setTrendingPosts] = useState([]);
+  const [trendingExpanded, setTrendingExpanded] = useState(false);
+  const [trendingTimeFilter, setTrendingTimeFilter] = useState("this-month");
+  const [pendingExpanded, setPendingExpanded] = useState(false);
 
   const authToken = token || session?.token || localStorage.getItem("token") || "";
 
@@ -314,9 +333,77 @@ const CommunityFeedBarangay = ({ session, token }) => {
     }
   };
 
+  // ⭐ Compute trending posts based on engagement and recency
+  useEffect(() => {
+    if (!posts.length) {
+      setTrendingPosts([]);
+      return;
+    }
+
+    const now = new Date();
+    
+    // Time filter logic
+    const filterByTime = (createdAt) => {
+      const postDate = new Date(createdAt);
+      const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+      const yesterday = new Date(today);
+      yesterday.setDate(yesterday.getDate() - 1);
+      const thisMonthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+      
+      switch (trendingTimeFilter) {
+        case "today":
+          return postDate >= today;
+        case "yesterday":
+          return postDate >= yesterday && postDate < today;
+        case "this-month":
+          return postDate >= thisMonthStart;
+        default:
+          return true;
+      }
+    };
+    
+    // Filter only approved posts for trending and apply time filter
+    const approvedPosts = posts.filter(p => 
+      p.status === 'approved' && 
+      filterByTime(p.created_at)
+    );
+    
+    // Apply trending algorithm
+    const scored = approvedPosts.map((p) => {
+      const createdAt = new Date(p.created_at || 0);
+      const hoursOld = Math.max(0, (now - createdAt) / (1000 * 60 * 60));
+      
+      const typeWeight = { incident: 3, safety: 2.5, suggestion: 2, recommendation: 1.5, general: 1 };
+      const reactionBoost = (p.reaction_count || 0) * 2;
+      const commentBoost = (p.comment_count || 0) * 1.5;
+      const engagement = reactionBoost + commentBoost + (typeWeight[p.post_type] || 1) * 2;
+      
+      const timeFactor = Math.pow(hoursOld + 2, 1.5);
+      const trendingScore = engagement / timeFactor;
+      
+      return { ...p, trendingScore };
+    });
+
+    const trending = scored
+      .sort((a, b) => b.trendingScore - a.trendingScore)
+      .slice(0, 5);
+
+    setTrendingPosts(trending);
+  }, [posts, trendingTimeFilter]);
+
+  // Get pending posts count for the pill
+  const pendingPostsCount = useMemo(() => {
+    return posts.filter(p => p.status === 'pending' && !p.is_accepted && !p.is_rejected).length;
+  }, [posts]);
+
   // ✅ FILTER POSTS - Sort pending posts to top
-  const filteredPosts = posts
-    .filter((p) => {
+  const filteredPosts = useMemo(() => {
+    let filtered = posts.filter((p) => {
+      // Filter out rejected posts (they shouldn't show to anyone except the author)
+      if (p.status === 'rejected' || p.is_rejected) {
+        return false;
+      }
+      
       const text = searchTerm.toLowerCase();
       const authorName = p.author?.firstname + " " + p.author?.lastname;
       const matchesSearch =
@@ -328,29 +415,71 @@ const CommunityFeedBarangay = ({ session, token }) => {
       if (statusFilter !== "all") {
         matchesStatus = p.status === statusFilter;
       }
+      
+      let matchesType = true;
+      if (postTypeFilter !== "all") {
+        matchesType = p.post_type === postTypeFilter;
+      }
 
-      return matchesSearch && matchesStatus;
-    })
-    .sort((a, b) => {
-      // Pending posts first, then by date
-      const aIsPending = a.status === 'pending' && !a.is_accepted;
-      const bIsPending = b.status === 'pending' && !b.is_accepted;
-      if (aIsPending && !bIsPending) return -1;
-      if (!aIsPending && bIsPending) return 1;
-      return new Date(b.created_at) - new Date(a.created_at);
+      return matchesSearch && matchesStatus && matchesType;
     });
+    
+    // Apply sorting based on sortBy
+    if (sortBy === 'trending') {
+      // Use trending scores
+      const now = new Date();
+      filtered = filtered.map(p => {
+        const createdAt = new Date(p.created_at || 0);
+        const hoursOld = Math.max(0, (now - createdAt) / (1000 * 60 * 60));
+        const typeWeight = { incident: 3, safety: 2.5, suggestion: 2, recommendation: 1.5, general: 1 };
+        const engagement = ((p.reaction_count || 0) * 2) + ((p.comment_count || 0) * 1.5) + ((typeWeight[p.post_type] || 1) * 2);
+        const trendingScore = engagement / Math.pow(hoursOld + 2, 1.5);
+        return { ...p, trendingScore };
+      }).sort((a, b) => b.trendingScore - a.trendingScore);
+    } else if (sortBy === 'top') {
+      // Sort by engagement only
+      filtered.sort((a, b) => {
+        const aScore = ((a.reaction_count || 0) * 2) + ((a.comment_count || 0) * 3);
+        const bScore = ((b.reaction_count || 0) * 2) + ((b.comment_count || 0) * 3);
+        return bScore - aScore;
+      });
+    } else {
+      // Default: Pending posts first, then by date
+      filtered.sort((a, b) => {
+        const aIsPending = a.status === 'pending' && !a.is_accepted;
+        const bIsPending = b.status === 'pending' && !b.is_accepted;
+        if (aIsPending && !bIsPending) return -1;
+        if (!aIsPending && bIsPending) return 1;
+        
+        // Then sort by date
+        if (sortOrder === "oldest") {
+          return new Date(a.created_at) - new Date(b.created_at);
+        }
+        return new Date(b.created_at) - new Date(a.created_at);
+      });
+    }
+    
+    return filtered;
+  }, [posts, searchTerm, statusFilter, postTypeFilter, sortBy, sortOrder]);
 
   const userBarangay = userInfo?.info?.address_barangay || userInfo?.address_barangay;
   const feedTitle = isOfficialUser
-    ? `Community Feed Moderation — ${userBarangay || selectedBarangay || "All"}`
+    ? `Community Feed Moderation — ${userBarangay || "My Barangay"}`
     : "Community Feed";
 
   return (
     <div className="feed-container">
+      {/* Notification - wrapped in ModalPortal for proper z-index display */}
       {notification && (
-        <div className={`notif notif-${notification.type}`}>
-          {notification.message}
-        </div>
+        <ModalPortal>
+          <div 
+            className={`notif notif-${notification.type}`}
+            role="alert" 
+            aria-live="assertive"
+          >
+            {notification.message}
+          </div>
+        </ModalPortal>
       )}
 
       <div className="feed-header">
@@ -359,40 +488,159 @@ const CommunityFeedBarangay = ({ session, token }) => {
           {feedTitle}
         </h2>
 
-        {/* ✅ SEARCH + REFRESH ROW */}
-        <div className="header-actions">
-          <input
-            className="feed-search"
-            type="text"
-            placeholder="Search post or user..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-          />
-
-          <button className="feed-btn" onClick={fetchPosts}>
-            ↻ Refresh
-          </button>
-
-          <button className="feed-btn" onClick={() => setOpenModal(true)}>
-            + New Post
-          </button>
-        </div>
-
-        {/* ✅ FILTERS ROW - Only show for officials */}
-        {isOfficialUser && (
-          <div className="feed-filters">
+        {/* ✅ TOP CONTROLS - Matching CommunityFeed Design */}
+        <div className="feed-top-controls">
+          <div className="feed-search-container">
+            <input 
+              type="text" 
+              className="feed-search-input" 
+              placeholder="Search posts..." 
+              value={searchTerm} 
+              onChange={(e) => setSearchTerm(e.target.value)}
+            />
+            <FaSearch className="feed-search-icon" aria-hidden="true" />
+          </div>
+          
+          <select 
+            className="feed-filter-select" 
+            value={postTypeFilter} 
+            onChange={(e) => setPostTypeFilter(e.target.value)}
+          >
+            <option value="all">All Types</option>
+            <option value="incident">🚨 Incident</option>
+            <option value="safety">🛡️ Safety</option>
+            <option value="suggestion">💡 Suggestion</option>
+            <option value="recommendation">⭐ Recommendation</option>
+            <option value="general">📢 General</option>
+          </select>
+          
+          {isOfficialUser && (
             <select
               className="feed-filter-select"
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value)}
             >
               <option value="all">All Status</option>
-              <option value="pending">Pending</option>
-              <option value="approved">Approved</option>
+              <option value="pending">⏳ Pending</option>
+              <option value="approved">✅ Approved</option>
+            </select>
+          )}
+          
+          <select 
+            className="feed-filter-select" 
+            value={sortOrder} 
+            onChange={(e) => setSortOrder(e.target.value)}
+          >
+            <option value="latest">Latest → Oldest</option>
+            <option value="oldest">Oldest → Latest</option>
+          </select>
+          
+          <button className="feed-btn" onClick={() => setOpenModal(true)}>+ New Post</button>
+        </div>
+      </div>
+
+      {/* ⭐ Pill Button Row: Trending, Pending, Top */}
+      <div className="feed-pill-row">
+        <button
+          className={`feed-trending-pill-btn ${sortBy === 'trending' ? 'active' : ''} ${trendingPosts.length === 0 ? 'empty' : ''}`}
+          onClick={() => {
+            if (sortBy === 'trending') {
+              setSortBy(DEFAULT_SORT);
+              setTrendingExpanded(false);
+            } else {
+              setSortBy('trending');
+              setTrendingExpanded(true);
+            }
+          }}
+          title={sortBy === 'trending' ? 'Turn off trending sort' : 'Sort by trending'}
+        >
+          <FaFire className="feed-pill-icon" />
+          Trending ({trendingPosts.length})
+          {sortBy === 'trending' ? <FaMinus className="feed-pill-toggle" /> : <FaPlus className="feed-pill-toggle" />}
+        </button>
+        
+        {isOfficialUser && (
+          <button
+            className={`feed-pending-pill-btn ${pendingExpanded ? 'active' : ''} ${pendingPostsCount === 0 ? 'empty' : ''}`}
+            onClick={() => setPendingExpanded(!pendingExpanded)}
+            title={pendingExpanded ? 'Hide pending posts' : 'Show pending posts'}
+          >
+            <FaClock className="feed-pill-icon" />
+            Pending ({pendingPostsCount})
+            {pendingExpanded ? <FaMinus className="feed-pill-toggle" /> : <FaPlus className="feed-pill-toggle" />}
+          </button>
+        )}
+
+        <button
+          className={`feed-top-pill-btn ${sortBy === 'top' ? 'active' : ''}`}
+          onClick={() => setSortBy(sortBy === 'top' ? DEFAULT_SORT : 'top')}
+          title={sortBy === 'top' ? 'Turn off top sort' : 'Sort by most engagement'}
+        >
+          <FaStar className="feed-pill-icon" />
+          Top
+        </button>
+      </div>
+
+      {/* ⭐ Trending Posts Section - Collapsible */}
+      {trendingExpanded && trendingPosts.length > 0 && (
+        <div className="feed-trending-container expanded">
+          <div className="feed-trending-header">
+            <h3><FaMapPin className="feed-trending-pin" /> Trending Posts</h3>
+            <select
+              className="trending-time-filter"
+              value={trendingTimeFilter}
+              onChange={(e) => setTrendingTimeFilter(e.target.value)}
+            >
+              <option value="today">Today</option>
+              <option value="yesterday">Yesterday</option>
+              <option value="this-month">This Month</option>
             </select>
           </div>
-        )}
-      </div>
+          <div className="feed-trending-list">
+            {trendingPosts.map((post) => (
+              <div 
+                key={`trending-${post.id}`} 
+                className="feed-trending-card"
+                onClick={() => {
+                  const element = document.getElementById(`post-${post.id}`);
+                  if (element) {
+                    element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                  }
+                }}
+              >
+                <div className="feed-trending-type" data-type={post.post_type}>
+                  {post.post_type}
+                </div>
+                <div className="feed-trending-title">{post.title}</div>
+                <div className="feed-trending-location">📍 {post.barangay}</div>
+                <div className="feed-trending-meta">
+                  <span className="feed-trending-author">
+                    {post.author?.firstname} {post.author?.lastname}
+                  </span>
+                  <span className="feed-trending-time">
+                    {new Date(post.created_at).toLocaleDateString()}
+                  </span>
+                </div>
+                <div className="feed-trending-engagement">
+                  <span className="feed-trending-likes">
+                    <FaHeart className="heart-icon-small" /> {post.reaction_count || 0}
+                  </span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {trendingExpanded && trendingPosts.length === 0 && (
+        <div className="feed-trending-container expanded empty">
+          <div className="feed-trending-empty">
+            <FaFire className="empty-icon" />
+            <p>No trending posts yet</p>
+            <span>Posts become trending based on engagement and recency</span>
+          </div>
+        </div>
+      )}
 
       <div className="feed-list">
         {loading ? (

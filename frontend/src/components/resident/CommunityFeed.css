@@ -32,12 +32,771 @@
   letter-spacing: 0.3px;
 }
 
-.feed-header {
+/* Filter loading indicator - inline, not fullscreen */
+.feed-filter-loading {
   display: flex;
-  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 16px;
+  background: linear-gradient(135deg, #f0f4ff 0%, #e8f0fe 100%);
+  border-radius: 8px;
+  margin-bottom: 16px;
+  border: 1px solid rgba(45, 59, 143, 0.1);
+}
+
+.feed-filter-loading .spinner-small {
+  width: 20px;
+  height: 20px;
+  border: 2px solid rgba(45, 59, 143, 0.15);
+  border-top: 2px solid #2d3b8f;
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+}
+
+.feed-filter-loading span {
+  color: #2d3b8f;
+  font-size: 0.9rem;
+  font-weight: 500;
+}
+
+/* ========================================
+   Pill Button Row - Trending & Sort
+   ======================================== */
+.feed-pill-row {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  flex-wrap: wrap;
+  margin: 16px 0;
+  padding: 8px 0;
+}
+
+/* Trending Pill Button */
+.feed-trending-pill-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 18px;
+  background: linear-gradient(135deg, #ff6b35 0%, #f7931e 100%);
+  color: white;
+  border: none;
+  border-radius: 50px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 0 4px 15px rgba(255, 107, 53, 0.35);
+  position: relative;
+  overflow: hidden;
+}
+
+.feed-trending-pill-btn::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
+  transition: left 0.5s;
+}
+
+.feed-trending-pill-btn:hover::before {
+  left: 100%;
+}
+
+.feed-trending-pill-btn:hover {
+  transform: translateY(-2px) scale(1.02);
+  box-shadow: 0 6px 20px rgba(255, 107, 53, 0.45);
+}
+
+.feed-trending-pill-btn.empty {
+  background: linear-gradient(135deg, #94a3b8 0%, #64748b 100%);
+  box-shadow: 0 4px 15px rgba(100, 116, 139, 0.25);
+}
+
+.feed-trending-pill-btn.empty:hover {
+  box-shadow: 0 6px 20px rgba(100, 116, 139, 0.35);
+}
+
+/* Active state for trending pill */
+.feed-trending-pill-btn.active {
+  background: linear-gradient(135deg, #ea580c 0%, #dc2626 100%);
+  box-shadow: 0 6px 20px rgba(234, 88, 12, 0.5);
+  transform: translateY(-1px);
+}
+
+.feed-trending-pill-btn.active .feed-pill-icon {
+  animation: feedFirePulseActive 0.8s ease-in-out infinite;
+}
+
+@keyframes feedFirePulseActive {
+  0%, 100% { transform: scale(1) rotate(0deg); }
+  50% { transform: scale(1.2) rotate(5deg); }
+}
+
+/* Pending Pill Button */
+.feed-pending-pill-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 18px;
+  background: rgba(245, 158, 11, 0.15);
+  color: #b45309;
+  border: 1px solid rgba(245, 158, 11, 0.3);
+  border-radius: 50px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.feed-pending-pill-btn:hover {
+  background: rgba(245, 158, 11, 0.25);
+  border-color: rgba(245, 158, 11, 0.5);
+  transform: translateY(-2px);
+}
+
+.feed-pending-pill-btn.active {
+  background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+  color: white;
+  border-color: transparent;
+  box-shadow: 0 4px 15px rgba(245, 158, 11, 0.4);
+}
+
+.feed-pending-pill-btn.empty {
+  background: rgba(148, 163, 184, 0.1);
+  color: #94a3b8;
+  border-color: rgba(148, 163, 184, 0.2);
+}
+
+/* Top Pill Button */
+.feed-top-pill-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 18px;
+  background: rgba(234, 179, 8, 0.15);
+  color: #a16207;
+  border: 1px solid rgba(234, 179, 8, 0.3);
+  border-radius: 50px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.feed-top-pill-btn:hover {
+  background: rgba(234, 179, 8, 0.25);
+  border-color: rgba(234, 179, 8, 0.5);
+  transform: translateY(-2px);
+}
+
+.feed-top-pill-btn.active {
+  background: linear-gradient(135deg, #eab308 0%, #ca8a04 100%);
+  color: white;
+  border-color: transparent;
+  box-shadow: 0 4px 15px rgba(234, 179, 8, 0.4);
+}
+
+.feed-top-pill-btn.active .feed-pill-icon {
+  animation: feedStarPulse 1s ease-in-out infinite;
+}
+
+@keyframes feedStarPulse {
+  0%, 100% { transform: scale(1) rotate(0deg); }
+  50% { transform: scale(1.15) rotate(15deg); }
+}
+
+.feed-pill-icon {
+  font-size: 1.1rem;
+}
+
+.feed-pill-toggle {
+  font-size: 0.9rem;
+  opacity: 0.9;
+  margin-left: 4px;
+}
+
+@keyframes feedFirePulse {
+  0%, 100% { transform: scale(1); opacity: 1; }
+  50% { transform: scale(1.15); opacity: 0.85; }
+}
+
+/* Sort Pill Buttons */
+.feed-sort-pill-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 16px;
+  background: rgba(45, 45, 115, 0.08);
+  color: #475569;
+  border: 1px solid rgba(45, 45, 115, 0.15);
+  border-radius: 50px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.25s ease;
+}
+
+.feed-sort-pill-btn:hover {
+  background: rgba(45, 45, 115, 0.15);
+  color: #2d2d73;
+  border-color: rgba(45, 45, 115, 0.25);
+}
+
+.feed-sort-pill-btn.active {
+  background: linear-gradient(135deg, #2d2d73 0%, #3b3d9e 100%);
+  color: white;
+  border-color: transparent;
+  box-shadow: 0 4px 12px rgba(45, 45, 115, 0.3);
+}
+
+.feed-sort-pill-btn.active .feed-pill-icon {
+  animation: feedIconPulse 1.2s ease-in-out infinite;
+}
+
+.feed-sort-pill-btn.disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+@keyframes feedIconPulse {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.1); }
+}
+
+/* ========================================
+   Trending Posts Container
+   ======================================== */
+.feed-trending-container {
+  background: linear-gradient(135deg, #fff7ed 0%, #ffedd5 100%);
+  border: 1px solid rgba(251, 146, 60, 0.3);
+  border-radius: 16px;
+  padding: 20px;
+  margin-bottom: 20px;
+  animation: feedTrendingSlideIn 0.4s ease-out;
+}
+
+.feed-trending-container.empty {
+  background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+  border-color: rgba(148, 163, 184, 0.3);
+}
+
+@keyframes feedTrendingSlideIn {
+  from {
+    opacity: 0;
+    transform: translateY(-15px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.feed-trending-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 16px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid rgba(251, 146, 60, 0.2);
+}
+
+.feed-trending-header h3 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  font-size: 1.1rem;
+  color: #c2410c;
+  font-weight: 600;
+}
+
+/* ⭐ Trending Time Filter Dropdown */
+.trending-time-filter {
+  padding: 8px 32px 8px 12px;
+  font-size: 0.85rem;
+  font-weight: 500;
+  color: #c2410c;
+  background: linear-gradient(135deg, #fff7ed 0%, #ffedd5 100%);
+  border: 2px solid #fdba74;
+  border-radius: 10px;
+  cursor: pointer;
+  appearance: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23c2410c' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e");
+  background-repeat: no-repeat;
+  background-position: right 10px center;
+  background-size: 14px;
+  transition: all 0.2s ease;
+}
+
+.trending-time-filter:hover {
+  border-color: #fb923c;
+  background: linear-gradient(135deg, #ffedd5 0%, #fed7aa 100%);
+  box-shadow: 0 2px 8px rgba(251, 146, 60, 0.2);
+}
+
+.trending-time-filter:focus {
+  outline: none;
+  border-color: #ea580c;
+  box-shadow: 0 0 0 3px rgba(234, 88, 12, 0.15);
+}
+
+.feed-trending-pin {
+  color: #ea580c;
+  animation: feedPinBounce 2s ease-in-out infinite;
+}
+
+@keyframes feedPinBounce {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-3px); }
+}
+
+.feed-trending-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
   gap: 12px;
 }
 
+.feed-trending-card {
+  background: white;
+  border-radius: 12px;
+  padding: 14px;
+  cursor: pointer;
+  transition: all 0.25s ease;
+  border: 1px solid rgba(251, 146, 60, 0.15);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+}
+
+.feed-trending-card:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 8px 20px rgba(251, 146, 60, 0.15);
+  border-color: rgba(251, 146, 60, 0.4);
+}
+
+.feed-trending-type {
+  display: inline-block;
+  padding: 3px 10px;
+  border-radius: 12px;
+  font-size: 0.7rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  background: rgba(45, 45, 115, 0.1);
+  color: #2d2d73;
+  margin-bottom: 8px;
+}
+
+.feed-trending-type[data-type="incident"] {
+  background: rgba(239, 68, 68, 0.1);
+  color: #dc2626;
+}
+
+.feed-trending-type[data-type="safety"] {
+  background: rgba(34, 197, 94, 0.1);
+  color: #16a34a;
+}
+
+.feed-trending-type[data-type="suggestion"] {
+  background: rgba(59, 130, 246, 0.1);
+  color: #2563eb;
+}
+
+.feed-trending-title {
+  font-weight: 600;
+  font-size: 0.95rem;
+  color: #1e293b;
+  margin-bottom: 6px;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.feed-trending-location {
+  font-size: 0.8rem;
+  color: #64748b;
+  margin-bottom: 8px;
+}
+
+.feed-trending-meta {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.75rem;
+  color: #94a3b8;
+  margin-bottom: 8px;
+}
+
+.feed-trending-engagement {
+  display: flex;
+  gap: 12px;
+  font-size: 0.8rem;
+  color: #64748b;
+}
+
+.feed-trending-likes {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.feed-trending-likes .heart-icon-small {
+  color: #ef4444;
+  font-size: 0.85rem;
+}
+
+.feed-trending-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 30px;
+  text-align: center;
+}
+
+.feed-trending-empty .empty-icon {
+  font-size: 2.5rem;
+  color: #94a3b8;
+  margin-bottom: 12px;
+  opacity: 0.5;
+}
+
+.feed-trending-empty p {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 600;
+  color: #64748b;
+}
+
+.feed-trending-empty span {
+  font-size: 0.85rem;
+  color: #94a3b8;
+  margin-top: 4px;
+}
+
+/* ========================================
+   Pending Posts Container
+   ======================================== */
+.feed-pending-container {
+  background: linear-gradient(135deg, #fffbeb 0%, #fef3c7 100%);
+  border: 1px solid rgba(245, 158, 11, 0.3);
+  border-radius: 16px;
+  padding: 20px;
+  margin-bottom: 20px;
+  animation: feedPendingSlideIn 0.4s ease-out;
+}
+
+.feed-pending-container.empty {
+  background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+  border-color: rgba(148, 163, 184, 0.3);
+}
+
+@keyframes feedPendingSlideIn {
+  from {
+    opacity: 0;
+    transform: translateY(-15px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.feed-pending-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 16px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid rgba(245, 158, 11, 0.2);
+}
+
+.feed-pending-header h3 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  font-size: 1.1rem;
+  color: #b45309;
+  font-weight: 600;
+}
+
+.feed-pending-icon {
+  color: #f59e0b;
+  animation: feedClockPulse 2s ease-in-out infinite;
+}
+
+@keyframes feedClockPulse {
+  0%, 100% { transform: rotate(0deg); }
+  25% { transform: rotate(10deg); }
+  75% { transform: rotate(-10deg); }
+}
+
+.feed-pending-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 12px;
+}
+
+.feed-pending-card {
+  background: white;
+  border-radius: 12px;
+  padding: 14px;
+  cursor: pointer;
+  transition: all 0.25s ease;
+  border: 1px solid rgba(245, 158, 11, 0.15);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+}
+
+.feed-pending-card:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 8px 20px rgba(245, 158, 11, 0.15);
+  border-color: rgba(245, 158, 11, 0.4);
+}
+
+.feed-pending-type {
+  display: inline-block;
+  padding: 3px 10px;
+  border-radius: 12px;
+  font-size: 0.7rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  background: rgba(45, 45, 115, 0.1);
+  color: #2d2d73;
+  margin-bottom: 8px;
+}
+
+.feed-pending-title {
+  font-weight: 600;
+  font-size: 0.95rem;
+  color: #1e293b;
+  margin-bottom: 6px;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.feed-pending-location {
+  font-size: 0.8rem;
+  color: #64748b;
+  margin-bottom: 8px;
+}
+
+.feed-pending-meta {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.75rem;
+  color: #94a3b8;
+}
+
+.feed-pending-status {
+  color: #f59e0b;
+  font-weight: 500;
+}
+
+.feed-pending-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 30px;
+  text-align: center;
+}
+
+.feed-pending-empty .empty-icon {
+  font-size: 2.5rem;
+  color: #94a3b8;
+  margin-bottom: 12px;
+  opacity: 0.5;
+}
+
+.feed-pending-empty p {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 600;
+  color: #64748b;
+}
+
+.feed-pending-empty span {
+  font-size: 0.85rem;
+  color: #94a3b8;
+  margin-top: 4px;
+}
+
+/* Disabled state for filters during loading */
+.sort-tab.disabled,
+.feed-filter-select:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+.feed-header {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  margin-bottom: 1rem;
+}
+
+/* Top Controls - Matching BarangayReports Design */
+.feed-top-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: center;
+  padding: 0;
+}
+
+.feed-search-container {
+  flex: 1;
+  min-width: 280px;
+  position: relative;
+  display: flex;
+  margin-top: 14px !important;
+  align-items: center;
+  height: 48px;
+}
+
+.feed-search-input {
+  width: 100%;
+  height: 48px;
+  padding: 0 45px 0 18px;
+  border: 2px solid #e2e8f0;
+  border-radius: 10px !important;
+  font-size: 14px;
+  transition: all 0.3s ease;
+  background: #fff;
+  box-sizing: border-box;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+  color: #1e293b;
+}
+
+.feed-search-input::placeholder {
+  color: #94a3b8;
+}
+
+.feed-search-input:focus {
+  outline: none;
+  border-color: #3b82f6;
+  background: #fff;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1), 0 4px 8px rgba(0, 0, 0, 0.08);
+}
+
+.feed-search-input:hover {
+  border-color: #cbd5e1;
+  background-color: #fff;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.08);
+}
+
+.feed-search-icon {
+  position: absolute;
+  right: 18px;
+  margin-top: -8px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: #64748b;
+  font-size: 1.1rem;
+  pointer-events: none;
+  z-index: 2;
+  transition: color 0.3s ease;
+}
+
+.feed-search-container:hover .feed-search-icon {
+  color: #3b82f6;
+}
+
+.feed-search-input:focus + .feed-search-icon,
+.feed-search-container:focus-within .feed-search-icon {
+  color: #3b82f6;
+}
+
+/* Filter Selects - Matching BarangayReports Design */
+.feed-filter-select {
+  height: 48px;
+  padding: 0 40px 0 14px;
+  border: 2px solid #e2e8f0;
+  border-radius: 10px;
+  background: #fff;
+  font-size: 14px;
+  min-width: 150px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  appearance: none;
+  background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2364748b' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6,9 12,15 18,9'%3e%3c/polyline%3e%3c/svg%3e");
+  background-repeat: no-repeat;
+  background-position: right 14px center;
+  background-size: 16px;
+  color: #374151;
+  font-weight: 500;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+  box-sizing: border-box;
+}
+
+.feed-filter-select:focus {
+  outline: none;
+  border-color: #3b82f6;
+  background-color: #fff;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1), 0 4px 8px rgba(0, 0, 0, 0.08);
+}
+
+.feed-filter-select:hover {
+  border-color: #cbd5e1;
+  background-color: #fff;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.08);
+}
+
+/* Custom Select Option Styling */
+.feed-filter-select option {
+  padding: 12px 16px;
+  background: #ffffff;
+  color: #1e293b;
+  font-size: 0.9rem;
+  font-weight: 500;
+  border: none;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.feed-filter-select option:hover,
+.feed-filter-select option:focus {
+  background: #f1f5f9;
+  color: #1e293b;
+}
+
+.feed-filter-select option:checked {
+  background: #e0f2fe;
+  color: #0369a1;
+  font-weight: 600;
+}
+
+/* Enhanced focus states for better accessibility */
+.feed-search-input:focus-visible,
+.feed-filter-select:focus-visible {
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.2);
+  border-color: #3b82f6;
+}
+
+/* Screen reader only class */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border-width: 0;
+}
+
+/* Legacy styles - keeping for backwards compatibility */
 .header-actions {
   display: flex;
   gap: 10px;
@@ -215,18 +974,25 @@
 }
 
 .feed-btn {
-  background: #2d2d73;
+  height: 48px;
+  background: linear-gradient(135deg, #2d2d73 0%, #225cbb 100%);
   width: auto;
   color: white;
   border: none;
-  padding: 8px 14px;
-  border-radius: 6px;
+  padding: 0 20px;
+  border-radius: 10px;
   cursor: pointer;
   white-space: nowrap;
+  font-size: 14px;
+  font-weight: 600;
+  transition: all 0.3s ease;
+  box-shadow: 0 2px 4px rgba(45, 45, 115, 0.2);
 }
 
 .feed-btn:hover {
-  background: #225cbb;
+  background: linear-gradient(135deg, #225cbb 0%, #2d2d73 100%);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 8px rgba(45, 45, 115, 0.3);
 }
 
 .feed-list {
@@ -404,9 +1170,38 @@
   font-weight: 600;
 }
 
+.comments-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 20px;
+  color: #666;
+  font-size: 14px;
+}
+
+.comments-loading .spinner-small {
+  width: 18px;
+  height: 18px;
+  border: 2px solid rgba(45, 45, 115, 0.12);
+  border-top: 2px solid #2d2d73;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+.comments-scroll {
+  max-height: 300px;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
 .no-comments {
   color: #666;
   font-size: 14px;
+  text-align: center;
+  padding: 16px;
+  background: #f9f9f9;
+  border-radius: 8px;
 }
 
 .comment-item {
@@ -620,6 +1415,36 @@
 
 .modal-close:hover {
   color: #333;
+}
+
+/* ⭐ Close Modal Button - matching ModalPortal style */
+.close-modal-btn {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(17, 22, 62, 0.05);
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  color: #666;
+  font-size: 1.2rem;
+  transition: all 0.2s ease;
+  z-index: 10;
+}
+
+.close-modal-btn:hover {
+  background: rgba(17, 22, 62, 0.1);
+  color: #11163e;
+  box-shadow: 0 2px 8px rgba(17, 22, 62, 0.15);
+}
+
+.close-modal-btn:active {
+  box-shadow: 0 1px 4px rgba(17, 22, 62, 0.1);
 }
 
 /* ✅ WARNING SECTION */
@@ -1142,6 +1967,27 @@
   color: #999;
 }
 
+/* Responsive styles for new filter design */
+@media (max-width: 768px) {
+  .feed-top-controls {
+    flex-direction: column;
+    gap: 10px;
+  }
+  
+  .feed-search-container {
+    width: 100%;
+    min-width: unset;
+  }
+  
+  .feed-filter-select {
+    width: 100%;
+    min-width: unset;
+  }
+  
+  .feed-btn {
+    width: 100%;
+  }
+}
 
 @media (max-width: 600px) {
   .header-actions {
@@ -1157,6 +2003,16 @@
   .feed-btn {
     width: 100%;
   }
+  
+  .feed-top-controls {
+    gap: 8px;
+  }
+  
+  .feed-search-input,
+  .feed-filter-select {
+    height: 44px;
+    font-size: 13px;
+  }
 }
 
 @keyframes spin {
@@ -1171,5 +2027,81 @@
   }
   .post-card {
     padding: 16px;
+  }
+}
+
+/* ========================================
+   POST REACTIONS (Heart Button)
+   ======================================== */
+.post-reactions {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 12px 16px;
+  border-top: 1px solid rgba(0, 0, 0, 0.08);
+  margin-top: 10px;
+}
+
+.post-reactions .reaction-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  border: none;
+  border-radius: 20px;
+  background: #f3f4f6;
+  color: #6b7280;
+  font-size: 0.95rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.post-reactions .reaction-btn:hover {
+  background: #fce4ec;
+  color: #e91e63;
+}
+
+.post-reactions .reaction-btn:hover .heart-icon {
+  color: #e91e63;
+}
+
+.post-reactions .reaction-btn.heart-btn.liked {
+  background: #fce4ec;
+  color: #e91e63;
+}
+
+.post-reactions .reaction-btn.heart-btn.liked .heart-icon,
+.post-reactions .reaction-btn.heart-btn.liked .heart-icon.filled {
+  color: #e91e63 !important;
+  fill: #e91e63 !important;
+  animation: heartPop 0.3s ease-out;
+}
+
+.post-reactions .heart-icon {
+  font-size: 1.1rem;
+  transition: all 0.2s ease;
+  color: #6b7280;
+}
+
+.post-reactions .heart-icon.filled {
+  color: #e91e63 !important;
+  fill: #e91e63 !important;
+}
+
+.post-reactions .reaction-count {
+  font-weight: 600;
+  min-width: 12px;
+}
+
+@keyframes heartPop {
+  0% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.3);
+  }
+  100% {
+    transform: scale(1);
   }
 }

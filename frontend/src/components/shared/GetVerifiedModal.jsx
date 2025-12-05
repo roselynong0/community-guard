@@ -1,5 +1,7 @@
 import React, { useState } from 'react';
+import { FaTimes, FaUserCheck } from 'react-icons/fa';
 import '../resident/Profile.css';
+import './ModalPortal.css';
 
 const BARANGAYS = [
   "Barretto", "East Bajac-Bajac", "East Tapinac", "Gordon Heights",
@@ -48,26 +50,33 @@ export default function GetVerifiedModal({ open, onSkip, onProfileUpdate, user =
   };
 
   return (
-    <div className="modal-overlay">
-      <div className="modal get-verified-modal" role="dialog" aria-modal="true" aria-labelledby="get-verified-title">
-        <h2 id="get-verified-title">Get Verified</h2>
-        <p className="muted">Only verified users can upload reports, create community posts, and update profiles. Please complete or confirm your profile details to get verified.</p>
+    <div className="portal-modal-overlay" onClick={onSkip}>
+      <div className="portal-modal" style={{ maxWidth: '520px', borderLeftColor: '#28a745' }} role="dialog" aria-modal="true" aria-labelledby="get-verified-title" onClick={(e) => e.stopPropagation()}>
+        <div className="portal-modal-header">
+          <h3 id="get-verified-title" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <FaUserCheck style={{ color: '#28a745' }} /> Get Verified
+          </h3>
+          <button className="portal-modal-close" onClick={onSkip} aria-label="Close modal">
+            <FaTimes />
+          </button>
+        </div>
+        <p style={{ color: '#666', fontSize: '0.9rem', marginBottom: '1rem' }}>Only verified users can upload reports, create community posts, and update profiles. Please complete or confirm your profile details to get verified.</p>
 
-        <div className="address-fields" style={{marginTop:12}}>
+        <div className="address-fields" style={{marginTop:12, maxHeight: 'calc(70vh - 180px)', overflowY: 'auto'}}>
           <label>First name</label>
-          <input name="firstname" value={form.firstname} onChange={handleChange} />
+          <input name="firstname" value={form.firstname} onChange={handleChange} placeholder="Enter your first name" />
 
           <label>Last name</label>
-          <input name="lastname" value={form.lastname} onChange={handleChange} />
+          <input name="lastname" value={form.lastname} onChange={handleChange} placeholder="Enter your last name" />
 
           <label>Email</label>
-          <input name="email" value={form.email} onChange={handleChange} />
+          <input name="email" type="email" value={form.email} onChange={handleChange} placeholder="Enter your email" />
 
           <label>Phone</label>
-          <input name="phone" value={form.phone} onChange={handleChange} />
+          <input name="phone" value={form.phone} onChange={handleChange} placeholder="Enter your phone number" />
 
           <label>Street address</label>
-          <input name="address_street" value={form.address_street} onChange={handleChange} />
+          <input name="address_street" value={form.address_street} onChange={handleChange} placeholder="Enter your street address" />
 
           <label>Barangay</label>
           <select name="address_barangay" value={form.address_barangay} onChange={handleChange}>
@@ -79,14 +88,16 @@ export default function GetVerifiedModal({ open, onSkip, onProfileUpdate, user =
           <input type="date" name="birthdate" value={form.birthdate} onChange={handleChange} />
 
           <label>Short bio</label>
-          <textarea name="bio" value={form.bio} onChange={handleChange} rows={3} />
+          <textarea name="bio" value={form.bio} onChange={handleChange} rows={3} placeholder="Tell us about yourself..." />
         </div>
 
-        <div className="modal-buttons" style={{marginTop:12}}>
-          <button onClick={onSkip} disabled={submitting}>Proceed anyway.</button>
-          <button onClick={handleSave} disabled={submitting} style={{background:'#2d2d73',color:'#fff'}}>{submitting ? 'Saving…' : 'Update & Verify'}</button>
+        <div className="portal-modal-actions" style={{marginTop:12}}>
+          <button className="cancel-btn" onClick={onSkip} disabled={submitting}>Skip for now</button>
+          <button className="confirm-btn" onClick={handleSave} disabled={submitting} style={{background: 'linear-gradient(135deg, #28a745, #20c997)'}}>
+            {submitting ? 'Saving…' : 'Update & Verify'}
+          </button>
         </div>
-        {successMsg && <div style={{marginTop:10,fontWeight:600}}>{successMsg}</div>}
+        {successMsg && <div style={{marginTop:10,fontWeight:600, textAlign: 'center', color: successMsg.includes('success') ? '#28a745' : '#dc3545'}}>{successMsg}</div>}
       </div>
     </div>
   );

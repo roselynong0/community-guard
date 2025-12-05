@@ -9,6 +9,7 @@ import {
   FaBars,
   FaCalendarAlt,
   FaArchive,
+  FaComments,
 } from 'react-icons/fa';
 import { Outlet, NavLink, useNavigate } from 'react-router-dom';
 import { API_CONFIG, getApiUrl } from '../../utils/apiConfig';
@@ -413,6 +414,18 @@ export default function ResponderLayout({ session, setSession, setNotification }
       >
         <FaSignOutAlt />
       </div>
+
+      {/* Floating Chat Button - Always visible when chat is closed */}
+      {token && !showChatBot && (
+        <button
+          className="floating-chat-btn"
+          onClick={() => setShowChatBot(true)}
+          title="Open Community Helper"
+          aria-label="Open chat"
+        >
+          <FaComments />
+        </button>
+      )}
 
       {/* Logout confirmation modal - matching Layout/BarangayLayout design */}
       {showLogoutConfirm && (

@@ -6,6 +6,7 @@ import {
   FaSyncAlt,
   FaClock,
   FaFilter,
+  FaTimes,
 } from "react-icons/fa";
 
 import {
@@ -370,11 +371,12 @@ export default function BarangayDashboard({ token }) {
             <div className="premium-modal-header">
               <h3>✨ Premium Feature</h3>
               <button
-                className="premium-modal-close"
+                className="close-modal-btn"
                 onClick={() => setShowPremiumModal(false)}
                 aria-label="Close modal"
+                title="Close"
               >
-                ✕
+                <FaTimes aria-hidden="true" />
               </button>
             </div>
 

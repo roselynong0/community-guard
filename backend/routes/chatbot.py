@@ -1758,3 +1758,139 @@ def check_new_evaluations():
     except Exception as e:
         logger.error(f"Error checking new evaluations: {e}")
         return jsonify({"has_new_evaluations": False, "count": 0, "should_notify": False}), 200
+
+
+# ============ CHATBOT USAGE TRACKING ENDPOINTS ============
+
+@chatbot_bp.route('/api/chatbot/usage', methods=['GET'])
+def get_chatbot_usage():
+    """Get current user's chatbot usage for today"""
+    try:
+        # Get authorization header
+        auth_header = request.headers.get('Authorization')
+        if not auth_header or not auth_header.startswith('Bearer '):
+            return jsonify({"error": "Authorization required"}), 401
+        
+        token = auth_header.split(' ')[1]
+        
+        # Get user from token
+        user_response = supabase.auth.get_user(token)
+        if not user_response or not user_response.user:
+            return jsonify({"error": "Invalid token"}), 401
+        
+        user_id = user_response.user.id
+        
+        # Get today's date
+        today = datetime.now().strftime('%Y-%m-%d')
+        
+        # Check if user has premium
+        user_check = supabase.table('users').select('onpremium').eq('id', user_id).execute()
+        is_premium = False
+        if user_check.data and len(user_check.data) > 0:
+            is_premium = user_check.data[0].get('onpremium', False)
+        
+        # Get usage for today
+        usage_response = supabase.table('ai_usage_aggregates').select('*').eq('user_id', user_id).eq('week_start', today).execute()
+        
+        if usage_response.data and len(usage_response.data) > 0:
+            usage = usage_response.data[0]
+            return jsonify({
+                "status": "success",
+                "usage_count": usage.get('interaction_count', 0),
+                "is_premium": is_premium,
+                "daily_limit": 10 if not is_premium else None,
+                "remaining": max(0, 10 - usage.get('interaction_count', 0)) if not is_premium else None
+            }), 200
+        else:
+            # No usage record for today
+            return jsonify({
+                "status": "success",
+                "usage_count": 0,
+                "is_premium": is_premium,
+                "daily_limit": 10 if not is_premium else None,
+                "remaining": 10 if not is_premium else None
+            }), 200
+            
+    except Exception as e:
+        logger.error(f"Error getting chatbot usage: {e}")
+        return jsonify({"error": "Failed to get usage data"}), 500
+
+
+@chatbot_bp.route('/api/chatbot/usage/increment', methods=['POST'])
+def increment_chatbot_usage():
+    """Increment chatbot usage count for current user"""
+    try:
+        # Get authorization header
+        auth_header = request.headers.get('Authorization')
+        if not auth_header or not auth_header.startswith('Bearer '):
+            return jsonify({"error": "Authorization required"}), 401
+        
+        token = auth_header.split(' ')[1]
+        
+        # Get user from token
+        user_response = supabase.auth.get_user(token)
+        if not user_response or not user_response.user:
+            return jsonify({"error": "Invalid token"}), 401
+        
+        user_id = user_response.user.id
+        
+        # Get today's date
+        today = datetime.now().strftime('%Y-%m-%d')
+        
+        # Check if user has premium
+        user_check = supabase.table('users').select('onpremium').eq('id', user_id).execute()
+        is_premium = False
+        if user_check.data and len(user_check.data) > 0:
+            is_premium = user_check.data[0].get('onpremium', False)
+        
+        # Get current usage for today
+        usage_response = supabase.table('ai_usage_aggregates').select('*').eq('user_id', user_id).eq('week_start', today).execute()
+        
+        current_count = 0
+        if usage_response.data and len(usage_response.data) > 0:
+            current_count = usage_response.data[0].get('interaction_count', 0)
+            
+            # Check if limit reached for non-premium users
+            if not is_premium and current_count >= 10:
+                return jsonify({
+                    "status": "limit_reached",
+                    "usage_count": current_count,
+                    "is_premium": is_premium,
+                    "daily_limit": 10,
+                    "remaining": 0,
+                    "message": "Daily limit reached. Upgrade to premium for unlimited access."
+                }), 200
+            
+            # Update existing record
+            new_count = current_count + 1
+            supabase.table('ai_usage_aggregates').update({
+                'interaction_count': new_count,
+                'updated_at': datetime.now().isoformat()
+            }).eq('user_id', user_id).eq('week_start', today).execute()
+            
+        else:
+            # Create new record for today
+            new_count = 1
+            supabase.table('ai_usage_aggregates').insert({
+                'user_id': user_id,
+                'week_start': today,
+                'total_seconds': 0,
+                'usage_percent': 0,
+                'interaction_count': new_count,
+                'updated_at': datetime.now().isoformat()
+            }).execute()
+        
+        remaining = max(0, 10 - new_count) if not is_premium else None
+        
+        return jsonify({
+            "status": "success",
+            "usage_count": new_count,
+            "is_premium": is_premium,
+            "daily_limit": 10 if not is_premium else None,
+            "remaining": remaining,
+            "limit_reached": not is_premium and new_count >= 10
+        }), 200
+            
+    except Exception as e:
+        logger.error(f"Error incrementing chatbot usage: {e}")
+        return jsonify({"error": "Failed to increment usage"}), 500

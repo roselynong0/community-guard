@@ -97,7 +97,7 @@ export default function ResponderLogin({ setSession, setNotification }) {
         setSession?.(result.session);
         const redirectPath = "/responder/home";
         setNotification?.({ message: "Responder access granted!", type: "success" });
-        setTimeout(() => navigate(`${redirectPath}?showMissed=1`), 1200);
+        setTimeout(() => navigate(redirectPath), 1200);
       } else if (result.status === "invalid_credentials") {
         setNotification?.({ message: "Incorrect email or password.", type: "error" });
         ["email", "password"].forEach((field) => {

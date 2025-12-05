@@ -698,6 +698,90 @@
   }
 }
 
+/* ========================================
+   FLOATING CHAT BUTTON
+   ======================================== */
+.floating-chat-btn {
+  position: fixed;
+  bottom: 20px;
+  right: 20px;
+  z-index: 998;
+  background: linear-gradient(135deg, #f4b761, #e8a543);
+  color: #11163e;
+  border: none;
+  border-radius: 50%;
+  width: 60px;
+  height: 60px;
+  box-shadow: 0 4px 20px rgba(244, 183, 97, 0.5);
+  font-size: 1.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  animation: chatPulse 2s infinite;
+}
+
+.floating-chat-btn:hover {
+  transform: scale(1.1);
+  box-shadow: 0 6px 30px rgba(244, 183, 97, 0.7);
+  background: linear-gradient(135deg, #e8a543, #d99836);
+}
+
+.floating-chat-btn:active {
+  transform: scale(1.05);
+}
+
+@keyframes chatPulse {
+  0% {
+    box-shadow: 0 4px 20px rgba(244, 183, 97, 0.5), 0 0 0 0 rgba(244, 183, 97, 0.4);
+  }
+  70% {
+    box-shadow: 0 4px 20px rgba(244, 183, 97, 0.5), 0 0 0 15px rgba(244, 183, 97, 0);
+  }
+  100% {
+    box-shadow: 0 4px 20px rgba(244, 183, 97, 0.5), 0 0 0 0 rgba(244, 183, 97, 0);
+  }
+}
+
+/* Adjust for mobile logout bubble */
+@media (max-width: 768px) {
+  .floating-chat-btn {
+    bottom: 80px;
+    right: 15px;
+    width: 50px;
+    height: 50px;
+    font-size: 1.25rem;
+  }
+}
+
+/* ========================================
+   VERIFICATION HINT FOR DISABLED BUTTONS
+   ======================================== */
+.verification-hint {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  font-size: 0.75rem;
+  color: #f97316;
+  font-weight: 500;
+  padding: 0.25rem 0.5rem;
+  background: rgba(249, 115, 22, 0.1);
+  border-radius: 4px;
+  margin-left: 0.5rem;
+}
+
+.add-btn.disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  background: #9ca3af;
+}
+
+.add-btn.disabled:hover {
+  background: #9ca3af;
+  transform: none;
+}
+
 @media (max-width: 768px) {
   .sidebar {
     display: none;

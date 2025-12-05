@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useMemo } from "react";
 import "./CommunityFeed.css";
 import "./Notifications.css";
-import { FaPaperPlane, FaUsers, FaTrash, FaHeart, FaRegHeart } from "react-icons/fa";
+import { FaPaperPlane, FaUsers, FaTrash, FaHeart, FaRegHeart, FaFire, FaStar, FaClock, FaPlus, FaMinus, FaMapPin, FaSearch, FaTimes } from "react-icons/fa";
 import { getApiUrl, API_CONFIG } from "../../utils/apiConfig";
 import LoadingScreen from "../shared/LoadingScreen";
 import ModalPortal from "../shared/ModalPortal";
@@ -38,26 +38,33 @@ const BARANGAYS = [
   "West Tapinac",
 ];
 
-// Sort options for newsfeed algorithm
-const SORT_OPTIONS = [
-  { value: "trending", label: "🔥 Trending", description: "Popular + Recent" },
-  { value: "latest", label: "🕐 Latest", description: "Most Recent First" },
-  { value: "top", label: "⭐ Top", description: "Most Engagement" },
-];
+// Sort options - null means no sort active (show pending first)
+const DEFAULT_SORT = null;
 
 const CommunityFeed = () => {
   const [posts, setPosts] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(true); // Initial page loading
+  const [isFilterLoading, setIsFilterLoading] = useState(false); // Filter/sort change loading (no fullscreen)
   const [openModal, setOpenModal] = useState(false);
   const [notification, setNotification] = useState(null);
   const [searchTerm, setSearchTerm] = useState("");
-  const [barangayFilter, setBarangayFilter] = useState("All");
+  const [barangayFilter, setBarangayFilter] = useState("All Barangays");
   const [postTypeFilter, setPostTypeFilter] = useState("all");
-  const [sortBy, setSortBy] = useState("trending"); // Newsfeed algorithm
+  const [sortOrder, setSortOrder] = useState("latest"); // latest or oldest
+  const [sortBy, setSortBy] = useState(DEFAULT_SORT); // null = pending first, 'trending' or 'top'
   const [userBarangay, setUserBarangay] = useState("");
-  const [postingState, setPostingState] = useState(false);
   const [overlayExited, setOverlayExited] = useState(false);
   const [announcements, setAnnouncements] = useState([]); // LGU Announcements
+  const [initialLoadDone, setInitialLoadDone] = useState(false); // Track if initial load completed
+  
+  // Trending section states
+  const [trendingPosts, setTrendingPosts] = useState([]);
+  const [trendingExpanded, setTrendingExpanded] = useState(false); // Collapsed by default
+  const [trendingTimeFilter, setTrendingTimeFilter] = useState("this-month"); // today, yesterday, this-month
+  const [pendingExpanded, setPendingExpanded] = useState(false); // Show pending posts section
+  
+  // User verification status
+  const [userVerified, setUserVerified] = useState(false); // True if users_info.verified = true
 
   useEffect(() => {
     fetchUserBarangay();
@@ -81,13 +88,19 @@ const CommunityFeed = () => {
         if (data.profile?.role === "Resident" && barangay) {
           setBarangayFilter(barangay);
         }
+        // Check if user is fully verified (users_info.verified = true)
+        // isverified = email verified, verified = full verification
+        const isFullyVerified = data.profile?.verified === true;
+        setUserVerified(isFullyVerified);
       } else {
         console.error("Error fetching user info:", response.statusText);
         setUserBarangay("Barretto");
+        setUserVerified(false);
       }
     } catch (error) {
       console.error("Error fetching user info:", error);
       setUserBarangay("Barretto");
+      setUserVerified(false);
     }
   };
 
@@ -110,8 +123,16 @@ const CommunityFeed = () => {
     }
   };
 
-  const fetchPosts = useCallback(async () => {
-    setLoading(true);
+  const fetchPosts = useCallback(async (isFilterChange = false, showLoading = true) => {
+    // Only show filter loading for Top pill, not for barangay/type filter changes
+    if (initialLoadDone || isFilterChange) {
+      if (showLoading) {
+        setIsFilterLoading(true);
+      }
+    } else {
+      setLoading(true);
+    }
+    
     try {
       const token = localStorage.getItem("token");
       if (!token) return;
@@ -119,7 +140,7 @@ const CommunityFeed = () => {
       let url = getApiUrl('/api/community/posts');
       const params = new URLSearchParams();
 
-      if (barangayFilter && barangayFilter !== "All") {
+      if (barangayFilter && barangayFilter !== "All Barangays") {
         params.append("barangay", barangayFilter);
       }
 
@@ -136,6 +157,13 @@ const CommunityFeed = () => {
 
       if (response.ok) {
         const data = await response.json();
+        console.log("📥 Fetched community posts:", data.posts?.length, "posts");
+        console.log("📊 Post engagement stats:", data.posts?.slice(0, 3).map(p => ({
+          id: p.id,
+          title: p.title?.substring(0, 30),
+          comments: p.comment_count,
+          reactions: p.reaction_count
+        })));
         setPosts(data.posts || []);
       } else {
         console.error("Error fetching posts:", response.statusText);
@@ -144,12 +172,97 @@ const CommunityFeed = () => {
       console.error("Error fetching posts:", error);
     } finally {
       setLoading(false);
+      setIsFilterLoading(false);
+      setInitialLoadDone(true);
     }
-  }, [barangayFilter, postTypeFilter, sortBy]);
+  }, [barangayFilter, postTypeFilter, sortBy, initialLoadDone]);
 
+  // Initial fetch on mount
   useEffect(() => {
-    fetchPosts();
-  }, [fetchPosts]);
+    fetchPosts(false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // Only run once on mount
+  
+  // Re-fetch when filters change (after initial load)
+  // Only show loading indicator for Top pill, not for regular filter changes
+  useEffect(() => {
+    if (initialLoadDone) {
+      const showLoading = sortBy === 'top'; // Only show loading for Top pill
+      fetchPosts(true, showLoading);
+    }
+  }, [barangayFilter, postTypeFilter, sortBy]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ⭐ Compute trending posts based on engagement and recency (matching Reports algorithm)
+  useEffect(() => {
+    if (!posts.length) {
+      setTrendingPosts([]);
+      console.log("🔥 No posts to compute trending from");
+      return;
+    }
+
+    const now = new Date();
+    
+    // Time filter logic (matching Reports)
+    const filterByTime = (createdAt) => {
+      const postDate = new Date(createdAt);
+      const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+      const yesterday = new Date(today);
+      yesterday.setDate(yesterday.getDate() - 1);
+      const thisMonthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+      
+      switch (trendingTimeFilter) {
+        case "today":
+          return postDate >= today;
+        case "yesterday":
+          return postDate >= yesterday && postDate < today;
+        case "this-month":
+          return postDate >= thisMonthStart;
+        default:
+          return true;
+      }
+    };
+    
+    // Filter only approved posts for trending and apply time filter
+    const approvedPosts = posts.filter(p => 
+      p.status === 'approved' && 
+      filterByTime(p.created_at)
+    );
+    
+    console.log(`📋 Filtered ${approvedPosts.length} approved posts from ${posts.length} total (${trendingTimeFilter})`);
+    console.log(`📊 Post statuses: ${[...new Set(posts.map(p => p.status))].join(', ')}`);
+    
+    // Apply trending algorithm: reactions + engagement + recency (matching Reports)
+    // Score = (reactions * 2 + comments * 1.5 + type_weight) / (hours_old + 2)^1.5
+    const scored = approvedPosts.map((p) => {
+      const createdAt = new Date(p.created_at || 0);
+      const hoursOld = Math.max(0, (now - createdAt) / (1000 * 60 * 60));
+      
+      // Engagement: reactions + comment count + type weight
+      const typeWeight = { incident: 3, safety: 2.5, suggestion: 2, recommendation: 1.5, general: 1 };
+      const reactionBoost = (p.reaction_count || 0) * 2;
+      const commentBoost = (p.comment_count || 0) * 1.5;
+      const engagement = reactionBoost + commentBoost + (typeWeight[p.post_type] || 1) * 2;
+      
+      // Time decay factor - matching Reports algorithm
+      const timeFactor = Math.pow(hoursOld + 2, 1.5);
+      const trendingScore = engagement / timeFactor;
+      
+      return { ...p, trendingScore };
+    });
+
+    // Sort by trending score descending, limit to 5
+    const trending = scored
+      .sort((a, b) => b.trendingScore - a.trendingScore)
+      .slice(0, 5);
+
+    setTrendingPosts(trending);
+    console.log(`🔥 ${trending.length} trending community posts (${trendingTimeFilter})`, trending.map(t => ({
+      title: t.title,
+      reactions: t.reaction_count,
+      comments: t.comment_count,
+      score: t.trendingScore?.toFixed(2)
+    })));
+  }, [posts, trendingTimeFilter]);
 
   useEffect(() => {
     if (loading) {
@@ -295,19 +408,75 @@ const CommunityFeed = () => {
     }
   };
 
-  const filteredPosts = posts.filter((p) => {
-    const text = searchTerm.toLowerCase();
-    const authorName = p.author?.firstname + " " + p.author?.lastname;
-    return (
-      p.title?.toLowerCase().includes(text) ||
-      p.content?.toLowerCase().includes(text) ||
-      authorName?.toLowerCase().includes(text)
-    );
-  });
+  // Get user's pending posts count
+  const userPendingPosts = useMemo(() => {
+    return posts.filter(p => p.status === 'pending' && p.can_delete);
+  }, [posts]);
+
+  const filteredPosts = useMemo(() => {
+    let result = posts.filter((p) => {
+      // Filter out rejected posts (unless it's the user's own post - they can see to delete)
+      if ((p.status === 'rejected' || p.is_rejected) && !p.can_delete) {
+        return false;
+      }
+      
+      const text = searchTerm.toLowerCase();
+      const authorName = p.author?.firstname + " " + p.author?.lastname;
+      return (
+        p.title?.toLowerCase().includes(text) ||
+        p.content?.toLowerCase().includes(text) ||
+        authorName?.toLowerCase().includes(text)
+      );
+    });
+
+    // Sort logic based on active pill
+    if (sortBy === 'trending') {
+      // Sort by trending score (engagement + recency)
+      const now = new Date();
+      result = result.sort((a, b) => {
+        const scoreA = ((a.reaction_count || 0) * 2 + (a.comment_count || 0)) / Math.pow((now - new Date(a.created_at)) / 3600000 + 2, 1.3);
+        const scoreB = ((b.reaction_count || 0) * 2 + (b.comment_count || 0)) / Math.pow((now - new Date(b.created_at)) / 3600000 + 2, 1.3);
+        return scoreB - scoreA;
+      });
+    } else if (sortBy === 'top') {
+      // Sort by most engagement
+      result = result.sort((a, b) => {
+        const engagementA = (a.reaction_count || 0) + (a.comment_count || 0);
+        const engagementB = (b.reaction_count || 0) + (b.comment_count || 0);
+        return engagementB - engagementA;
+      });
+    } else {
+      // Default: pending posts first, then by date based on sortOrder
+      result = result.sort((a, b) => {
+        const aIsPending = a.status === 'pending' && a.can_delete;
+        const bIsPending = b.status === 'pending' && b.can_delete;
+        if (aIsPending && !bIsPending) return -1;
+        if (!aIsPending && bIsPending) return 1;
+        // Apply sortOrder: latest (desc) or oldest (asc)
+        if (sortOrder === 'oldest') {
+          return new Date(a.created_at) - new Date(b.created_at);
+        }
+        return new Date(b.created_at) - new Date(a.created_at);
+      });
+    }
+
+    return result;
+  }, [posts, searchTerm, sortBy, sortOrder]);
 
   const main = (
     <div className={`feed-container ${overlayExited ? "overlay-exited" : ""}`}>
-      {notification && <div className={`notif notif-${notification.type}`}>{notification.message}</div>}
+      {/* Notification - wrapped in ModalPortal for proper z-index */}
+      {notification && (
+        <ModalPortal>
+          <div 
+            className={`notif notif-${notification.type}`}
+            role="alert"
+            aria-live="assertive"
+          >
+            {notification.message}
+          </div>
+        </ModalPortal>
+      )}
       
       {/* LGU Announcements Banner */}
       {announcements.length > 0 && (
@@ -333,49 +502,247 @@ const CommunityFeed = () => {
       
       <div className="feed-header">
         <h2 className="feed-title"><FaUsers className="feed-icon" /> Community Feed</h2>
-        <div className="header-actions">
-          <input className="feed-search" type="text" placeholder="Search post or user..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
-          <button className="feed-btn" onClick={() => setOpenModal(true)}>+ New Post</button>
-        </div>
-        <div className="feed-filters">
-          {/* Sort Algorithm Selector */}
-          <div className="feed-sort-tabs">
-            {SORT_OPTIONS.map((opt) => (
-              <button
-                key={opt.value}
-                className={`sort-tab ${sortBy === opt.value ? 'active' : ''}`}
-                onClick={() => setSortBy(opt.value)}
-                title={opt.description}
-              >
-                {opt.label}
-              </button>
-            ))}
+        
+        {/* Top Controls - Matching BarangayReports Design */}
+        <div className="feed-top-controls">
+          <div className="feed-search-container">
+            <label htmlFor="feed-search-input" className="sr-only">Search posts by title or author</label>
+            <input 
+              id="feed-search-input"
+              className="feed-search-input" 
+              type="text" 
+              placeholder="Search posts..." 
+              value={searchTerm} 
+              onChange={(e) => setSearchTerm(e.target.value)}
+              disabled={isFilterLoading}
+            />
+            <FaSearch className="feed-search-icon" aria-hidden="true" />
           </div>
-          <select className="feed-filter-select" value={barangayFilter} onChange={(e) => setBarangayFilter(e.target.value)}>
-            <option value="All">All Barangays</option>
+          
+          <label htmlFor="barangay-filter" className="sr-only">Filter by Barangay</label>
+          <select 
+            id="barangay-filter"
+            className="feed-filter-select" 
+            value={barangayFilter} 
+            onChange={(e) => setBarangayFilter(e.target.value)}
+            disabled={isFilterLoading}
+            aria-label="Filter posts by barangay"
+          >
+            <option value="All Barangays">All Barangays</option>
             {BARANGAYS.map((b) => <option key={b} value={b}>{b}</option>)}
           </select>
-          <select className="feed-filter-select" value={postTypeFilter} onChange={(e) => setPostTypeFilter(e.target.value)}>
+          
+          <label htmlFor="type-filter" className="sr-only">Filter by Post Type</label>
+          <select 
+            id="type-filter"
+            className="feed-filter-select" 
+            value={postTypeFilter} 
+            onChange={(e) => setPostTypeFilter(e.target.value)}
+            disabled={isFilterLoading}
+            aria-label="Filter posts by type"
+          >
             <option value="all">All Types</option>
-            <option value="incident">Incident</option>
-            <option value="safety">Safety</option>
-            <option value="suggestion">Suggestion</option>
-            <option value="recommendation">Recommendation</option>
-            <option value="general">General</option>
+            <option value="incident">🚨 Incident</option>
+            <option value="safety">🛡️ Safety</option>
+            <option value="suggestion">💡 Suggestion</option>
+            <option value="recommendation">⭐ Recommendation</option>
+            <option value="general">📢 General</option>
           </select>
+          
+          <label htmlFor="sort-order" className="sr-only">Sort Order</label>
+          <select 
+            id="sort-order"
+            className="feed-filter-select" 
+            value={sortOrder} 
+            onChange={(e) => setSortOrder(e.target.value)}
+            disabled={isFilterLoading}
+            aria-label="Sort order"
+          >
+            <option value="latest">Latest → Oldest</option>
+            <option value="oldest">Oldest → Latest</option>
+          </select>
+          
+          <button 
+            className={`feed-btn ${!userVerified ? 'disabled' : ''}`} 
+            onClick={() => userVerified && setOpenModal(true)}
+            disabled={!userVerified}
+            title={!userVerified ? 'Please complete your profile verification to create posts' : 'Create a new post'}
+          >
+            + New Post
+          </button>
+          {!userVerified && (
+            <span className="verification-hint" title="Complete profile verification to post">
+              🔒 Verification Required
+            </span>
+          )}
         </div>
       </div>
-      <div className="feed-list">
-        {loading ? (
-          <div className="feed-loading"><div className="spinner" /><p>Loading posts...</p></div>
-        ) : (
-          <>
-            {filteredPosts.length === 0 && <p>No posts found.</p>}
-            {filteredPosts.map((post) => (
-              <PostCard key={post.id} post={post} onAddComment={handleAddComment} onDeleteComment={handleDeleteComment} onDeletePost={handleDeletePost} onLikePost={handleLikePost} />
+
+      {/* ⭐ Pill Button Row: Trending, Pending, Top */}
+      <div className="feed-pill-row">
+        {/* Trending Pill - Toggle sort */}
+        <button
+          className={`feed-trending-pill-btn ${sortBy === 'trending' ? 'active' : ''} ${trendingPosts.length === 0 ? 'empty' : ''}`}
+          onClick={() => {
+            if (sortBy === 'trending') {
+              setSortBy(DEFAULT_SORT);
+              setTrendingExpanded(false);
+            } else {
+              setSortBy('trending');
+              setTrendingExpanded(true);
+            }
+          }}
+          title={sortBy === 'trending' ? 'Turn off trending sort' : 'Sort by trending'}
+        >
+          <FaFire className="feed-pill-icon" />
+          Trending ({trendingPosts.length})
+          {sortBy === 'trending' ? <FaMinus className="feed-pill-toggle" /> : <FaPlus className="feed-pill-toggle" />}
+        </button>
+        
+        {/* Pending Pill - Show user's pending posts */}
+        <button
+          className={`feed-pending-pill-btn ${pendingExpanded ? 'active' : ''} ${userPendingPosts.length === 0 ? 'empty' : ''}`}
+          onClick={() => setPendingExpanded(!pendingExpanded)}
+          title={pendingExpanded ? 'Hide pending posts' : 'Show your pending posts'}
+        >
+          <FaClock className="feed-pill-icon" />
+          Pending ({userPendingPosts.length})
+          {pendingExpanded ? <FaMinus className="feed-pill-toggle" /> : <FaPlus className="feed-pill-toggle" />}
+        </button>
+
+        {/* Top Pill - Toggle sort */}
+        <button
+          className={`feed-top-pill-btn ${sortBy === 'top' ? 'active' : ''}`}
+          onClick={() => setSortBy(sortBy === 'top' ? DEFAULT_SORT : 'top')}
+          title={sortBy === 'top' ? 'Turn off top sort' : 'Sort by most engagement'}
+        >
+          <FaStar className="feed-pill-icon" />
+          Top
+        </button>
+      </div>
+
+      {/* ⭐ Trending Posts Section - Collapsible */}
+      {trendingExpanded && trendingPosts.length > 0 && (
+        <div className="feed-trending-container expanded">
+          <div className="feed-trending-header">
+            <h3><FaMapPin className="feed-trending-pin" /> Trending Posts</h3>
+            <select
+              className="trending-time-filter"
+              value={trendingTimeFilter}
+              onChange={(e) => setTrendingTimeFilter(e.target.value)}
+            >
+              <option value="today">Today</option>
+              <option value="yesterday">Yesterday</option>
+              <option value="this-month">This Month</option>
+            </select>
+          </div>
+          <div className="feed-trending-list">
+            {trendingPosts.map((post) => (
+              <div 
+                key={`trending-${post.id}`} 
+                className="feed-trending-card"
+                onClick={() => {
+                  const element = document.getElementById(`post-${post.id}`);
+                  if (element) {
+                    element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                  }
+                }}
+              >
+                <div className="feed-trending-type" data-type={post.post_type}>
+                  {post.post_type}
+                </div>
+                <div className="feed-trending-title">{post.title}</div>
+                <div className="feed-trending-location">
+                  📍 {post.barangay}
+                </div>
+                <div className="feed-trending-meta">
+                  <span className="feed-trending-author">
+                    {post.author?.firstname} {post.author?.lastname}
+                  </span>
+                  <span className="feed-trending-time">
+                    {new Date(post.created_at).toLocaleDateString()}
+                  </span>
+                </div>
+                <div className="feed-trending-engagement">
+                  <span className="feed-trending-likes">
+                    <FaHeart className="heart-icon-small" /> {post.reaction_count || 0}
+                  </span>
+                </div>
+              </div>
             ))}
-          </>
+          </div>
+        </div>
+      )}
+
+      {trendingExpanded && trendingPosts.length === 0 && (
+        <div className="feed-trending-container expanded empty">
+          <div className="feed-trending-empty">
+            <FaFire className="empty-icon" />
+            <p>No trending posts yet</p>
+            <span>Posts become trending based on engagement and recency</span>
+          </div>
+        </div>
+      )}
+
+      {/* ⭐ Pending Posts Section - Shows user's pending posts */}
+      {pendingExpanded && userPendingPosts.length > 0 && (
+        <div className="feed-pending-container expanded">
+          <div className="feed-pending-header">
+            <h3><FaClock className="feed-pending-icon" /> Your Pending Posts</h3>
+          </div>
+          <div className="feed-pending-list">
+            {userPendingPosts.map((post) => (
+              <div 
+                key={`pending-${post.id}`} 
+                className="feed-pending-card"
+                onClick={() => {
+                  const element = document.getElementById(`post-${post.id}`);
+                  if (element) {
+                    element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                  }
+                }}
+              >
+                <div className="feed-pending-type" data-type={post.post_type}>
+                  {post.post_type}
+                </div>
+                <div className="feed-pending-title">{post.title}</div>
+                <div className="feed-pending-location">
+                  📍 {post.barangay}
+                </div>
+                <div className="feed-pending-meta">
+                  <span className="feed-pending-status">⏳ Awaiting Approval</span>
+                  <span className="feed-pending-time">
+                    {new Date(post.created_at).toLocaleDateString()}
+                  </span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {pendingExpanded && userPendingPosts.length === 0 && (
+        <div className="feed-pending-container expanded empty">
+          <div className="feed-pending-empty">
+            <FaClock className="empty-icon" />
+            <p>No pending posts</p>
+            <span>All your posts have been reviewed</span>
+          </div>
+        </div>
+      )}
+
+      <div className="feed-list">
+        {/* Show inline filter loading indicator */}
+        {isFilterLoading && (
+          <div className="feed-filter-loading">
+            <div className="spinner-small" />
+            <span>Updating feed...</span>
+          </div>
         )}
+        {!loading && !isFilterLoading && filteredPosts.length === 0 && <p>No posts found.</p>}
+        {!loading && filteredPosts.map((post) => (
+          <PostCard key={post.id} post={post} onAddComment={handleAddComment} onDeleteComment={handleDeleteComment} onDeletePost={handleDeletePost} onLikePost={handleLikePost} />
+        ))}
       </div>
       {openModal && <ModalPortal><PostModal onClose={() => setOpenModal(false)} onSubmit={handleNewPost} userBarangay={userBarangay} /></ModalPortal>}
     </div>
@@ -401,10 +768,53 @@ const CommunityFeed = () => {
 const PostCard = ({ post, onAddComment, onDeleteComment, onDeletePost, onLikePost }) => {
   const [comment, setComment] = useState("");
   const [showComments, setShowComments] = useState(false);
+  const [comments, setComments] = useState(post.comments || []);
+  const [loadingComments, setLoadingComments] = useState(false);
+
+  // Fetch comments when expanding
+  const handleToggleComments = async () => {
+    if (!showComments && comments.length === 0) {
+      setLoadingComments(true);
+      try {
+        const token = localStorage.getItem("token");
+        const response = await fetch(getApiUrl(`/api/community/posts/${post.id}`), {
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        });
+        if (response.ok) {
+          const data = await response.json();
+          setComments(data.post?.comments || []);
+        }
+      } catch (error) {
+        console.error("Error fetching comments:", error);
+      } finally {
+        setLoadingComments(false);
+      }
+    }
+    setShowComments(!showComments);
+  };
+
+  // Handle adding comment and update local state
+  const handleAddCommentLocal = async (commentText) => {
+    if (!commentText.trim()) return;
+    await onAddComment(post.id, commentText);
+    // Refresh comments after adding
+    try {
+      const token = localStorage.getItem("token");
+      const response = await fetch(getApiUrl(`/api/community/posts/${post.id}`), {
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+      });
+      if (response.ok) {
+        const data = await response.json();
+        setComments(data.post?.comments || []);
+      }
+    } catch (error) {
+      console.error("Error refreshing comments:", error);
+    }
+  };
 
   const handleCommentKey = (e) => {
     if (e.key === "Enter" && comment.trim()) {
-      onAddComment(post.id, comment);
+      handleAddCommentLocal(comment);
       setComment("");
     }
   };
@@ -505,34 +915,19 @@ const PostCard = ({ post, onAddComment, onDeleteComment, onDeletePost, onLikePos
 
       {/* Like button - only for accepted/approved posts */}
       {(post.is_accepted || post.status === 'approved') && !isRejected && (
-        <div className="post-engagement" style={{ 
-          display: 'flex', 
-          alignItems: 'center', 
-          gap: '16px', 
-          marginTop: '12px',
-          paddingTop: '12px',
-          borderTop: '1px solid #eee'
-        }}>
+        <div className="post-reactions">
           <button
-            className={`like-btn ${post.user_liked ? 'liked' : ''}`}
+            className={`reaction-btn heart-btn ${post.user_liked ? 'liked' : ''}`}
             onClick={() => onLikePost(post.id)}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '6px',
-              padding: '8px 14px',
-              background: post.user_liked ? 'rgba(239, 68, 68, 0.1)' : 'rgba(156, 163, 175, 0.1)',
-              color: post.user_liked ? '#ef4444' : '#6b7280',
-              border: 'none',
-              borderRadius: '20px',
-              cursor: 'pointer',
-              fontSize: '14px',
-              fontWeight: '500',
-              transition: 'all 0.2s ease',
-            }}
+            aria-label={post.user_liked ? 'Unlike this post' : 'Like this post'}
+            title={post.user_liked ? 'Unlike' : 'Like'}
           >
-            {post.user_liked ? <FaHeart /> : <FaRegHeart />}
-            {post.reaction_count || 0} {post.reaction_count === 1 ? 'Like' : 'Likes'}
+            {post.user_liked ? (
+              <FaHeart className="heart-icon filled" aria-hidden="true" />
+            ) : (
+              <FaRegHeart className="heart-icon" aria-hidden="true" />
+            )}
+            <span className="reaction-count">{post.reaction_count || 0}</span>
           </button>
         </div>
       )}
@@ -553,38 +948,50 @@ const PostCard = ({ post, onAddComment, onDeleteComment, onDeletePost, onLikePos
         <div className="toggle-comment-container">
           <button
             className="toggle-comment-btn"
-            onClick={() => setShowComments(!showComments)}
+            onClick={handleToggleComments}
+            disabled={loadingComments}
           >
-            {showComments ? "Hide Comments" : `View Comments (${post.comment_count || 0})`}
+            {loadingComments ? "Loading..." : showComments ? "Hide Comments" : `View Comments (${post.comment_count || 0})`}
           </button>
         </div>
       )}
 
       {showComments && (
         <div className="comments-box">
-          <div className="comments-scroll">
-            {(post.comments ?? []).map((c) => (
-              <div key={c.id} className="comment-item">
-                <div className="comment-header">
-                  <span className="comment-author">
-                    {c.author?.firstname} {c.author?.lastname}
-                  </span>
-                  <span className="comment-time">
-                    {new Date(c.created_at).toLocaleDateString()}
-                  </span>
-                </div>
-                <p>{c.content}</p>
+          {loadingComments ? (
+            <div className="comments-loading">
+              <div className="spinner-small" />
+              <span>Loading comments...</span>
+            </div>
+          ) : (
+            <div className="comments-scroll">
+              {comments.length === 0 ? (
+                <p className="no-comments">No comments yet. Be the first to comment!</p>
+              ) : (
+                comments.map((c) => (
+                  <div key={c.id} className="comment-item">
+                    <div className="comment-header">
+                      <span className="comment-author">
+                        {c.author?.firstname} {c.author?.lastname}
+                      </span>
+                      <span className="comment-time">
+                        {new Date(c.created_at).toLocaleDateString()}
+                      </span>
+                    </div>
+                    <p>{c.content}</p>
 
-                {c.can_delete && (
-                  <FaTrash
-                    className="comment-delete-btn"
-                    onClick={() => onDeleteComment(post.id, c.id)}
-                    title="Delete comment"
-                  />
-                )}
-              </div>
-            ))}
-          </div>
+                    {c.can_delete && (
+                      <FaTrash
+                        className="comment-delete-btn"
+                        onClick={() => onDeleteComment(post.id, c.id)}
+                        title="Delete comment"
+                      />
+                    )}
+                  </div>
+                ))
+              )}
+            </div>
+          )}
 
           {post.allow_comments && (
             <div className="comment-input-section">
@@ -599,7 +1006,7 @@ const PostCard = ({ post, onAddComment, onDeleteComment, onDeletePost, onLikePos
               <button
                 className="comment-send-btn"
                 onClick={() => {
-                  onAddComment(post.id, comment);
+                  handleAddCommentLocal(comment);
                   setComment("");
                 }}
               >
@@ -777,8 +1184,13 @@ const PostModal = ({ onClose, onSubmit, userBarangay }) => {
       <div className="modal-content modal-tabbed" onClick={(e) => e.stopPropagation()}>
         <div className="modal-header">
           <h2>Create Community Post</h2>
-          <button className="modal-close" onClick={handleModalClose}>
-            ✕
+          <button 
+            className="close-modal-btn" 
+            onClick={handleModalClose}
+            aria-label="Close modal"
+            title="Close"
+          >
+            <FaTimes aria-hidden="true" />
           </button>
         </div>
 

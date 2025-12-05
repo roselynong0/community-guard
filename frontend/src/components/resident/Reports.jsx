@@ -17,6 +17,7 @@ import {
   FaMapPin,
   FaFire,
   FaClock,
+  FaStar,
   FaSyncAlt } from "react-icons/fa";
 import {
   MapContainer,
@@ -152,7 +153,7 @@ function Reports({ session }) {
   const [search, setSearch] = useState("");
   const [category, setCategory] = useState("All");
   const [barangay, setBarangay] = useState("All Barangays");
-  const [sort, setSort] = useState("latest");
+  const [sort, setSort] = useState(null); // null = pending first, 'trending' or 'top'
   const [showMyReports, setShowMyReports] = useState(false);
   const [previewImage, setPreviewImage] = useState(null);
   
@@ -162,8 +163,12 @@ function Reports({ session }) {
   const [otherBarangayReports, setOtherBarangayReports] = useState([]); // Trending from other barangays
   
   // ⭐ NEW: Trending container state
-  const [trendingExpanded, setTrendingExpanded] = useState(true); // Collapsible state
+  const [trendingExpanded, setTrendingExpanded] = useState(false); // Collapsed by default
   const [trendingTimeFilter, setTrendingTimeFilter] = useState("this-month"); // today, yesterday, this-month
+  const [pendingExpanded, setPendingExpanded] = useState(false); // Show pending reports section
+  
+  // ⭐ User verification status - posting requires full verification (users_info.verified = true)
+  const [userVerified, setUserVerified] = useState(false);
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [newReport, setNewReport] = useState({
@@ -303,9 +308,14 @@ function Reports({ session }) {
           setUserBarangay(barangayValue);
           console.log("📍 User barangay:", barangayValue);
         }
+        // Check if user is fully verified (users_info.verified = true)
+        // isverified = email verified, verified = full verification
+        const isFullyVerified = res.data.profile.verified === true;
+        setUserVerified(isFullyVerified);
       }
     } catch (err) {
       console.warn("Could not fetch user barangay:", err);
+      setUserVerified(false);
     }
   }, [token]);
 
@@ -739,6 +749,7 @@ function Reports({ session }) {
     
     setEditReportId(report.id);
     setNewReport({
+      title: report.title || "", // ⭐ Added: Fetch title on edit
       description: report.description || "",
       category: report.category || "Concern",
       barangay: report.address_barangay || "", // Use address_barangay from the report object, but don't default to "All"
@@ -806,12 +817,32 @@ function Reports({ session }) {
     }
   };
 
-  // Handle heart/like toggle for reports
+  // Handle heart/like toggle for reports with OPTIMISTIC UI UPDATE
   const handleToggleLike = async (reportId) => {
     if (!session?.token) {
       showNotification("Please log in to like reports", "caution");
       return;
     }
+
+    // Find the current report state
+    const currentReport = reports.find(r => r.id === reportId);
+    if (!currentReport) return;
+
+    const wasLiked = currentReport.user_liked;
+    const previousCount = currentReport.reaction_count || 0;
+
+    // OPTIMISTIC UPDATE: Immediately update UI before API call
+    setReports(prevReports => 
+      prevReports.map(report => 
+        report.id === reportId 
+          ? { 
+              ...report, 
+              user_liked: !wasLiked,
+              reaction_count: wasLiked ? Math.max(0, previousCount - 1) : previousCount + 1
+            }
+          : report
+      )
+    );
 
     try {
       const response = await fetch(getApiUrl(`/api/reports/${reportId}/react`), {
@@ -826,7 +857,7 @@ function Reports({ session }) {
       const data = await response.json();
       
       if (data.status === 'success') {
-        // Update the report's reaction data in state
+        // Sync with server response (in case of race conditions)
         setReports(prevReports => 
           prevReports.map(report => 
             report.id === reportId 
@@ -839,10 +870,34 @@ function Reports({ session }) {
           )
         );
       } else {
+        // ROLLBACK: Revert optimistic update on failure
+        setReports(prevReports => 
+          prevReports.map(report => 
+            report.id === reportId 
+              ? { 
+                  ...report, 
+                  user_liked: wasLiked,
+                  reaction_count: previousCount
+                }
+              : report
+          )
+        );
         showNotification("Failed to update reaction", "error");
       }
     } catch (error) {
       console.error("Error toggling like:", error);
+      // ROLLBACK: Revert optimistic update on error
+      setReports(prevReports => 
+        prevReports.map(report => 
+          report.id === reportId 
+            ? { 
+                ...report, 
+                user_liked: wasLiked,
+                reaction_count: previousCount
+              }
+            : report
+        )
+      );
       showNotification("Failed to update reaction", "error");
     }
   };
@@ -867,6 +922,15 @@ function Reports({ session }) {
       date: new Date(),
     });
   };
+
+  // Get user's pending reports count
+  const userPendingReports = useMemo(() => {
+    return reports.filter(r => 
+      r.is_approved === false && 
+      !r.is_rejected && 
+      String(r.user_id) === String(session?.user?.id)
+    );
+  }, [reports, session?.user?.id]);
 
   // Correct toggle logic
   const filteredReports = reports
@@ -908,10 +972,43 @@ function Reports({ session }) {
       );
     })
     .sort((a, b) => {
-      // Client-side sorting by created_at timestamp
-      const dateA = new Date(a.created_at || 0).getTime();
-      const dateB = new Date(b.created_at || 0).getTime();
-      return sort === "latest" ? dateB - dateA : dateA - dateB;
+      // Sort by 'trending' = engagement + recency algorithm
+      if (sort === 'trending') {
+        const now = new Date();
+        const scoreA = ((a.reaction_count || 0) * 2) / Math.pow((now - new Date(a.created_at)) / 3600000 + 2, 1.3);
+        const scoreB = ((b.reaction_count || 0) * 2) / Math.pow((now - new Date(b.created_at)) / 3600000 + 2, 1.3);
+        return scoreB - scoreA;
+      }
+      // Sort by 'top' = most reactions/engagement first
+      if (sort === "top") {
+        const reactionsA = (a.reaction_count || 0);
+        const reactionsB = (b.reaction_count || 0);
+        // If same reactions, sort by recency
+        if (reactionsB !== reactionsA) return reactionsB - reactionsA;
+        return new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime();
+      }
+      // Sort by 'latest' = newest first (default)
+      if (sort === 'latest' || sort === null) {
+        const isOwnA = String(a.user_id) === String(session?.user?.id);
+        const isOwnB = String(b.user_id) === String(session?.user?.id);
+        const aIsPending = a.is_approved === false && !a.is_rejected && isOwnA;
+        const bIsPending = b.is_approved === false && !b.is_rejected && isOwnB;
+        if (aIsPending && !bIsPending) return -1;
+        if (!aIsPending && bIsPending) return 1;
+        return new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime();
+      }
+      // Sort by 'oldest' = oldest first
+      if (sort === 'oldest') {
+        const isOwnA = String(a.user_id) === String(session?.user?.id);
+        const isOwnB = String(b.user_id) === String(session?.user?.id);
+        const aIsPending = a.is_approved === false && !a.is_rejected && isOwnA;
+        const bIsPending = b.is_approved === false && !b.is_rejected && isOwnB;
+        if (aIsPending && !bIsPending) return -1;
+        if (!aIsPending && bIsPending) return 1;
+        return new Date(a.created_at || 0).getTime() - new Date(b.created_at || 0).getTime();
+      }
+      // Default fallback
+      return new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime();
     });
 
   // 👇 NEW HANDLER TO RESET ALL FILTERS
@@ -922,7 +1019,9 @@ function Reports({ session }) {
     setAppliedSearch("");
     setAppliedCategory("All");
     setAppliedBarangay("All Barangays");
-    setSort("latest");
+    setSort(null);
+    setTrendingExpanded(false);
+    setPendingExpanded(false);
   };
 
   useEffect(() => {
@@ -1066,59 +1165,96 @@ function Reports({ session }) {
 
           {/* Add Report Button */}
           <button
-            className="add-btn"
+            className={`add-btn ${!userVerified ? 'disabled' : ''}`}
             onClick={() => {
+              if (!userVerified) {
+                showNotification("Please complete your profile verification to submit reports", "caution");
+                return;
+              }
               resetNewReport();
               setEditReportId(null);
               setIsModalOpen(true);
             }}
-             tabIndex="0" // Ensure this is focusable
+            tabIndex="0"
+            disabled={!userVerified}
+            title={!userVerified ? 'Please complete your profile verification to submit reports' : 'Submit a new report'}
           >
             + Add Report
           </button>
+          {!userVerified && (
+            <span className="verification-hint" title="Complete profile verification to submit reports">
+              🔒 Verification Required
+            </span>
+          )}
         </div>
       </div>
 
-      {/* ⭐ Trending Pill Button Row - Always visible, shows count */}
+      {/* ⭐ Pill Button Row: Trending, Pending, Top */}
       {!showMyReports && (
         <div className="trending-pill-row">
+          {/* Trending Pill - Toggle sort */}
           <button
-            className={`trending-pill-btn ${allTrendingReports.length === 0 ? 'empty' : ''}`}
-            onClick={() => setTrendingExpanded(!trendingExpanded)}
-            title={trendingExpanded ? 'Hide trending reports' : 'Show trending reports'}
+            className={`trending-pill-btn ${sort === 'trending' ? 'active' : ''} ${allTrendingReports.length === 0 ? 'empty' : ''}`}
+            onClick={() => {
+              if (sort === 'trending') {
+                setSort(null);
+                setTrendingExpanded(false);
+              } else {
+                setSort('trending');
+                setTrendingExpanded(true);
+              }
+            }}
+            title={sort === 'trending' ? 'Turn off trending sort' : 'Sort by trending'}
           >
             <FaFire className="trending-pill-icon" />
             Trending ({allTrendingReports.length})
-            {trendingExpanded ? <FaMinus className="trending-pill-toggle" /> : <FaPlus className="trending-pill-toggle" />}
+            {sort === 'trending' ? <FaMinus className="trending-pill-toggle" /> : <FaPlus className="trending-pill-toggle" />}
+          </button>
+          
+          {/* Pending Pill - Show user's pending reports */}
+          <button
+            className={`pending-pill-btn ${pendingExpanded ? 'active' : ''} ${userPendingReports.length === 0 ? 'empty' : ''}`}
+            onClick={() => setPendingExpanded(!pendingExpanded)}
+            title={pendingExpanded ? 'Hide pending reports' : 'Show your pending reports'}
+          >
+            <FaClock className="pending-pill-icon" />
+            Pending ({userPendingReports.length})
+            {pendingExpanded ? <FaMinus className="pending-pill-toggle" /> : <FaPlus className="pending-pill-toggle" />}
+          </button>
+
+          {/* Top Pill - Toggle sort */}
+          <button
+            className={`top-pill-btn ${sort === 'top' ? 'active' : ''}`}
+            onClick={() => setSort(sort === 'top' ? null : 'top')}
+            title={sort === 'top' ? 'Turn off top sort' : 'Sort by most engagement'}
+          >
+            <FaStar className="top-pill-icon" />
+            Top
           </button>
         </div>
       )}
 
-      {/* ⭐ Unified Trending Reports Section - Collapsible */}
+      {/* ⭐ Trending Reports Section - Collapsible */}
       {!showMyReports && trendingExpanded && (
-        <div className="trending-reports-container expanded">
-          <div className="trending-reports-header">
-            <div className="trending-header-left">
-              <h3><FaMapPin className="trending-pin-icon" /> Current Trending Reports</h3>
-            </div>
-            <div className="trending-header-right">
-              <select
-                className="trending-time-filter"
-                value={trendingTimeFilter}
-                onChange={(e) => setTrendingTimeFilter(e.target.value)}
-              >
-                <option value="today">Today</option>
-                <option value="yesterday">Yesterday</option>
-                <option value="this-month">This Month</option>
-              </select>
-            </div>
+        <div className="feed-trending-container expanded">
+          <div className="feed-trending-header">
+            <h3><FaMapPin className="feed-trending-pin" /> Trending Reports</h3>
+            <select
+              className="trending-time-filter"
+              value={trendingTimeFilter}
+              onChange={(e) => setTrendingTimeFilter(e.target.value)}
+            >
+              <option value="today">Today</option>
+              <option value="yesterday">Yesterday</option>
+              <option value="this-month">This Month</option>
+            </select>
           </div>
           
-          <div className="trending-reports-list">
+          <div className="feed-trending-list">
             {allTrendingReports.map((report) => (
               <div 
                 key={`trending-${report.id}`} 
-                className={`trending-report-card ${report.isUserBarangay ? 'from-your-barangay' : ''}`}
+                className={`feed-trending-card ${report.isUserBarangay ? 'from-your-barangay' : ''}`}
                 onClick={(e) => {
                   e.stopPropagation();
                   const element = document.getElementById(`report-${report.id}`);
@@ -1136,38 +1272,91 @@ function Reports({ session }) {
                     </div>
                   )}
                   
-                  <div className="trending-report-category" data-category={report.category}>
+                  <div className="feed-trending-type" data-type={report.category}>
                     {report.category}
                   </div>
-                  <div className="trending-report-title">{report.title}</div>
-                  <div className="trending-report-location">
+                  <div className="feed-trending-title">{report.title}</div>
+                  <div className="feed-trending-location">
                     📍 {report.address_barangay}
                   </div>
-                  <div className="trending-report-meta">
-                    <span className="trending-report-status" data-status={report.status?.toLowerCase()}>
+                  <div className="feed-trending-meta">
+                    <span className="feed-trending-status" data-status={report.status?.toLowerCase()}>
                       {report.status}
                     </span>
-                    <span className="trending-report-time">
+                    <span className="feed-trending-time">
                       {new Date(report.created_at).toLocaleDateString()}
                     </span>
                   </div>
-                  <div className="trending-report-likes">
-                    <FaHeart className="heart-icon-small" aria-hidden="true" />
-                    <span>{report.reaction_count || 0}</span>
+                  <div className="feed-trending-engagement">
+                    <span className="feed-trending-likes">
+                      <FaHeart className="heart-icon-small" aria-hidden="true" />
+                      <span>{report.reaction_count || 0}</span>
+                    </span>
                   </div>
                 </div>
               ))}
-              
-              {allTrendingReports.length === 0 && (
-                <div className="no-trending-reports">
-                  <p>No trending reports for this time period.</p>
-                  <p className="trending-criteria">
-                    Reports become trending based on: reactions, category, and recency.<br/>
-                    Try selecting "This Month" to see more results.
-                  </p>
-                </div>
-              )}
             </div>
+        </div>
+      )}
+
+      {/* Trending Empty State */}
+      {!showMyReports && trendingExpanded && allTrendingReports.length === 0 && (
+        <div className="feed-trending-container expanded empty">
+          <div className="feed-trending-empty">
+            <FaFire className="empty-icon" />
+            <p>No trending reports yet</p>
+            <span>Reports become trending based on reactions and recency. Try "This Month".</span>
+          </div>
+        </div>
+      )}
+
+      {/* ⭐ Pending Reports Section - Shows user's pending reports */}
+      {!showMyReports && pendingExpanded && userPendingReports.length > 0 && (
+        <div className="feed-pending-container expanded">
+          <div className="feed-pending-header">
+            <h3><FaClock className="feed-pending-icon" /> Your Pending Reports</h3>
+          </div>
+          <div className="feed-pending-list">
+            {userPendingReports.map((report) => (
+              <div 
+                key={`pending-${report.id}`} 
+                className="feed-pending-card"
+                onClick={() => {
+                  const element = document.getElementById(`report-${report.id}`);
+                  if (element) {
+                    element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    setHighlightedReportId(report.id);
+                    setTimeout(() => setHighlightedReportId(null), 3000);
+                  }
+                }}
+              >
+                <div className="feed-pending-type" data-type={report.category}>
+                  {report.category}
+                </div>
+                <div className="feed-pending-title">{report.title}</div>
+                <div className="feed-pending-location">
+                  📍 {report.address_barangay}
+                </div>
+                <div className="feed-pending-meta">
+                  <span className="feed-pending-status">⏳ Awaiting Approval</span>
+                  <span className="feed-pending-time">
+                    {new Date(report.created_at).toLocaleDateString()}
+                  </span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Pending Empty State */}
+      {!showMyReports && pendingExpanded && userPendingReports.length === 0 && (
+        <div className="feed-pending-container expanded empty">
+          <div className="feed-pending-empty">
+            <FaClock className="empty-icon" />
+            <p>No pending reports</p>
+            <span>All your reports have been reviewed</span>
+          </div>
         </div>
       )}
 
@@ -1464,8 +1653,26 @@ function Reports({ session }) {
             onClick={(e) => e.stopPropagation()}
             ref={modalRef}
           >
-            <div className="modal-scrollable">
+            <div className="modal-header-row">
               <h3>{editReportId ? "Edit Report" : "Add New Report"}</h3>
+              <button 
+                className="close-modal-btn"
+                onClick={() => {
+                  if (!isSubmitting) {
+                    setIsModalOpen(false);
+                    setEditReportId(null);
+                    setIsSubmitting(false);
+                    resetNewReport();
+                  }
+                }}
+                aria-label="Close modal"
+                title="Close"
+                disabled={isSubmitting}
+              >
+                <FaTimes aria-hidden="true" />
+              </button>
+            </div>
+            <div className="modal-scrollable">
               <p style={{ fontSize: '14px', color: '#666', marginBottom: '15px' }}>
                 Fields marked with <span style={{ color: 'red' }}>*</span> are required
               </p>
@@ -1754,7 +1961,22 @@ function Reports({ session }) {
             }}
         >
           <div className="modal" onClick={(e) => e.stopPropagation()}>
-            <h3 id="delete-modal-title">Delete Report</h3>
+            <div className="modal-header-row">
+              <h3 id="delete-modal-title">Delete Report</h3>
+              <button 
+                className="close-modal-btn"
+                onClick={() => {
+                  if (!isDeleting) {
+                    setIsDeleteConfirmOpen(false);
+                  }
+                }}
+                aria-label="Close modal"
+                title="Close"
+                disabled={isDeleting}
+              >
+                <FaTimes aria-hidden="true" />
+              </button>
+            </div>
             <p>
               Are you sure you want to delete "<strong>{deleteTarget?.title}</strong>"?
             </p>

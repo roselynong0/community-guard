@@ -32,7 +32,7 @@ export default defineConfig({
   build: {
     target: 'esnext',
     sourcemap: false,
-    chunkSizeWarningLimit: 1000,
+    chunkSizeWarningLimit: 2000,
     minify: 'esbuild',
   },
 

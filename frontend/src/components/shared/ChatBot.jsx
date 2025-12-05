@@ -1,9 +1,10 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
-import { FaTimes, FaComments, FaPaperPlane, FaSpinner, FaRobot, FaBell, FaCheck, FaTimesCircle } from "react-icons/fa";
+import { FaTimes, FaComments, FaPaperPlane, FaSpinner, FaRobot, FaBell, FaCheck, FaTimesCircle, FaComment } from "react-icons/fa";
 import "./ChatBot.css";
 import { API_CONFIG, getApiUrl } from "../../utils/apiConfig";
+import ModalPortal from "./ModalPortal";
 
-function ChatBot({ isOpen, onClose, token, autoEvaluationTrigger = false, isPremium = false, onEvaluationComplete }) {
+function ChatBot({ isOpen, onClose, token, autoEvaluationTrigger = false, isPremium = false, onEvaluationComplete, onPremiumRequired }) {
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
@@ -12,6 +13,13 @@ function ChatBot({ isOpen, onClose, token, autoEvaluationTrigger = false, isPrem
   const [evaluationLoading, setEvaluationLoading] = useState(false);
   const [showConfirmPrompt, setShowConfirmPrompt] = useState(false);
   const [autoApproveLoading, setAutoApproveLoading] = useState(false);
+  
+  // Usage limit state
+  const [usageCount, setUsageCount] = useState(0);
+  const [usageLimitReached, setUsageLimitReached] = useState(false);
+  const [showLimitModal, setShowLimitModal] = useState(false);
+  const DAILY_LIMIT = 10; // 10 messages per day for non-premium users
+  
   const messagesEndRef = useRef(null);
   const hasLoadedEvaluation = useRef(false);
   const hasShownPrompt = useRef(false);
@@ -48,6 +56,49 @@ function ChatBot({ isOpen, onClose, token, autoEvaluationTrigger = false, isPrem
       setAutoApproveLoading(false);
     }
   }, [token]);
+
+  // Fetch current usage count from backend
+  const fetchUsageCount = useCallback(async () => {
+    if (!token || isPremium) return; // Premium users have no limit
+    
+    try {
+      const response = await fetch(getApiUrl('/api/chatbot/usage'), {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        const count = data.usage_count || 0;
+        setUsageCount(count);
+        setUsageLimitReached(count >= DAILY_LIMIT);
+      }
+    } catch (error) {
+      console.error("Error fetching usage count:", error);
+    }
+  }, [token, isPremium, DAILY_LIMIT]);
+
+  // Fetch usage on mount and when opening
+  useEffect(() => {
+    if (isOpen && !isPremium) {
+      fetchUsageCount();
+    }
+  }, [isOpen, isPremium, fetchUsageCount]);
+
+  // Clear messages and reset state when closing
+  const handleClose = () => {
+    setMessages([]);
+    setInput("");
+    setIsMinimized(false);
+    setHasNewEvaluation(false);
+    setShowConfirmPrompt(false);
+    hasLoadedEvaluation.current = false;
+    hasShownPrompt.current = false;
+    onClose();
+  };
 
   // Handle confirmation acceptance
   const handleConfirmEvaluation = async () => {
@@ -207,6 +258,12 @@ function ChatBot({ isOpen, onClose, token, autoEvaluationTrigger = false, isPrem
   const sendMessage = async () => {
     if (!input.trim()) return;
 
+    // Check usage limit for non-premium users
+    if (!isPremium && usageLimitReached) {
+      setShowLimitModal(true);
+      return;
+    }
+
     const messageText = input;
 
     // Add user message
@@ -221,6 +278,30 @@ function ChatBot({ isOpen, onClose, token, autoEvaluationTrigger = false, isPrem
     setLoading(true);
 
     try {
+      // Increment usage count for non-premium users
+      if (!isPremium) {
+        const usageResponse = await fetch(getApiUrl('/api/chatbot/usage/increment'), {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+          },
+        });
+        
+        if (usageResponse.ok) {
+          const usageData = await usageResponse.json();
+          setUsageCount(usageData.usage_count);
+          
+          // Check if limit reached after increment
+          if (usageData.status === 'limit_reached' || usageData.limit_reached) {
+            setUsageLimitReached(true);
+            setShowLimitModal(true);
+            setLoading(false);
+            return;
+          }
+        }
+      }
+      
       // Check if user is asking for AI evaluation
       const lowerMessage = messageText.toLowerCase();
       if (isPremium && (
@@ -249,7 +330,16 @@ function ChatBot({ isOpen, onClose, token, autoEvaluationTrigger = false, isPrem
         body: body,
       });
 
-      if (!response.ok) throw new Error("Failed to get response");
+      if (!response.ok) {
+        // Check if limit was reached (429 status)
+        if (response.status === 429) {
+          setUsageLimitReached(true);
+          setShowLimitModal(true);
+          setLoading(false);
+          return;
+        }
+        throw new Error("Failed to get response");
+      }
 
       const data = await response.json();
       const responseText = data.response || data.answer || "I'm not sure how to respond to that.";
@@ -296,7 +386,7 @@ function ChatBot({ isOpen, onClose, token, autoEvaluationTrigger = false, isPrem
           >
             {isMinimized ? "+" : "−"}
           </button>
-          <button className="chatbot-close-btn" onClick={onClose} title="Close">
+          <button className="chatbot-close-btn" onClick={handleClose} title="Close">
             <FaTimes />
           </button>
         </div>
@@ -423,6 +513,75 @@ function ChatBot({ isOpen, onClose, token, autoEvaluationTrigger = false, isPrem
               </button>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* Usage Limit Reached Modal */}
+      {showLimitModal && (
+        <ModalPortal>
+          <div className="portal-modal-overlay" onClick={() => setShowLimitModal(false)}>
+            <div className="portal-modal premium-limit-modal" onClick={(e) => e.stopPropagation()}>
+              <div className="portal-modal-header">
+                <h3>✨ Daily Limit Reached</h3>
+                <button 
+                  className="close-modal-btn"
+                  onClick={() => setShowLimitModal(false)}
+                  aria-label="Close modal"
+                  title="Close"
+                >
+                  <FaTimes />
+                </button>
+              </div>
+              <div className="portal-modal-body">
+                <div className="limit-modal-content">
+                  <div className="limit-icon">🚫</div>
+                  <p>You've used all <strong>{DAILY_LIMIT}</strong> free messages for today.</p>
+                  <p className="limit-detail">Your message limit will reset tomorrow.</p>
+                  
+                  <div className="premium-upgrade-section">
+                    <div className="premium-benefits-title">✨ Upgrade to Premium</div>
+                    <ul className="premium-benefits-list">
+                      <li>💬 Unlimited chat messages</li>
+                      <li>🤖 AI Auto-Evaluation</li>
+                      <li>📊 Advanced analytics</li>
+                      <li>⏱️ Unlimited Smart Filter</li>
+                      <li>🚀 Priority support</li>
+                    </ul>
+                  </div>
+                </div>
+              </div>
+              <div className="portal-modal-actions">
+                <button 
+                  className="cancel-btn"
+                  onClick={() => setShowLimitModal(false)}
+                >
+                  Maybe Later
+                </button>
+                <button 
+                  className="confirm-btn premium-upgrade-btn"
+                  onClick={() => {
+                    setShowLimitModal(false);
+                    handleClose();
+                    // Trigger premium upgrade flow
+                    if (onPremiumRequired) {
+                      onPremiumRequired();
+                    }
+                  }}
+                >
+                  ✨ Upgrade Now
+                </button>
+              </div>
+            </div>
+          </div>
+        </ModalPortal>
+      )}
+
+      {/* Usage Counter Display (non-premium users) */}
+      {!isPremium && !isMinimized && (
+        <div className="chatbot-usage-counter">
+          <span className={usageLimitReached ? 'limit-reached' : ''}>
+            {usageCount}/{DAILY_LIMIT} messages used today
+          </span>
         </div>
       )}
     </div>

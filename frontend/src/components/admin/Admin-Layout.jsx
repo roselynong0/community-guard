@@ -12,6 +12,7 @@ import {
   FaChartBar,
   FaComment,
   FaArchive,
+  FaComments,
 } from "react-icons/fa";
 import { Outlet, NavLink, useNavigate } from "react-router-dom";
 import Toast from "../shared/Toast";
@@ -523,6 +524,18 @@ function AdminLayout({ session, setSession, setNotification }) {
       >
         <FaSignOutAlt />
       </div>
+
+      {/* Floating Chat Button - Always visible when chat is closed */}
+      {session?.token && !showChatBot && (
+        <button
+          className="floating-chat-btn"
+          onClick={() => setShowChatBot(true)}
+          title="Open Community Helper"
+          aria-label="Open chat"
+        >
+          <FaComments />
+        </button>
+      )}
 
       {/* Logout confirmation modal - matching Layout/BarangayLayout design */}
       {showLogoutConfirm && (

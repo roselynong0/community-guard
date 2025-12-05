@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useCallback, useRef, useMemo } from "react";
-import { FaEdit, FaTrashAlt, FaSearch, FaRedo, FaCheckCircle, FaTimesCircle, FaHeart, FaRegHeart, FaFire, FaPlus, FaMinus, FaMapPin, FaClock, FaSyncAlt, FaChartLine } from "react-icons/fa";
+import React, { useState, useEffect, useCallback, useRef } from "react";
+import { FaEdit, FaTrashAlt, FaSearch, FaRedo, FaCheckCircle, FaTimesCircle, FaHeart, FaRegHeart, FaFire, FaPlus, FaMinus, FaMapPin, FaClock, FaSyncAlt, FaChartLine, FaStar } from "react-icons/fa";
 import "../resident/Reports.css"; 
 import ModalPortal from "../shared/ModalPortal";
 
@@ -143,9 +143,23 @@ function RespondersReports({ token }) {
     const [barangay, setBarangay] = useState("All");
     const [statusFilter, setStatusFilter] = useState("All"); 
     const [sort, setSort] = useState("latest");
+    const [smartSort, setSmartSort] = useState("latest"); // When smart filter active
     const [previewImage, setPreviewImage] = useState(null);
     const [notification, setNotification] = useState(null);
     const [highlightedReportId, setHighlightedReportId] = useState(null);
+    
+    // Smart Filter states
+    const [showSmartFilter, setShowSmartFilter] = useState(false);
+    const [aiUsagePercent, setAiUsagePercent] = useState(0);
+    const [timeRemainingHMS, setTimeRemainingHMS] = useState('48:00:00');
+    const [timeRemainingSeconds, setTimeRemainingSeconds] = useState(172800); // 48 hours
+    const [, setShowUsageModal] = useState(false);
+    const [smartFilterStartTime, setSmartFilterStartTime] = useState(null);
+    const [hasAcceptedAiWarning, setHasAcceptedAiWarning] = useState(false);
+    const [showSmartFilterWarning, setShowSmartFilterWarning] = useState(false);
+    const [liveSessionSeconds, setLiveSessionSeconds] = useState(0);
+    const [isPremiumUser, setIsPremiumUser] = useState(false);
+    const [priorityFilter, setPriorityFilter] = useState("All");
 
     // States for the Status Update Modal
     const [isStatusModalOpen, setIsStatusModalOpen] = useState(false);
@@ -186,6 +200,157 @@ function RespondersReports({ token }) {
         setNotification({ message, type });
         setTimeout(() => setNotification(null), 4000);
     }, []);
+
+    // --- Smart Filter AI Usage Tracking ---
+    const WEEK_LIMIT_SECONDS = 172800; // 48 hours
+
+    const trackAiUsage = useCallback(async (durationSeconds = 0) => {
+        if (!token) {
+            console.warn('[Smart Filter] ⚠️ No token available - skipping usage tracking');
+            return;
+        }
+
+        console.log(`[Smart Filter] 📊 Session ended - Duration: ${durationSeconds}s`);
+
+        try {
+            const response = await fetch(getApiUrl('/api/ai/log-usage'), {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    interaction_type: 'smart_filter_session',
+                    duration_seconds: durationSeconds,
+                    metadata: { timestamp: new Date().toISOString() }
+                })
+            });
+
+            if (response.ok) {
+                const data = await response.json();
+                if (data.status === 'success') {
+                    const { usage_percent, time_remaining_hms, time_remaining_seconds, is_premium, total_seconds, hours_remaining } = data.data;
+                    setAiUsagePercent(usage_percent);
+                    setTimeRemainingHMS(time_remaining_hms || '48:00:00');
+                    setTimeRemainingSeconds(time_remaining_seconds ?? 172800);
+                    setIsPremiumUser(is_premium || false);
+                    
+                    if (is_premium) {
+                        showNotification('✨ Smart Filter session logged (Premium - unlimited)', 'success');
+                    } else {
+                        const hoursUsedThisWeek = (total_seconds / 3600).toFixed(1);
+                        showNotification(`📊 Session logged: ${hoursUsedThisWeek}h used this week, ${hours_remaining.toFixed(1)}h remaining`, 'success');
+                    }
+                }
+            }
+        } catch (error) {
+            console.error('[Smart Filter] ❌ Error tracking AI usage:', error);
+        }
+    }, [token, showNotification]);
+
+    // Handle Smart Filter toggle with warning and time tracking
+    const handleSmartFilterToggle = useCallback(() => {
+        // If turning ON for the first time, show warning
+        if (!showSmartFilter && !hasAcceptedAiWarning) {
+            setShowSmartFilterWarning(true);
+            return;
+        }
+
+        // If turning OFF, log the duration
+        if (showSmartFilter && smartFilterStartTime && hasAcceptedAiWarning) {
+            const durationSeconds = Math.floor((Date.now() - smartFilterStartTime) / 1000);
+            trackAiUsage(durationSeconds);
+            setSmartFilterStartTime(null);
+            setLiveSessionSeconds(0);
+        }
+        // If turning ON and already accepted warning, start timer
+        else if (!showSmartFilter && hasAcceptedAiWarning) {
+            setSmartFilterStartTime(Date.now());
+        }
+
+        setShowSmartFilter(!showSmartFilter);
+    }, [showSmartFilter, smartFilterStartTime, hasAcceptedAiWarning, trackAiUsage]);
+
+    // Handle Smart Filter warning acceptance
+    const handleAcceptSmartFilterWarning = useCallback(() => {
+        const startTime = Date.now();
+        setHasAcceptedAiWarning(true);
+        setShowSmartFilterWarning(false);
+        setShowSmartFilter(true);
+        setSmartFilterStartTime(startTime);
+        setLiveSessionSeconds(0);
+        
+        // Show appropriate notification based on premium status
+        if (isPremiumUser) {
+            showNotification('✨ Unlimited Smart Filter activated. Enjoy premium AI-powered prioritization!', 'premium');
+        } else {
+            showNotification('We detected you have no Premium. Free Smart Filter has been activated.', 'caution');
+        }
+    }, [isPremiumUser, showNotification]);
+
+    // Handle Smart Filter warning rejection
+    const handleRejectSmartFilterWarning = useCallback(() => {
+        setShowSmartFilterWarning(false);
+    }, []);
+
+    // Real-time countdown timer for active Smart Filter session
+    useEffect(() => {
+        if (!showSmartFilter || !smartFilterStartTime) {
+            setLiveSessionSeconds(0);
+            return;
+        }
+
+        const timer = setInterval(() => {
+            const elapsed = Math.floor((Date.now() - smartFilterStartTime) / 1000);
+            setLiveSessionSeconds(elapsed);
+            
+            // Calculate real-time usage
+            const baseUsedSeconds = WEEK_LIMIT_SECONDS - timeRemainingSeconds;
+            const totalUsedNow = baseUsedSeconds + elapsed;
+            const livePercent = Math.min(100, Math.round((totalUsedNow / WEEK_LIMIT_SECONDS) * 100));
+            const liveRemaining = Math.max(0, WEEK_LIMIT_SECONDS - totalUsedNow);
+            
+            setAiUsagePercent(livePercent);
+            
+            // Format live time remaining as HH:MM:SS
+            const hrs = Math.floor(liveRemaining / 3600);
+            const mins = Math.floor((liveRemaining % 3600) / 60);
+            const secs = liveRemaining % 60;
+            setTimeRemainingHMS(`${String(hrs).padStart(2, '0')}:${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`);
+        }, 1000);
+
+        return () => clearInterval(timer);
+    }, [showSmartFilter, smartFilterStartTime, timeRemainingSeconds]);
+
+    // Fetch current week AI usage on component mount
+    useEffect(() => {
+        const fetchAiUsage = async () => {
+            if (!token) return;
+            
+            try {
+                const response = await fetch(getApiUrl('/api/ai/current-usage'), {
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    }
+                });
+
+                if (response.ok) {
+                    const data = await response.json();
+                    if (data.status === 'success' && data.data) {
+                        setAiUsagePercent(data.data.usage_percent || 0);
+                        setTimeRemainingHMS(data.data.time_remaining_hms || '48:00:00');
+                        setTimeRemainingSeconds(data.data.time_remaining_seconds ?? 172800);
+                        setIsPremiumUser(data.data.is_premium || false);
+                    }
+                }
+            } catch (error) {
+                console.warn('[Smart Filter] Failed to fetch AI usage:', error.message);
+            }
+        };
+
+        fetchAiUsage();
+    }, [token]);
 
     // --- Modal Control Functions for Accessibility ---
     const closeStatusModal = useCallback(() => {
@@ -554,11 +719,39 @@ function RespondersReports({ token }) {
         }
     };
 
-    // Filtered reports (kept original logic)
+    // Priority calculation helpers for Smart Filter
+    const getPriorityStyle = (category) => {
+        const PRIORITY_COLORS = {
+            Crime: { priority: 'Critical', label: '🔴 Critical' },
+            Hazard: { priority: 'High', label: '🟠 High' },
+            Concern: { priority: 'Medium', label: '⚪ Medium' },
+            'Lost&Found': { priority: 'Low', label: '⚪ Low' },
+            Others: { priority: 'Low', label: '⚪ Low' },
+        };
+        return PRIORITY_COLORS[category] || PRIORITY_COLORS['Others'];
+    };
+
+    const priorityRank = (priority) => {
+        const ranks = { Critical: 4, High: 3, Medium: 2, Low: 1 };
+        return ranks[priority] || 0;
+    };
+
+    const getReportPriority = (report) => {
+        return report.ai_priority || getPriorityStyle(report.category).priority;
+    };
+
+    // Filtered reports with Smart Filter support
     const filteredReports = reports
         .filter((r) => (category === "All" ? true : r.category === category))
         .filter((r) => (barangay === "All" ? true : r.barangay === barangay))
         .filter((r) => (statusFilter === "All" ? true : r.status === statusFilter))
+        .filter((r) => {
+            // Priority filter only applies when Smart Filter is ON
+            if (!showSmartFilter) return true;
+            if (!priorityFilter || priorityFilter === 'All') return true;
+            const reportPriority = getReportPriority(r);
+            return reportPriority === priorityFilter;
+        })
         .filter(
             (r) => {
                 const reporterName = r.reporter 
@@ -567,7 +760,25 @@ function RespondersReports({ token }) {
                 return r.title.toLowerCase().includes(search.toLowerCase()) ||
                         reporterName.toLowerCase().includes(search.toLowerCase());
             }
-        );
+        )
+        .sort((a, b) => {
+            // If Smart Filter is active, use smart prioritization
+            if (showSmartFilter) {
+                const aPri = priorityRank(getPriorityStyle(a.category).priority);
+                const bPri = priorityRank(getPriorityStyle(b.category).priority);
+                if (aPri !== bPri) return bPri - aPri;
+
+                // Fallback to date based on smartSort
+                const aT = new Date(a.created_at).getTime() || 0;
+                const bT = new Date(b.created_at).getTime() || 0;
+                return smartSort === 'latest' ? bT - aT : aT - bT;
+            }
+
+            // Default behavior: date sort
+            const aTime = new Date(a.created_at).getTime() || 0;
+            const bTime = new Date(b.created_at).getTime() || 0;
+            return sort === 'latest' ? bTime - aTime : aTime - bTime;
+        });
 
     return (
         <div className="admin-container">
@@ -633,29 +844,171 @@ function RespondersReports({ token }) {
                     ))}
                 </select>
                 
+                {/* Priority Filter - Only visible when Smart Filter is ON */}
+                {showSmartFilter && (
+                    <>
+                        <label htmlFor="priority-filter" className="sr-only">Filter by Priority</label>
+                        <select
+                            id="priority-filter"
+                            value={priorityFilter}
+                            onChange={(e) => setPriorityFilter(e.target.value)}
+                            className="admin-filter-select"
+                            aria-label="Filter reports by priority"
+                        >
+                            <option value="All">All Priorities</option>
+                            <option value="Critical">Critical</option>
+                            <option value="High">High</option>
+                            <option value="Medium">Medium</option>
+                            <option value="Low">Low</option>
+                        </select>
+                    </>
+                )}
+                
                 <label htmlFor="sort-order" className="sr-only">Sort Order</label>
-                <select 
-                    id="sort-order"
-                    value={sort} 
-                    onChange={(e) => setSort(e.target.value)}
-                    className="admin-filter-select"
-                    aria-label="Sort reports by date"
+                {showSmartFilter ? (
+                    <select
+                        id="smart-sort-order"
+                        value={smartSort}
+                        onChange={(e) => setSmartSort(e.target.value)}
+                        className="admin-filter-select"
+                        aria-label="Smart sort reports by priority/date"
+                    >
+                        <option value="latest">Smart: Latest → Oldest</option>
+                        <option value="oldest">Smart: Oldest → Latest</option>
+                    </select>
+                ) : (
+                    <select 
+                        id="sort-order"
+                        value={sort} 
+                        onChange={(e) => setSort(e.target.value)}
+                        className="admin-filter-select"
+                        aria-label="Sort reports by date"
+                    >
+                        <option value="latest">Latest → Oldest</option>
+                        <option value="oldest">Oldest → Latest</option>
+                    </select>
+                )}
+            </div>
+
+            {/* Smart Filter Toggle with Usage Timer */}
+            <div style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '12px',
+                padding: '12px 0',
+                flexWrap: 'wrap'
+            }}>
+                <button
+                    onClick={() => {
+                        if (aiUsagePercent >= 100 && !isPremiumUser) {
+                            showNotification('🔒 Smart usage limit reached. Upgrade to Premium for unlimited access!', 'caution');
+                            setShowUsageModal(true);
+                        } else {
+                            handleSmartFilterToggle();
+                        }
+                    }}
+                    style={{
+                        padding: '8px 14px',
+                        background: isPremiumUser 
+                            ? 'linear-gradient(135deg, #f39c12 0%, #e67e22 100%)' 
+                            : (aiUsagePercent >= 100 ? '#f39c12' : (showSmartFilter ? '#2d3b8f' : '#ccc')),
+                        color: 'white',
+                        border: isPremiumUser ? '2px solid #d4881f' : 'none',
+                        borderRadius: '4px',
+                        cursor: 'pointer',
+                        fontSize: '0.9em',
+                        fontWeight: isPremiumUser ? '600' : '500',
+                        transition: 'all 0.3s ease',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '6px',
+                        whiteSpace: 'nowrap',
+                        boxShadow: isPremiumUser ? '0 2px 8px rgba(243, 156, 18, 0.4)' : 'none'
+                    }}
+                    title={isPremiumUser ? 'Premium - Unlimited AI Access' : (aiUsagePercent >= 100 ? 'Premium feature - Upgrade now' : (showSmartFilter ? 'Disable Smart Filter' : 'Enable Smart Filter'))}
+                    aria-pressed={showSmartFilter}
                 >
-                    <option value="latest">Latest → Oldest</option>
-                    <option value="oldest">Oldest → Latest</option>
-                </select>
+                    <span>{isPremiumUser ? '👑' : '✨'}</span>
+                    {isPremiumUser ? 'Premium' : (aiUsagePercent >= 100 ? 'Premium' : 'Smart Filter')}
+                </button>
+
+                {/* AI Usage Timer Bar */}
+                <div style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '8px',
+                    flex: 1,
+                    minWidth: '200px'
+                }}>
+                    <div style={{
+                        flex: 1,
+                        height: isPremiumUser ? '10px' : '8px',
+                        backgroundColor: isPremiumUser ? '#ffd700' : '#e0e0e0',
+                        borderRadius: isPremiumUser ? '6px' : '4px',
+                        overflow: 'hidden'
+                    }}>
+                        <div style={{
+                            height: '100%',
+                            width: isPremiumUser ? '100%' : `${aiUsagePercent}%`,
+                            backgroundColor: isPremiumUser ? 'linear-gradient(90deg, #f39c12, #e67e22)' : (aiUsagePercent >= 100 ? '#f39c12' : '#2d3b8f'),
+                            background: isPremiumUser ? 'linear-gradient(90deg, #f39c12, #e67e22)' : undefined,
+                            transition: showSmartFilter && !isPremiumUser ? 'none' : 'width 0.3s ease'
+                        }} />
+                    </div>
+                    <span style={{
+                        fontSize: '0.85em',
+                        color: isPremiumUser ? '#f39c12' : '#666',
+                        fontWeight: isPremiumUser ? '600' : '400',
+                        whiteSpace: 'nowrap'
+                    }}>
+                        {isPremiumUser ? '∞ Unlimited' : `${aiUsagePercent}% • ${timeRemainingHMS}`}
+                    </span>
+                </div>
+
+                {/* Live Session Timer when Smart Filter is active */}
+                {showSmartFilter && liveSessionSeconds > 0 && (
+                    <span style={{
+                        fontSize: '0.85em',
+                        color: '#2d3b8f',
+                        fontWeight: '500',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '4px'
+                    }}>
+                        <FaClock style={{ fontSize: '0.9em' }} />
+                        Session: {Math.floor(liveSessionSeconds / 60)}m {liveSessionSeconds % 60}s
+                    </span>
+                )}
             </div>
 
             {/* ⭐ Trending Pill Button Row - Always visible, shows count */}
             <div className="trending-pill-row">
                 <button
-                    className={`trending-pill-btn ${trendingReports.length === 0 ? 'empty' : ''}`}
-                    onClick={() => setTrendingExpanded(!trendingExpanded)}
-                    title={trendingExpanded ? 'Hide trending reports' : 'Show trending reports'}
+                    className={`trending-pill-btn ${sort === 'trending' ? 'active' : ''} ${trendingReports.length === 0 ? 'empty' : ''}`}
+                    onClick={() => {
+                        if (sort === 'trending') {
+                            setSort('latest');
+                            setTrendingExpanded(false);
+                        } else {
+                            setSort('trending');
+                            setTrendingExpanded(true);
+                        }
+                    }}
+                    title={sort === 'trending' ? 'Turn off trending sort' : 'Sort by trending'}
                 >
                     <FaFire className="trending-pill-icon" />
                     Trending ({trendingReports.length})
-                    {trendingExpanded ? <FaMinus className="trending-pill-toggle" /> : <FaPlus className="trending-pill-toggle" />}
+                    {sort === 'trending' ? <FaMinus className="trending-pill-toggle" /> : <FaPlus className="trending-pill-toggle" />}
+                </button>
+
+                {/* Top Pill - Toggle sort */}
+                <button
+                    className={`top-pill-btn ${sort === 'top' ? 'active' : ''}`}
+                    onClick={() => setSort(sort === 'top' ? 'latest' : 'top')}
+                    title={sort === 'top' ? 'Turn off top sort' : 'Sort by most engagement'}
+                >
+                    <FaStar className="top-pill-icon" />
+                    Top
                 </button>
             </div>
 
@@ -1145,6 +1498,145 @@ function RespondersReports({ token }) {
                     >
                         &times;
                     </button>
+                </div>
+                </ModalPortal>
+            )}
+
+            {/* Smart Filter Warning Modal - Show on first activation */}
+            {showSmartFilterWarning && (
+                <ModalPortal>
+                <div 
+                    className="modal-overlay"
+                    onClick={handleRejectSmartFilterWarning}
+                >
+                    <div 
+                        className="modal"
+                        onClick={(e) => e.stopPropagation()}
+                        style={{
+                            maxWidth: '450px',
+                            borderLeft: '6px solid #2d3b8f',
+                            backgroundColor: '#f0f8ff'
+                        }}
+                    >
+                        <div style={{
+                            display: 'flex',
+                            justifyContent: 'space-between',
+                            alignItems: 'center',
+                            marginBottom: '16px',
+                            borderBottom: '2px solid #2d3b8f',
+                            paddingBottom: '12px'
+                        }}>
+                            <h3 style={{ margin: 0, color: '#2d3b8f' }}>✨ Smart Filter Usage Limit</h3>
+                            <button
+                                onClick={handleRejectSmartFilterWarning}
+                                style={{
+                                    background: 'none',
+                                    border: 'none',
+                                    fontSize: '1.5em',
+                                    cursor: 'pointer',
+                                    color: '#666'
+                                }}
+                            >
+                                ✕
+                            </button>
+                        </div>
+
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', marginBottom: '20px' }}>
+                            {/* Warning Header */}
+                            <div style={{
+                                padding: '14px',
+                                backgroundColor: '#fff9e6',
+                                borderRadius: '6px',
+                                borderLeft: '4px solid #f39c12'
+                            }}>
+                                <div style={{ fontWeight: '600', color: '#f39c12', marginBottom: '8px' }}>
+                                    ⏱️ Free Usage Policy
+                                </div>
+                                <p style={{ margin: 0, fontSize: '0.95em', color: '#666', lineHeight: '1.4' }}>
+                                    You have <strong>48 free hours per week</strong> to use the Smart Filter for AI-powered incident categorization.
+                                </p>
+                            </div>
+
+                            {/* How It Works */}
+                            <div style={{
+                                padding: '14px',
+                                backgroundColor: '#f5f5f5',
+                                borderRadius: '6px'
+                            }}>
+                                <div style={{ fontWeight: '600', marginBottom: '8px', color: '#333' }}>
+                                    ⏲️ How It Works
+                                </div>
+                                <ul style={{ margin: 0, paddingLeft: '20px', fontSize: '0.95em', color: '#666', lineHeight: '1.5' }}>
+                                    <li>Time counting starts when you turn ON Smart Filter (button turns blue)</li>
+                                    <li>Time stops when you turn OFF Smart Filter (button turns gray)</li>
+                                    <li>All usage is tracked and aggregated weekly</li>
+                                    <li>Upgrade to Premium for unlimited access</li>
+                                </ul>
+                            </div>
+
+                            {/* Current Usage */}
+                            <div style={{
+                                padding: '12px',
+                                backgroundColor: '#e8f4f8',
+                                borderRadius: '6px'
+                            }}>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '6px' }}>
+                                    <span style={{ fontWeight: '500' }}>Your Weekly Usage:</span>
+                                    <span style={{ fontWeight: 'bold', color: '#2d3b8f' }}>{typeof aiUsagePercent === 'number' ? aiUsagePercent.toFixed(1) : aiUsagePercent}%</span>
+                                </div>
+                                <div style={{ height: '6px', backgroundColor: '#d0e0f0', borderRadius: '3px', overflow: 'hidden' }}>
+                                    <div style={{
+                                        height: '100%',
+                                        width: `${aiUsagePercent}%`,
+                                        backgroundColor: '#2d3b8f',
+                                        transition: 'width 0.3s ease'
+                                    }} />
+                                </div>
+                                <div style={{ marginTop: '6px', fontSize: '0.85em', color: '#666' }}>
+                                    {timeRemainingHMS} remaining this week
+                                </div>
+                            </div>
+                        </div>
+
+                        <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
+                            <button 
+                                onClick={handleRejectSmartFilterWarning}
+                                style={{
+                                    padding: '10px 20px',
+                                    backgroundColor: '#ccc',
+                                    color: '#333',
+                                    border: 'none',
+                                    borderRadius: '4px',
+                                    cursor: 'pointer',
+                                    fontWeight: '500',
+                                    fontSize: '0.95em',
+                                    transition: 'all 0.3s ease'
+                                }}
+                                onMouseEnter={(e) => e.target.style.backgroundColor = '#bbb'}
+                                onMouseLeave={(e) => e.target.style.backgroundColor = '#ccc'}
+                            >
+                                ✕ Cancel
+                            </button>
+                            <button 
+                                onClick={handleAcceptSmartFilterWarning}
+                                style={{
+                                    padding: '10px 20px',
+                                    backgroundColor: '#2d3b8f',
+                                    color: 'white',
+                                    border: 'none',
+                                    borderRadius: '4px',
+                                    cursor: 'pointer',
+                                    fontWeight: '600',
+                                    fontSize: '0.95em',
+                                    transition: 'all 0.3s ease'
+                                }}
+                                onMouseEnter={(e) => e.target.style.backgroundColor = '#1a2555'}
+                                onMouseLeave={(e) => e.target.style.backgroundColor = '#2d3b8f'}
+                            >
+                                ✅ Accept & Enable Smart Filter
+                            </button>
+                        </div>
+                    </div>
                 </div>
                 </ModalPortal>
             )}

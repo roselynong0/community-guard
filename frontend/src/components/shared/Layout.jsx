@@ -11,13 +11,13 @@ import {
   FaMap,
   FaChartLine,
   FaArchive,
+  FaComments,
 } from "react-icons/fa";
 import { Outlet, NavLink, useNavigate } from "react-router-dom";
 import { logout, handleSessionExpired, isSessionExpired } from "../../utils/session";
 import { API_CONFIG, getApiUrl } from "../../utils/apiConfig";
 import Toast from "./Toast";
 import ChatBot from "./ChatBot";
-import MissedSummaryModal from "./MissedSummaryModal";
 import VerificationModal from "./VerificationModal";
 import ModalPortal from "./ModalPortal";
 import { registerToastCallback, registerNotificationCountCallback, startNotificationPolling, stopNotificationPolling } from "../../utils/notificationService";
@@ -37,8 +37,6 @@ function Layout({ session, setSession, setNotification }) {
   const toastRef = useRef(null);
   const pollingIntervalRef = useRef(null);
   const logoutConfirmBtnRef = useRef(null);
-  const [showMissedModal, setShowMissedModal] = useState(false);
-  const [missedSummary, setMissedSummary] = useState(null);
   const [showVerifyModal, setShowVerifyModal] = useState(false);
   const [verifyUserData, setVerifyUserData] = useState(null);
 
@@ -86,25 +84,24 @@ function Layout({ session, setSession, setNotification }) {
     loadProfile();
   }, [session, setSession, setNotification, navigate]);
 
-  // 🔹 Fetch missed reports summary once after profile and session load
+  // 🔹 Fetch missed reports summary once after profile and session load (toast only, no modal)
   useEffect(() => {
     const tryFetchSummary = async () => {
       if (!session?.token || !user) return;
 
-      // Check URL params - modal only shows when explicitly requested
+      // Check URL params - only show toast when coming from login
       const params = new URLSearchParams(window.location.search || "");
       const showMissedParam = params.get('showMissed') || params.get('show_missed');
+      
+      // Only proceed if user came from login
+      if (!showMissedParam) return;
 
-      // Persist a per-session flag so the TOAST is only shown once per session
-      const toastKey = `missed_toast_shown_${user.id || user?.email || 'anon'}`;
+      // Use a unique key to prevent duplicate toasts (shared between Home.jsx and Layout.jsx)
+      const toastKey = `missed_toast_layout_${user.id || user?.email || 'anon'}`;
       const alreadyShownToast = sessionStorage.getItem(toastKey);
 
-      // Persist a per-user flag so the MODAL is only shown once ever (per-browser)
-      const modalKey = `missed_modal_shown_once_${user.id || user?.email || 'anon'}`;
-      const alreadyShownModal = localStorage.getItem(modalKey);
-
-      // If we've already shown toast this session and no URL param, skip entirely
-      if (alreadyShownToast && !showMissedParam) return;
+      // If we've already shown toast this session, skip
+      if (alreadyShownToast) return;
 
       try {
         const res = await fetch(getApiUrl('/api/reports/missed_summary'), {
@@ -113,13 +110,9 @@ function Layout({ session, setSession, setNotification }) {
         if (!res) return;
         const contentType = res.headers.get('content-type') || '';
         if (!res.ok) {
-          // Non-OK response: try to read json safely, else skip
           if (contentType.includes('application/json')) {
             const errBody = await res.json().catch(() => ({}));
             console.warn('Missed summary non-ok response:', errBody);
-          } else {
-            const textBody = await res.text().catch(() => '');
-            console.warn('Missed summary non-ok response (non-json):', textBody ? textBody.slice(0, 200) : '<no body>');
           }
           return;
         }
@@ -132,10 +125,20 @@ function Layout({ session, setSession, setNotification }) {
           if (data && data.status === 'success' && data.summary) {
             const totalMissed = data.summary.total || 0;
             
-            // ALWAYS show toast for missed reports (once per session)
-            if (!alreadyShownToast && totalMissed > 0 && toastRef.current) {
-              // Delay toast by 2.5 seconds after login
+            // Show toast for missed reports (once per session) - delayed to avoid duplicate with Home.jsx
+            if (totalMissed > 0 && toastRef.current) {
+              // Mark as shown immediately to prevent race condition
+              try { sessionStorage.setItem(toastKey, '1'); } catch { /* ignore */ }
+              
+              // Delay toast by 3 seconds (after Home.jsx toast at 2s)
               setTimeout(() => {
+                // Double-check Home.jsx didn't already show a toast
+                const homeToastKey = `missed_toast_home_${user.id || user?.email || 'anon'}`;
+                if (sessionStorage.getItem(homeToastKey)) {
+                  console.log('📢 Skipping Layout toast - Home.jsx already showed one');
+                  return;
+                }
+                
                 if (toastRef.current) {
                   const userBarangay = user.address_barangay || '';
                   const barangayCounts = data.summary.barangays || {};
@@ -143,34 +146,23 @@ function Layout({ session, setSession, setNotification }) {
                   
                   if (missedInBarangay > 0) {
                     toastRef.current.show(
-                      `📢 You missed ${missedInBarangay} report${missedInBarangay > 1 ? 's' : ''} in ${userBarangay || 'your area'} while you were away. Check it out!`,
+                      `📢 You missed ${missedInBarangay} report${missedInBarangay > 1 ? 's' : ''} in ${userBarangay || 'your area'} while you were away.`,
                       'info'
                     );
                   } else if (totalMissed > 0) {
                     toastRef.current.show(
-                      `📢 You missed ${totalMissed} report${totalMissed > 1 ? 's' : ''} while you were away. Check it out!`,
+                      `📢 You missed ${totalMissed} report${totalMissed > 1 ? 's' : ''} while you were away.`,
                       'info'
                     );
                   }
                 }
-              }, 2500);
-              // Mark toast as shown for this session
-              try { sessionStorage.setItem(toastKey, '1'); } catch { /* ignore */ }
-            }
-            
-            // Only show MODAL when URL param is set AND not shown before
-            if (showMissedParam && !alreadyShownModal) {
-              setMissedSummary(data);
-              setShowMissedModal(true);
-              // Mark modal as shown so we never flash it again for this user
-              try { localStorage.setItem(modalKey, '1'); } catch { /* ignore */ }
+              }, 3000);
             }
 
-            // If user is partially verified (isverified true but verified false) show verify modal after summary
+            // If user is partially verified (isverified true but verified false) show verify modal
             try {
               const flags = data.summary.user_flags || {};
               if (flags.isverified === true && flags.verified === false) {
-                // Prepare verify data from user object we already have (prefer server profile)
                 setVerifyUserData(Object.assign({}, user, { firstname: user.firstname, lastname: user.lastname, email: user.email, address_barangay: user.address_barangay, phone: user.phone }));
               }
             } catch (e) {
@@ -446,8 +438,17 @@ function Layout({ session, setSession, setNotification }) {
         </div>
       )}
 
-      {/* Chat Button - Always visible */}
-      {/* Chat button removed per user request */}
+      {/* Floating Chat Button - Always visible when chat is closed */}
+      {session?.token && !showChatBot && (
+        <button
+          className="floating-chat-btn"
+          onClick={() => setShowChatBot(true)}
+          title="Open Community Helper"
+          aria-label="Open chat"
+        >
+          <FaComments />
+        </button>
+      )}
 
       {/* Logout Confirmation */}
       {showLogoutConfirm && (
@@ -483,21 +484,7 @@ function Layout({ session, setSession, setNotification }) {
         </ModalPortal>
       )}
 
-      {/* ChatBot Component */}
-      {/* Missed reports summary modal */}
-      <MissedSummaryModal
-        open={showMissedModal}
-        onClose={() => setShowMissedModal(false)}
-        data={missedSummary}
-        showProceedAsNext={Boolean(verifyUserData)}
-        onProceed={() => {
-          // Close summary and open verification modal
-          setShowMissedModal(false);
-          if (verifyUserData) setShowVerifyModal(true);
-        }}
-      />
-
-      {/* Verification prompt modal (shows after summary if needed) */}
+      {/* Verification prompt modal (shows if user needs to complete profile) */}
       <VerificationModal open={showVerifyModal} onClose={() => setShowVerifyModal(false)} user={verifyUserData} />
 
       {/* ChatBot Component - Basic for residents (AI evaluation moved to official layouts) */}

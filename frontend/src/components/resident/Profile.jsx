@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
-import { FaEdit, FaSignOutAlt, FaTrashAlt, FaCheckCircle, FaTimesCircle, FaUserCheck } from "react-icons/fa";
+import { FaEdit, FaSignOutAlt, FaTrashAlt, FaCheckCircle, FaTimesCircle, FaUserCheck, FaTimes } from "react-icons/fa";
 import "./Profile.css"; // Ensure this file contains the new CSS
 import "./Notifications.css"; // This is the file with the notif classes
 import DatePicker from "react-datepicker";
@@ -8,6 +8,7 @@ import "react-datepicker/dist/react-datepicker.css"
 import { format, parseISO } from "date-fns";
 import axios from "axios";
 import LoadingScreen from "../shared/LoadingScreen";
+import ModalPortal from "../shared/ModalPortal";
 import { API_CONFIG, getApiUrl } from "../../utils/apiConfig";
 
 function Profile({ token }) {
@@ -512,9 +513,19 @@ function Profile({ token }) {
 
             {/* ------------------- PROFILE MODAL ------------------- */}
             {showModal && (
-                <div className="modal-overlay">
-                    <div className="modal">
-                        <h2>Edit Profile</h2>
+                <ModalPortal>
+                <div className="portal-modal-overlay" onClick={() => setShowModal(null)}>
+                    <div className="portal-modal" onClick={(e) => e.stopPropagation()}>
+                        <div className="portal-modal-header">
+                            <h3>Edit Profile</h3>
+                            <button 
+                                className="portal-modal-close" 
+                                onClick={() => setShowModal(null)}
+                                aria-label="Close modal"
+                            >
+                                <FaTimes />
+                            </button>
+                        </div>
 
                         {/* HEADER EDIT */}
                         {showModal === "header" && (
@@ -613,27 +624,38 @@ function Profile({ token }) {
                         )}
 
                         {/* MODAL ACTIONS */}
-                        <div className="modal-buttons">
-                            <button onClick={() => setShowModal(null)}>Cancel</button>
-                            <button onClick={handleProfileUpdate}>Save</button>
+                        <div className="portal-modal-actions">
+                            <button className="cancel-btn" onClick={() => setShowModal(null)}>Cancel</button>
+                            <button className="confirm-btn" onClick={handleProfileUpdate}>Save Changes</button>
                         </div>
                     </div>
                 </div>
+                </ModalPortal>
             )}
 
             {/* ------------------- DELETE ACCOUNT MODAL (re-styled to match Delete Report modal) ------------------- */}
             {showDeleteAccount && (
+                <ModalPortal>
                 <div
-                    className="modal-overlay"
+                    className="portal-modal-overlay"
                     role="dialog"
                     aria-modal="true"
                     aria-labelledby="delete-account-title"
                     onClick={() => setShowDeleteAccount(false)}
                 >
-                    <div className="modal" onClick={(e) => e.stopPropagation()}>
-                        <h3 id="delete-account-title">Delete Account</h3>
-                        <p>Are you sure you want to delete your account? This cannot be undone.</p>
-                        <div className="modal-actions">
+                    <div className="portal-modal" onClick={(e) => e.stopPropagation()}>
+                        <div className="portal-modal-header">
+                            <h3 id="delete-account-title">Delete Account</h3>
+                            <button 
+                                className="portal-modal-close" 
+                                onClick={() => setShowDeleteAccount(false)}
+                                aria-label="Close modal"
+                            >
+                                <FaTimes />
+                            </button>
+                        </div>
+                        <p style={{ marginBottom: '1rem', color: '#666' }}>Are you sure you want to delete your account? This cannot be undone.</p>
+                        <div className="portal-modal-actions">
                             <button
                                 className="cancel-btn"
                                 onClick={() => setShowDeleteAccount(false)}
@@ -641,9 +663,8 @@ function Profile({ token }) {
                                 Cancel
                             </button>
                             <button
-                                className="confirm-btn"
+                                className="danger-btn"
                                 onClick={handleDeleteAccount}
-                                style={{ background: "linear-gradient(135deg, #d9534f, #c9302c)", color: '#fff' }}
                                 autoFocus
                             >
                                 Yes, Delete
@@ -651,16 +672,26 @@ function Profile({ token }) {
                         </div>
                     </div>
                 </div>
+                </ModalPortal>
             )}
 
             {/* ------------------- FULLSCREEN IMAGE MODAL ------------------- */}
             {fullScreenImage && (
+                <ModalPortal>
                 <div
                     className="fullscreen-modal"
                     onClick={() => setFullScreenImage(null)}
                 >
+                    <button 
+                        className="close-fullscreen-btn"
+                        onClick={() => setFullScreenImage(null)}
+                        aria-label="Close image"
+                    >
+                        <FaTimes />
+                    </button>
                     <img src={fullScreenImage} alt="fullscreen" className="fullscreen-image" />
                 </div>
+                </ModalPortal>
             )}
         </div>
     );

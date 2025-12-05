@@ -15,8 +15,8 @@ import {
 } from "recharts";
 import MapView from "./Mapview";
 import LoadingScreen from "../shared/LoadingScreen";
-// Lazy-load the missed-summary modal and verification modal to avoid runtime import issues
-const MissedSummaryModal = React.lazy(() => import("../shared/MissedSummaryModal"));
+import Toast from "../shared/Toast";
+// Lazy-load the verification modal to avoid runtime import issues
 const GetVerifiedModal = React.lazy(() => import("../shared/GetVerifiedModal"));
 import { API_CONFIG, getApiUrl } from "../../utils/apiConfig";
 import "./Home.css";
@@ -73,17 +73,28 @@ function Home({ token, session }) {
     { title: "Pending Reports", value: 0, icon: <FaClock />, color: "warning" },
   ]);
   const [recentReports, setRecentReports] = useState([]);
-  const [categoryData, setCategoryData] = useState([{ name: "No Data", value: 1, color: "#ccc" }]); 
+  const [categoryData, setCategoryData] = useState([{ name: "No Data", value: 0, color: "#ccc" }]); 
   const [_activeSlice, setActiveSlice] = useState(null);
   const [userBarangay, setUserBarangay] = useState(null);
-  const totalReports = categoryData.reduce((s, c) => s + (c.value || 0), 0);
+  
+  // Calculate total (0 for "No Data" state, actual sum otherwise)
+  const hasRealData = categoryData.length > 0 && !(categoryData.length === 1 && categoryData[0].name === "No Data");
+  const totalReports = hasRealData ? categoryData.reduce((s, c) => s + (c.value || 0), 0) : 0;
+  
+  // Prepare pie data - use value=1 for rendering "No Data" pie slice visually, but display 0
+  const pieDisplayData = hasRealData 
+    ? categoryData 
+    : [{ name: "No Data", value: 1, color: "#ccc", displayValue: 0 }];
 
   // Custom tooltip to show category amount + percentage
   function CustomTooltip({ active, payload, total }) {
     if (!active || !payload || !payload.length) return null;
     const item = payload[0].payload || payload[0];
-    const value = item.value || 0;
-    const pct = total ? ((value / total) * 100).toFixed(1) : "0.0";
+    // Use displayValue if available (for "No Data" state), otherwise use value
+    const value = item.displayValue !== undefined ? item.displayValue : (item.value || 0);
+    // For "No Data" state, show 100% since the gray represents the full pie
+    const isNoData = item.name === "No Data" && item.displayValue === 0;
+    const pct = isNoData ? "100.0" : (total ? ((value / total) * 100).toFixed(1) : "0.0");
     return (
       <div className="custom-tooltip">
         <div style={{ fontWeight: 700 }}>{item.name}</div>
@@ -94,11 +105,9 @@ function Home({ token, session }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [overlayExited, setOverlayExited] = useState(false);
-  const [missedSummary, setMissedSummary] = useState(null);
-  const [showMissedModal, setShowMissedModal] = useState(false);
   const [showGetVerifiedModal, setShowGetVerifiedModal] = useState(false);
-  const [isInfoVerified, setIsInfoVerified] = useState(true); // Track if user info.verified is true
   const [userProfile, setUserProfile] = useState(null); // Store full profile for GetVerifiedModal
+  const toastRef = useRef(null);
   const getCategoryColor = useCallback((categoryName) => {
     return CATEGORY_COLORS[categoryName] || CATEGORY_COLORS.default;
   }, []);
@@ -112,8 +121,8 @@ function Home({ token, session }) {
     const showMissedParam = urlParams.get('showMissed') || urlParams.get('show_missed');
     const cameFromLogin = showMissedParam === '1';
 
-    // Fetch missed-summary only if user came from login
-    const fetchMissedSummary = async () => {
+    // Fetch missed-summary and show toast (only if user came from login)
+    const fetchMissedSummaryAndShowToast = async () => {
       // Only fetch if user came from login with ?showMissed=1
       if (!cameFromLogin) {
         console.log('📊 Skipping missed summary - user did not come from login');
@@ -121,23 +130,45 @@ function Home({ token, session }) {
       }
       
       try {
-        const shownKey = `missed_shown_${session?.user?.id || session?.user?.email || 'anon'}`;
-        if (sessionStorage.getItem(shownKey)) return;
+        const toastKey = `missed_toast_home_${session?.user?.id || session?.user?.email || 'anon'}`;
+        if (sessionStorage.getItem(toastKey)) return; // Already shown toast this session
+        
         const res = await fetch(getApiUrl('/api/reports/missed_summary'), {
           headers: { Authorization: `Bearer ${token}` },
         });
         if (!res) return;
         const contentType = res.headers.get('content-type') || '';
-        if (!res.ok) {
-          // non-ok: skip
-          return;
-        }
+        if (!res.ok) return;
+        
         if (contentType.includes('application/json')) {
           const data = await res.json().catch(() => null);
           if (data && data.status === 'success' && data.summary) {
-            setMissedSummary(data);
-            // Don't show modal yet - wait for verification check
-            sessionStorage.setItem(shownKey, '1');
+            const totalMissed = data.summary.total || 0;
+            const barangayCounts = data.summary.barangays || {};
+            
+            // Show toast after a short delay
+            if (totalMissed > 0) {
+              setTimeout(() => {
+                if (toastRef.current) {
+                  const userBarangayName = data.summary.user_barangay || session?.user?.address_barangay || '';
+                  const missedInBarangay = userBarangayName ? (barangayCounts[userBarangayName] || 0) : totalMissed;
+                  
+                  if (missedInBarangay > 0) {
+                    toastRef.current.show(
+                      `📢 You missed ${missedInBarangay} report${missedInBarangay > 1 ? 's' : ''} in ${userBarangayName || 'your area'} while you were away.`,
+                      'info'
+                    );
+                  } else {
+                    toastRef.current.show(
+                      `📢 You missed ${totalMissed} report${totalMissed > 1 ? 's' : ''} while you were away.`,
+                      'info'
+                    );
+                  }
+                }
+              }, 2000);
+              // Mark toast as shown for this session to prevent duplicates
+              try { sessionStorage.setItem(toastKey, '1'); } catch { /* ignore */ }
+            }
           }
         }
       } catch (e) {
@@ -147,14 +178,12 @@ function Home({ token, session }) {
 
     const fetchData = async () => {
       setLoading(true);
-      // Reset overlay exited flag when a new loading cycle starts
-      setOverlayExited(false);
-      setError(null);
-      try {
-        // attempt to fetch missed summary before other data
-        await fetchMissedSummary();
-        
-        // 1. Fetch user profile first to get their barangay from info table
+        // Reset overlay exited flag when a new loading cycle starts
+        setOverlayExited(false);
+        setError(null);
+        try {
+          // Show toast for missed reports (non-blocking)
+          fetchMissedSummaryAndShowToast();        // 1. Fetch user profile first to get their barangay from info table
         let barangay = null;
         try {
           const profileEndpoint = getApiUrl(API_CONFIG.endpoints.profile);
@@ -201,7 +230,7 @@ function Home({ token, session }) {
           setCategoryData(formattedCategoryData);
           console.log("📊 Categories loaded for barangay:", barangay || "All", categoryRes.data.length, "categories");
         } else {
-          setCategoryData([{ name: "No Data", value: 1, color: "#ccc" }]);
+          setCategoryData([{ name: "No Data", value: 0, color: "#ccc" }]);
         }
 
         // 4. Fetch recent reports filtered by user's barangay from info table
@@ -226,7 +255,7 @@ function Home({ token, session }) {
         ]);
         setRecentReports([]);
         setCategoryData([
-          { name: "No Data", value: 1, color: "#ccc" }
+          { name: "No Data", value: 0, color: "#ccc" }
         ]);
       } finally {
         setLoading(false);
@@ -236,10 +265,20 @@ function Home({ token, session }) {
     fetchData();
   }, [token, session?.user?.role, session?.user?.email, session?.user?.id, getCategoryColor]);
 
-  // When a missedSummary arrives, check verification status and show appropriate modal
+  // Check verification status after login and show GetVerifiedModal if needed
   useEffect(() => {
-    // Guard: only run when we have a missed summary and a valid token
-    if (!missedSummary || !token) return;
+    if (!token) return;
+
+    // Check URL params - only show modal when coming from login
+    const urlParams = new URLSearchParams(window.location.search || window.location.hash.split('?')[1] || '');
+    const showMissedParam = urlParams.get('showMissed') || urlParams.get('show_missed');
+    const cameFromLogin = showMissedParam === '1';
+    
+    if (!cameFromLogin) return;
+
+    // Avoid showing modal multiple times
+    const verifyModalKey = `verify_modal_shown_${session?.user?.id || session?.user?.email || 'anon'}`;
+    if (sessionStorage.getItem(verifyModalKey)) return;
 
     let cancelled = false;
     (async () => {
@@ -249,32 +288,27 @@ function Home({ token, session }) {
         const profileResp = await fetchWithToken(profileUrl, token).catch(() => null);
         const profileData = profileResp && profileResp.profile ? profileResp.profile : profileResp || {};
 
-        // Check users.isverified and info.verified (from profile response)
-        const usersIsVerified = profileData.isverified === true;
-        const infoVerified = profileData.verified === true; // info.verified is merged into profile
+        // Check info.verified (from profile response)
+        const infoVerified = profileData.verified === true;
 
-        console.log('🔐 Verification check:', { usersIsVerified, infoVerified });
+        console.log('🔐 Verification check:', { infoVerified });
 
         if (!cancelled) {
-          setIsInfoVerified(infoVerified);
-          setUserProfile(profileData); // Store full profile for GetVerifiedModal
+          setUserProfile(profileData);
           
-          // Always show missed summary modal first (it was fetched because ?showMissed=1)
-          // The button text will be "Continue" if not verified, "Continue to Dashboard" if verified
-          setShowMissedModal(true);
+          // Show GetVerifiedModal if not verified
+          if (!infoVerified) {
+            setShowGetVerifiedModal(true);
+            try { sessionStorage.setItem(verifyModalKey, '1'); } catch { /* ignore */ }
+          }
         }
       } catch (err) {
-        // fallback: show missed summary if verification check fails
         console.debug('verification check error', err);
-        if (!cancelled) {
-          setIsInfoVerified(false); // Assume not verified on error
-          setShowMissedModal(true);
-        }
       }
     })();
 
     return () => { cancelled = true; };
-  }, [missedSummary, token]);
+  }, [token, session?.user?.id, session?.user?.email]);
 
   // Profile update handler passed to verification modal
   const handleProfileUpdate = async (updateData) => {
@@ -286,9 +320,12 @@ function Home({ token, session }) {
         body: JSON.stringify(updateData)
       });
       if (!res.ok) throw new Error('Update failed');
-      // on success, close verification modal and proceed to missed-summary
+      // on success, close verification modal
       setShowGetVerifiedModal(false);
-      setShowMissedModal(true);
+      // Show success toast
+      if (toastRef.current) {
+        toastRef.current.show('Profile updated successfully!', 'success');
+      }
       return true;
     } catch (e) {
       console.error('profile update error', e);
@@ -394,7 +431,7 @@ function Home({ token, session }) {
               <ResponsiveContainer width="100%" height={300}>
                 <PieChart>
                   <Pie
-                    data={categoryData}
+                    data={pieDisplayData}
                     cx="50%"
                     cy="50%"
                     innerRadius="55%"
@@ -406,25 +443,32 @@ function Home({ token, session }) {
                     onMouseEnter={(_, index) => setActiveSlice(index)}
                     onMouseLeave={() => setActiveSlice(null)}
                   >
-                    {categoryData.map((entry, index) => (
+                    {pieDisplayData.map((entry, index) => (
                       <Cell key={`cell-${index}`} fill={entry.color} />
                     ))}
                   </Pie>
-                  <Tooltip content={<CustomTooltip total={totalReports} />} />
+                  <Tooltip 
+                    content={<CustomTooltip total={totalReports} />} 
+                    position={{ x: 10, y: 10 }}
+                    wrapperStyle={{ position: 'absolute', top: 10, left: 10 }}
+                  />
                 </PieChart>
               </ResponsiveContainer>
 
               {/* Center label showing total */}
               <div className="chart-center" aria-hidden>
-                <div className="value">{categoryData.reduce((s, c) => s + (c.value || 0), 0)}</div>
+                <div className="value">{totalReports}</div>
                 <div className="label">Total reports</div>
               </div>
             </div>
             {/* custom legend will be rendered inside the card (below chart) */}
             <div className="custom-legend">
               {categoryData.map((cat, idx) => {
-                const value = cat.value || 0;
-                const pct = totalReports ? ((value / totalReports) * 100).toFixed(0) : '0';
+                // Use displayValue if available (for "No Data" state), otherwise use value
+                const value = cat.displayValue !== undefined ? cat.displayValue : (cat.value || 0);
+                // For "No Data" state, show 100% since the gray represents the full pie
+                const isNoData = !hasRealData && cat.name === "No Data";
+                const pct = isNoData ? '100' : (totalReports ? ((value / totalReports) * 100).toFixed(0) : '0');
                 return (
                   <div key={idx} className="legend-item">
                     <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
@@ -449,6 +493,7 @@ function Home({ token, session }) {
 
   return (
     <>
+    <Toast ref={toastRef} />
     <LoadingScreen
       variant="inline"
       features={loadingFeatures}
@@ -466,25 +511,13 @@ function Home({ token, session }) {
     >
       {contentWithoutMap}
     </LoadingScreen>
-    {/* Missed summary modal overlays the loading/dashboard as needed */}
+    {/* GetVerifiedModal for unverified users */}
     <React.Suspense fallback={null}>
       <GetVerifiedModal
         open={showGetVerifiedModal}
-        onSkip={() => { setShowGetVerifiedModal(false); setShowMissedModal(true); }}
+        onSkip={() => setShowGetVerifiedModal(false)}
         onProfileUpdate={handleProfileUpdate}
         user={userProfile || session?.user}
-      />
-
-      <MissedSummaryModal
-        open={showMissedModal && !showGetVerifiedModal}
-        onClose={() => setShowMissedModal(false)}
-        data={missedSummary}
-        showProceedAsNext={!isInfoVerified}
-        onProceed={() => {
-          // User clicked "Next" (when not verified) - show GetVerified modal
-          setShowMissedModal(false);
-          setShowGetVerifiedModal(true);
-        }}
       />
     </React.Suspense>
     </>

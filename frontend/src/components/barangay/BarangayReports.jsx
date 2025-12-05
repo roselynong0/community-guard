@@ -1,10 +1,11 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
-import { FaEdit, FaTrashAlt, FaSearch, FaRedo, FaCheckCircle, FaTimesCircle, FaCheck, FaTimes, FaSyncAlt, FaClock, FaFileCsv, FaFilePdf, FaThLarge, FaList, FaArchive, FaFileAlt, FaHeart, FaRegHeart, FaFire, FaPlus, FaMinus, FaMapPin, FaChartLine } from "react-icons/fa";
+import { FaEdit, FaTrashAlt, FaSearch, FaRedo, FaCheckCircle, FaTimesCircle, FaCheck, FaTimes, FaSyncAlt, FaClock, FaFileCsv, FaFilePdf, FaThLarge, FaList, FaArchive, FaFileAlt, FaHeart, FaRegHeart, FaFire, FaPlus, FaMinus, FaMapPin, FaChartLine, FaStar } from "react-icons/fa";
 import { API_CONFIG, getApiUrl } from "../../utils/apiConfig";
 import ModalPortal from "../shared/ModalPortal";
 import "./BarangayReports.css";
 import "../shared/Notification.css";
 import LoadingScreen from "../shared/LoadingScreen";
+const logoImg = /* @vite-ignore */ new URL('../../assets/logo.png', import.meta.url).href;
 const REPORT_STATUSES = ["Pending", "Ongoing", "Resolved"];
 
 // Priority level colors and styling
@@ -444,7 +445,14 @@ function BarangayReports({ token }) {
         setShowSmartFilter(true);
         setSmartFilterStartTime(startTime);
         setLiveSessionSeconds(0); // Reset timer to 0
-    }, []);
+        
+        // Show appropriate notification based on premium status
+        if (isPremiumUser) {
+            showNotification('✨ Unlimited Smart Filter activated! Enjoy premium AI-powered categorization.', 'premium');
+        } else {
+            showNotification('✨ Smart Filter activated! You have free access with a 48-hour weekly limit.', 'success');
+        }
+    }, [isPremiumUser, showNotification]);
 
     // Handle Smart Filter warning rejection
     const handleRejectSmartFilterWarning = useCallback(() => {
@@ -1261,7 +1269,8 @@ function BarangayReports({ token }) {
         });
         
         const sortedCategories = Object.entries(categoryStats).sort((a, b) => b[1] - a[1]);
-        const logoPath = new URL('../assets/logo.png', import.meta.url).href;
+        // Logo (static import)
+        const logoPath = logoImg;
         
         const printContent = `
             <!DOCTYPE html>
@@ -2077,13 +2086,31 @@ function BarangayReports({ token }) {
             {/* ⭐ Trending Pill Button Row - Always visible, shows count */}
             <div className="trending-pill-row">
                 <button
-                    className={`trending-pill-btn ${trendingReports.length === 0 ? 'empty' : ''}`}
-                    onClick={() => setTrendingExpanded(!trendingExpanded)}
-                    title={trendingExpanded ? 'Hide trending reports' : 'Show trending reports'}
+                    className={`trending-pill-btn ${sort === 'trending' ? 'active' : ''} ${trendingReports.length === 0 ? 'empty' : ''}`}
+                    onClick={() => {
+                        if (sort === 'trending') {
+                            setSort('latest');
+                            setTrendingExpanded(false);
+                        } else {
+                            setSort('trending');
+                            setTrendingExpanded(true);
+                        }
+                    }}
+                    title={sort === 'trending' ? 'Turn off trending sort' : 'Sort by trending'}
                 >
                     <FaFire className="trending-pill-icon" />
                     Trending ({trendingReports.length})
-                    {trendingExpanded ? <FaMinus className="trending-pill-toggle" /> : <FaPlus className="trending-pill-toggle" />}
+                    {sort === 'trending' ? <FaMinus className="trending-pill-toggle" /> : <FaPlus className="trending-pill-toggle" />}
+                </button>
+
+                {/* Top Pill - Toggle sort */}
+                <button
+                    className={`top-pill-btn ${sort === 'top' ? 'active' : ''}`}
+                    onClick={() => setSort(sort === 'top' ? 'latest' : 'top')}
+                    title={sort === 'top' ? 'Turn off top sort' : 'Sort by most engagement'}
+                >
+                    <FaStar className="top-pill-icon" />
+                    Top
                 </button>
             </div>
 

@@ -1950,24 +1950,56 @@ def get_responders():
         responders_resp = query.execute()
         responders = getattr(responders_resp, "data", [])
         
+        print(f"🔍 Found {len(responders)} total responders: {[r.get('id') for r in responders]}")
+        
         # If barangay filter is provided, filter responders by their address_barangay from info table
         if barangay and responders:
             responder_ids = [r["id"] for r in responders]
+            print(f"🔍 Looking for responders in barangay: '{barangay}' from IDs: {responder_ids}")
             
-            # Get info for these responders
+            # Get info for these responders - address_barangay is an ENUM type in the DB
             info_resp = supabase.table("info").select("user_id, address_barangay").in_("user_id", responder_ids).execute()
             info_data = getattr(info_resp, "data", [])
+            print(f"📋 Info data for responders: {info_data}")
             
             # Create mapping of user_id to barangay
-            barangay_map = {info["user_id"]: info.get("address_barangay") for info in info_data}
+            # Note: address_barangay is an ENUM type, so comparison should be exact
+            barangay_map = {}
+            for info in info_data:
+                uid = info.get("user_id")
+                addr_brgy = info.get("address_barangay")
+                if uid:
+                    barangay_map[uid] = addr_brgy or ""
+                    print(f"  → User {uid}: address_barangay = '{addr_brgy}'")
             
-            # Filter responders by barangay
-            responders = [r for r in responders if barangay_map.get(r["id"]) == barangay]
+            print(f"🗺️ Barangay map: {barangay_map}")
+            print(f"🎯 Looking for barangay: '{barangay}'")
+            
+            # Filter responders by barangay - try both exact match and case-insensitive
+            filtered_responders = []
+            for r in responders:
+                rid = r["id"]
+                user_barangay = barangay_map.get(rid, "")
+                
+                # Try exact match first (for ENUM), then case-insensitive fallback
+                if user_barangay == barangay:
+                    filtered_responders.append(r)
+                    print(f"  ✓ Exact match: {rid} in '{user_barangay}'")
+                elif user_barangay and barangay and user_barangay.lower().strip() == barangay.lower().strip():
+                    filtered_responders.append(r)
+                    print(f"  ✓ Case-insensitive match: {rid} in '{user_barangay}'")
+                else:
+                    print(f"  ✗ No match: {rid} has '{user_barangay}', looking for '{barangay}'")
+            
+            responders = filtered_responders
+            print(f"✅ Found {len(responders)} responders in barangay '{barangay}'")
         
         return jsonify({"status": "success", "responders": responders}), 200
         
     except Exception as e:
         print(f"❌ Failed to get responders: {str(e)}")
+        import traceback
+        traceback.print_exc()
         return jsonify({"status": "error", "message": str(e)}), 500
 
 

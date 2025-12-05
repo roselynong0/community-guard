@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import "../resident/CommunityFeed.css";
 import "../resident/Notifications.css";
+import ModalPortal from "../shared/ModalPortal";
 import { FaPaperPlane, FaUsers, FaCheck, FaTimes, FaEdit, FaTrash } from "react-icons/fa";
 
 const AdminCommunityFeed = () => {
@@ -104,10 +105,17 @@ const AdminCommunityFeed = () => {
 
   return (
     <div className="feed-container">
+      {/* Notification - wrapped in ModalPortal for proper z-index display */}
       {notification && (
-        <div className={`notif notif-${notification.type}`}>
-          {notification.message}
-        </div>
+        <ModalPortal>
+          <div 
+            className={`notif notif-${notification.type}`}
+            role="alert" 
+            aria-live="assertive"
+          >
+            {notification.message}
+          </div>
+        </ModalPortal>
       )}
 
       <div className="feed-header">

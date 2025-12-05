@@ -1326,22 +1326,17 @@ const [activeTab, setActiveTab] = useState("Residents");
         </ModalPortal>
       )}
 
-      {/* Notification with proper styling */}
+      {/* Notification - wrapped in ModalPortal for proper z-index display */}
       {notification && (
-        <div className={`notif notif-${notification.type}`} style={{
-          position: 'fixed',
-          top: '20px',
-          right: '20px',
-          maxWidth: '400px',
-          padding: '16px 20px',
-          borderRadius: '8px',
-          fontWeight: '500',
-          boxShadow: '0 4px 12px rgba(0,0,0,0.25)',
-          zIndex: 9999,
-          animation: 'slideFadeIn 0.3s ease-in-out'
-        }}>
-          {notification.message}
-        </div>
+        <ModalPortal>
+          <div 
+            className={`notif notif-${notification.type}`}
+            role="alert" 
+            aria-live="assertive"
+          >
+            {notification.message}
+          </div>
+        </ModalPortal>
       )}
 
 

@@ -4,12 +4,13 @@ import {
     FaTrashAlt,
     FaSearch,
     FaRedo, FaCheckCircle, FaTimesCircle, FaCheck, FaTimes,
-    FaSyncAlt, FaClock, FaFileCsv, FaFilePdf, FaThLarge, FaList, FaArchive, FaFileAlt, FaHeart, FaRegHeart, FaFire, FaPlus, FaMinus, FaMapPin, FaChartLine } from "react-icons/fa";
+    FaSyncAlt, FaClock, FaFileCsv, FaFilePdf, FaThLarge, FaList, FaArchive, FaFileAlt, FaHeart, FaRegHeart, FaFire, FaPlus, FaMinus, FaMapPin, FaChartLine, FaStar } from "react-icons/fa";
 import { API_CONFIG, getApiUrl } from "../../utils/apiConfig";
 import "./Admin-Reports.css";
 import "../shared/Notification.css";
 import ModalPortal from "../shared/ModalPortal";
 import LoadingScreen from "../shared/LoadingScreen";
+const logoImg = /* @vite-ignore */ new URL('../../assets/logo.png', import.meta.url).href;
 const REPORT_STATUSES = ["Pending", "Ongoing", "Resolved"];
 
 // Priority level colors and styling (copied from BarangayReports)
@@ -1131,7 +1132,8 @@ function AdminReports({ token, reportTitle = 'All Community Reports', showTitle 
         const sortedCategories = Object.entries(categoryStats).sort((a, b) => b[1] - a[1]);
         const sortedBarangays = Object.entries(barangayStats).sort((a, b) => b[1] - a[1]);
         
-        const logoPath = new URL('../assets/logo.png', import.meta.url).href;
+        // Logo (static import)
+        const logoPath = logoImg;
         
         const printContent = `
             <!DOCTYPE html>
@@ -1708,13 +1710,31 @@ function AdminReports({ token, reportTitle = 'All Community Reports', showTitle 
             {/* ⭐ Trending Pill Button Row - Always visible, shows count */}
             <div className="trending-pill-row">
                 <button
-                    className={`trending-pill-btn ${trendingReports.length === 0 ? 'empty' : ''}`}
-                    onClick={() => setTrendingExpanded(!trendingExpanded)}
-                    title={trendingExpanded ? 'Hide trending reports' : 'Show trending reports'}
+                    className={`trending-pill-btn ${sort === 'trending' ? 'active' : ''} ${trendingReports.length === 0 ? 'empty' : ''}`}
+                    onClick={() => {
+                        if (sort === 'trending') {
+                            setSort('latest');
+                            setTrendingExpanded(false);
+                        } else {
+                            setSort('trending');
+                            setTrendingExpanded(true);
+                        }
+                    }}
+                    title={sort === 'trending' ? 'Turn off trending sort' : 'Sort by trending'}
                 >
                     <FaFire className="trending-pill-icon" />
                     Trending ({trendingReports.length})
-                    {trendingExpanded ? <FaMinus className="trending-pill-toggle" /> : <FaPlus className="trending-pill-toggle" />}
+                    {sort === 'trending' ? <FaMinus className="trending-pill-toggle" /> : <FaPlus className="trending-pill-toggle" />}
+                </button>
+
+                {/* Top Pill - Toggle sort */}
+                <button
+                    className={`top-pill-btn ${sort === 'top' ? 'active' : ''}`}
+                    onClick={() => setSort(sort === 'top' ? 'latest' : 'top')}
+                    title={sort === 'top' ? 'Turn off top sort' : 'Sort by most engagement'}
+                >
+                    <FaStar className="top-pill-icon" />
+                    Top
                 </button>
             </div>
 

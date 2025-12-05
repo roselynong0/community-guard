@@ -614,24 +614,8 @@ def _handle_high_risk_report(report_id, report_title, report_category, reporter_
     except Exception as e:
         print(f"⚠️ Failed to notify reporter: {e}")
     
-    # 2. Alert all admins with urgent notification
-    try:
-        admin_count = _notify_all_admins_urgent(
-            report_id=report_id,
-            report_title=report_title,
-            report_category=report_category,
-            priority=priority,
-            barangay=barangay,
-            description=description,
-            reporter_id=reporter_id,
-            actor_id=actor_id or reporter_id
-        )
-        notifications_sent += admin_count
-        actions.append(f"Notified {admin_count} admin(s) with urgent alert")
-    except Exception as e:
-        print(f"⚠️ Failed to notify admins: {e}")
-    
-    # 3. Alert barangay officials in the affected barangay
+    # 2. Alert barangay officials in the affected barangay (they handle assignments)
+    # NOTE: Admins will see notifications when barangay/responders take actions, not for every new report
     try:
         if barangay:
             barangay_count = _notify_barangay_officials_urgent(
@@ -647,7 +631,7 @@ def _handle_high_risk_report(report_id, report_title, report_category, reporter_
     except Exception as e:
         print(f"⚠️ Failed to notify barangay officials: {e}")
     
-    # 4. Alert responders (if available)
+    # 3. Alert responders (if available)
     try:
         responder_count = _notify_responders_urgent(
             report_id=report_id,
@@ -661,20 +645,22 @@ def _handle_high_risk_report(report_id, report_title, report_category, reporter_
     except Exception as e:
         print(f"⚠️ Failed to notify responders: {e}")
     
-    # 5. Create admin audit trail
+    # 4. Create ONE admin notification for this critical report (with duplicate prevention)
+    # This only creates a notification about the REPORTER's report, not about other users being notified
     try:
-        _create_admin_audit_notification(
+        admin_created = _create_single_admin_critical_notification(
             actor_id=actor_id or reporter_id,
-            user_id=reporter_id,
+            reporter_id=reporter_id,
             report_id=report_id,
-            title=f"{urgency_label} - Auto Response Triggered",
-            type_label="high_risk_alert",
-            message=f'HIGH-RISK report "{report_title}" ({report_category}) automatically triggered emergency response. Priority: {priority}. Location: {barangay or "Unknown"}. {notifications_sent} notifications dispatched.',
-            priority=priority
+            report_title=report_title,
+            report_category=report_category,
+            priority=priority,
+            barangay=barangay
         )
-        actions.append("Admin audit trail created")
+        if admin_created:
+            actions.append("Admin notified of critical report")
     except Exception as e:
-        print(f"⚠️ Failed to create admin audit: {e}")
+        print(f"⚠️ Failed to create admin notification: {e}")
     
     result['notifications_sent'] = notifications_sent
     result['actions_taken'] = actions
@@ -758,11 +744,23 @@ def _handle_evaluation_queue_report(report_id, report_title, report_category, re
 def _create_priority_notification(user_id, report_id, title, message, notif_type, priority):
     """
     Create a notification with priority context.
+    Checks for existing notification to prevent duplicates.
     """
     if not user_id:
         return None
     
     try:
+        # Check if a similar notification already exists for this report and user
+        # to prevent duplicate notifications
+        existing_check = supabase.table("notifications").select("id").eq(
+            "user_id", user_id
+        ).eq("report_id", report_id).eq("type", notif_type).execute()
+        
+        existing_data = getattr(existing_check, "data", []) or []
+        if existing_data:
+            print(f"⚠️ Notification already exists for user {user_id}, report {report_id}, type {notif_type} - skipping duplicate")
+            return existing_data[0]  # Return existing notification instead of creating duplicate
+        
         res = supabase.table("notifications").insert({
             "user_id": user_id,
             "report_id": report_id,
@@ -780,41 +778,84 @@ def _create_priority_notification(user_id, report_id, title, message, notif_type
         return None
 
 
+def _create_single_admin_critical_notification(actor_id, reporter_id, report_id, report_title, 
+                                                report_category, priority, barangay):
+    """
+    Create ONE admin notification for a critical report.
+    This focuses on the REPORTER's submitted report only, not on notifications dispatched to others.
+    Includes duplicate prevention - only ONE notification per report_id.
+    """
+    try:
+        # Check if ANY admin notification already exists for this report (any type)
+        existing_check = supabase.table("admin_notifications").select("id").eq(
+            "report_id", report_id
+        ).execute()
+        existing_data = getattr(existing_check, "data", []) or []
+        
+        if existing_data:
+            print(f"⚠️ Admin notification already exists for report {report_id}, skipping duplicate")
+            return False
+        
+        # Create ONE admin notification about this critical report
+        priority_emoji = "🔴" if priority == "Critical" else "🟠"
+        
+        supabase.table("admin_notifications").insert({
+            "actor_id": actor_id,
+            "user_id": reporter_id,
+            "report_id": report_id,
+            "title": f"🚨 NEW REPORT: {report_category} in {barangay or 'Unknown'}",
+            "type": "critical_report",
+            "message": f"Priority: {priority} | '{report_title}' reported in {barangay or 'Unknown'}. Immediate review recommended.",
+            "is_read": False,
+            "created_at": datetime.now(timezone.utc).isoformat()
+        }).execute()
+        
+        print(f"✅ Created single admin notification for critical report {report_id}")
+        return True
+        
+    except Exception as e:
+        print(f"❌ Failed to create admin critical notification: {e}")
+        return False
+
+
 def _notify_all_admins_urgent(report_id, report_title, report_category, priority, 
                                barangay, description, reporter_id, actor_id):
     """
     Send urgent notifications to all admin users.
+    Only creates ONE admin_notification per report (not per admin) to avoid duplicates.
     """
     count = 0
     try:
-        # Get all admin users
-        admin_resp = supabase.table("users").select("id, firstname, lastname, email").eq("role", "Admin").execute()
-        admins = getattr(admin_resp, "data", []) or []
+        # Check if admin notification already exists for this report
+        existing_check = supabase.table("admin_notifications").select("id").eq(
+            "report_id", report_id
+        ).eq("type", "high_risk_alert").execute()
+        existing_data = getattr(existing_check, "data", []) or []
         
-        for admin in admins:
-            admin_id = admin.get('id')
-            if not admin_id:
-                continue
-            
-            # Create admin_notifications entry for urgent alert
-            try:
-                priority_emoji = "🔴" if priority == "Critical" else "🟠"
-                supabase.table("admin_notifications").insert({
-                    "actor_id": actor_id,
-                    "user_id": reporter_id,
-                    "report_id": report_id,
-                    "title": f"{priority_emoji} {priority.upper()} ALERT",
-                    "type": "high_risk_alert",
-                    "message": f'URGENT: {priority} priority report "{report_title}" ({report_category}) requires immediate attention. Location: {barangay or "Unknown"}.',
-                    "is_read": False,
-                    "created_at": datetime.now(timezone.utc).isoformat()
-                }).execute()
-                count += 1
-            except Exception as admin_err:
-                print(f"⚠️ Failed to notify admin {admin_id}: {admin_err}")
+        if existing_data:
+            print(f"⚠️ Admin notification already exists for report {report_id}, skipping duplicate")
+            return 0
+        
+        # Create ONE admin_notifications entry for urgent alert (admins share this table)
+        try:
+            priority_emoji = "🔴" if priority == "Critical" else "🟠"
+            supabase.table("admin_notifications").insert({
+                "actor_id": actor_id,
+                "user_id": reporter_id,
+                "report_id": report_id,
+                "title": f"{priority_emoji} {priority.upper()} ALERT",
+                "type": "high_risk_alert",
+                "message": f'URGENT: {priority} priority report "{report_title}" ({report_category}) requires immediate attention. Location: {barangay or "Unknown"}.',
+                "is_read": False,
+                "created_at": datetime.now(timezone.utc).isoformat()
+            }).execute()
+            count = 1
+            print(f"✅ Created admin notification for report {report_id}")
+        except Exception as admin_err:
+            print(f"⚠️ Failed to create admin notification: {admin_err}")
         
     except Exception as e:
-        print(f"❌ Failed to fetch admins: {e}")
+        print(f"❌ Failed to create admin notification: {e}")
     
     return count
 
@@ -822,25 +863,44 @@ def _notify_all_admins_urgent(report_id, report_title, report_category, priority
 def _notify_barangay_officials_urgent(report_id, report_title, report_category, priority, barangay, description):
     """
     Send urgent notifications to barangay officials in the affected area.
+    Includes duplicate prevention per official.
     """
     count = 0
     try:
+        print(f"🔍 Looking for barangay officials in: '{barangay}'")
+        
         # Get barangay officials for this barangay (barangay is stored in info table as address_barangay)
-        # First get user_ids from info table that match the barangay
-        info_resp = supabase.table("info").select("user_id").eq("address_barangay", barangay).execute()
-        barangay_user_ids = [i.get("user_id") for i in (getattr(info_resp, "data", []) or []) if i.get("user_id")]
+        # address_barangay is an ENUM type, so we need exact match
+        info_resp = supabase.table("info").select("user_id, address_barangay").eq("address_barangay", barangay).execute()
+        info_data = getattr(info_resp, "data", []) or []
+        print(f"📋 Found {len(info_data)} users in barangay '{barangay}' (exact match): {info_data}")
+        
+        barangay_user_ids = [i.get("user_id") for i in info_data if i.get("user_id")]
         
         if not barangay_user_ids:
             print(f"⚠️ No users found in barangay {barangay}")
             return 0
         
+        print(f"👥 User IDs in barangay: {barangay_user_ids}")
+        
         # Then filter to only Barangay Officials
-        officials_resp = supabase.table("users").select("id, firstname, lastname").eq("role", "Barangay Official").in_("id", barangay_user_ids).execute()
+        officials_resp = supabase.table("users").select("id, firstname, lastname, role").eq("role", "Barangay Official").in_("id", barangay_user_ids).execute()
         officials = getattr(officials_resp, "data", []) or []
+        print(f"🏛️ Found {len(officials)} barangay officials: {officials}")
         
         for official in officials:
             official_id = official.get('id')
             if not official_id:
+                continue
+            
+            # Check if notification already exists for this official and report
+            existing_check = supabase.table("notifications").select("id").eq(
+                "user_id", official_id
+            ).eq("report_id", report_id).eq("type", "urgent_barangay_alert").execute()
+            existing_data = getattr(existing_check, "data", []) or []
+            
+            if existing_data:
+                print(f"⚠️ Notification already exists for barangay official {official_id} and report {report_id}, skipping")
                 continue
             
             try:
@@ -855,6 +915,7 @@ def _notify_barangay_officials_urgent(report_id, report_title, report_category, 
                     "created_at": datetime.now(timezone.utc).isoformat()
                 }).execute()
                 count += 1
+                print(f"✅ Created notification for barangay official {official_id}")
             except Exception as off_err:
                 print(f"⚠️ Failed to notify barangay official {official_id}: {off_err}")
         
@@ -867,27 +928,50 @@ def _notify_barangay_officials_urgent(report_id, report_title, report_category, 
 def _notify_responders_urgent(report_id, report_title, report_category, priority, barangay):
     """
     Send urgent notifications to available responders in the same barangay.
+    Includes duplicate prevention per responder.
     """
     count = 0
     try:
+        print(f"🔍 Looking for responders in barangay: '{barangay}'")
+        
         # Get responders in the same barangay (barangay is stored in info table as address_barangay)
         if barangay:
-            info_resp = supabase.table("info").select("user_id").eq("address_barangay", barangay).execute()
-            barangay_user_ids = [i.get("user_id") for i in (getattr(info_resp, "data", []) or []) if i.get("user_id")]
+            # address_barangay is an ENUM type, so we need exact match
+            info_resp = supabase.table("info").select("user_id, address_barangay").eq("address_barangay", barangay).execute()
+            info_data = getattr(info_resp, "data", []) or []
+            print(f"📋 Found {len(info_data)} users in barangay '{barangay}' (exact match): {info_data}")
+            
+            barangay_user_ids = [i.get("user_id") for i in info_data if i.get("user_id")]
             
             if barangay_user_ids:
-                responders_resp = supabase.table("users").select("id, firstname, lastname").eq("role", "Responder").in_("id", barangay_user_ids).execute()
+                print(f"👥 User IDs in barangay: {barangay_user_ids}")
+                responders_resp = supabase.table("users").select("id, firstname, lastname, role").eq("role", "Responder").in_("id", barangay_user_ids).execute()
+                responders = getattr(responders_resp, "data", []) or []
+                print(f"🚨 Found {len(responders)} responders: {responders}")
             else:
-                responders_resp = type('obj', (object,), {'data': []})()
+                print(f"⚠️ No user IDs found in barangay '{barangay}'")
+                responders = []
         else:
             # If no barangay specified, notify all responders
+            print("⚠️ No barangay specified, fetching all responders")
             responders_resp = supabase.table("users").select("id, firstname, lastname").eq("role", "Responder").execute()
+            responders = getattr(responders_resp, "data", []) or []
         
-        responders = getattr(responders_resp, "data", []) or []
+        print(f"📢 Total responders to notify: {len(responders)}")
         
         for responder in responders:
             responder_id = responder.get('id')
             if not responder_id:
+                continue
+            
+            # Check if notification already exists for this responder and report
+            existing_check = supabase.table("notifications").select("id").eq(
+                "user_id", responder_id
+            ).eq("report_id", report_id).eq("type", "urgent_responder_alert").execute()
+            existing_data = getattr(existing_check, "data", []) or []
+            
+            if existing_data:
+                print(f"⚠️ Notification already exists for responder {responder_id} and report {report_id}, skipping")
                 continue
             
             try:
@@ -902,6 +986,7 @@ def _notify_responders_urgent(report_id, report_title, report_category, priority
                     "created_at": datetime.now(timezone.utc).isoformat()
                 }).execute()
                 count += 1
+                print(f"✅ Created notification for responder {responder_id}")
             except Exception as resp_err:
                 print(f"⚠️ Failed to notify responder {responder_id}: {resp_err}")
         
@@ -914,6 +999,7 @@ def _notify_responders_urgent(report_id, report_title, report_category, priority
 def _notify_barangay_for_evaluation(report_id, report_title, report_category, priority, barangay):
     """
     Notify barangay officials about a report queued for evaluation.
+    Includes duplicate prevention per official.
     """
     count = 0
     try:
@@ -935,6 +1021,16 @@ def _notify_barangay_for_evaluation(report_id, report_title, report_category, pr
             if not official_id:
                 continue
             
+            # Check if notification already exists for this official and report
+            existing_check = supabase.table("notifications").select("id").eq(
+                "user_id", official_id
+            ).eq("report_id", report_id).eq("type", "evaluation_request").execute()
+            existing_data = getattr(existing_check, "data", []) or []
+            
+            if existing_data:
+                print(f"⚠️ Evaluation notification already exists for official {official_id} and report {report_id}, skipping")
+                continue
+            
             try:
                 supabase.table("notifications").insert({
                     "user_id": official_id,
@@ -946,6 +1042,7 @@ def _notify_barangay_for_evaluation(report_id, report_title, report_category, pr
                     "created_at": datetime.now(timezone.utc).isoformat()
                 }).execute()
                 count += 1
+                print(f"✅ Created evaluation notification for official {official_id}")
             except Exception as off_err:
                 print(f"⚠️ Failed to notify barangay official for evaluation: {off_err}")
         
@@ -958,8 +1055,19 @@ def _notify_barangay_for_evaluation(report_id, report_title, report_category, pr
 def _create_admin_audit_notification(actor_id, user_id, report_id, title, type_label, message, priority):
     """
     Create an admin audit trail notification.
+    Includes duplicate prevention.
     """
     try:
+        # Check if audit notification already exists for this report and type
+        existing_check = supabase.table("admin_notifications").select("id").eq(
+            "report_id", report_id
+        ).eq("type", type_label).execute()
+        existing_data = getattr(existing_check, "data", []) or []
+        
+        if existing_data:
+            print(f"⚠️ Admin audit notification already exists for report {report_id} with type {type_label}, skipping")
+            return True
+        
         supabase.table("admin_notifications").insert({
             "actor_id": actor_id,
             "user_id": user_id,
@@ -970,6 +1078,7 @@ def _create_admin_audit_notification(actor_id, user_id, report_id, title, type_l
             "is_read": False,
             "created_at": datetime.now(timezone.utc).isoformat()
         }).execute()
+        print(f"✅ Created admin audit notification for report {report_id}")
         return True
     except Exception as e:
         print(f"❌ Failed to create admin audit notification: {e}")

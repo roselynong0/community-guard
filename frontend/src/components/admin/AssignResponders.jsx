@@ -441,11 +441,13 @@ function AssignResponders({ token }) {
                         <div className="modal-header">
                             <h3><FaUserPlus /> Assign Responder</h3>
                             <button 
-                                className="modal-close" 
+                                className="close-modal-btn" 
                                 onClick={() => !isAssigning && setIsAssignModalOpen(false)}
                                 disabled={isAssigning}
+                                aria-label="Close modal"
+                                title="Close"
                             >
-                                &times;
+                                <FaTimes aria-hidden="true" />
                             </button>
                         </div>
                         <div className="modal-body">
@@ -505,11 +507,13 @@ function AssignResponders({ token }) {
                         <div className="modal-header">
                             <h3>Remove Assignment</h3>
                             <button 
-                                className="modal-close" 
+                                className="close-modal-btn" 
                                 onClick={() => !isRemoving && setIsRemoveModalOpen(false)}
                                 disabled={isRemoving}
+                                aria-label="Close modal"
+                                title="Close"
                             >
-                                &times;
+                                <FaTimes aria-hidden="true" />
                             </button>
                         </div>
                         <div className="modal-body">

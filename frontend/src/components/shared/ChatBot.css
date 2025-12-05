@@ -834,3 +834,90 @@
   background: linear-gradient(135deg, #e8f5e9 0%, #c8e6c9 100%);
   border-left: 4px solid #27ae60;
 }
+
+/* ========================================
+   USAGE COUNTER & LIMIT MODAL
+   ======================================== */
+.chatbot-usage-counter {
+  padding: 8px 12px;
+  background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+  border-top: 1px solid #dee2e6;
+  text-align: center;
+  font-size: 11px;
+  color: #6c757d;
+  border-radius: 0 0 10px 10px;
+}
+
+.chatbot-usage-counter span {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.chatbot-usage-counter span.limit-reached {
+  color: #dc3545;
+  font-weight: 600;
+}
+
+/* Premium Limit Modal */
+.premium-limit-modal {
+  max-width: 420px;
+}
+
+.limit-modal-content {
+  text-align: center;
+  padding: 1rem 0;
+}
+
+.limit-icon {
+  font-size: 3rem;
+  margin-bottom: 1rem;
+}
+
+.limit-modal-content p {
+  margin: 0.5rem 0;
+  color: #333;
+}
+
+.limit-modal-content .limit-detail {
+  font-size: 0.875rem;
+  color: #666;
+}
+
+.premium-upgrade-section {
+  margin-top: 1.5rem;
+  padding: 1rem;
+  background: linear-gradient(135deg, rgba(244, 183, 97, 0.1), rgba(244, 183, 97, 0.05));
+  border-radius: 10px;
+  border: 1px solid rgba(244, 183, 97, 0.3);
+}
+
+.premium-benefits-title {
+  font-weight: 600;
+  color: #11163e;
+  margin-bottom: 0.75rem;
+}
+
+.premium-benefits-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  text-align: left;
+}
+
+.premium-benefits-list li {
+  padding: 0.35rem 0;
+  font-size: 0.875rem;
+  color: #444;
+}
+
+.premium-upgrade-btn {
+  background: linear-gradient(135deg, #f4b761, #e8a543) !important;
+  color: #11163e !important;
+}
+
+.premium-upgrade-btn:hover {
+  background: linear-gradient(135deg, #e8a543, #d99836) !important;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 15px rgba(244, 183, 97, 0.4) !important;
+}

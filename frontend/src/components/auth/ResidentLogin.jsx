@@ -96,7 +96,7 @@ export default function ResidentLogin({ setSession, setNotification }) {
         setSession?.(result.session);
         const redirectPath = "/home";
         setNotification?.({ message: "Login successful! 🎉", type: "success" });
-        setTimeout(() => navigate(`${redirectPath}?showMissed=1`), 1200);
+        setTimeout(() => navigate(redirectPath), 1200);
       } else if (result.status === "invalid_credentials") {
         setNotification?.({ message: "Incorrect email or password.", type: "error" });
         ["email", "password"].forEach((field) => {

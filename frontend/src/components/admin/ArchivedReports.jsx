@@ -23,6 +23,7 @@ import "./ArchivedReports.css";
 import "./Admin-Reports.css";
 import LoadingScreen from "../shared/LoadingScreen";
 import ModalPortal from "../shared/ModalPortal";
+const logoImg = /* @vite-ignore */ new URL('../../assets/logo.png', import.meta.url).href;
 
 // Hook for keyboard navigation
 const useKeyboardNavigation = (containerRef, selector) => {
@@ -443,8 +444,8 @@ function ArchivedReports({ session }) {
       reportSubtitle = `${userBarangay} - Barangay Analytics Report`;
     }
     
-    // Logo as base64 (Community Guard logo)
-    const logoPath = new URL('../assets/logo.png', import.meta.url).href;
+    // Logo (static import)
+    const logoPath = logoImg;
     
     const printContent = `
       <!DOCTYPE html>
