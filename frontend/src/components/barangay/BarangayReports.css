@@ -1491,7 +1491,7 @@
 
 .barangay-list-table .list-header {
     display: grid;
-    grid-template-columns: 80px 2fr 100px 120px 100px 140px 100px 110px 100px;
+    grid-template-columns: 80px 2fr 100px 120px 100px 70px 120px 100px 110px 100px;
     gap: 12px;
     padding: 16px;
     background: #f1f5f9;
@@ -1503,7 +1503,7 @@
 
 .barangay-list-table .list-row {
     display: grid;
-    grid-template-columns: 80px 2fr 100px 120px 100px 140px 100px 110px 100px;
+    grid-template-columns: 80px 2fr 100px 120px 100px 70px 120px 100px 110px 100px;
     gap: 12px;
     padding: 16px;
     border-bottom: 1px solid #e5e7eb;
@@ -1696,6 +1696,60 @@
 
 .barangay-list-table .list-action-btn.delete:hover {
     background: #fecaca;
+}
+
+/* List Heart Button for Likes Column */
+.barangay-list-table .list-heart-btn {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    padding: 6px 10px;
+    border-radius: 16px;
+    font-size: 13px;
+    font-weight: 500;
+    color: #6b7280;
+    transition: all 0.2s ease;
+}
+
+.barangay-list-table .list-heart-btn:hover {
+    background: #fef2f2;
+    color: #ef4444;
+}
+
+.barangay-list-table .list-heart-btn.liked {
+    color: #ef4444;
+    background: #fef2f2;
+}
+
+.barangay-list-table .list-heart-btn.liked .heart-icon {
+    animation: heartPop 0.3s ease;
+}
+
+.barangay-list-table .list-heart-btn.disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.barangay-list-table .list-heart-btn.disabled:hover {
+    background: transparent;
+    color: #6b7280;
+}
+
+.barangay-list-table .list-heart-btn .heart-icon {
+    width: 16px;
+    height: 16px;
+    flex-shrink: 0;
+}
+
+.barangay-list-table .list-heart-btn .heart-icon.filled {
+    fill: #ef4444;
+}
+
+.barangay-list-table .col-likes {
+    min-width: 70px;
 }
 
 /* Responsive for header-right */

@@ -1068,7 +1068,8 @@ def get_barangays():
 @token_required
 def get_responder_reports():
     """
-    Responder endpoint: Returns reports filtered by the responder's barangay from info table.
+    Responder endpoint: Returns reports ASSIGNED to this responder (via assigned_responder_id).
+    Only shows reports where assigned_responder_id = current user's id.
     Excludes rejected reports. Returns stats and reports for the responder dashboard.
     """
     user_id = request.user_id
@@ -1082,28 +1083,23 @@ def get_responder_reports():
         if not user or user.get("role") != "Responder":
             return jsonify({"status": "error", "message": "Responder access required"}), 403
         
-        # Get barangay from info table
+        # Get barangay from info table (for display purposes)
         info_resp = supabase.table("info").select("address_barangay").eq("user_id", user_id).execute()
         info = getattr(info_resp, "data", [None])[0]
         user_barangay = info.get("address_barangay") if info else None
         
-        print(f"📍 Fetching responder reports for user {user_id}, barangay: {user_barangay}")
+        print(f"📍 Fetching responder reports ASSIGNED to user {user_id}, barangay: {user_barangay}")
         
-        # Build query - filter by barangay if set, only approved and non-rejected reports
+        # Build query - filter by assigned_responder_id = current user (only assigned reports)
         query = supabase.table("reports").select(
-            "id, title, category, status, address_barangay, address_street, latitude, longitude, created_at, updated_at, user_id"
-        ).is_("deleted_at", "null").eq("is_rejected", False).eq("is_approved", True)
-        
-        # Filter by responder's barangay if they have one set
-        if user_barangay and user_barangay != "No barangay selected":
-            query = query.eq("address_barangay", user_barangay)
-            print(f"📊 Filtering reports by barangay: {user_barangay}")
+            "id, title, category, status, address_barangay, address_street, latitude, longitude, created_at, updated_at, user_id, assigned_responder_id, assigned_at"
+        ).is_("deleted_at", "null").eq("is_rejected", False).eq("is_approved", True).eq("assigned_responder_id", user_id)
         
         query = query.order("created_at", desc=True).limit(limit)
         response = query.execute()
         
         reports_list = getattr(response, "data", []) or []
-        print(f"✅ Responder fetched {len(reports_list)} reports")
+        print(f"✅ Responder fetched {len(reports_list)} ASSIGNED reports")
         
         # Calculate stats from filtered reports
         pending = sum(1 for r in reports_list if (r.get("status") or "").lower() == "pending")

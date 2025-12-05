@@ -57,7 +57,7 @@ const CommunityFeedBarangay = ({ session, token }) => {
   // Trending section states
   const [trendingPosts, setTrendingPosts] = useState([]);
   const [trendingExpanded, setTrendingExpanded] = useState(false);
-  const [trendingTimeFilter, setTrendingTimeFilter] = useState("this-month");
+  const [trendingTimeFilter, setTrendingTimeFilter] = useState("all"); // all, today, yesterday, this-month
   const [pendingExpanded, setPendingExpanded] = useState(false);
 
   const authToken = token || session?.token || localStorage.getItem("token") || "";
@@ -107,6 +107,15 @@ const CommunityFeedBarangay = ({ session, token }) => {
 
       if (response.ok) {
         const data = await response.json();
+        console.log("📥 Barangay fetched community posts:", data.posts?.length, "posts");
+        console.log("📊 Barangay post engagement stats:", data.posts?.slice(0, 5).map(p => ({
+          id: p.id,
+          title: p.title?.substring(0, 30),
+          status: p.status,
+          reactions: p.reaction_count,
+          user_liked: p.user_liked,
+          comments: p.comment_count
+        })));
         setPosts(data.posts || []);
       } else if (response.status === 403) {
         setPosts([]);
@@ -331,17 +340,20 @@ const CommunityFeedBarangay = ({ session, token }) => {
     }
   };
 
-  // ⭐ Compute trending posts based on engagement and recency
+  // ⭐ Compute trending posts - Same algorithm as resident Reports/CommunityFeed
   useEffect(() => {
     if (!posts.length) {
       setTrendingPosts([]);
+      console.log("🔥 Barangay: No posts to compute trending from");
       return;
     }
 
     const now = new Date();
     
-    // Time filter logic
+    // Time filter logic - matches resident CommunityFeed
     const filterByTime = (createdAt) => {
+      if (trendingTimeFilter === "all") return true; // Show all posts
+      
       const postDate = new Date(createdAt);
       const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
       const yesterday = new Date(today);
@@ -360,7 +372,7 @@ const CommunityFeedBarangay = ({ session, token }) => {
       }
     };
     
-    // Filter only approved posts with likes for trending
+    // Filter approved posts with likes for trending
     // reaction_count is synced from react_counts DB column on backend
     const approvedPosts = posts.filter(p => 
       p.status === 'approved' && 
@@ -368,8 +380,13 @@ const CommunityFeedBarangay = ({ session, token }) => {
       filterByTime(p.created_at)
     );
     
+    console.log(`📋 Barangay: Filtered ${approvedPosts.length} engaged posts from ${posts.length} total (${trendingTimeFilter})`);
+    console.log(`📊 Barangay: Post statuses: ${[...new Set(posts.map(p => p.status))].join(', ')}`);
+    console.log(`❤️ Barangay: Posts with reactions: ${posts.filter(p => (p.reaction_count || 0) > 0).length}`);
+    
     // Apply trending algorithm - Community Awareness & Involvement
     // Score = (reactions * 15 + comments * 8 + type_weight + base_score) / (days_old + 1)^0.8
+    // Gentler decay keeps posts visible longer for stable trending display
     const scored = approvedPosts.map((p) => {
       const createdAt = new Date(p.created_at || 0);
       const daysOld = Math.max(0, (now - createdAt) / (1000 * 60 * 60 * 24));
@@ -380,6 +397,7 @@ const CommunityFeedBarangay = ({ session, token }) => {
       const baseScore = 5;
       const engagement = reactionBoost + commentBoost + (typeWeight[p.post_type] || 2) + baseScore;
       
+      // Very gentle time decay (0.8 exponent) - keeps trending stable
       const timeFactor = Math.pow(daysOld + 1, 0.8);
       const trendingScore = engagement / timeFactor;
       
@@ -391,11 +409,22 @@ const CommunityFeedBarangay = ({ session, token }) => {
       .slice(0, 5);
 
     setTrendingPosts(trending);
+    console.log(`🔥 Barangay: ${trending.length} trending community posts (${trendingTimeFilter})`, trending.map(t => ({
+      title: t.title?.substring(0, 30),
+      reactions: t.reaction_count,
+      comments: t.comment_count,
+      score: t.trendingScore?.toFixed(2)
+    })));
   }, [posts, trendingTimeFilter]);
 
   // Get pending posts count for the pill
   const pendingPostsCount = useMemo(() => {
-    return posts.filter(p => p.status === 'pending' && !p.is_accepted && !p.is_rejected).length;
+    return posts.filter(p => p.status === 'pending').length;
+  }, [posts]);
+
+  // Get actual pending posts list for the container (status = pending)
+  const pendingPostsList = useMemo(() => {
+    return posts.filter(p => p.status === 'pending');
   }, [posts]);
 
   // ✅ FILTER POSTS - Sort pending posts to top
@@ -448,8 +477,8 @@ const CommunityFeedBarangay = ({ session, token }) => {
     } else {
       // Default: Pending posts first, then by date
       filtered.sort((a, b) => {
-        const aIsPending = a.status === 'pending' && !a.is_accepted;
-        const bIsPending = b.status === 'pending' && !b.is_accepted;
+        const aIsPending = a.status === 'pending';
+        const bIsPending = b.status === 'pending';
         if (aIsPending && !bIsPending) return -1;
         if (!aIsPending && bIsPending) return 1;
         
@@ -596,6 +625,7 @@ const CommunityFeedBarangay = ({ session, token }) => {
               value={trendingTimeFilter}
               onChange={(e) => setTrendingTimeFilter(e.target.value)}
             >
+              <option value="all">All Time</option>
               <option value="today">Today</option>
               <option value="yesterday">Yesterday</option>
               <option value="this-month">This Month</option>
@@ -643,6 +673,55 @@ const CommunityFeedBarangay = ({ session, token }) => {
             <FaFire className="empty-icon" />
             <p>No trending posts yet</p>
             <span>Posts become trending based on engagement and recency</span>
+          </div>
+        </div>
+      )}
+
+      {/* ⭐ Pending Posts Section - Shows posts awaiting approval (is_accepted = false) */}
+      {isOfficialUser && pendingExpanded && pendingPostsList.length > 0 && (
+        <div className="feed-pending-container expanded">
+          <div className="feed-pending-header">
+            <h3><FaClock className="feed-pending-icon" /> Pending Posts</h3>
+          </div>
+          <div className="feed-pending-list">
+            {pendingPostsList.map((post) => (
+              <div 
+                key={`pending-${post.id}`} 
+                className="feed-pending-card"
+                onClick={() => {
+                  const element = document.getElementById(`post-${post.id}`);
+                  if (element) {
+                    element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                  }
+                }}
+              >
+                <div className="feed-pending-type" data-type={post.post_type}>
+                  {post.post_type}
+                </div>
+                <div className="feed-pending-title">{post.title}</div>
+                <div className="feed-pending-location">
+                  📍 {post.barangay}
+                </div>
+                <div className="feed-pending-meta">
+                  <span className="feed-pending-author">
+                    {post.author?.firstname} {post.author?.lastname}
+                  </span>
+                  <span className="feed-pending-time">
+                    {new Date(post.created_at).toLocaleDateString()}
+                  </span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {isOfficialUser && pendingExpanded && pendingPostsList.length === 0 && (
+        <div className="feed-pending-container expanded empty">
+          <div className="feed-pending-empty">
+            <FaClock className="empty-icon" />
+            <p>No pending posts</p>
+            <span>All posts have been reviewed</span>
           </div>
         </div>
       )}

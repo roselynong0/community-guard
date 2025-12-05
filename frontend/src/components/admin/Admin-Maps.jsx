@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useRef } from "react";
 import {
   MapContainer,
   TileLayer,
@@ -14,6 +14,7 @@ import "../resident/Maps.css";
 import "leaflet/dist/leaflet.css";
 import SafezoneModal from "../shared/SafezoneModal";
 import HotspotModal from "../shared/HotspotModal";
+import LoadingScreen from "../shared/LoadingScreen";
 
 // Olongapo Center for map initialization
 const OLONGAPO_CENTER = [14.8291, 120.2829];
@@ -147,12 +148,21 @@ function AdminMaps({ session }) {
   const [hotspots, setHotspots] = useState([]);
   const [safezones, setSafezones] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [overlayExited, setOverlayExited] = useState(false);
   const [selectedBarangay, setSelectedBarangay] = useState('all');
   const [showHotspots, setShowHotspots] = useState(true);
   const [showSafezones, setShowSafezones] = useState(true);
   const [showSafezoneModal, setShowSafezoneModal] = useState(false);
   const [showHotspotModal, setShowHotspotModal] = useState(false);
   const [selectedMapLocation, setSelectedMapLocation] = useState({ lat: null, lng: null });
+  const mapRef = useRef(null);
+
+  // Loading features for inline loading screen
+  const loadingFeatures = [
+    { title: "Map Data", description: "Loading all reports and locations." },
+    { title: "Hotspots", description: "Identifying high-incident areas." },
+    { title: "Safezones", description: "Loading community safe zones." },
+  ];
 
   useEffect(() => {
     const fetchAdminMapData = async () => {
@@ -311,8 +321,8 @@ function AdminMaps({ session }) {
     ? hotspots
     : hotspots;
 
-  return (
-    <div className="maps-page">
+  const content = (
+    <div className={`maps-page ${overlayExited ? 'overlay-exited' : ''}`}>
       <h2>City-Wide Reports & Analytics Map</h2>
       <p>Admin dashboard showing all city reports, hotspots, and safezones. Use filters to focus on specific areas.</p>
 
@@ -323,6 +333,7 @@ function AdminMaps({ session }) {
           zoom={INITIAL_ZOOM}
           scrollWheelZoom={true}
           className="map-container"
+          ref={mapRef}
         >
           <TileLayer
             attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
@@ -617,24 +628,6 @@ function AdminMaps({ session }) {
             </div>
           </div>
         )}
-
-        {/* Loading Overlay */}
-        {loading && (
-          <div style={{
-            position: 'absolute',
-            top: '50%',
-            left: '50%',
-            transform: 'translate(-50%, -50%)',
-            backgroundColor: 'rgba(255,255,255,0.95)',
-            borderRadius: '8px',
-            padding: '32px',
-            textAlign: 'center',
-            zIndex: 1001
-          }}>
-            <div style={{ width: '40px', height: '40px', border: '4px solid #e5e7eb', borderTop: '4px solid #2563eb', borderRadius: '50%', animation: 'spin 1s linear infinite', margin: '0 auto 16px' }}></div>
-            <p style={{ margin: '0', fontSize: '14px', color: '#666' }}>Loading map data...</p>
-          </div>
-        )}
       </div>
 
       {/* Modals */}
@@ -651,6 +644,29 @@ function AdminMaps({ session }) {
         onSave={handleHotspotRefreshed}
       />
     </div>
+  );
+
+  return (
+    <LoadingScreen
+      variant="inline"
+      features={loadingFeatures}
+      title={loading ? "Admin Maps" : undefined}
+      subtitle={loading ? "Loading reports, hotspots, and safezones" : undefined}
+      stage={loading ? "loading" : "exit"}
+      onExited={() => {
+        setOverlayExited(true);
+        // Trigger map resize after loading
+        setTimeout(() => {
+          window.dispatchEvent(new Event('resize'));
+          try { mapRef.current?.invalidateSize?.(); } catch (e) { console.debug('map invalidate error', e); }
+        }, 120);
+      }}
+      inlineOffset="20vh"
+      successDuration={700}
+      successTitle="Map Ready!"
+    >
+      {content}
+    </LoadingScreen>
   );
 }
 

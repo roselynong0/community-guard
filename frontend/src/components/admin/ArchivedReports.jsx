@@ -561,7 +561,7 @@ function ArchivedReports({ session }) {
         </div>
         
         <div class="section">
-          <h2 class="section-title">📋 Detailed Report List</h2>
+          <h2 class="section-title"> Detailed Report List</h2>
           <table>
             <thead>
               <tr>

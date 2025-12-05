@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState, useCallback } from 'react';
 import { API_CONFIG, getApiUrl } from "../../utils/apiConfig";
 import '../resident/Notifications.css';
+import LoadingScreen from '../shared/LoadingScreen';
 import {
   FaInfoCircle,
   FaCheckCircle,
@@ -186,10 +187,17 @@ export default function AdminNotifications({ session }) {
   }), [token]);
 
   const [notifications, setNotifications] = useState([]);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [overlayExited, setOverlayExited] = useState(false);
   const [error, setError] = useState('');
   const [statusFilter, setStatusFilter] = useState('All'); // All | Unread | Read
   const [categoryFilter, setCategoryFilter] = useState('All'); // All | Report | Account
+
+  // Loading features for inline loading screen
+  const loadingFeatures = [
+    { title: "Admin Notifications", description: "Loading system and user notifications." },
+    { title: "Alerts & Updates", description: "Fetching reports and account activities." },
+  ];
 
   const fetchNotifications = useCallback(async () => {
     setLoading(true);
@@ -307,8 +315,8 @@ export default function AdminNotifications({ session }) {
 
   // compute unread count inline when rendering to avoid unused-variable lint warnings
 
-  return (
-    <div className="notifications-container">
+  const content = (
+    <div className={`notifications-container ${overlayExited ? 'overlay-exited' : ''}`}>
       <div className="notifications-header">
         <div className="left"><h2><FaBell /> Admin Notifications</h2></div>
         <div className="right">
@@ -341,9 +349,7 @@ export default function AdminNotifications({ session }) {
 
       {error && <div className="notice error">{error}</div>}
 
-      {loading ? (
-        <div className="loading loading-block"><div className="spinner"/>Loading…</div>
-      ) : filtered.length === 0 ? (
+      {filtered.length === 0 ? (
         <div className="no-notifications">No notifications.</div>
       ) : (
         <ul className="notifications-list">
@@ -418,5 +424,21 @@ export default function AdminNotifications({ session }) {
         </ul>
       )}
     </div>
+  );
+
+  return (
+    <LoadingScreen
+      variant="inline"
+      features={loadingFeatures}
+      title={loading ? "Notifications" : undefined}
+      subtitle={loading ? "Loading admin notifications" : undefined}
+      stage={loading ? "loading" : "exit"}
+      onExited={() => setOverlayExited(true)}
+      inlineOffset="20vh"
+      successDuration={700}
+      successTitle="Notifications Loaded!"
+    >
+      {content}
+    </LoadingScreen>
   );
 }

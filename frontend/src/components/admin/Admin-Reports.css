@@ -1507,15 +1507,20 @@
     .admin-top-controls {
         flex-direction: column;
         align-items: stretch;
+        gap: 1rem;
+        margin-bottom: 1.5rem;
     }
 
     .admin-search-container {
         width: 100%;
+        min-width: auto;
+        order: -1;
     }
 
     .admin-search-input,
     .admin-filter-select {
         width: 100%;
+        min-width: auto;
     }
 
     .admin-report-header {
@@ -1560,9 +1565,11 @@
     /* Pill buttons mobile */
     .trending-pill-row {
         gap: 8px;
+        margin-bottom: 12px;
     }
     
     .trending-pill-btn,
+    .pending-pill-btn,
     .top-pill-btn {
         padding: 10px 12px;
         gap: 0;
@@ -1570,9 +1577,16 @@
         overflow: visible; /* Allow badge to show outside pill */
     }
     
-    .trending-pill-btn .pill-text,
-    .top-pill-btn .pill-text,
-    .trending-pill-toggle {
+    .trending-pill-btn .trending-pill-icon,
+    .pending-pill-btn .pending-pill-icon,
+    .top-pill-btn .top-pill-icon {
+        font-size: 1.1rem;
+    }
+    
+    /* Hide text and toggle icons on mobile */
+    .pill-text,
+    .trending-pill-toggle,
+    .pending-pill-toggle {
         display: none;
     }
     
@@ -1594,7 +1608,25 @@
         box-sizing: border-box;
     }
     
-    .trending-pill-btn.empty::after {
+    .pending-pill-btn::after {
+        content: attr(data-count);
+        position: absolute;
+        top: -6px;
+        right: -6px;
+        background: #fff;
+        color: #b45309;
+        font-size: 10px;
+        font-weight: 700;
+        padding: 2px 6px;
+        border-radius: 10px;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+        min-width: 18px;
+        text-align: center;
+        box-sizing: border-box;
+    }
+    
+    .trending-pill-btn.empty::after,
+    .pending-pill-btn.empty::after {
         background: #e5e7eb;
         color: #6b7280;
     }
@@ -1602,6 +1634,12 @@
     /* Hide badge for Top pill (no count) */
     .top-pill-btn::after {
         display: none;
+    }
+    
+    /* Feed containers mobile */
+    .feed-trending-list,
+    .feed-pending-list {
+        grid-template-columns: 1fr;
     }
 }
 
@@ -1852,7 +1890,7 @@
 
 .admin-list-table .list-header {
     display: grid;
-    grid-template-columns: 80px 2fr 100px 120px 100px 140px 100px 110px 100px;
+    grid-template-columns: 80px 2fr 100px 120px 100px 70px 120px 100px 110px 100px;
     gap: 12px;
     padding: 16px;
     background: #f1f5f9;
@@ -1864,7 +1902,7 @@
 
 .admin-list-table .list-row {
     display: grid;
-    grid-template-columns: 80px 2fr 100px 120px 100px 140px 100px 110px 100px;
+    grid-template-columns: 80px 2fr 100px 120px 100px 70px 120px 100px 110px 100px;
     gap: 12px;
     padding: 16px;
     border-bottom: 1px solid #e5e7eb;
@@ -1943,6 +1981,47 @@
     background: #fecaca;
 }
 
+/* List Like Button */
+.list-like-btn {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 4px 8px;
+    border: 1px solid #e5e7eb;
+    border-radius: 16px;
+    background: #ffffff;
+    color: #64748b;
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.list-like-btn:hover:not(:disabled) {
+    border-color: #ef4444;
+    color: #ef4444;
+    background: #fef2f2;
+}
+
+.list-like-btn.liked {
+    border-color: #ef4444;
+    color: #ef4444;
+    background: #fef2f2;
+}
+
+.list-like-btn.liked .heart-icon.filled {
+    color: #ef4444;
+}
+
+.list-like-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.list-like-btn .heart-icon {
+    font-size: 14px;
+}
+
 /* Responsive for header-right and list view */
 @media (max-width: 768px) {
     .admin-header-row {
@@ -1964,9 +2043,11 @@
     
     .admin-list-table .list-header .col-barangay,
     .admin-list-table .list-header .col-priority,
+    .admin-list-table .list-header .col-likes,
     .admin-list-table .list-header .col-date,
     .admin-list-table .list-row .col-barangay,
     .admin-list-table .list-row .col-priority,
+    .admin-list-table .list-row .col-likes,
     .admin-list-table .list-row .col-date {
         display: none;
     }
@@ -2047,47 +2128,48 @@
 .trending-pill-row {
     display: flex;
     align-items: center;
-    gap: 12px;
-    margin-bottom: 16px;
-    padding: 0;
+    gap: 10px;
+    margin: 16px 0;
+    padding: 8px 0;
+    flex-wrap: wrap;
 }
 
 .trending-pill-btn {
-    display: inline-flex;
+    display: flex;
     align-items: center;
     gap: 8px;
     padding: 10px 18px;
-    background: linear-gradient(135deg, #ff6b35 0%, #f44336 100%);
+    background: linear-gradient(135deg, #ff6b35 0%, #f7931e 100%);
     color: white;
     border: none;
-    border-radius: 25px;
-    font-size: 0.95rem;
+    border-radius: 50px;
+    font-size: 14px;
     font-weight: 600;
     cursor: pointer;
-    transition: all 0.3s ease;
-    box-shadow: 0 3px 10px rgba(244, 67, 54, 0.35);
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    box-shadow: 0 4px 15px rgba(255, 107, 53, 0.35);
+    position: relative;
+    overflow: hidden;
 }
 
 .trending-pill-btn:hover {
-    background: linear-gradient(135deg, #f44336 0%, #d32f2f 100%);
-    transform: translateY(-2px);
-    box-shadow: 0 5px 15px rgba(244, 67, 54, 0.45);
+    transform: translateY(-2px) scale(1.02);
+    box-shadow: 0 6px 20px rgba(255, 107, 53, 0.45);
 }
 
 .trending-pill-btn:active {
     transform: translateY(0);
-    box-shadow: 0 2px 6px rgba(244, 67, 54, 0.3);
+    box-shadow: 0 2px 6px rgba(255, 107, 53, 0.3);
 }
 
 /* Empty state styling for trending pill when count is 0 */
 .trending-pill-btn.empty {
-    background: linear-gradient(135deg, #9ca3af 0%, #6b7280 100%);
-    box-shadow: 0 3px 10px rgba(107, 114, 128, 0.35);
+    background: linear-gradient(135deg, #94a3b8 0%, #64748b 100%);
+    box-shadow: 0 4px 15px rgba(100, 116, 139, 0.25);
 }
 
 .trending-pill-btn.empty:hover {
-    background: linear-gradient(135deg, #6b7280 0%, #4b5563 100%);
-    box-shadow: 0 5px 15px rgba(107, 114, 128, 0.45);
+    box-shadow: 0 6px 20px rgba(100, 116, 139, 0.35);
 }
 
 .trending-pill-btn.empty .trending-pill-icon {
@@ -2095,15 +2177,101 @@
     opacity: 0.7;
 }
 
+.trending-pill-btn::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -100%;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
+    transition: left 0.5s;
+}
+
+.trending-pill-btn:hover::before {
+    left: 100%;
+}
+
+/* Active state for trending pill when sort is active */
+.trending-pill-btn.active {
+    background: linear-gradient(135deg, #ea580c 0%, #dc2626 100%);
+    box-shadow: 0 6px 20px rgba(234, 88, 12, 0.5);
+    transform: translateY(-1px);
+}
+
+.trending-pill-btn.active .trending-pill-icon {
+    animation: trendingFireActive 0.8s ease-in-out infinite;
+}
+
+@keyframes trendingFireActive {
+    0%, 100% { transform: scale(1) rotate(0deg); }
+    50% { transform: scale(1.2) rotate(5deg); }
+}
+
 .trending-pill-icon {
     font-size: 1rem;
-    animation: flicker 1.5s ease-in-out infinite;
 }
 
 .trending-pill-toggle {
     font-size: 0.75rem;
     margin-left: 4px;
     opacity: 0.9;
+}
+
+/* Top Pill Button - Star icon style */
+.top-pill-btn {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 18px;
+    background: rgba(234, 179, 8, 0.15);
+    color: #a16207;
+    border: 1px solid rgba(234, 179, 8, 0.3);
+    border-radius: 50px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.top-pill-btn:hover {
+    background: rgba(234, 179, 8, 0.25);
+    border-color: rgba(234, 179, 8, 0.5);
+    transform: translateY(-2px) scale(1.02);
+}
+
+.top-pill-btn:active {
+    transform: translateY(0);
+}
+
+.top-pill-btn.active {
+    background: linear-gradient(135deg, #eab308 0%, #ca8a04 100%);
+    color: white;
+    border-color: transparent;
+    box-shadow: 0 4px 15px rgba(234, 179, 8, 0.4);
+}
+
+.top-pill-btn.active:hover {
+    background: linear-gradient(135deg, #ca8a04 0%, #a16207 100%);
+}
+
+.top-pill-icon {
+    font-size: 1rem;
+}
+
+.top-pill-btn.active .top-pill-icon {
+    animation: starPulse 1s ease-in-out infinite;
+}
+
+@keyframes starPulse {
+    0%, 100% {
+        transform: scale(1);
+        opacity: 1;
+    }
+    50% {
+        transform: scale(1.15);
+        opacity: 0.85;
+    }
 }
 
 @keyframes flicker {
@@ -2352,4 +2520,388 @@
     color: #9ca3af;
     font-style: italic;
     margin-top: 8px;
+}
+
+/* ========================================
+   PENDING PILL BUTTON
+   ======================================== */
+.pending-pill-btn {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 18px;
+    background: rgba(245, 158, 11, 0.15);
+    color: #b45309;
+    border: 1px solid rgba(245, 158, 11, 0.3);
+    border-radius: 50px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.pending-pill-btn:hover {
+    background: rgba(245, 158, 11, 0.25);
+    border-color: rgba(245, 158, 11, 0.5);
+    transform: translateY(-2px) scale(1.02);
+}
+
+.pending-pill-btn.active {
+    background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+    color: white;
+    border-color: transparent;
+    box-shadow: 0 4px 15px rgba(245, 158, 11, 0.4);
+}
+
+.pending-pill-btn.empty {
+    background: rgba(148, 163, 184, 0.1);
+    color: #94a3b8;
+    border-color: rgba(148, 163, 184, 0.2);
+}
+
+.pending-pill-icon {
+    font-size: 1rem;
+}
+
+.pending-pill-btn.active .pending-pill-icon {
+    animation: pendingClockPulse 2s ease-in-out infinite;
+}
+
+@keyframes pendingClockPulse {
+    0%, 100% { transform: rotate(0deg); }
+    25% { transform: rotate(10deg); }
+    75% { transform: rotate(-10deg); }
+}
+
+.pending-pill-toggle {
+    font-size: 0.75rem;
+    margin-left: 4px;
+    opacity: 0.9;
+}
+
+/* ========================================
+   FEED-STYLE TRENDING/PENDING CONTAINERS
+   (Matching CommunityFeed / Reports.jsx design)
+   ======================================== */
+.feed-trending-container {
+    background: linear-gradient(135deg, #fff7ed 0%, #ffedd5 100%);
+    border: 1px solid rgba(251, 146, 60, 0.3);
+    border-radius: 16px;
+    padding: 20px;
+    margin-bottom: 20px;
+    animation: feedSlideIn 0.4s ease-out;
+}
+
+.feed-trending-container.empty {
+    background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+    border-color: rgba(148, 163, 184, 0.3);
+}
+
+@keyframes feedSlideIn {
+    from {
+        opacity: 0;
+        transform: translateY(-15px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.feed-trending-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 16px;
+    padding-bottom: 12px;
+    border-bottom: 1px solid rgba(251, 146, 60, 0.2);
+}
+
+.feed-trending-header h3 {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 0;
+    font-size: 1.1rem;
+    color: #c2410c;
+    font-weight: 600;
+}
+
+.feed-trending-pin {
+    color: #ea580c;
+    animation: feedPinBounce 2s ease-in-out infinite;
+}
+
+@keyframes feedPinBounce {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-3px); }
+}
+
+.feed-trending-list {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 12px;
+}
+
+.feed-trending-card {
+    background: white;
+    border-radius: 12px;
+    padding: 14px;
+    cursor: pointer;
+    transition: all 0.25s ease;
+    border: 1px solid rgba(251, 146, 60, 0.15);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+}
+
+.feed-trending-card:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 8px 20px rgba(251, 146, 60, 0.15);
+    border-color: rgba(251, 146, 60, 0.4);
+}
+
+.feed-trending-type {
+    display: inline-block;
+    padding: 3px 10px;
+    border-radius: 12px;
+    font-size: 0.7rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    background: rgba(45, 45, 115, 0.1);
+    color: #2d2d73;
+    margin-bottom: 8px;
+}
+
+.feed-trending-type[data-type="Crime"],
+.feed-trending-type[data-type="incident"] {
+    background: rgba(239, 68, 68, 0.1);
+    color: #dc2626;
+}
+
+.feed-trending-type[data-type="Hazard"],
+.feed-trending-type[data-type="safety"] {
+    background: rgba(34, 197, 94, 0.1);
+    color: #16a34a;
+}
+
+.feed-trending-type[data-type="Concern"],
+.feed-trending-type[data-type="suggestion"] {
+    background: rgba(59, 130, 246, 0.1);
+    color: #2563eb;
+}
+
+.feed-trending-title {
+    font-weight: 600;
+    font-size: 0.95rem;
+    color: #1e293b;
+    margin-bottom: 6px;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+
+.feed-trending-location {
+    font-size: 0.8rem;
+    color: #64748b;
+    margin-bottom: 8px;
+}
+
+.feed-trending-meta {
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.75rem;
+    color: #94a3b8;
+    margin-bottom: 8px;
+}
+
+.feed-trending-status[data-status="ongoing"] {
+    color: #ef4444;
+}
+
+.feed-trending-status[data-status="pending"] {
+    color: #f59e0b;
+}
+
+.feed-trending-engagement {
+    display: flex;
+    gap: 12px;
+    font-size: 0.8rem;
+    color: #64748b;
+}
+
+.feed-trending-likes {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.feed-trending-likes .heart-icon-small {
+    color: #ef4444;
+    font-size: 0.85rem;
+}
+
+.feed-trending-empty {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 30px;
+    text-align: center;
+}
+
+.feed-trending-empty .empty-icon {
+    font-size: 2.5rem;
+    color: #94a3b8;
+    margin-bottom: 12px;
+    opacity: 0.5;
+}
+
+.feed-trending-empty p {
+    margin: 0;
+    font-size: 1rem;
+    font-weight: 600;
+    color: #64748b;
+}
+
+.feed-trending-empty span {
+    font-size: 0.85rem;
+    color: #94a3b8;
+    margin-top: 4px;
+}
+
+/* Feed Pending Container */
+.feed-pending-container {
+    background: linear-gradient(135deg, #fffbeb 0%, #fef3c7 100%);
+    border: 1px solid rgba(245, 158, 11, 0.3);
+    border-radius: 16px;
+    padding: 20px;
+    margin-bottom: 20px;
+    animation: feedSlideIn 0.4s ease-out;
+}
+
+.feed-pending-container.empty {
+    background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+    border-color: rgba(148, 163, 184, 0.3);
+}
+
+.feed-pending-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 16px;
+    padding-bottom: 12px;
+    border-bottom: 1px solid rgba(245, 158, 11, 0.2);
+}
+
+.feed-pending-header h3 {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 0;
+    font-size: 1.1rem;
+    color: #b45309;
+    font-weight: 600;
+}
+
+.feed-pending-icon {
+    color: #f59e0b;
+    animation: feedClockPulse 2s ease-in-out infinite;
+}
+
+@keyframes feedClockPulse {
+    0%, 100% { transform: rotate(0deg); }
+    25% { transform: rotate(10deg); }
+    75% { transform: rotate(-10deg); }
+}
+
+.feed-pending-list {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 12px;
+}
+
+.feed-pending-card {
+    background: white;
+    border-radius: 12px;
+    padding: 14px;
+    cursor: pointer;
+    transition: all 0.25s ease;
+    border: 1px solid rgba(245, 158, 11, 0.15);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+}
+
+.feed-pending-card:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 8px 20px rgba(245, 158, 11, 0.15);
+    border-color: rgba(245, 158, 11, 0.4);
+}
+
+.feed-pending-type {
+    display: inline-block;
+    padding: 3px 10px;
+    border-radius: 12px;
+    font-size: 0.7rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    background: rgba(45, 45, 115, 0.1);
+    color: #2d2d73;
+    margin-bottom: 8px;
+}
+
+.feed-pending-title {
+    font-weight: 600;
+    font-size: 0.95rem;
+    color: #1e293b;
+    margin-bottom: 6px;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+
+.feed-pending-location {
+    font-size: 0.8rem;
+    color: #64748b;
+    margin-bottom: 8px;
+}
+
+.feed-pending-meta {
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.75rem;
+    color: #94a3b8;
+}
+
+.feed-pending-status {
+    color: #f59e0b;
+    font-weight: 500;
+}
+
+.feed-pending-empty {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 30px;
+    text-align: center;
+}
+
+.feed-pending-empty .empty-icon {
+    font-size: 2.5rem;
+    color: #94a3b8;
+    margin-bottom: 12px;
+    opacity: 0.5;
+}
+
+.feed-pending-empty p {
+    margin: 0;
+    font-size: 1rem;
+    font-weight: 600;
+    color: #64748b;
+}
+
+.feed-pending-empty span {
+    font-size: 0.85rem;
+    color: #94a3b8;
+    margin-top: 4px;
 }

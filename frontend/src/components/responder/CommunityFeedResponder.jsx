@@ -46,7 +46,7 @@ export default function CommunityFeedResponder({ session, token }) {
   // Trending section states
   const [trendingPosts, setTrendingPosts] = useState([]);
   const [trendingExpanded, setTrendingExpanded] = useState(false);
-  const [trendingTimeFilter, setTrendingTimeFilter] = useState("this-month");
+  const [trendingTimeFilter, setTrendingTimeFilter] = useState("all"); // all, today, yesterday, this-month
   
   const authToken = token || session?.token || localStorage.getItem('token') || '';
 
@@ -91,6 +91,15 @@ export default function CommunityFeedResponder({ session, token }) {
 
       if (response.ok) {
         const data = await response.json();
+        console.log("📥 Responder fetched community posts:", data.posts?.length, "posts");
+        console.log("📊 Responder post engagement stats:", data.posts?.slice(0, 5).map(p => ({
+          id: p.id,
+          title: p.title?.substring(0, 30),
+          status: p.status,
+          reactions: p.reaction_count,
+          user_liked: p.user_liked,
+          comments: p.comment_count
+        })));
         // Filter out rejected posts
         const visiblePosts = (data.posts || []).filter(p => 
           p.status !== 'rejected'
@@ -113,16 +122,20 @@ export default function CommunityFeedResponder({ session, token }) {
     }
   }, [fetchPosts, userBarangay]);
 
-  // ⭐ Compute trending posts
+  // ⭐ Compute trending posts - Same algorithm as resident CommunityFeed
   useEffect(() => {
     if (!posts.length) {
       setTrendingPosts([]);
+      console.log("🔥 Responder: No posts to compute trending from");
       return;
     }
 
     const now = new Date();
     
+    // Time filter logic - matches resident CommunityFeed
     const filterByTime = (createdAt) => {
+      if (trendingTimeFilter === "all") return true; // Show all posts
+      
       const postDate = new Date(createdAt);
       const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
       const yesterday = new Date(today);
@@ -141,13 +154,16 @@ export default function CommunityFeedResponder({ session, token }) {
       }
     };
     
-    // Filter only approved posts with likes for trending
+    // Filter approved posts with likes for trending
     // reaction_count is synced from react_counts DB column on backend
     const approvedPosts = posts.filter(p => 
       p.status === 'approved' && 
       (p.reaction_count || 0) > 0 &&
       filterByTime(p.created_at)
     );
+    
+    console.log(`📋 Responder: Filtered ${approvedPosts.length} engaged posts from ${posts.length} total (${trendingTimeFilter})`);
+    console.log(`❤️ Responder: Posts with reactions: ${posts.filter(p => (p.reaction_count || 0) > 0).length}`);
     
     // Apply trending algorithm - Community Awareness & Involvement
     // Score = (reactions * 15 + comments * 8 + type_weight + base_score) / (days_old + 1)^0.8
@@ -161,6 +177,7 @@ export default function CommunityFeedResponder({ session, token }) {
       const baseScore = 5;
       const engagement = reactionBoost + commentBoost + (typeWeight[p.post_type] || 2) + baseScore;
       
+      // Very gentle time decay (0.8 exponent) - keeps trending stable
       const timeFactor = Math.pow(daysOld + 1, 0.8);
       const trendingScore = engagement / timeFactor;
       
@@ -172,6 +189,12 @@ export default function CommunityFeedResponder({ session, token }) {
       .slice(0, 5);
 
     setTrendingPosts(trending);
+    console.log(`🔥 Responder: ${trending.length} trending community posts (${trendingTimeFilter})`, trending.map(t => ({
+      title: t.title?.substring(0, 30),
+      reactions: t.reaction_count,
+      comments: t.comment_count,
+      score: t.trendingScore?.toFixed(2)
+    })));
   }, [posts, trendingTimeFilter]);
 
   // ✅ ADD COMMENT
@@ -388,6 +411,7 @@ export default function CommunityFeedResponder({ session, token }) {
               value={trendingTimeFilter}
               onChange={(e) => setTrendingTimeFilter(e.target.value)}
             >
+              <option value="all">All Time</option>
               <option value="today">Today</option>
               <option value="yesterday">Yesterday</option>
               <option value="this-month">This Month</option>

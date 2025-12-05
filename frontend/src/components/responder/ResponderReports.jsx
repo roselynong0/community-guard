@@ -143,6 +143,7 @@ function RespondersReports({ token }) {
     const [barangay, setBarangay] = useState("All");
     const [statusFilter, setStatusFilter] = useState("All"); 
     const [sort, setSort] = useState("latest");
+    const [userBarangay, setUserBarangay] = useState(null); // User's address_barangay from info table
     const [smartSort, setSmartSort] = useState("latest"); // When smart filter active
     const [previewImage, setPreviewImage] = useState(null);
     const [notification, setNotification] = useState(null);
@@ -444,6 +445,11 @@ function RespondersReports({ token }) {
 
             const data = await response.json();
             if (data.status === "success") {
+                // Set the user's barangay from response (from info table)
+                if (data.barangay) {
+                    setUserBarangay(data.barangay);
+                }
+                
                 // Use reports from responder endpoint or fallback
                 const reports = Array.isArray(data.reports) ? data.reports : [];
                 
@@ -470,7 +476,11 @@ function RespondersReports({ token }) {
                         title: report.title || 'Untitled Report',
                         description: report.description || 'No description provided',
                         status: report.status || 'Pending',
-                        images: report.images?.map(img => img.url) || []
+                        images: report.images?.map(img => img.url) || [],
+                        reaction_count: report.reaction_count || 0,
+                        is_approved: report.is_approved,
+                        is_rejected: report.is_rejected,
+                        deleted_at: report.deleted_at
                     };
                 });
                 setReports(transformedReports);
@@ -508,7 +518,7 @@ function RespondersReports({ token }) {
         }
     }, [reports]);
 
-    // ⭐ NEW: Compute trending reports using newsfeed algorithm
+    // ⭐ Compute trending reports using newsfeed algorithm - filtered by responder's barangay
     useEffect(() => {
         if (!reports.length) {
             setTrendingReports([]);
@@ -537,13 +547,16 @@ function RespondersReports({ token }) {
         };
 
         // Filter approved reports that are not resolved AND have likes > 0
+        // Also filter by responder's address_barangay if available
         const eligibleReports = reports.filter((r) => 
             r.is_approved === true &&
             r.status !== "Resolved" &&
             r.deleted_at === null &&
             r.is_rejected !== true &&
             (r.reaction_count || 0) > 0 &&
-            filterByTime(r.created_at)
+            filterByTime(r.created_at) &&
+            // Filter by user's barangay if set
+            (!userBarangay || userBarangay === "No barangay selected" || r.address_barangay === userBarangay)
         );
 
         // Apply trending algorithm: Community Awareness & Involvement
@@ -572,8 +585,8 @@ function RespondersReports({ token }) {
             .slice(0, 5);
 
         setTrendingReports(trending);
-        console.log(`🔥 ${trending.length} trending reports (responder view)`);
-    }, [reports, trendingTimeFilter]);
+        console.log(`🔥 ${trending.length} trending reports for responder (${userBarangay || 'all'})`);
+    }, [reports, trendingTimeFilter, userBarangay]);
 
     const toggleExpand = (id) => {
         setExpandedPosts((prev) =>

@@ -65,16 +65,33 @@ def get_all_community_posts_admin():
             users_lookup = {user["id"]: user for user in users_data}
             
             # Batch fetch comment counts for all posts
+            post_ids = [p["id"] for p in posts]
             comments_resp = supabase.table("community_comments").select(
-                "post_id", count="exact"
-            ).in_("post_id", [p["id"] for p in posts]).is_("deleted_at", "null").execute()
+                "post_id"
+            ).in_("post_id", post_ids).is_("deleted_at", "null").execute()
             
             comment_counts = {}
             if getattr(comments_resp, "data", None):
-                for post_id in [p["id"] for p in posts]:
-                    comment_counts[post_id] = sum(
-                        1 for c in getattr(comments_resp, "data", []) if c.get("post_id") == post_id
-                    )
+                for c in getattr(comments_resp, "data", []):
+                    pid = c.get("post_id")
+                    if pid:
+                        comment_counts[pid] = comment_counts.get(pid, 0) + 1
+            
+            # ⭐ ADDED: Batch fetch user's reactions for user_liked status (matching barangay endpoint)
+            user_reactions = {}
+            try:
+                reactions_resp = supabase.table("community_post_reactions").select(
+                    "post_id"
+                ).in_("post_id", post_ids).eq("user_id", user_id).execute()
+                
+                reactions_data = getattr(reactions_resp, "data", []) or []
+                for r in reactions_data:
+                    pid = r.get("post_id")
+                    if pid:
+                        user_reactions[pid] = True
+                print(f"❤️ Admin has liked {len(user_reactions)} posts")
+            except Exception as e:
+                print(f"⚠️ Error fetching admin reactions: {e}")
             
             # Use react_counts from DB as primary source for stable trending
             for post in posts:
@@ -88,8 +105,10 @@ def get_all_community_posts_admin():
                 post["comment_count"] = comment_counts.get(post["id"], 0)
                 # Use react_counts from DB (synced on reaction toggle)
                 post["reaction_count"] = post.get("react_counts") or 0
+                post["user_liked"] = user_reactions.get(post["id"], False)
                 post["can_edit"] = post["user_id"] == user_id
                 post["can_delete"] = post["user_id"] == user_id
+                post["can_moderate"] = True  # Admin can moderate all posts
                 enriched_posts.append(post)
         
         print(f"✅ Loaded {len(enriched_posts)} community posts for admin")

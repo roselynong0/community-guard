@@ -207,10 +207,12 @@ function AdminReports({ token, reportTitle = 'All Community Reports', showTitle 
     const [showCommunityHelper] = useState(true); // show inline category suggestion
     const [isPremium, setIsPremium] = useState(false); // Admin premium status - unlimited AI usage
 
-    // ⭐ NEW: Trending reports states
+    // ⭐ Trending and Pending reports states (matching Reports.jsx)
     const [trendingReports, setTrendingReports] = useState([]);
-    const [trendingExpanded, setTrendingExpanded] = useState(true);
-    const [trendingTimeFilter, setTrendingTimeFilter] = useState("this-month"); // today, yesterday, this-month
+    const [trendingExpanded, setTrendingExpanded] = useState(false); // Collapsed by default
+    const [trendingTimeFilter, setTrendingTimeFilter] = useState("all"); // today, yesterday, this-month, all
+    const [pendingReports, setPendingReports] = useState([]); // Reports awaiting approval (is_approved = false)
+    const [pendingExpanded, setPendingExpanded] = useState(false); // Collapsed by default
 
     // Export modal states
     const [showExportModal, setShowExportModal] = useState(false);
@@ -555,9 +557,23 @@ function AdminReports({ token, reportTitle = 'All Community Reports', showTitle 
                         is_approved: report.is_approved ?? false,
                         is_rejected: report.is_rejected ?? false,
                         rejection_reason: report.rejection_reason ?? null,
-                        images: report.images?.map(img => img.url) || []
+                        images: report.images?.map(img => img.url) || [],
+                        // ⭐ Include reaction data for trending algorithm
+                        reaction_count: report.reaction_count || 0,
+                        user_liked: report.user_liked ?? false,
+                        deleted_at: report.deleted_at || null
                     };
                 });
+                
+                // Debug: Log first 3 reports with reaction data
+                console.log("📥 Admin fetched reports:", reports.length, "reports");
+                console.log("📊 Admin report reaction stats:", reports.slice(0, 5).map(r => ({
+                    id: r.id,
+                    title: r.title?.substring(0, 30),
+                    reaction_count: r.reaction_count,
+                    user_liked: r.user_liked,
+                    is_approved: r.is_approved
+                })));
                 // Try to get ML-based confidences from backend in a single batch call.
                 try {
                     const items = transformedReports.map(r => ({ id: r.id, description: r.description, images: r.images?.length || 0 }));
@@ -696,16 +712,18 @@ function AdminReports({ token, reportTitle = 'All Community Reports', showTitle 
         }
     }, [reports]);
 
-    // ⭐ NEW: Compute trending reports using newsfeed algorithm
+    // ⭐ Compute trending reports - Admin sees ALL trending reports across all barangays (max 5)
     useEffect(() => {
         if (!reports.length) {
             setTrendingReports([]);
             return;
         }
 
-        // Time filter logic
+        // Time filter logic - matches Reports.jsx algorithm
         const now = new Date();
         const filterByTime = (createdAt) => {
+            if (trendingTimeFilter === "all") return true; // Show all reports
+            
             const reportDate = new Date(createdAt);
             const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
             const yesterday = new Date(today);
@@ -724,6 +742,7 @@ function AdminReports({ token, reportTitle = 'All Community Reports', showTitle 
             }
         };
 
+        // Admin sees ALL trending reports across all barangays
         // Filter approved reports that are not resolved AND have likes > 0
         const eligibleReports = reports.filter((r) => 
             r.is_approved === true &&
@@ -754,14 +773,33 @@ function AdminReports({ token, reportTitle = 'All Community Reports', showTitle 
             return { ...r, trendingScore };
         });
 
-        // Sort by trending score descending, limit to 5
+        // Sort by trending score descending, limit to 5 (admin sees all barangays)
         const trending = scored
             .sort((a, b) => b.trendingScore - a.trendingScore)
             .slice(0, 5);
 
         setTrendingReports(trending);
-        console.log(`🔥 ${trending.length} trending reports (admin view)`);
+        console.log(`🔥 ${trending.length} trending reports (admin view - all barangays)`);
     }, [reports, trendingTimeFilter]);
+
+    // ⭐ Compute pending reports (is_approved = false, not rejected)
+    useEffect(() => {
+        if (!reports.length) {
+            setPendingReports([]);
+            return;
+        }
+
+        // Filter reports awaiting approval
+        const pending = reports.filter((r) => 
+            r.is_approved === false &&
+            r.is_rejected !== true &&
+            r.deleted_at === null &&
+            r.status !== "Resolved"
+        ).sort((a, b) => new Date(b.created_at) - new Date(a.created_at)); // Latest first
+
+        setPendingReports(pending);
+        console.log(`⏳ ${pending.length} pending reports awaiting approval`);
+    }, [reports]);
 
     const toggleExpand = (id) => {
         setExpandedPosts((prev) =>
@@ -1072,19 +1110,35 @@ function AdminReports({ token, reportTitle = 'All Community Reports', showTitle 
     const exportToCSV = (timeFilter = 'all') => {
         const reportsToExport = filterReportsByTime(filteredReports, timeFilter);
         
-        const headers = ["ID", "Title", "Category", "Status", "Barangay", "Address", "Reporter", "Priority", "Created At", "Description"];
-        const rows = reportsToExport.map((r) => [
-            r.id,
-            `"${(r.title || "").replace(/"/g, '""')}"`,
-            r.category || "N/A",
-            r.status || "N/A",
-            r.barangay || r.address_barangay || "N/A",
-            `"${(r.addressStreet || r.address_street || "").replace(/"/g, '""')}"`,
-            r.reporter ? `${r.reporter.firstname || ""} ${r.reporter.lastname || ""}`.trim() : "Unknown",
-            getReportPriority(r),
-            r.created_at ? new Date(r.created_at).toLocaleString() : "N/A",
-            `"${(r.description || "").replace(/"/g, '""').substring(0, 200)}..."`
-        ]);
+        // ⭐ Include engagement data: Likes, Trending Score
+        const headers = ["ID", "Title", "Category", "Status", "Barangay", "Address", "Reporter", "Priority", "Likes", "Trending Score", "Created At", "Description"];
+        const rows = reportsToExport.map((r) => {
+            // Calculate trending score for CSV export
+            const now = new Date();
+            const createdAt = new Date(r.created_at || 0);
+            const daysOld = Math.max(0, (now - createdAt) / (1000 * 60 * 60 * 24));
+            const severityWeight = { Crime: 4, Hazard: 3.5, Concern: 3, 'Lost&Found': 2, Others: 2 };
+            const reactionBoost = (r.reaction_count || 0) * 15;
+            const baseScore = 5;
+            const engagement = reactionBoost + (severityWeight[r.category] || 2) + baseScore;
+            const timeFactor = Math.pow(daysOld + 1, 0.8);
+            const trendingScore = (engagement / timeFactor).toFixed(2);
+            
+            return [
+                r.id,
+                `"${(r.title || "").replace(/"/g, '""')}"`,
+                r.category || "N/A",
+                r.status || "N/A",
+                r.barangay || r.address_barangay || "N/A",
+                `"${(r.addressStreet || r.address_street || "").replace(/"/g, '""')}"`,
+                r.reporter ? `${r.reporter.firstname || ""} ${r.reporter.lastname || ""}`.trim() : "Unknown",
+                getReportPriority(r),
+                r.reaction_count || 0,
+                trendingScore,
+                r.created_at ? new Date(r.created_at).toLocaleString() : "N/A",
+                `"${(r.description || "").replace(/"/g, '""').substring(0, 200)}..."`
+            ];
+        });
         
         const timeLabel = timeFilter === 'all' ? 'all' : timeFilter.replace('-', '_');
         const csvContent = [headers.join(","), ...rows.map((r) => r.join(","))].join("\n");
@@ -1118,6 +1172,10 @@ function AdminReports({ token, reportTitle = 'All Community Reports', showTitle 
         const statusStats = { Pending: 0, Ongoing: 0, Resolved: 0 };
         const priorityStats = { Critical: 0, High: 0, Medium: 0, Low: 0 };
         
+        // ⭐ Engagement analytics
+        let totalLikes = 0;
+        let topLikedReports = [];
+        
         reportsToExport.forEach((report) => {
             const cat = report.category || "Unknown";
             categoryStats[cat] = (categoryStats[cat] || 0) + 1;
@@ -1130,7 +1188,16 @@ function AdminReports({ token, reportTitle = 'All Community Reports', showTitle 
             
             const priority = getReportPriority(report);
             priorityStats[priority] = (priorityStats[priority] || 0) + 1;
+            
+            // Track engagement
+            totalLikes += (report.reaction_count || 0);
         });
+        
+        // Get top 5 most liked reports
+        topLikedReports = [...reportsToExport]
+            .sort((a, b) => (b.reaction_count || 0) - (a.reaction_count || 0))
+            .slice(0, 5)
+            .filter(r => (r.reaction_count || 0) > 0);
         
         const sortedCategories = Object.entries(categoryStats).sort((a, b) => b[1] - a[1]);
         const sortedBarangays = Object.entries(barangayStats).sort((a, b) => b[1] - a[1]);
@@ -1236,6 +1303,31 @@ function AdminReports({ token, reportTitle = 'All Community Reports', showTitle 
                     </div>
                 </div>
                 
+                ${topLikedReports.length > 0 ? `
+                <div class="section">
+                    <h2 class="section-title">🔥 Community Engagement - Top Trending Reports</h2>
+                    <div class="stats-grid" style="grid-template-columns: 1fr 1fr;">
+                        <div class="stat-card">
+                            <div class="number" style="color: #ef4444;">${totalLikes}</div>
+                            <div class="label">Total Likes</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="number" style="color: #f59e0b;">${topLikedReports.length}</div>
+                            <div class="label">Trending Reports</div>
+                        </div>
+                    </div>
+                    <div class="analytics-card" style="margin-top: 15px;">
+                        <h3>❤️ Most Liked Reports</h3>
+                        ${topLikedReports.map((r) => `
+                            <div class="analytics-item">
+                                <span class="name">${r.title?.substring(0, 40) || "Untitled"}${r.title?.length > 40 ? '...' : ''}</span>
+                                <span class="count">${r.reaction_count || 0} ❤️</span>
+                            </div>
+                        `).join("")}
+                    </div>
+                </div>
+                ` : ''}
+                
                 <div class="section">
                     <h2 class="section-title">📋 Detailed Report List</h2>
                     <table>
@@ -1247,6 +1339,7 @@ function AdminReports({ token, reportTitle = 'All Community Reports', showTitle 
                                 <th>Status</th>
                                 <th>Barangay</th>
                                 <th>Priority</th>
+                                <th>Likes</th>
                                 <th>Created</th>
                             </tr>
                         </thead>
@@ -1259,12 +1352,52 @@ function AdminReports({ token, reportTitle = 'All Community Reports', showTitle 
                                     <td>${report.status || "N/A"}</td>
                                     <td>${report.barangay || report.address_barangay || "N/A"}</td>
                                     <td class="priority-${getReportPriority(report).toLowerCase()}">${getReportPriority(report)}</td>
+                                    <td style="text-align: center;">${report.reaction_count || 0} ❤️</td>
                                     <td>${new Date(report.created_at).toLocaleDateString()}</td>
                                 </tr>
                             `).join("")}
                         </tbody>
                     </table>
                     ${reportsToExport.length > 50 ? `<p style="margin-top: 15px; color: #666; font-size: 12px; text-align: center;">Showing first 50 of ${reportsToExport.length} reports</p>` : ""}
+                </div>
+                
+                <div class="section" style="background: linear-gradient(135deg, #f0f4ff, #e8f0fe); padding: 25px; border-radius: 12px; border: 1px solid #3b82f6;">
+                    <h2 class="section-title" style="border-bottom-color: #3b82f6;">🤖 Community Helper - AI Analysis & Recommendations</h2>
+                    
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-top: 15px;">
+                        <div style="background: white; padding: 15px; border-radius: 8px; border-left: 4px solid ${priorityStats.Critical > 0 || priorityStats.High > 0 ? '#dc2626' : '#22c55e'};">
+                            <h4 style="color: #1e293b; margin-bottom: 10px;">📊 Risk Assessment</h4>
+                            <p style="font-size: 13px; color: #475569; line-height: 1.5;">
+                                ${priorityStats.Critical > 0 ? `<strong style="color: #dc2626;">⚠️ ${priorityStats.Critical} Critical</strong> priority report${priorityStats.Critical > 1 ? 's' : ''} requiring immediate attention. ` : ''}
+                                ${priorityStats.High > 0 ? `<strong style="color: #f59e0b;">${priorityStats.High} High</strong> priority report${priorityStats.High > 1 ? 's' : ''} should be addressed soon. ` : ''}
+                                ${priorityStats.Critical === 0 && priorityStats.High === 0 ? `✅ No critical or high priority reports. Community safety is currently stable.` : ''}
+                            </p>
+                        </div>
+                        
+                        <div style="background: white; padding: 15px; border-radius: 8px; border-left: 4px solid #3b82f6;">
+                            <h4 style="color: #1e293b; margin-bottom: 10px;">📈 Trend Analysis</h4>
+                            <p style="font-size: 13px; color: #475569; line-height: 1.5;">
+                                ${sortedCategories.length > 0 ? `Most reported category: <strong>${sortedCategories[0][0]}</strong> (${sortedCategories[0][1]} reports, ${((sortedCategories[0][1] / totalReports) * 100).toFixed(0)}% of total). ` : ''}
+                                ${topLikedReports.length > 0 ? `Community engagement shows ${totalLikes} total reactions across reports.` : 'Community engagement data is being collected.'}
+                            </p>
+                        </div>
+                    </div>
+                    
+                    <div style="background: white; padding: 15px; border-radius: 8px; margin-top: 15px; border-left: 4px solid #8b5cf6;">
+                        <h4 style="color: #1e293b; margin-bottom: 10px;">💡 Recommendations</h4>
+                        <ul style="font-size: 13px; color: #475569; line-height: 1.8; margin-left: 20px;">
+                            ${statusStats.Pending > totalReports * 0.3 ? `<li><strong>High Pending Rate:</strong> ${statusStats.Pending} reports (${((statusStats.Pending / totalReports) * 100).toFixed(0)}%) are pending. Consider allocating more resources for faster review.</li>` : ''}
+                            ${sortedBarangays.length > 0 && sortedBarangays[0][1] > totalReports * 0.3 ? `<li><strong>Hotspot Alert:</strong> ${sortedBarangays[0][0]} has ${sortedBarangays[0][1]} reports (${((sortedBarangays[0][1] / totalReports) * 100).toFixed(0)}% of total). Consider increased monitoring in this area.</li>` : ''}
+                            ${categoryStats['Crime'] && categoryStats['Crime'] > totalReports * 0.2 ? `<li><strong>Crime Reports:</strong> ${categoryStats['Crime']} crime-related reports detected. Coordinate with local law enforcement.</li>` : ''}
+                            ${categoryStats['Hazard'] && categoryStats['Hazard'] > totalReports * 0.2 ? `<li><strong>Hazard Reports:</strong> ${categoryStats['Hazard']} hazard reports. Ensure emergency services are aware and prepared.</li>` : ''}
+                            ${totalLikes > 0 && topLikedReports.length > 0 ? `<li><strong>Community Awareness:</strong> Reports with high engagement (${topLikedReports[0]?.reaction_count || 0}+ likes) indicate issues affecting many residents.</li>` : ''}
+                            <li><strong>Regular Review:</strong> Continue monitoring trends and adjust response strategies based on emerging patterns.</li>
+                        </ul>
+                    </div>
+                    
+                    <p style="font-size: 11px; color: #64748b; margin-top: 15px; text-align: center; font-style: italic;">
+                        This analysis is generated by Community Helper AI based on report data patterns. Always verify insights with local knowledge.
+                    </p>
                 </div>
                 
                 <div class="footer">
@@ -1310,8 +1443,24 @@ function AdminReports({ token, reportTitle = 'All Community Reports', showTitle 
             return r.title.toLowerCase().includes(search.toLowerCase()) ||
                     reporterName.toLowerCase().includes(search.toLowerCase());
         })
+        .filter((r) => {
+            // When Top sort is active, only show approved reports
+            if (sort === 'top') return r.is_approved === true;
+            return true;
+        })
         .sort((a, b) => {
-            // Always prioritize unapproved/pending reports on top
+            // ⭐ Top sort: prioritize highest liked reports
+            if (sort === 'top') {
+                const aLikes = a.reaction_count || 0;
+                const bLikes = b.reaction_count || 0;
+                if (aLikes !== bLikes) return bLikes - aLikes; // Higher likes first
+                // Fallback to date (latest first) if same likes
+                const aT = new Date(a.created_at).getTime() || 0;
+                const bT = new Date(b.created_at).getTime() || 0;
+                return bT - aT;
+            }
+
+            // Default: prioritize unapproved/pending reports on top
             const aApproved = !!a.is_approved;
             const bApproved = !!b.is_approved;
             if (aApproved !== bApproved) return aApproved ? 1 : -1;
@@ -1325,7 +1474,7 @@ function AdminReports({ token, reportTitle = 'All Community Reports', showTitle 
     // Loading / mount animation features (cards shown during mount/loading)
     const loadingFeatures = [
         { title: "Report Management", description: "View, approve, reject, and manage all community reports." },
-        { title: "Smart Filter", description: "AI-assisted categorization and priority-based sorting." },
+        { title: "Smart Filter", description: "Smart-assisted categorization and priority-based sorting." },
         { title: "Export Tools", description: "Export reports to CSV or PDF with analytics." },
     ];
 
@@ -1710,8 +1859,9 @@ function AdminReports({ token, reportTitle = 'All Community Reports', showTitle 
                 </ModalPortal>
             )}
 
-            {/* ⭐ Trending Pill Button Row - Always visible, shows count */}
+            {/* ⭐ Pill Button Row: Trending, Pending, Top - matching Reports.jsx */}
             <div className="trending-pill-row">
+                {/* Trending Pill - Toggle sort */}
                 <button
                     className={`trending-pill-btn ${sort === 'trending' ? 'active' : ''} ${trendingReports.length === 0 ? 'empty' : ''}`}
                     data-count={trendingReports.length}
@@ -1731,6 +1881,18 @@ function AdminReports({ token, reportTitle = 'All Community Reports', showTitle 
                     {sort === 'trending' ? <FaMinus className="trending-pill-toggle" /> : <FaPlus className="trending-pill-toggle" />}
                 </button>
 
+                {/* Pending Pill - Show pending approval reports */}
+                <button
+                    className={`pending-pill-btn ${pendingExpanded ? 'active' : ''} ${pendingReports.length === 0 ? 'empty' : ''}`}
+                    data-count={pendingReports.length}
+                    onClick={() => setPendingExpanded(!pendingExpanded)}
+                    title={pendingExpanded ? 'Hide pending reports' : 'Show reports awaiting approval'}
+                >
+                    <FaClock className="pending-pill-icon" />
+                    <span className="pill-text">Pending ({pendingReports.length})</span>
+                    {pendingExpanded ? <FaMinus className="pending-pill-toggle" /> : <FaPlus className="pending-pill-toggle" />}
+                </button>
+
                 {/* Top Pill - Toggle sort */}
                 <button
                     className={`top-pill-btn ${sort === 'top' ? 'active' : ''}`}
@@ -1742,33 +1904,85 @@ function AdminReports({ token, reportTitle = 'All Community Reports', showTitle 
                 </button>
             </div>
 
-            {/* ⭐ Trending Reports Section - Collapsible */}
+            {/* ⭐ Trending Reports Section - Feed-style container */}
             {trendingExpanded && (
-                <div className="trending-reports-container expanded">
-                    <div className="trending-reports-header">
-                        <div className="trending-header-left">
-                            <h3><FaMapPin className="trending-pin-icon" /> Current Trending Reports</h3>
-                        </div>
-                        <div className="trending-header-right">
-                            <select
-                                className="trending-time-filter"
-                                value={trendingTimeFilter}
-                                onChange={(e) => setTrendingTimeFilter(e.target.value)}
-                            >
-                                <option value="today">Today</option>
-                                <option value="yesterday">Yesterday</option>
-                                <option value="this-month">This Month</option>
-                            </select>
-                        </div>
+                <div className={`feed-trending-container expanded ${trendingReports.length === 0 ? 'empty' : ''}`}>
+                    <div className="feed-trending-header">
+                        <h3><FaMapPin className="feed-trending-pin" /> Trending Reports</h3>
+                        <select
+                            className="trending-time-filter"
+                            value={trendingTimeFilter}
+                            onChange={(e) => setTrendingTimeFilter(e.target.value)}
+                        >
+                            <option value="all">All Time</option>
+                            <option value="today">Today</option>
+                            <option value="yesterday">Yesterday</option>
+                            <option value="this-month">This Month</option>
+                        </select>
                     </div>
                     
-                    <div className="trending-reports-list">
-                        {trendingReports.map((report) => (
+                    {trendingReports.length > 0 ? (
+                        <div className="feed-trending-list">
+                            {trendingReports.map((report) => (
+                                <div 
+                                    key={`trending-${report.id}`} 
+                                    className="feed-trending-card"
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        const element = document.getElementById(`report-${report.id}`);
+                                        if (element) {
+                                            element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                                            setHighlightedReportId(report.id);
+                                            setTimeout(() => setHighlightedReportId(null), 3000);
+                                        }
+                                    }}
+                                >
+                                    <div className="feed-trending-type" data-type={report.category}>
+                                        {report.category}
+                                    </div>
+                                    <div className="feed-trending-title">{report.title}</div>
+                                    <div className="feed-trending-location">
+                                        📍 {report.address_barangay}
+                                    </div>
+                                    <div className="feed-trending-meta">
+                                        <span className="feed-trending-status" data-status={report.status?.toLowerCase()}>
+                                            {report.status}
+                                        </span>
+                                        <span className="feed-trending-time">
+                                            {new Date(report.created_at).toLocaleDateString()}
+                                        </span>
+                                    </div>
+                                    <div className="feed-trending-engagement">
+                                        <span className="feed-trending-likes">
+                                            <FaHeart className="heart-icon-small" aria-hidden="true" />
+                                            <span>{report.reaction_count || 0}</span>
+                                        </span>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    ) : (
+                        <div className="feed-trending-empty">
+                            <FaFire className="empty-icon" />
+                            <p>No trending reports for this period</p>
+                            <span>Reports with likes will appear here</span>
+                        </div>
+                    )}
+                </div>
+            )}
+
+            {/* ⭐ Pending Reports Section - Feed-style container */}
+            {pendingExpanded && pendingReports.length > 0 && (
+                <div className="feed-pending-container expanded">
+                    <div className="feed-pending-header">
+                        <h3><FaClock className="feed-pending-icon" /> Reports Awaiting Approval</h3>
+                    </div>
+                    <div className="feed-pending-list">
+                        {pendingReports.map((report) => (
                             <div 
-                                key={`trending-${report.id}`} 
-                                className="trending-report-card"
-                                onClick={(e) => {
-                                    e.stopPropagation();
+                                key={`pending-${report.id}`} 
+                                className="feed-pending-card"
+                                onClick={() => {
                                     const element = document.getElementById(`report-${report.id}`);
                                     if (element) {
                                         element.scrollIntoView({ behavior: 'smooth', block: 'center' });
@@ -1777,37 +1991,32 @@ function AdminReports({ token, reportTitle = 'All Community Reports', showTitle 
                                     }
                                 }}
                             >
-                                <div className="trending-report-category" data-category={report.category}>
+                                <div className="feed-pending-type" data-type={report.category}>
                                     {report.category}
                                 </div>
-                                <div className="trending-report-title">{report.title}</div>
-                                <div className="trending-report-location">
+                                <div className="feed-pending-title">{report.title}</div>
+                                <div className="feed-pending-location">
                                     📍 {report.address_barangay}
                                 </div>
-                                <div className="trending-report-meta">
-                                    <span className="trending-report-status" data-status={report.status?.toLowerCase()}>
-                                        {report.status}
-                                    </span>
-                                    <span className="trending-report-time">
+                                <div className="feed-pending-meta">
+                                    <span className="feed-pending-status">⏳ Awaiting Approval</span>
+                                    <span className="feed-pending-time">
                                         {new Date(report.created_at).toLocaleDateString()}
                                     </span>
                                 </div>
-                                <div className="trending-report-likes">
-                                    <FaHeart className="heart-icon-small" aria-hidden="true" />
-                                    <span>{report.reaction_count || 0}</span>
-                                </div>
                             </div>
                         ))}
-                        
-                        {trendingReports.length === 0 && (
-                            <div className="no-trending-reports">
-                                <p>No trending reports for this time period.</p>
-                                <p className="trending-criteria">
-                                    Reports become trending based on: reactions, category (Crime → Hazard → Concern), and recency.
-                                    Try selecting "This Month" to see more results.
-                                </p>
-                            </div>
-                        )}
+                    </div>
+                </div>
+            )}
+
+            {/* Pending Empty State */}
+            {pendingExpanded && pendingReports.length === 0 && (
+                <div className="feed-pending-container expanded empty">
+                    <div className="feed-pending-empty">
+                        <FaClock className="empty-icon" />
+                        <p>No pending reports</p>
+                        <span>All reports have been reviewed</span>
                     </div>
                 </div>
             )}
@@ -2115,6 +2324,7 @@ function AdminReports({ token, reportTitle = 'All Community Reports', showTitle 
                             <div className="list-col col-category">Category</div>
                             <div className="list-col col-barangay">Barangay</div>
                             <div className="list-col col-priority">Priority</div>
+                            <div className="list-col col-likes">Likes</div>
                             <div className="list-col col-reporter">Reporter</div>
                             <div className="list-col col-date">Date</div>
                             <div className="list-col col-status">Status</div>
@@ -2161,6 +2371,20 @@ function AdminReports({ token, reportTitle = 'All Community Reports', showTitle 
                                         <span className={`priority-tag priority-${(report.ai_priority || getPriorityStyle(report.category).priority || "low").toLowerCase()}`}>
                                             {report.ai_priority || getPriorityStyle(report.category).priority || "N/A"}
                                         </span>
+                                    </div>
+                                    <div className="list-col col-likes">
+                                        <button
+                                            className={`list-like-btn ${report.user_liked ? 'liked' : ''}`}
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                if (!isPending) handleToggleLike(report.id);
+                                            }}
+                                            disabled={isPending}
+                                            title={isPending ? "Approve report first" : (report.user_liked ? "Unlike" : "Like")}
+                                        >
+                                            {report.user_liked ? <FaHeart className="heart-icon filled" /> : <FaRegHeart className="heart-icon" />}
+                                            <span>{report.reaction_count || 0}</span>
+                                        </button>
                                     </div>
                                     <div className="list-col col-reporter">
                                         <div className="reporter-info">

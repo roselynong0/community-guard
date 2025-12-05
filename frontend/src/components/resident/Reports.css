@@ -388,35 +388,43 @@
     justify-content: flex-end;
 }
 
-/* Mobile: Two buttons side-by-side spanning container */
+/* Mobile: Two buttons side-by-side spanning container with tags */
 @media (max-width: 768px) {
     .report-header-actions {
         width: 100%;
-        display: grid;
-        grid-template-columns: 1fr 1fr;
+        display: flex;
+        flex-wrap: wrap;
         gap: 8px; 
         margin-top: 10px;
-        align-items: stretch;
+        align-items: center;
     }
 
+    /* Status badge appears first and takes full width row */
+    .report-header-actions .status-badge {
+        order: -1;
+        flex: 0 0 auto;
+        margin-right: auto;
+    }
+    
+    /* Action buttons container */
     .report-header-actions .report-action-btn {
-        width: 100%;
+        flex: 1 1 calc(50% - 4px);
         min-width: 0;
-        flex: 1;
+        max-width: calc(50% - 4px);
         justify-content: center;
         padding: 10px 12px;
     }
     
-    /* Status badges span full width */
-    .report-header-actions .status-badge {
-        grid-column: 1 / -1;
-        justify-self: start;
+    /* Icon buttons stay compact next to status badge */
+    .report-header-actions .icon-btn {
+        flex: 0 0 auto;
+        width: auto;
+        padding: 8px;
     }
     
-    /* Icon buttons stay compact */
-    .report-header-actions .icon-btn {
-        width: auto;
-        grid-column: auto;
+    /* When both icon buttons and status badge are present */
+    .report-header-actions .icon-btn + .icon-btn {
+        margin-left: 0;
     }
 }
 

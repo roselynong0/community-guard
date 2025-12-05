@@ -23,6 +23,7 @@ export function useRealTimeNotifications({ session, token, showToast, pollInterv
   const [hasFetchedMissed, setHasFetchedMissed] = useState(false);
   const pollIntervalRef = useRef(null);
   const isInitializedRef = useRef(false);
+  const missedToastShownRef = useRef(false); // Prevent duplicate toast display
 
   // Get user's barangay from session
   const userBarangay = session?.user?.address_barangay || null;
@@ -31,9 +32,16 @@ export function useRealTimeNotifications({ session, token, showToast, pollInterv
   /**
    * Fetch missed reports between last session and current session
    * Uses the /reports/missed_summary endpoint
+   * Uses sessionStorage to ensure toast only shows ONCE per session
    */
   const fetchMissedReports = useCallback(async () => {
-    if (!token || hasFetchedMissed) return;
+    // Check if already shown this session (both ref and sessionStorage)
+    const sessionKey = `missedReportsToastShown_${userId}`;
+    const alreadyShownInSession = sessionStorage.getItem(sessionKey) === 'true';
+    
+    if (!token || hasFetchedMissed || missedToastShownRef.current || alreadyShownInSession) {
+      return;
+    }
 
     try {
       // Use the dedicated missed_summary endpoint
@@ -55,11 +63,16 @@ export function useRealTimeNotifications({ session, token, showToast, pollInterv
       
       if (missedInBarangay > 0) {
         setMissedReportsCount(missedInBarangay);
+        
+        // Mark as shown BEFORE showing toast to prevent duplicates
+        missedToastShownRef.current = true;
+        sessionStorage.setItem(sessionKey, 'true');
+        
         // Show toast after 2-3 seconds delay
         setTimeout(() => {
           if (showToast) {
             showToast(
-              `📢 You missed ${missedInBarangay} report${missedInBarangay > 1 ? 's' : ''} in ${userBarangay || 'your area'} while you were away. Check it out!`,
+              `📢 ${missedInBarangay} new report${missedInBarangay > 1 ? 's' : ''} submitted while you were away.`,
               'info'
             );
           }
@@ -71,7 +84,7 @@ export function useRealTimeNotifications({ session, token, showToast, pollInterv
       console.error('❌ Error fetching missed reports:', err);
       setHasFetchedMissed(true);
     }
-  }, [token, userBarangay, showToast, hasFetchedMissed]);
+  }, [token, userBarangay, userId, showToast, hasFetchedMissed]);
 
   /**
    * Poll for new notifications (unread)

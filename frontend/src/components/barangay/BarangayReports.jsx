@@ -245,8 +245,12 @@ function BarangayReports({ token }) {
 
     // ⭐ NEW: Trending reports states
     const [trendingReports, setTrendingReports] = useState([]);
-    const [trendingExpanded, setTrendingExpanded] = useState(true);
-    const [trendingTimeFilter, setTrendingTimeFilter] = useState("this-month"); // today, yesterday, this-month
+    const [trendingExpanded, setTrendingExpanded] = useState(false); // Collapsed by default
+    const [trendingTimeFilter, setTrendingTimeFilter] = useState("all"); // all, today, yesterday, this-month
+    
+    // ⭐ NEW: Pending reports states
+    const [pendingReports, setPendingReports] = useState([]);
+    const [pendingExpanded, setPendingExpanded] = useState(false); // Collapsed by default
 
     // --- REFS for Keyboard Navigation ---
     const filterContainerRef = useRef(null);
@@ -701,9 +705,23 @@ function BarangayReports({ token }) {
                         is_approved: report.is_approved ?? false,
                         is_rejected: report.is_rejected ?? false,
                         rejection_reason: report.rejection_reason ?? null,
-                        images: report.images?.map(img => img.url) || []
+                        images: report.images?.map(img => img.url) || [],
+                        // ⭐ Include reaction data for trending algorithm
+                        reaction_count: report.reaction_count || 0,
+                        user_liked: report.user_liked ?? false,
+                        deleted_at: report.deleted_at || null
                     };
                 });
+                
+                // Debug: Log first 3 reports with reaction data
+                console.log("📥 Barangay fetched reports:", reports.length, "reports");
+                console.log("📊 Barangay report reaction stats:", reports.slice(0, 5).map(r => ({
+                    id: r.id,
+                    title: r.title?.substring(0, 30),
+                    reaction_count: r.reaction_count,
+                    user_liked: r.user_liked,
+                    is_approved: r.is_approved
+                })));
                 // Try batch ML annotate via backend
                 try {
                     const items = transformedReports.map(r => ({ id: r.id, description: r.description, images: r.images?.length || 0 }));
@@ -928,6 +946,25 @@ function BarangayReports({ token }) {
         setTrendingReports(trending);
         console.log(`🔥 ${trending.length} trending reports for barangay`);
     }, [reports, trendingTimeFilter]);
+
+    // ⭐ NEW: Compute pending reports (is_approved = false, not rejected)
+    useEffect(() => {
+        if (!reports.length) {
+            setPendingReports([]);
+            return;
+        }
+
+        // Filter reports awaiting approval
+        const pending = reports.filter((r) => 
+            r.is_approved === false &&
+            r.is_rejected !== true &&
+            r.deleted_at === null &&
+            r.status !== "Resolved"
+        ).sort((a, b) => new Date(b.created_at) - new Date(a.created_at)); // Latest first
+
+        setPendingReports(pending);
+        console.log(`⏳ ${pending.length} pending reports awaiting approval`);
+    }, [reports]);
 
     const toggleExpand = (id) => {
         setExpandedPosts((prev) =>
@@ -1212,11 +1249,14 @@ function BarangayReports({ token }) {
         });
     };
 
-    // Export to CSV with time filter
+    // Export to CSV with time filter - includes likes and trending data
     const exportToCSV = (timeFilter = 'all') => {
         const reportsToExport = filterReportsByTime(filteredReports, timeFilter);
         
-        const headers = ["ID", "Title", "Category", "Status", "Barangay", "Address", "Reporter", "Priority", "Created At", "Description"];
+        // Mark trending reports
+        const trendingIds = new Set(trendingReports.map(r => r.id));
+        
+        const headers = ["ID", "Title", "Category", "Status", "Barangay", "Address", "Reporter", "Priority", "Likes", "Trending", "Created At", "Description"];
         const rows = reportsToExport.map((r) => [
             r.id,
             `"${(r.title || "").replace(/"/g, '""')}"`,
@@ -1226,6 +1266,8 @@ function BarangayReports({ token }) {
             `"${(r.addressStreet || r.address_street || "").replace(/"/g, '""')}"`,
             r.reporter ? `${r.reporter.firstname || ""} ${r.reporter.lastname || ""}`.trim() : "Unknown",
             getReportPriority(r),
+            r.reaction_count || 0,
+            trendingIds.has(r.id) ? "Yes" : "No",
             r.created_at ? new Date(r.created_at).toLocaleString() : "N/A",
             `"${(r.description || "").replace(/"/g, '""').substring(0, 200)}..."`
         ]);
@@ -1259,6 +1301,7 @@ function BarangayReports({ token }) {
         const categoryStats = {};
         const statusStats = { Pending: 0, Ongoing: 0, Resolved: 0 };
         const priorityStats = { Critical: 0, High: 0, Medium: 0, Low: 0 };
+        let totalLikes = 0;
         
         reportsToExport.forEach((report) => {
             const cat = report.category || "Unknown";
@@ -1269,9 +1312,14 @@ function BarangayReports({ token }) {
             
             const priority = getReportPriority(report);
             priorityStats[priority] = (priorityStats[priority] || 0) + 1;
+            
+            totalLikes += (report.reaction_count || 0);
         });
         
         const sortedCategories = Object.entries(categoryStats).sort((a, b) => b[1] - a[1]);
+        
+        // Get trending reports for PDF
+        const trendingForPdf = trendingReports.slice(0, 5);
         // Logo (static import)
         const logoPath = logoImg;
         
@@ -1345,11 +1393,23 @@ function BarangayReports({ token }) {
                             <div class="label">Ongoing</div>
                         </div>
                         <div class="stat-card">
-                            <div class="number" style="color: #22c55e;">${statusStats.Resolved}</div>
-                            <div class="label">Resolved</div>
+                            <div class="number" style="color: #ef4444;">${totalLikes}</div>
+                            <div class="label">Total Likes</div>
                         </div>
                     </div>
                 </div>
+                
+                ${trendingForPdf.length > 0 ? `
+                <div class="analytics-card">
+                    <h3>🔥 Trending Reports (Top ${trendingForPdf.length})</h3>
+                    ${trendingForPdf.map((r, i) => `
+                        <div class="analytics-item">
+                            <span class="name">${i + 1}. ${r.title || 'Untitled'}</span>
+                            <span class="count">❤️ ${r.reaction_count || 0}</span>
+                        </div>
+                    `).join("")}
+                </div>
+                ` : ''}
                 
                 <div class="analytics-card">
                     <h3>📁 Reports by Category</h3>
@@ -1371,6 +1431,7 @@ function BarangayReports({ token }) {
                                 <th>Category</th>
                                 <th>Status</th>
                                 <th>Priority</th>
+                                <th>Likes</th>
                                 <th>Created</th>
                             </tr>
                         </thead>
@@ -1382,12 +1443,51 @@ function BarangayReports({ token }) {
                                     <td>${report.category || "N/A"}</td>
                                     <td>${report.status || "N/A"}</td>
                                     <td class="priority-${getReportPriority(report).toLowerCase()}">${getReportPriority(report)}</td>
+                                    <td>❤️ ${report.reaction_count || 0}</td>
                                     <td>${new Date(report.created_at).toLocaleDateString()}</td>
                                 </tr>
                             `).join("")}
                         </tbody>
                     </table>
                     ${reportsToExport.length > 50 ? `<p style="margin-top: 15px; color: #666; font-size: 12px; text-align: center;">Showing first 50 of ${reportsToExport.length} reports</p>` : ""}
+                </div>
+                
+                <div class="section" style="background: linear-gradient(135deg, #f0f4ff, #e8f0fe); padding: 25px; border-radius: 12px; border: 1px solid #3b82f6;">
+                    <h2 class="section-title" style="border-bottom-color: #3b82f6;">🤖 Community Helper - AI Analysis & Recommendations</h2>
+                    
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-top: 15px;">
+                        <div style="background: white; padding: 15px; border-radius: 8px; border-left: 4px solid ${priorityStats.Critical > 0 || priorityStats.High > 0 ? '#dc2626' : '#22c55e'};">
+                            <h4 style="color: #1e293b; margin-bottom: 10px;">📊 Risk Assessment</h4>
+                            <p style="font-size: 13px; color: #475569; line-height: 1.5;">
+                                ${priorityStats.Critical > 0 ? `<strong style="color: #dc2626;">⚠️ ${priorityStats.Critical} Critical</strong> priority report${priorityStats.Critical > 1 ? 's' : ''} requiring immediate attention. ` : ''}
+                                ${priorityStats.High > 0 ? `<strong style="color: #f59e0b;">${priorityStats.High} High</strong> priority report${priorityStats.High > 1 ? 's' : ''} should be addressed soon. ` : ''}
+                                ${priorityStats.Critical === 0 && priorityStats.High === 0 ? `✅ No critical or high priority reports in ${userBarangay || 'your barangay'}. Community safety is currently stable.` : ''}
+                            </p>
+                        </div>
+                        
+                        <div style="background: white; padding: 15px; border-radius: 8px; border-left: 4px solid #3b82f6;">
+                            <h4 style="color: #1e293b; margin-bottom: 10px;">📈 Trend Analysis</h4>
+                            <p style="font-size: 13px; color: #475569; line-height: 1.5;">
+                                ${sortedCategories.length > 0 ? `Most reported category: <strong>${sortedCategories[0][0]}</strong> (${sortedCategories[0][1]} reports, ${((sortedCategories[0][1] / totalReports) * 100).toFixed(0)}% of total). ` : ''}
+                                ${trendingForPdf.length > 0 ? `Community engagement shows ${totalLikes} total reactions. Top trending report has ${trendingForPdf[0]?.reaction_count || 0} likes.` : 'Community engagement data is being collected.'}
+                            </p>
+                        </div>
+                    </div>
+                    
+                    <div style="background: white; padding: 15px; border-radius: 8px; margin-top: 15px; border-left: 4px solid #8b5cf6;">
+                        <h4 style="color: #1e293b; margin-bottom: 10px;">💡 Recommendations for ${userBarangay || 'Barangay Officials'}</h4>
+                        <ul style="font-size: 13px; color: #475569; line-height: 1.8; margin-left: 20px;">
+                            ${statusStats.Pending > totalReports * 0.3 ? `<li><strong>High Pending Rate:</strong> ${statusStats.Pending} reports (${((statusStats.Pending / totalReports) * 100).toFixed(0)}%) are pending review. Prioritize processing to maintain community trust.</li>` : ''}
+                            ${categoryStats['Crime'] && categoryStats['Crime'] > totalReports * 0.2 ? `<li><strong>Crime Reports:</strong> ${categoryStats['Crime']} crime-related reports detected. Coordinate with local law enforcement and consider community watch programs.</li>` : ''}
+                            ${categoryStats['Hazard'] && categoryStats['Hazard'] > totalReports * 0.2 ? `<li><strong>Hazard Reports:</strong> ${categoryStats['Hazard']} hazard reports. Ensure emergency response teams are aware and infrastructure issues are escalated.</li>` : ''}
+                            ${trendingForPdf.length > 0 && trendingForPdf[0]?.reaction_count >= 5 ? `<li><strong>High Community Interest:</strong> Reports with ${trendingForPdf[0]?.reaction_count}+ likes indicate issues affecting many residents. Consider public communication.</li>` : ''}
+                            <li><strong>Proactive Response:</strong> Regular follow-ups on ongoing reports help maintain community confidence in local governance.</li>
+                        </ul>
+                    </div>
+                    
+                    <p style="font-size: 11px; color: #64748b; margin-top: 15px; text-align: center; font-style: italic;">
+                        This analysis is generated by Community Helper AI based on ${userBarangay || 'barangay'} report patterns. Always verify insights with local knowledge.
+                    </p>
                 </div>
                 
                 <div class="footer">
@@ -1434,8 +1534,24 @@ function BarangayReports({ token }) {
                         reporterName.toLowerCase().includes(search.toLowerCase());
             }
         )
+        .filter((r) => {
+            // When Top sort is active, only show approved reports
+            if (sort === 'top') return r.is_approved === true;
+            return true;
+        })
         .sort((a, b) => {
-            // Always prioritize unapproved/pending reports on top
+            // ⭐ Top sort: prioritize highest liked reports
+            if (sort === 'top') {
+                const aLikes = a.reaction_count || 0;
+                const bLikes = b.reaction_count || 0;
+                if (aLikes !== bLikes) return bLikes - aLikes; // Higher likes first
+                // Fallback to date (latest first) if same likes
+                const aT = new Date(a.created_at).getTime() || 0;
+                const bT = new Date(b.created_at).getTime() || 0;
+                return bT - aT;
+            }
+
+            // Default: prioritize unapproved/pending reports on top
             const aApproved = !!a.is_approved;
             const bApproved = !!b.is_approved;
             if (aApproved !== bApproved) return aApproved ? 1 : -1;
@@ -2107,6 +2223,18 @@ function BarangayReports({ token }) {
                     {sort === 'trending' ? <FaMinus className="trending-pill-toggle" /> : <FaPlus className="trending-pill-toggle" />}
                 </button>
 
+                {/* Pending Pill - Show pending approval reports */}
+                <button
+                    className={`pending-pill-btn ${pendingExpanded ? 'active' : ''} ${pendingReports.length === 0 ? 'empty' : ''}`}
+                    data-count={pendingReports.length}
+                    onClick={() => setPendingExpanded(!pendingExpanded)}
+                    title={pendingExpanded ? 'Hide pending reports' : 'Show reports awaiting approval'}
+                >
+                    <FaClock className="pending-pill-icon" />
+                    <span className="pill-text">Pending ({pendingReports.length})</span>
+                    {pendingExpanded ? <FaMinus className="pending-pill-toggle" /> : <FaPlus className="pending-pill-toggle" />}
+                </button>
+
                 {/* Top Pill - Toggle sort */}
                 <button
                     className={`top-pill-btn ${sort === 'top' ? 'active' : ''}`}
@@ -2131,6 +2259,7 @@ function BarangayReports({ token }) {
                                 value={trendingTimeFilter}
                                 onChange={(e) => setTrendingTimeFilter(e.target.value)}
                             >
+                                <option value="all">All Time</option>
                                 <option value="today">Today</option>
                                 <option value="yesterday">Yesterday</option>
                                 <option value="this-month">This Month</option>
@@ -2184,6 +2313,56 @@ function BarangayReports({ token }) {
                                 </p>
                             </div>
                         )}
+                    </div>
+                </div>
+            )}
+
+            {/* ⭐ Pending Reports Section - Feed-style container */}
+            {pendingExpanded && pendingReports.length > 0 && (
+                <div className="feed-pending-container expanded">
+                    <div className="feed-pending-header">
+                        <h3><FaClock className="feed-pending-icon" /> Reports Awaiting Approval</h3>
+                    </div>
+                    <div className="feed-pending-list">
+                        {pendingReports.map((report) => (
+                            <div 
+                                key={`pending-${report.id}`} 
+                                className="feed-pending-card"
+                                onClick={() => {
+                                    const element = document.getElementById(`report-${report.id}`);
+                                    if (element) {
+                                        element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                                        setHighlightedReportId(report.id);
+                                        setTimeout(() => setHighlightedReportId(null), 3000);
+                                    }
+                                }}
+                            >
+                                <div className="feed-pending-type" data-type={report.category}>
+                                    {report.category}
+                                </div>
+                                <div className="feed-pending-title">{report.title}</div>
+                                <div className="feed-pending-location">
+                                    📍 {report.address_barangay}
+                                </div>
+                                <div className="feed-pending-meta">
+                                    <span className="feed-pending-status">⏳ Awaiting Approval</span>
+                                    <span className="feed-pending-time">
+                                        {new Date(report.created_at).toLocaleDateString()}
+                                    </span>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            )}
+
+            {/* Pending Empty State */}
+            {pendingExpanded && pendingReports.length === 0 && (
+                <div className="feed-pending-container expanded empty">
+                    <div className="feed-pending-empty">
+                        <FaClock className="empty-icon" />
+                        <p>No pending reports</p>
+                        <span>All reports have been reviewed</span>
                     </div>
                 </div>
             )}
@@ -2278,7 +2457,8 @@ function BarangayReports({ token }) {
                                     </div>
 
                                     <div className="report-header-actions">
-                                        {!(report.is_approved === true && report.status === "Pending Approval") && (
+                                        {/* Hide Pending status badge on card view - only show Ongoing/Resolved */}
+                                        {report.status !== "Pending" && (
                                             <span className={`barangay-status-badge barangay-status-${report.status.toLowerCase()}`}>
                                                 {getStatusIcon(report.status)}
                                                 {report.status}
@@ -2336,17 +2516,6 @@ function BarangayReports({ token }) {
                                                     <FaEdit aria-hidden="true" />
                                                     <span>Update</span>
                                                 </button>
-                                                {report.status === "Ongoing" && (
-                                                    <button 
-                                                        className="barangay-action-btn barangay-assign-btn" 
-                                                        onClick={() => openAssignResponderModal(report)}
-                                                        aria-label={`Assign responder for report: ${report.title}`}
-                                                        title="Assign Responder"
-                                                    >
-                                                        👤
-                                                        <span>Assign</span>
-                                                    </button>
-                                                )}
                                                 <button 
                                                     className="barangay-action-btn barangay-delete-btn" 
                                                     onClick={() => openDeleteReason(report)}
@@ -2504,6 +2673,7 @@ function BarangayReports({ token }) {
                             <div className="list-col col-category">Category</div>
                             <div className="list-col col-barangay">Barangay</div>
                             <div className="list-col col-priority">Priority</div>
+                            <div className="list-col col-likes">Likes</div>
                             <div className="list-col col-reporter">Reporter</div>
                             <div className="list-col col-date">Date</div>
                             <div className="list-col col-status">Status</div>
@@ -2551,6 +2721,25 @@ function BarangayReports({ token }) {
                                             {getReportPriority(report) || "N/A"}
                                         </span>
                                     </div>
+                                    <div className="list-col col-likes">
+                                        <button
+                                            className={`list-heart-btn ${report.user_liked ? 'liked' : ''} ${isPending ? 'disabled' : ''}`}
+                                            onClick={(e) => { 
+                                                e.stopPropagation(); 
+                                                if (!isPending) handleToggleLike(report.id); 
+                                            }}
+                                            disabled={isPending}
+                                            aria-label={isPending ? 'Cannot like pending report' : (report.user_liked ? 'Unlike' : 'Like')}
+                                            title={isPending ? 'Cannot like pending report' : (report.user_liked ? 'Unlike' : 'Like')}
+                                        >
+                                            {report.user_liked ? (
+                                                <FaHeart className="heart-icon filled" aria-hidden="true" />
+                                            ) : (
+                                                <FaRegHeart className="heart-icon" aria-hidden="true" />
+                                            )}
+                                            <span>{report.reaction_count || 0}</span>
+                                        </button>
+                                    </div>
                                     <div className="list-col col-reporter">
                                         <div className="reporter-info">
                                             <img
@@ -2570,11 +2759,10 @@ function BarangayReports({ token }) {
                                             : "N/A"}
                                     </div>
                                     <div className="list-col col-status">
-                                        {!(report.is_approved === true && report.status === "Pending") && (
-                                            <span className={`barangay-status-badge barangay-status-${report.status.toLowerCase()}`}>
-                                                {getStatusIcon(report.status)} {report.status}
-                                            </span>
-                                        )}
+                                        {/* Show all status badges on list view including Pending */}
+                                        <span className={`barangay-status-badge barangay-status-${report.status.toLowerCase()}`}>
+                                            {getStatusIcon(report.status)} {report.status}
+                                        </span>
                                     </div>
                                     <div className="list-col col-actions">
                                         {isPending ? (

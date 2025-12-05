@@ -1124,14 +1124,20 @@
     .responder-top-controls {
         flex-direction: column;
         align-items: stretch;
-        flex-wrap: wrap;
-        gap: 10px;
+        gap: 1rem;
+        margin-bottom: 1.5rem;
+    }
+
+    .responder-search-container {
+        width: 100%;
+        min-width: auto;
+        order: -1;
     }
 
     .responder-search-input,
     .responder-filter-select {
         width: 100%;
-        min-width: unset;
+        min-width: auto;
     }
 
     .responder-report-header {

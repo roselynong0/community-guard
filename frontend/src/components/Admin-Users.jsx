@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useMemo } from "react";
+import React, { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { 
   FaUser, 
   FaCheckCircle, 
@@ -17,6 +17,7 @@ import {
 } from "react-icons/fa";
 import { API_CONFIG } from "../utils/apiConfig";
 import ModalPortal from "./shared/ModalPortal";
+import LoadingScreen from "./shared/LoadingScreen";
 import "./Admin-Users.css";
 import "./Notification.css";
 import "./Admin-Users-Performance.css"; 
@@ -38,7 +39,15 @@ function AdminUsers({ token }) {
   const [lastFetchTime, setLastFetchTime] = useState(null);
   const [initialLoadComplete, setInitialLoadComplete] = useState(false);
   const [showInitialLoader, setShowInitialLoader] = useState(true); // New state for initial loading screen
+  const [overlayExited, setOverlayExited] = useState(false); // For inline loading animation
   const CACHE_DURATION = 30000; // 30 seconds cache
+  
+  // Loading features for inline loading screen
+  const loadingFeatures = [
+    { title: "User Management", description: "Loading all registered users and their data." },
+    { title: "Verification Status", description: "Checking email and identity verification statuses." },
+    { title: "Role Management", description: "Organizing users by roles and permissions." },
+  ];
   
   // Modal states for verification
   const [selectedUser, setSelectedUser] = useState(null);
@@ -556,9 +565,9 @@ const [activeTab, setActiveTab] = useState("Residents");
     responders: users.filter(u => u.role === "Responder").length
   }), [users]);
 
-
-  return (
-    <div className="admin-container">
+  // Inline loading content
+  const content = (
+    <div className={`admin-container ${overlayExited ? 'overlay-exited' : ''}`}>
       <div className="admin-header-row">
         <h2>User Management</h2>
         <div className="admin-header-actions">
@@ -714,12 +723,7 @@ const [activeTab, setActiveTab] = useState("Residents");
         </div>
 
         {/* ✅ USERS LIST */}
-        {(loading || showInitialLoader) ? (
-          <div className="admin-loading-container">
-            <div className="admin-spinner"></div>
-            <p className="admin-loading-text">Loading users...</p>
-          </div>
-        ) : filteredUsers.length > 0 ? (
+        {filteredUsers.length > 0 ? (
           <div className="admin-users-grid">
             {filteredUsers.map((user) => {
               const isSelected = selectedIds.has(user.id);
@@ -1363,9 +1367,23 @@ const [activeTab, setActiveTab] = useState("Residents");
           </div>
         </ModalPortal>
       )}
-
-
     </div>
+  );
+
+  return (
+    <LoadingScreen
+      variant="inline"
+      features={loadingFeatures}
+      title={loading ? "User Management" : undefined}
+      subtitle={loading ? "Loading users and verification data" : undefined}
+      stage={loading ? "loading" : "exit"}
+      onExited={() => setOverlayExited(true)}
+      inlineOffset="20vh"
+      successDuration={700}
+      successTitle="Users Loaded!"
+    >
+      {content}
+    </LoadingScreen>
   );
 }
 

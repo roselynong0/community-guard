@@ -45,6 +45,12 @@
     color: #3c3c3c; /* Dark text for yellow background */
 }
 
+/* Info notification - blue theme for informational messages */
+.notif-info {
+    background: linear-gradient(135deg, #3498db, #2980b9);
+    color: #fff;
+}
+
 /* Premium notification - golden/yellowish theme */
 .notif-premium {
     background: linear-gradient(135deg, #f39c12 0%, #e67e22 50%, #f1c40f 100%);
