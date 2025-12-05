@@ -718,7 +718,7 @@
 
 .status-tag.status-ongoing,
 .status-tag.ongoing {
-    background: linear-gradient(135deg, #3b82f6, #2563eb);
+    background: linear-gradient(135deg, #ef4444, #dc2626);
     color: white;
 }
 

@@ -560,8 +560,72 @@ function ArchivedReports({ session }) {
           </div>
         </div>
         
+        ${totalLikes > 0 ? `
         <div class="section">
-          <h2 class="section-title"> Detailed Report List</h2>
+          <h2 class="section-title">🔥 Community Engagement - Top Archived Reports</h2>
+          <div class="stats-grid" style="grid-template-columns: 1fr 1fr;">
+            <div class="stat-card">
+              <div class="number" style="color: #ef4444;">${totalLikes}</div>
+              <div class="label">Total Likes</div>
+            </div>
+            <div class="stat-card">
+              <div class="number" style="color: #f59e0b;">${reportsToExport.filter(r => (r.reaction_count || 0) > 0).length}</div>
+              <div class="label">Reports with Engagement</div>
+            </div>
+          </div>
+          <div class="analytics-card" style="margin-top: 15px;">
+            <h3>❤️ Most Liked Archived Reports</h3>
+            ${reportsToExport.sort((a, b) => (b.reaction_count || 0) - (a.reaction_count || 0)).slice(0, 5).filter(r => (r.reaction_count || 0) > 0).map((r) => `
+              <div class="analytics-item">
+                <span class="name">${r.title?.substring(0, 40) || "Untitled"}${r.title?.length > 40 ? '...' : ''}</span>
+                <span class="count">${r.reaction_count || 0} ❤️</span>
+              </div>
+            `).join("")}
+          </div>
+        </div>
+        ` : ''}
+        
+        <div class="section" style="background: linear-gradient(135deg, #f0f4ff, #e8f0fe); padding: 25px; border-radius: 12px; border: 1px solid #3b82f6;">
+          <h2 class="section-title" style="border-bottom-color: #3b82f6;">🤖 Community Helper - AI Analysis & Recommendations</h2>
+          
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-top: 15px;">
+            <div style="background: white; padding: 15px; border-radius: 8px; border-left: 4px solid #22c55e;">
+              <h4 style="color: #1e293b; margin-bottom: 10px;">📊 Archive Summary</h4>
+              <p style="font-size: 13px; color: #475569; line-height: 1.5;">
+                ${totalReports} resolved reports archived. 
+                ${priorityStats.high > 0 ? `<strong style="color: #dc2626;">${priorityStats.high}</strong> were high priority cases. ` : ''}
+                ${priorityStats.medium > 0 ? `<strong style="color: #f59e0b;">${priorityStats.medium}</strong> medium priority. ` : ''}
+                ✅ All reports successfully resolved.
+              </p>
+            </div>
+            
+            <div style="background: white; padding: 15px; border-radius: 8px; border-left: 4px solid #3b82f6;">
+              <h4 style="color: #1e293b; margin-bottom: 10px;">📈 Historical Trends</h4>
+              <p style="font-size: 13px; color: #475569; line-height: 1.5;">
+                ${sortedCategories.length > 0 ? `Most resolved category: <strong>${sortedCategories[0][0]}</strong> (${sortedCategories[0][1]} reports, ${((sortedCategories[0][1] / totalReports) * 100).toFixed(0)}%). ` : ''}
+                ${totalLikes > 0 ? `Total community engagement: ${totalLikes} reactions on archived reports.` : 'Historical data preserved for future reference.'}
+              </p>
+            </div>
+          </div>
+          
+          <div style="background: white; padding: 15px; border-radius: 8px; margin-top: 15px; border-left: 4px solid #8b5cf6;">
+            <h4 style="color: #1e293b; margin-bottom: 10px;">💡 Insights & Recommendations</h4>
+            <ul style="font-size: 13px; color: #475569; line-height: 1.8; margin-left: 20px;">
+              ${sortedBarangays.length > 0 && sortedBarangays[0][1] > totalReports * 0.25 ? `<li><strong>Historical Hotspot:</strong> ${sortedBarangays[0][0]} had ${sortedBarangays[0][1]} resolved reports (${((sortedBarangays[0][1] / totalReports) * 100).toFixed(0)}%). Monitor for recurring issues.</li>` : ''}
+              ${categoryStats['Crime'] && categoryStats['Crime'] > totalReports * 0.2 ? `<li><strong>Crime Resolution:</strong> ${categoryStats['Crime']} crime reports were successfully resolved. Continue coordination with law enforcement.</li>` : ''}
+              ${categoryStats['Hazard'] && categoryStats['Hazard'] > totalReports * 0.2 ? `<li><strong>Hazard Mitigation:</strong> ${categoryStats['Hazard']} hazard reports addressed. Review for infrastructure improvement opportunities.</li>` : ''}
+              ${totalLikes > 0 && reportsToExport.filter(r => (r.reaction_count || 0) >= 5).length > 0 ? `<li><strong>Community Impact:</strong> ${reportsToExport.filter(r => (r.reaction_count || 0) >= 5).length} high-engagement reports show strong community involvement.</li>` : ''}
+              <li><strong>Archive Review:</strong> Periodically review archived reports to identify patterns and improve future response strategies.</li>
+            </ul>
+          </div>
+          
+          <p style="font-size: 11px; color: #64748b; margin-top: 15px; text-align: center; font-style: italic;">
+            This analysis is based on report data patterns. Always verify insights with local knowledge.
+          </p>
+        </div>
+        
+        <div class="section">
+          <h2 class="section-title">📋 Detailed Report List</h2>
           <table>
             <thead>
               <tr>
