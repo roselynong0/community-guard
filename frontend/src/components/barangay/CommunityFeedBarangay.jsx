@@ -199,7 +199,7 @@ const CommunityFeedBarangay = ({ session, token }) => {
 
   // ✅ REJECT POST
   const handleRejectPost = async (postId) => {
-    if (!window.confirm("Are you sure you want to reject this post? The user will be notified.")) return;
+    if (!window.confirm("Are you sure you want to reject this post? The user will be notified and the post will be removed.")) return;
 
     try {
       const response = await fetch(getApiUrl(`/api/community/posts/${postId}/reject`), {
@@ -208,11 +208,9 @@ const CommunityFeedBarangay = ({ session, token }) => {
       });
 
       if (response.ok) {
-        // Mark as rejected instead of removing
-        setPosts((prev) => prev.map((p) => 
-          p.id === postId ? { ...p, is_rejected: true, status: 'rejected' } : p
-        ));
-        setNotification({ type: "success", message: "✅ Post rejected and user notified!" });
+        // Remove post from list (backend auto soft-deletes rejected posts)
+        setPosts((prev) => prev.filter((p) => p.id !== postId));
+        setNotification({ type: "success", message: "✅ Post rejected, user notified, and post removed!" });
       } else {
         const error = await response.json();
         setNotification({ type: "error", message: `❌ ${error.message}` });
@@ -362,23 +360,27 @@ const CommunityFeedBarangay = ({ session, token }) => {
       }
     };
     
-    // Filter only approved posts for trending and apply time filter
+    // Filter only approved posts with likes for trending
+    // reaction_count is synced from react_counts DB column on backend
     const approvedPosts = posts.filter(p => 
       p.status === 'approved' && 
+      (p.reaction_count || 0) > 0 &&
       filterByTime(p.created_at)
     );
     
-    // Apply trending algorithm
+    // Apply trending algorithm - Community Awareness & Involvement
+    // Score = (reactions * 15 + comments * 8 + type_weight + base_score) / (days_old + 1)^0.8
     const scored = approvedPosts.map((p) => {
       const createdAt = new Date(p.created_at || 0);
-      const hoursOld = Math.max(0, (now - createdAt) / (1000 * 60 * 60));
+      const daysOld = Math.max(0, (now - createdAt) / (1000 * 60 * 60 * 24));
       
-      const typeWeight = { incident: 3, safety: 2.5, suggestion: 2, recommendation: 1.5, general: 1 };
-      const reactionBoost = (p.reaction_count || 0) * 2;
-      const commentBoost = (p.comment_count || 0) * 1.5;
-      const engagement = reactionBoost + commentBoost + (typeWeight[p.post_type] || 1) * 2;
+      const typeWeight = { incident: 4, safety: 3.5, suggestion: 3, recommendation: 2.5, general: 2 };
+      const reactionBoost = (p.reaction_count || 0) * 15;
+      const commentBoost = (p.comment_count || 0) * 8;
+      const baseScore = 5;
+      const engagement = reactionBoost + commentBoost + (typeWeight[p.post_type] || 2) + baseScore;
       
-      const timeFactor = Math.pow(hoursOld + 2, 1.5);
+      const timeFactor = Math.pow(daysOld + 1, 0.8);
       const trendingScore = engagement / timeFactor;
       
       return { ...p, trendingScore };
@@ -543,6 +545,7 @@ const CommunityFeedBarangay = ({ session, token }) => {
       <div className="feed-pill-row">
         <button
           className={`feed-trending-pill-btn ${sortBy === 'trending' ? 'active' : ''} ${trendingPosts.length === 0 ? 'empty' : ''}`}
+          data-count={trendingPosts.length}
           onClick={() => {
             if (sortBy === 'trending') {
               setSortBy(DEFAULT_SORT);
@@ -555,29 +558,31 @@ const CommunityFeedBarangay = ({ session, token }) => {
           title={sortBy === 'trending' ? 'Turn off trending sort' : 'Sort by trending'}
         >
           <FaFire className="feed-pill-icon" />
-          Trending ({trendingPosts.length})
+          <span className="pill-text">Trending ({trendingPosts.length})</span>
           {sortBy === 'trending' ? <FaMinus className="feed-pill-toggle" /> : <FaPlus className="feed-pill-toggle" />}
         </button>
         
         {isOfficialUser && (
           <button
             className={`feed-pending-pill-btn ${pendingExpanded ? 'active' : ''} ${pendingPostsCount === 0 ? 'empty' : ''}`}
+            data-count={pendingPostsCount}
             onClick={() => setPendingExpanded(!pendingExpanded)}
             title={pendingExpanded ? 'Hide pending posts' : 'Show pending posts'}
           >
             <FaClock className="feed-pill-icon" />
-            Pending ({pendingPostsCount})
+            <span className="pill-text">Pending ({pendingPostsCount})</span>
             {pendingExpanded ? <FaMinus className="feed-pill-toggle" /> : <FaPlus className="feed-pill-toggle" />}
           </button>
         )}
 
         <button
           className={`feed-top-pill-btn ${sortBy === 'top' ? 'active' : ''}`}
+          data-count=""
           onClick={() => setSortBy(sortBy === 'top' ? DEFAULT_SORT : 'top')}
           title={sortBy === 'top' ? 'Turn off top sort' : 'Sort by most engagement'}
         >
           <FaStar className="feed-pill-icon" />
-          Top
+          <span className="pill-text">Top</span>
         </button>
       </div>
 
@@ -921,8 +926,8 @@ const BarangayPostCard = ({
             </button>
           )}
 
-          {/* Delete - For officials or post owner */}
-          {(post.can_delete || isOfficial) && (
+          {/* Delete - Only for post owner (Barangay Officials cannot delete posts) */}
+          {post.can_delete && (
             <button
               className="admin-delete-btn"
               onClick={() => onDelete(post.id)}

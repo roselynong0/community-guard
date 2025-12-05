@@ -664,8 +664,9 @@
 .feed-top-controls {
   display: flex;
   flex-wrap: wrap;
-  gap: 1rem;
+  gap: 12px;
   align-items: center;
+  margin-bottom: 1.5rem;
   padding: 0;
 }
 
@@ -1010,10 +1011,28 @@
   box-shadow: 0 2px 4px rgba(45, 45, 115, 0.2);
 }
 
-.feed-btn:hover {
+.feed-btn.disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.feed-btn:hover:not(.disabled) {
   background: linear-gradient(135deg, #225cbb 0%, #2d2d73 100%);
   transform: translateY(-1px);
   box-shadow: 0 4px 8px rgba(45, 45, 115, 0.3);
+}
+
+/* Verification hint badge */
+.verification-hint {
+  display: inline-flex;
+  align-items: center;
+  font-size: 13px;
+  color: #f59e0b;
+  font-weight: 500;
+  padding: 6px 12px;
+  background: rgba(245, 158, 11, 0.1);
+  border-radius: 8px;
+  white-space: nowrap;
 }
 
 .feed-list {
@@ -2002,17 +2021,24 @@
 @media (max-width: 768px) {
   .feed-top-controls {
     flex-direction: column;
-    gap: 10px;
+    align-items: stretch;
+    gap: 1rem;
+    margin-bottom: 1.5rem;
   }
   
   .feed-search-container {
+    min-width: auto;
     width: 100%;
-    min-width: unset;
+    order: -1;
+  }
+  
+  .feed-search-input {
+    width: 100%;
   }
   
   .feed-filter-select {
+    min-width: auto;
     width: 100%;
-    min-width: unset;
   }
   
   .feed-btn {
@@ -2033,16 +2059,23 @@
 
   .feed-btn {
     width: 100%;
+    margin-top: 0.5rem;
   }
   
   .feed-top-controls {
-    gap: 8px;
+    gap: 0.75rem;
   }
   
   .feed-search-input,
   .feed-filter-select {
     height: 44px;
     font-size: 13px;
+  }
+  
+  .verification-hint {
+    width: 100%;
+    text-align: center;
+    font-size: 12px;
   }
 }
 
@@ -2055,6 +2088,7 @@
   .feed-container {
     margin: 10px 0;
     padding: 10px;
+    padding-bottom: 110px;
   }
   .post-card {
     padding: 14px;
@@ -2168,6 +2202,11 @@
 
 /* Pill row mobile - icon only with badges */
 @media (max-width: 768px) {
+  /* Fix feed container padding for bottom nav */
+  .feed-container {
+    padding-bottom: 100px;
+  }
+  
   .feed-pill-row {
     gap: 8px;
     margin: 12px 0;

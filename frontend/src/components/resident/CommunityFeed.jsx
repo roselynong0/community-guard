@@ -65,6 +65,7 @@ const CommunityFeed = () => {
   
   // User verification status
   const [userVerified, setUserVerified] = useState(false); // True if users_info.verified = true
+  const [userDataLoaded, setUserDataLoaded] = useState(false); // Track if user data has been loaded
 
   useEffect(() => {
     fetchUserBarangay();
@@ -74,7 +75,10 @@ const CommunityFeed = () => {
   const fetchUserBarangay = async () => {
     try {
       const token = localStorage.getItem("token");
-      if (!token) return;
+      if (!token) {
+        setUserDataLoaded(true);
+        return;
+      }
 
       const response = await fetch(getApiUrl(API_CONFIG.endpoints.profile), {
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
@@ -84,10 +88,8 @@ const CommunityFeed = () => {
         const data = await response.json();
         const barangay = data.profile?.address_barangay || data.address_barangay || "Barretto";
         setUserBarangay(barangay);
-        // Auto-filter to user's barangay for Residents
-        if (data.profile?.role === "Resident" && barangay) {
-          setBarangayFilter(barangay);
-        }
+        // Don't auto-filter - show all barangays by default
+        // User can manually filter if they want to see only their barangay
         // Check if user is fully verified (users_info.verified = true)
         // isverified = email verified, verified = full verification
         const isFullyVerified = data.profile?.verified === true;
@@ -101,6 +103,8 @@ const CommunityFeed = () => {
       console.error("Error fetching user info:", error);
       setUserBarangay("Barretto");
       setUserVerified(false);
+    } finally {
+      setUserDataLoaded(true);
     }
   };
 
@@ -183,11 +187,14 @@ const CommunityFeed = () => {
     }
   }, [barangayFilter, postTypeFilter, sortBy, initialLoadDone]);
 
-  // Initial fetch on mount
+  // Initial fetch on mount - WAIT for user data to load first
+  // This ensures barangayFilter is already set to user's barangay before first fetch
   useEffect(() => {
-    fetchPosts(false);
+    if (userDataLoaded && !initialLoadDone) {
+      fetchPosts(false);
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []); // Only run once on mount
+  }, [userDataLoaded]); // Only run when user data is loaded
   
   // Re-fetch when filters change (after initial load)
   // Only show loading indicator for Top pill, not for regular filter changes
@@ -233,6 +240,7 @@ const CommunityFeed = () => {
     
     // Filter approved posts with likes for trending (INCLUDING your own posts!)
     // Community involvement = showing ALL engaged content regardless of author
+    // Using reaction_count which is synced from react_counts DB column
     const engagedPosts = posts.filter(p => 
       p.status === 'approved' && 
       (p.reaction_count || 0) > 0 &&
@@ -251,6 +259,7 @@ const CommunityFeed = () => {
       const daysOld = Math.max(0, (now - createdAt) / (1000 * 60 * 60 * 24));
       
       // Engagement weights - higher weights for community interaction
+      // Using reaction_count which is synced from react_counts DB column
       const typeWeight = { incident: 4, safety: 3.5, suggestion: 3, recommendation: 2.5, general: 2 };
       const reactionBoost = (p.reaction_count || 0) * 15;  // High weight for reactions (community engagement)
       const commentBoost = (p.comment_count || 0) * 8;     // Comments show discussion/awareness

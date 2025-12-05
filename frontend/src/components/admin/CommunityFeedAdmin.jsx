@@ -56,6 +56,18 @@ const ROLE_COLORS = {
 // Sort options - null means no sort active (show pending first)
 const DEFAULT_SORT = null;
 
+// Delete reason options for community posts
+const DELETE_REASONS = [
+  "Fraudulent / False Post",
+  "Misinformation",
+  "Duplicate Post",
+  "Not Community Concern",
+  "Spam / Advertisement",
+  "Inappropriate Content",
+  "Violates Community Guidelines",
+  "Other"
+];
+
 const CommunityFeedAdmin = () => {
   const [posts, setPosts] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -72,6 +84,13 @@ const CommunityFeedAdmin = () => {
   const [trendingExpanded, setTrendingExpanded] = useState(false);
   const [trendingTimeFilter, setTrendingTimeFilter] = useState("this-month");
   const [pendingExpanded, setPendingExpanded] = useState(false);
+  
+  // Delete modal states
+  const [isDeleteReasonOpen, setIsDeleteReasonOpen] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState(null);
+  const [deleteReason, setDeleteReason] = useState("");
+  const [deleteReasonOther, setDeleteReasonOther] = useState("");
+  const [isDeleting, setIsDeleting] = useState(false);
 
   useEffect(() => {
     fetchAllPosts();
@@ -194,7 +213,7 @@ const CommunityFeedAdmin = () => {
   };
 
   const handleRejectPost = async (postId) => {
-    if (!window.confirm("Are you sure you want to reject this post? The user will be notified.")) return;
+    if (!window.confirm("Are you sure you want to reject this post? The user will be notified and the post will be removed.")) return;
 
     try {
       const token = localStorage.getItem("token");
@@ -204,15 +223,11 @@ const CommunityFeedAdmin = () => {
       });
 
       if (response.ok) {
-        // Mark as rejected instead of removing (owner can still see it)
-        setPosts((prev) =>
-          prev.map((p) =>
-            p.id === postId ? { ...p, is_rejected: true, status: "rejected" } : p
-          )
-        );
+        // Remove post from list (backend auto soft-deletes rejected posts)
+        setPosts((prev) => prev.filter((p) => p.id !== postId));
         setNotification({
           type: "success",
-          message: "✅ Post rejected and user notified!",
+          message: "✅ Post rejected, user notified, and post removed!",
         });
       } else {
         const error = await response.json();
@@ -232,14 +247,38 @@ const CommunityFeedAdmin = () => {
     setTimeout(() => setNotification(null), 3000);
   };
 
-  const handleDeletePost = async (postId) => {
-    if (!window.confirm("Are you sure you want to delete this post?")) return;
+  // Delete modal handlers
+  const openDeleteReason = (post) => {
+    setDeleteTarget(post);
+    setDeleteReason("");
+    setDeleteReasonOther("");
+    setIsDeleteReasonOpen(true);
+  };
 
+  const closeDeleteReason = useCallback(() => {
+    if (!isDeleting) {
+      setIsDeleteReasonOpen(false);
+      setDeleteTarget(null);
+      setDeleteReason("");
+      setDeleteReasonOther("");
+    }
+  }, [isDeleting]);
+
+  const handleDeletePost = async (postId, reasonOverride = null) => {
+    // If called directly without reason (for own posts), use simple confirm
+    if (!reasonOverride && !deleteTarget) {
+      if (!window.confirm("Are you sure you want to delete this post?")) return;
+    }
+
+    const reason = reasonOverride || (deleteReason === "Other" ? deleteReasonOther : deleteReason);
+    
+    setIsDeleting(true);
     try {
       const token = localStorage.getItem("token");
       const response = await fetch(getApiUrl(`/api/community/posts/${postId}`), {
         method: "DELETE",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ reason }),
       });
 
       if (response.ok) {
@@ -248,10 +287,12 @@ const CommunityFeedAdmin = () => {
           type: "success",
           message: "✅ Post deleted successfully!",
         });
+        closeDeleteReason();
       } else {
+        const error = await response.json();
         setNotification({
           type: "error",
-          message: "❌ Failed to delete post",
+          message: `❌ ${error.message || "Failed to delete post"}`,
         });
       }
     } catch (error) {
@@ -260,9 +301,19 @@ const CommunityFeedAdmin = () => {
         type: "error",
         message: "❌ Failed to delete post",
       });
+    } finally {
+      setIsDeleting(false);
     }
 
     setTimeout(() => setNotification(null), 3000);
+  };
+
+  const proceedToDelete = () => {
+    if (!deleteReason) return;
+    if (deleteReason === "Other" && !deleteReasonOther.trim()) return;
+    if (!deleteTarget) return;
+    
+    handleDeletePost(deleteTarget.id, deleteReason === "Other" ? deleteReasonOther : deleteReason);
   };
 
   const handleToggleComments = async (postId, currentAllow) => {
@@ -355,21 +406,27 @@ const CommunityFeedAdmin = () => {
       }
     };
     
+    // Filter only approved posts with likes for trending
+    // reaction_count is synced from react_counts DB column on backend
     const approvedPosts = posts.filter(p => 
       p.status === 'approved' && 
+      (p.reaction_count || 0) > 0 &&
       filterByTime(p.created_at)
     );
     
+    // Apply trending algorithm - Community Awareness & Involvement
+    // Score = (reactions * 15 + comments * 8 + type_weight + base_score) / (days_old + 1)^0.8
     const scored = approvedPosts.map((p) => {
       const createdAt = new Date(p.created_at || 0);
-      const hoursOld = Math.max(0, (now - createdAt) / (1000 * 60 * 60));
+      const daysOld = Math.max(0, (now - createdAt) / (1000 * 60 * 60 * 24));
       
-      const typeWeight = { incident: 3, safety: 2.5, suggestion: 2, recommendation: 1.5, general: 1 };
-      const reactionBoost = (p.reaction_count || 0) * 2;
-      const commentBoost = (p.comment_count || 0) * 1.5;
-      const engagement = reactionBoost + commentBoost + (typeWeight[p.post_type] || 1) * 2;
+      const typeWeight = { incident: 4, safety: 3.5, suggestion: 3, recommendation: 2.5, general: 2 };
+      const reactionBoost = (p.reaction_count || 0) * 15;
+      const commentBoost = (p.comment_count || 0) * 8;
+      const baseScore = 5;
+      const engagement = reactionBoost + commentBoost + (typeWeight[p.post_type] || 2) + baseScore;
       
-      const timeFactor = Math.pow(hoursOld + 2, 1.5);
+      const timeFactor = Math.pow(daysOld + 1, 0.8);
       const trendingScore = engagement / timeFactor;
       
       return { ...p, trendingScore };
@@ -526,6 +583,7 @@ const CommunityFeedAdmin = () => {
       <div className="feed-pill-row">
         <button
           className={`feed-trending-pill-btn ${sortBy === 'trending' ? 'active' : ''} ${trendingPosts.length === 0 ? 'empty' : ''}`}
+          data-count={trendingPosts.length}
           onClick={() => {
             if (sortBy === 'trending') {
               setSortBy(DEFAULT_SORT);
@@ -538,27 +596,29 @@ const CommunityFeedAdmin = () => {
           title={sortBy === 'trending' ? 'Turn off trending sort' : 'Sort by trending'}
         >
           <FaFire className="feed-pill-icon" />
-          Trending ({trendingPosts.length})
+          <span className="pill-text">Trending ({trendingPosts.length})</span>
           {sortBy === 'trending' ? <FaMinus className="feed-pill-toggle" /> : <FaPlus className="feed-pill-toggle" />}
         </button>
         
         <button
           className={`feed-pending-pill-btn ${pendingExpanded ? 'active' : ''} ${pendingPostsCount === 0 ? 'empty' : ''}`}
+          data-count={pendingPostsCount}
           onClick={() => setPendingExpanded(!pendingExpanded)}
           title={pendingExpanded ? 'Hide pending posts' : 'Show pending posts'}
         >
           <FaClock className="feed-pill-icon" />
-          Pending ({pendingPostsCount})
+          <span className="pill-text">Pending ({pendingPostsCount})</span>
           {pendingExpanded ? <FaMinus className="feed-pill-toggle" /> : <FaPlus className="feed-pill-toggle" />}
         </button>
 
         <button
           className={`feed-top-pill-btn ${sortBy === 'top' ? 'active' : ''}`}
+          data-count=""
           onClick={() => setSortBy(sortBy === 'top' ? DEFAULT_SORT : 'top')}
           title={sortBy === 'top' ? 'Turn off top sort' : 'Sort by most engagement'}
         >
           <FaStar className="feed-pill-icon" />
-          Top
+          <span className="pill-text">Top</span>
         </button>
       </div>
 
@@ -640,7 +700,7 @@ const CommunityFeedAdmin = () => {
                 onAccept={handleAcceptPost}
                 onApprove={handleApprovePost}
                 onReject={handleRejectPost}
-                onDelete={handleDeletePost}
+                onDelete={openDeleteReason}
                 onToggleComments={handleToggleComments}
                 onLike={handleLikePost}
               />
@@ -648,6 +708,84 @@ const CommunityFeedAdmin = () => {
           </>
         )}
       </div>
+      
+      {/* Delete Reason Modal */}
+      {isDeleteReasonOpen && (
+        <ModalPortal>
+          <div
+            className="modal-overlay"
+            onClick={!isDeleting ? closeDeleteReason : undefined}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="delete-reason-title"
+          >
+            <div className="modal" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '450px' }}>
+              <h3 id="delete-reason-title">Post Deletion Reason</h3>
+              <p style={{ color: '#64748b', marginBottom: '16px' }}>
+                Please select the reason why this post should be deleted. The post author will be notified.
+              </p>
+              
+              <div style={{ marginBottom: '12px' }}>
+                <label htmlFor="delete-reason-select" style={{ display: 'block', marginBottom: '8px', fontWeight: '600' }}>
+                  Select reason
+                </label>
+                <select
+                  id="delete-reason-select"
+                  value={deleteReason}
+                  onChange={(e) => setDeleteReason(e.target.value)}
+                  style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #e2e8f0', fontSize: '14px' }}
+                >
+                  <option value="">-- Select a reason --</option>
+                  {DELETE_REASONS.map((reason) => (
+                    <option key={reason} value={reason}>{reason}</option>
+                  ))}
+                </select>
+              </div>
+              
+              {deleteReason === 'Other' && (
+                <div style={{ marginBottom: '16px' }}>
+                  <label htmlFor="delete-reason-other" style={{ display: 'block', marginBottom: '6px', fontWeight: '500' }}>
+                    Details
+                  </label>
+                  <input
+                    id="delete-reason-other"
+                    type="text"
+                    value={deleteReasonOther}
+                    onChange={(e) => setDeleteReasonOther(e.target.value)}
+                    placeholder="Provide brief details (required)"
+                    style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #e2e8f0', fontSize: '14px' }}
+                  />
+                </div>
+              )}
+              
+              <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end', marginTop: '20px' }}>
+                <button 
+                  onClick={closeDeleteReason} 
+                  disabled={isDeleting}
+                  style={{ padding: '10px 20px', borderRadius: '8px', border: '1px solid #e2e8f0', background: '#fff', cursor: 'pointer' }}
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={proceedToDelete}
+                  disabled={isDeleting || !deleteReason || (deleteReason === 'Other' && !deleteReasonOther.trim())}
+                  style={{ 
+                    padding: '10px 20px', 
+                    borderRadius: '8px', 
+                    border: 'none', 
+                    background: '#ef4444', 
+                    color: '#fff', 
+                    cursor: 'pointer',
+                    opacity: (!deleteReason || (deleteReason === 'Other' && !deleteReasonOther.trim())) ? 0.5 : 1
+                  }}
+                >
+                  {isDeleting ? 'Deleting...' : 'Delete Post'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </ModalPortal>
+      )}
     </div>
   );
 };
@@ -878,7 +1016,7 @@ const AdminPostCard = ({ post, onAccept, onApprove, onReject, onDelete, onToggle
         )}
         <button
           className="admin-delete-btn"
-          onClick={() => onDelete(post.id)}
+          onClick={() => onDelete(post)}
           style={{
             display: 'inline-flex',
             alignItems: 'center',

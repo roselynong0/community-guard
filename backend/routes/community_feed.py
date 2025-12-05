@@ -36,7 +36,7 @@ def get_all_community_posts_admin():
         # Status values: approved, pending, rejected (no is_accepted/is_rejected booleans)
         query = supabase.table("community_posts").select(
             "id, user_id, title, content, post_type, barangay, status, "
-            "created_at, updated_at, is_pinned, allow_comments, deleted_at"
+            "created_at, updated_at, is_pinned, allow_comments, deleted_at, react_counts"
         ).is_("deleted_at", "null")
 
         # Only filter by barangay if a specific one is provided (not "All" or "All Barangays")
@@ -76,22 +76,7 @@ def get_all_community_posts_admin():
                         1 for c in getattr(comments_resp, "data", []) if c.get("post_id") == post_id
                     )
             
-            # Batch fetch reaction counts for all posts
-            post_ids = [p["id"] for p in posts]
-            reaction_counts = {}
-            
-            try:
-                reactions_resp = supabase.table("community_post_reactions").select(
-                    "post_id"
-                ).in_("post_id", post_ids).execute()
-                
-                reactions_data = getattr(reactions_resp, "data", []) or []
-                for r in reactions_data:
-                    pid = r.get("post_id")
-                    reaction_counts[pid] = reaction_counts.get(pid, 0) + 1
-            except Exception as e:
-                print(f"⚠️ Error fetching reactions: {e}")
-            
+            # Use react_counts from DB as primary source for stable trending
             for post in posts:
                 user_data = users_lookup.get(post["user_id"])
                 post["author"] = user_data or {
@@ -101,7 +86,8 @@ def get_all_community_posts_admin():
                     "role": "Resident"
                 }
                 post["comment_count"] = comment_counts.get(post["id"], 0)
-                post["reaction_count"] = reaction_counts.get(post["id"], 0)
+                # Use react_counts from DB (synced on reaction toggle)
+                post["reaction_count"] = post.get("react_counts") or 0
                 post["can_edit"] = post["user_id"] == user_id
                 post["can_delete"] = post["user_id"] == user_id
                 enriched_posts.append(post)
@@ -131,20 +117,24 @@ def get_community_posts():
         
         # Build query - OPTIMIZATION: Select only needed fields
         # Status values: approved, pending, rejected (no is_accepted/is_rejected booleans)
-        query = supabase.table("community_posts").select(
-            "id, user_id, title, content, post_type, barangay, status, "
-            "created_at, updated_at, is_pinned, allow_comments, deleted_at"
-        ).is_("deleted_at", "null")
+        def fetch_posts():
+            query = supabase.table("community_posts").select(
+                "id, user_id, title, content, post_type, barangay, status, "
+                "created_at, updated_at, is_pinned, allow_comments, deleted_at, react_counts"
+            ).is_("deleted_at", "null")
 
-        # Only filter by barangay if a specific one is provided (not "All" or "All Barangays")
-        if barangay_filter and barangay_filter not in ["All", "All Barangays"]:
-            query = query.eq("barangay", barangay_filter)
+            # Only filter by barangay if a specific one is provided (not "All" or "All Barangays")
+            if barangay_filter and barangay_filter not in ["All", "All Barangays"]:
+                query = query.eq("barangay", barangay_filter)
 
-        if post_type_filter and post_type_filter in POST_TYPES:
-            query = query.eq("post_type", post_type_filter)
+            if post_type_filter and post_type_filter in POST_TYPES:
+                query = query.eq("post_type", post_type_filter)
 
-        # Order by pinned first, then by created_at (we'll re-sort with algorithm later)
-        response = query.order("is_pinned", desc=True).order("created_at", desc=True).limit(limit * 2).execute()
+            # Order by pinned first, then by created_at (we'll re-sort with algorithm later)
+            return query.order("is_pinned", desc=True).order("created_at", desc=True).limit(limit * 2).execute()
+        
+        # Use retry wrapper for network resilience
+        response = supabase_retry(fetch_posts)
         posts = getattr(response, "data", []) or []
 
         # Filter out posts that shouldn't be visible to the user.
@@ -165,22 +155,26 @@ def get_community_posts():
             user_ids = list(set(post["user_id"] for post in posts))
             post_ids = [p["id"] for p in posts]
             
-            # Single batch query for all user data
-            users_resp = supabase.table("users").select(
-                "id, firstname, lastname, avatar_url, role"
-            ).in_("id", user_ids).execute()
+            # Single batch query for all user data with retry
+            def fetch_users():
+                return supabase.table("users").select(
+                    "id, firstname, lastname, avatar_url, role"
+                ).in_("id", user_ids).execute()
             
+            users_resp = supabase_retry(fetch_users)
             users_data = getattr(users_resp, "data", []) or []
             users_lookup = {user["id"]: user for user in users_data}
             
             # ⭐ OPTIMIZED: Batch fetch comment counts using grouped query
             comment_counts = {}
             try:
-                # Fetch all comments for these posts in one query
-                comments_resp = supabase.table("community_comments").select(
-                    "post_id"
-                ).in_("post_id", post_ids).is_("deleted_at", "null").execute()
+                # Fetch all comments for these posts in one query with retry
+                def fetch_comments():
+                    return supabase.table("community_comments").select(
+                        "post_id"
+                    ).in_("post_id", post_ids).is_("deleted_at", "null").execute()
                 
+                comments_resp = supabase_retry(fetch_comments)
                 comments_data = getattr(comments_resp, "data", []) or []
                 
                 # Count comments per post_id efficiently
@@ -193,30 +187,31 @@ def get_community_posts():
             except Exception as e:
                 print(f"⚠️ Error fetching comment counts: {e}")
             
-            # ⭐ OPTIMIZED: Batch fetch reaction counts using grouped query
-            reaction_counts = {}
+            # ⭐ OPTIMIZED: Batch fetch user reactions (only for user_liked status)
+            # Use react_counts from DB as primary source for reaction count (more stable for trending)
             user_reactions = {}
             try:
-                # Fetch all reactions for these posts in one query
-                reactions_resp = supabase.table("community_post_reactions").select(
-                    "post_id, user_id"
-                ).in_("post_id", post_ids).execute()
+                # Fetch user's reactions only to determine user_liked status with retry
+                def fetch_user_reactions():
+                    return supabase.table("community_post_reactions").select(
+                        "post_id"
+                    ).in_("post_id", post_ids).eq("user_id", user_id).execute()
                 
+                reactions_resp = supabase_retry(fetch_user_reactions)
                 reactions_data = getattr(reactions_resp, "data", []) or []
                 
-                # Count reactions per post and track user's reactions
+                # Track which posts user has liked
                 for r in reactions_data:
                     pid = r.get("post_id")
                     if pid:
-                        reaction_counts[pid] = reaction_counts.get(pid, 0) + 1
-                        if r.get("user_id") == user_id:
-                            user_reactions[pid] = True
+                        user_reactions[pid] = True
                 
-                print(f"❤️ Reaction counts for {len(post_ids)} posts: {len(reaction_counts)} with reactions")
+                print(f"❤️ User has liked {len(user_reactions)} posts")
             except Exception as e:
-                print(f"⚠️ Error fetching reactions: {e}")
+                print(f"⚠️ Error fetching user reactions: {e}")
             
             # Build enriched posts with all counts
+            # Use react_counts from DB for stable trending (updated on toggle)
             for post in posts:
                 user_data = users_lookup.get(post["user_id"])
                 post["author"] = user_data or {
@@ -226,7 +221,8 @@ def get_community_posts():
                     "role": "Resident"
                 }
                 post["comment_count"] = comment_counts.get(post["id"], 0)
-                post["reaction_count"] = reaction_counts.get(post["id"], 0)
+                # Use react_counts from DB as primary source (synced on reaction toggle)
+                post["reaction_count"] = post.get("react_counts") or 0
                 post["user_liked"] = user_reactions.get(post["id"], False)
                 post["can_edit"] = post["user_id"] == user_id
                 post["can_delete"] = post["user_id"] == user_id
@@ -535,10 +531,12 @@ def update_community_post(post_id):
 @community_feed_bp.route("/community/posts/<post_id>", methods=["DELETE"])
 @token_required
 def delete_community_post(post_id):
-    """Delete a community post - soft delete for normal posts, permanent delete for rejected posts"""
+    """Delete a community post - users can delete own posts, admins can delete any post with reason"""
     try:
         user_id = request.user_id
         permanent = request.args.get("permanent", "false").lower() == "true"
+        data = request.get_json() or {}
+        deletion_reason = data.get("reason", "")
         
         # Fetch post to verify ownership (include soft-deleted for rejected posts cleanup)
         post_resp = supabase.table("community_posts").select("*").eq("id", post_id).execute()
@@ -548,16 +546,40 @@ def delete_community_post(post_id):
             return jsonify({"status": "error", "message": "Post not found"}), 404
         
         # Check ownership (only owner or admin can delete)
-        user_resp = supabase.table("users").select("role").eq("id", user_id).execute()
+        user_resp = supabase.table("users").select("role, firstname, lastname").eq("id", user_id).execute()
         user_data = getattr(user_resp, "data", [None])[0]
         user_role = user_data.get("role") if user_data else "Resident"
+        
+        # Barangay Officials cannot delete posts - only accept/approve/reject
+        if user_role == "Barangay Official":
+            return jsonify({"status": "error", "message": "Barangay Officials cannot delete posts. Use approve/reject instead."}), 403
         
         if post["user_id"] != user_id and user_role != "Admin":
             return jsonify({"status": "error", "message": "You can only delete your own posts"}), 403
         
+        post_author_id = post.get("user_id")
+        post_title = post.get("title", "Untitled")
+        is_admin_deleting_others_post = user_role == "Admin" and post_author_id != user_id
+        
+        # If admin is deleting someone else's post, notify the post author
+        if is_admin_deleting_others_post and post_author_id:
+            from utils.notifications import create_notification
+            admin_name = f"{user_data.get('firstname', '')} {user_data.get('lastname', '')}".strip() or "Administrator"
+            
+            reason_text = f" Reason: {deletion_reason}" if deletion_reason else ""
+            create_notification(
+                post_author_id,
+                "Post Deleted by Admin",
+                f'Your post "{post_title}" has been removed by an administrator.{reason_text}',
+                "Post Alert"
+            )
+            print(f"📧 Notified user {post_author_id} about post deletion by admin")
+        
         # If post was already soft-deleted or permanent delete requested, permanently remove from database
         if permanent or post.get("deleted_at"):
-            # Delete associated comments first
+            # Delete associated reactions first
+            supabase.table("community_post_reactions").delete().eq("post_id", post_id).execute()
+            # Delete associated comments
             supabase.table("community_comments").delete().eq("post_id", post_id).execute()
             # Permanently delete the post
             supabase.table("community_posts").delete().eq("id", post_id).execute()
@@ -566,7 +588,7 @@ def delete_community_post(post_id):
         else:
             # Soft delete for normal posts
             supabase.table("community_posts").update({"deleted_at": datetime.now(timezone.utc).isoformat()}).eq("id", post_id).execute()
-            print(f"✅ Community post {post_id} soft deleted")
+            print(f"✅ Community post {post_id} soft deleted by {user_role}")
             return jsonify({"status": "success", "message": "Post deleted"}), 200
         
     except Exception as e:
@@ -760,6 +782,9 @@ def toggle_reaction(post_id):
             count_resp = supabase.table("community_post_reactions").select("id", count="exact").eq("post_id", post_id).execute()
             reaction_count = count_resp.count if hasattr(count_resp, 'count') else 0
             
+            # Update react_counts column on the post
+            supabase.table("community_posts").update({"react_counts": reaction_count}).eq("id", post_id).execute()
+            
             return jsonify({
                 "status": "success", 
                 "message": "Reaction removed", 
@@ -780,6 +805,9 @@ def toggle_reaction(post_id):
             # Get updated count
             count_resp = supabase.table("community_post_reactions").select("id", count="exact").eq("post_id", post_id).execute()
             reaction_count = count_resp.count if hasattr(count_resp, 'count') else 1
+            
+            # Update react_counts column on the post
+            supabase.table("community_posts").update({"react_counts": reaction_count}).eq("id", post_id).execute()
             
             return jsonify({
                 "status": "success", 
@@ -909,7 +937,7 @@ def get_barangay_posts():
         # Build query - Select needed fields (only status, no is_accepted/is_rejected)
         query = supabase.table("community_posts").select(
             "id, user_id, title, content, post_type, barangay, status, "
-            "created_at, updated_at, is_pinned, allow_comments, deleted_at"
+            "created_at, updated_at, is_pinned, allow_comments, deleted_at, react_counts"
         ).is_("deleted_at", "null")
         
         if barangay_filter:
@@ -968,31 +996,30 @@ def get_barangay_posts():
                     post_id = comment.get("post_id")
                     comment_counts[post_id] = comment_counts.get(post_id, 0) + 1
             
-            # Batch fetch reaction counts
+            # Batch fetch user's reactions for user_liked status
             post_ids = [p["id"] for p in posts]
-            reaction_counts = {}
             user_reactions = {}
             
             try:
                 reactions_resp = supabase.table("community_post_reactions").select(
-                    "post_id, user_id"
-                ).in_("post_id", post_ids).execute()
+                    "post_id"
+                ).in_("post_id", post_ids).eq("user_id", user_id).execute()
                 
                 reactions_data = getattr(reactions_resp, "data", []) or []
                 for r in reactions_data:
                     pid = r.get("post_id")
-                    reaction_counts[pid] = reaction_counts.get(pid, 0) + 1
-                    if r.get("user_id") == user_id:
+                    if pid:
                         user_reactions[pid] = True
             except Exception as e:
-                print(f"⚠️ Error fetching reactions: {e}")
+                print(f"⚠️ Error fetching user reactions: {e}")
             
             for post in posts:
                 try:
                     post_user = users_lookup.get(post["user_id"])
                     post["author"] = post_user or {"id": post["user_id"], "firstname": "Unknown", "lastname": "User", "role": "Resident"}
                     post["comment_count"] = comment_counts.get(post["id"], 0)
-                    post["reaction_count"] = reaction_counts.get(post["id"], 0)
+                    # Use react_counts from DB (synced on reaction toggle) for stable trending
+                    post["reaction_count"] = post.get("react_counts") or 0
                     post["user_liked"] = user_reactions.get(post["id"], False)
                     
                     # Permission flags based on role
@@ -1007,7 +1034,7 @@ def get_barangay_posts():
                     print(f"⚠️ Error enriching post {post.get('id')}: {e}")
                     post["author"] = {"id": post["user_id"], "firstname": "Unknown", "lastname": "User", "role": "Resident"}
                     post["comment_count"] = 0
-                    post["reaction_count"] = 0
+                    post["reaction_count"] = post.get("react_counts") or 0
                     post["user_liked"] = False
                     post["can_edit"] = post["user_id"] == user_id
                     post["can_delete"] = post["user_id"] == user_id
@@ -1168,12 +1195,13 @@ def reject_post(post_id):
         # Mark the post as rejected - use only status field
         update_data = {
             "status": "rejected",
+            "deleted_at": datetime.now(timezone.utc).isoformat(),  # Auto soft-delete rejected posts
             "updated_at": datetime.now(timezone.utc).isoformat()
         }
         
         supabase.table("community_posts").update(update_data).eq("id", post_id).execute()
 
-        print(f"✅ Post {post_id} rejected by {role} {user_id}")
+        print(f"✅ Post {post_id} rejected and soft-deleted by {role} {user_id}")
         
         # Create notification for the post author about rejection
         post_author_id = post.get("user_id")
@@ -1183,11 +1211,11 @@ def reject_post(post_id):
             create_notification(
                 post_author_id,
                 "Post Rejected",
-                f'Your post "{post_title}" did not meet our community guidelines and was not approved. You can view and delete this post from your feed.',
+                f'Your post "{post_title}" did not meet our community guidelines and was automatically removed.',
                 "Post Alert"
             )
         
-        return jsonify({"status": "success", "message": "Post rejected and user notified"}), 200
+        return jsonify({"status": "success", "message": "Post rejected, user notified, and post removed"}), 200
 
     except Exception as e:
         print(f"❌ Error rejecting post: {e}")
@@ -1329,19 +1357,19 @@ def get_announcements():
         barangay_filter = request.args.get("barangay")
         limit = int(request.args.get("limit", 10))
         
-        # Get user's barangay if not provided
+        # Get user's barangay if not provided (from users_info table)
         if not barangay_filter:
-            user_resp = supabase.table("users").select("address_barangay").eq("id", user_id).execute()
-            user_data = getattr(user_resp, "data", [None])[0]
-            if user_data:
-                barangay_filter = user_data.get("address_barangay")
+            user_info_resp = supabase.table("info").select("address_barangay").eq("user_id", user_id).execute()
+            user_info_data = getattr(user_info_resp, "data", [None])[0]
+            if user_info_data:
+                barangay_filter = user_info_data.get("address_barangay")
         
         print(f"📢 Fetching announcements for barangay: {barangay_filter}")
         
         # Build query for pinned posts from officials
         query = supabase.table("community_posts").select(
             "id, user_id, title, content, post_type, barangay, status, "
-            "created_at, updated_at, is_pinned"
+            "created_at, updated_at, is_pinned, react_counts"
         ).eq("is_pinned", True).eq("status", "approved").is_("deleted_at", "null")
         
         # Filter by barangay if provided

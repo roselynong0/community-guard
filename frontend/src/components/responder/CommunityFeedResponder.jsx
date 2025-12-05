@@ -141,21 +141,27 @@ export default function CommunityFeedResponder({ session, token }) {
       }
     };
     
+    // Filter only approved posts with likes for trending
+    // reaction_count is synced from react_counts DB column on backend
     const approvedPosts = posts.filter(p => 
       p.status === 'approved' && 
+      (p.reaction_count || 0) > 0 &&
       filterByTime(p.created_at)
     );
     
+    // Apply trending algorithm - Community Awareness & Involvement
+    // Score = (reactions * 15 + comments * 8 + type_weight + base_score) / (days_old + 1)^0.8
     const scored = approvedPosts.map((p) => {
       const createdAt = new Date(p.created_at || 0);
-      const hoursOld = Math.max(0, (now - createdAt) / (1000 * 60 * 60));
+      const daysOld = Math.max(0, (now - createdAt) / (1000 * 60 * 60 * 24));
       
-      const typeWeight = { incident: 3, safety: 2.5, suggestion: 2, recommendation: 1.5, general: 1 };
-      const reactionBoost = (p.reaction_count || 0) * 2;
-      const commentBoost = (p.comment_count || 0) * 1.5;
-      const engagement = reactionBoost + commentBoost + (typeWeight[p.post_type] || 1) * 2;
+      const typeWeight = { incident: 4, safety: 3.5, suggestion: 3, recommendation: 2.5, general: 2 };
+      const reactionBoost = (p.reaction_count || 0) * 15;
+      const commentBoost = (p.comment_count || 0) * 8;
+      const baseScore = 5;
+      const engagement = reactionBoost + commentBoost + (typeWeight[p.post_type] || 2) + baseScore;
       
-      const timeFactor = Math.pow(hoursOld + 2, 1.5);
+      const timeFactor = Math.pow(daysOld + 1, 0.8);
       const trendingScore = engagement / timeFactor;
       
       return { ...p, trendingScore };
@@ -344,6 +350,7 @@ export default function CommunityFeedResponder({ session, token }) {
       <div className="feed-pill-row">
         <button
           className={`feed-trending-pill-btn ${sortBy === 'trending' ? 'active' : ''} ${trendingPosts.length === 0 ? 'empty' : ''}`}
+          data-count={trendingPosts.length}
           onClick={() => {
             if (sortBy === 'trending') {
               setSortBy(DEFAULT_SORT);
@@ -356,17 +363,18 @@ export default function CommunityFeedResponder({ session, token }) {
           title={sortBy === 'trending' ? 'Turn off trending sort' : 'Sort by trending'}
         >
           <FaFire className="feed-pill-icon" />
-          Trending ({trendingPosts.length})
+          <span className="pill-text">Trending ({trendingPosts.length})</span>
           {sortBy === 'trending' ? <FaMinus className="feed-pill-toggle" /> : <FaPlus className="feed-pill-toggle" />}
         </button>
 
         <button
           className={`feed-top-pill-btn ${sortBy === 'top' ? 'active' : ''}`}
+          data-count=""
           onClick={() => setSortBy(sortBy === 'top' ? DEFAULT_SORT : 'top')}
           title={sortBy === 'top' ? 'Turn off top sort' : 'Sort by most engagement'}
         >
           <FaStar className="feed-pill-icon" />
-          Top
+          <span className="pill-text">Top</span>
         </button>
       </div>
 

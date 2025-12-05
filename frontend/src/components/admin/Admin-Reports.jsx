@@ -724,28 +724,31 @@ function AdminReports({ token, reportTitle = 'All Community Reports', showTitle 
             }
         };
 
-        // Filter approved reports that are not resolved
+        // Filter approved reports that are not resolved AND have likes > 0
         const eligibleReports = reports.filter((r) => 
             r.is_approved === true &&
             r.status !== "Resolved" &&
             r.deleted_at === null &&
             r.is_rejected !== true &&
+            (r.reaction_count || 0) > 0 &&
             filterByTime(r.created_at)
         );
 
-        // Apply trending algorithm: reactions + engagement + recency
-        // Score = (reactions * 2 + category_weight) / (hours_old + 2)^1.5
+        // Apply trending algorithm: Community Awareness & Involvement
+        // Score = (reactions * 15 + category_weight + base_score) / (days_old + 1)^0.8
+        // Gentler decay keeps reports visible longer for stable trending
         const scored = eligibleReports.map((r) => {
             const createdAt = new Date(r.created_at || 0);
-            const hoursOld = Math.max(0, (now - createdAt) / (1000 * 60 * 60));
+            const daysOld = Math.max(0, (now - createdAt) / (1000 * 60 * 60 * 24));
             
-            // Engagement: reactions + severity weight
-            const severityWeight = { Crime: 3, Hazard: 2.5, Concern: 2, 'Lost&Found': 1, Others: 1 };
-            const reactionBoost = (r.reaction_count || 0) * 2;
-            const engagement = reactionBoost + (severityWeight[r.category] || 1) * 2;
+            // Engagement weights - higher for community interaction
+            const severityWeight = { Crime: 4, Hazard: 3.5, Concern: 3, 'Lost&Found': 2, Others: 2 };
+            const reactionBoost = (r.reaction_count || 0) * 15; // High weight for community engagement
+            const baseScore = 5; // Base score ensures reports don't vanish suddenly
+            const engagement = reactionBoost + (severityWeight[r.category] || 2) + baseScore;
             
-            // Time decay factor
-            const timeFactor = Math.pow(hoursOld + 2, 1.5);
+            // Very gentle time decay (0.8 exponent) - keeps trending stable
+            const timeFactor = Math.pow(daysOld + 1, 0.8);
             const trendingScore = engagement / timeFactor;
             
             return { ...r, trendingScore };
