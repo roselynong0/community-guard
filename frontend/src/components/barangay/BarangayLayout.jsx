@@ -11,6 +11,7 @@ import {
   FaChartLine,
   FaArchive,
   FaVideo,
+  FaCrown,
 } from "react-icons/fa";
 import { Outlet, NavLink, useNavigate } from "react-router-dom";
 import { API_CONFIG, getApiUrl } from "../../utils/apiConfig";
@@ -136,6 +137,51 @@ function BarangayLayout({ session, setSession, setNotification }) {
     
     loadProfile();
   }, [session, setSession, setNotification, navigate]);
+
+  // 🔹 Fetch missed reports summary for barangay official (toast only)
+  useEffect(() => {
+    const fetchMissedReports = async () => {
+      if (!session?.token || !user) return;
+
+      // Only show toast once per session
+      const toastKey = `missed_toast_shown_barangay_${user.id || 'anon'}`;
+      if (sessionStorage.getItem(toastKey)) return;
+
+      try {
+        const res = await fetch(getApiUrl('/api/reports/missed_summary'), {
+          headers: { Authorization: `Bearer ${session.token}` },
+        });
+        
+        if (!res.ok) return;
+        
+        const data = await res.json();
+        if (data?.status === 'success' && data?.summary?.total > 0) {
+          const totalMissed = data.summary.total;
+          const userBarangay = user.address_barangay || '';
+          const barangayCounts = data.summary.barangays || {};
+          const missedInBarangay = userBarangay ? (barangayCounts[userBarangay] || 0) : totalMissed;
+          
+          if (missedInBarangay > 0) {
+            // Show toast after 2.5 seconds delay
+            setTimeout(() => {
+              if (toastRef.current) {
+                toastRef.current.show(
+                  `📢 ${missedInBarangay} new report${missedInBarangay > 1 ? 's' : ''} in ${userBarangay || 'your barangay'} while you were away.`,
+                  'info'
+                );
+              }
+            }, 2500);
+            
+            sessionStorage.setItem(toastKey, '1');
+          }
+        }
+      } catch (e) {
+        console.warn('Failed to fetch missed reports for barangay:', e);
+      }
+    };
+
+    fetchMissedReports();
+  }, [session?.token, user]);
 
   // Check for AI evaluations after user profile is loaded
   useEffect(() => {
@@ -288,11 +334,11 @@ function BarangayLayout({ session, setSession, setNotification }) {
             <NavLink to="/barangay/reports">
               <FaChartLine /> Reports
             </NavLink>
-            <NavLink to="/barangay/assign-responders">
-              <FaUsers /> Assign Responders
-            </NavLink>
             <NavLink to="/barangay/archived">
               <FaArchive /> Archived
+            </NavLink>
+            <NavLink to="/barangay/assign-responders">
+              <FaUsers /> Assign Responders
             </NavLink>
             <NavLink to="/barangay/cctv">
               <FaVideo /> Live CCTV Feeds
@@ -305,6 +351,12 @@ function BarangayLayout({ session, setSession, setNotification }) {
               {notificationCount > 0 && (
                 <span className="notification-badge">{notificationCount}</span>
               )}
+            </NavLink>
+            <NavLink to="/barangay/premium" className="premium-nav-link" style={{
+              background: 'linear-gradient(135deg, rgba(243,156,18,0.15), rgba(231,76,60,0.1))',
+              borderLeft: '3px solid #f39c12'
+            }}>
+              <FaCrown style={{ color: '#f39c12' }} /> Premium
             </NavLink>
             <NavLink to="/barangay/profile">
               <FaUsers /> Profile

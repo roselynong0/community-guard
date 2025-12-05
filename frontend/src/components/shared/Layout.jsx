@@ -91,18 +91,23 @@ function Layout({ session, setSession, setNotification }) {
     const tryFetchSummary = async () => {
       if (!session?.token || !user) return;
 
-      // Only show missed-summary when the user was redirected from the Resident login.
-      // ResidentLogin navigates to `/home?showMissed=1` after successful login.
+      // Check URL params - modal only shows when explicitly requested
       const params = new URLSearchParams(window.location.search || "");
       const showMissedParam = params.get('showMissed') || params.get('show_missed');
-      if (!showMissedParam) return; // not a login redirect, don't flash the modal
 
-      // Persist a per-user flag so the modal is only shown once ever (per-browser).
-      const persistKey = `missed_modal_shown_once_${user.id || user?.email || 'anon'}`;
-      if (localStorage.getItem(persistKey)) return;
+      // Persist a per-session flag so the TOAST is only shown once per session
+      const toastKey = `missed_toast_shown_${user.id || user?.email || 'anon'}`;
+      const alreadyShownToast = sessionStorage.getItem(toastKey);
+
+      // Persist a per-user flag so the MODAL is only shown once ever (per-browser)
+      const modalKey = `missed_modal_shown_once_${user.id || user?.email || 'anon'}`;
+      const alreadyShownModal = localStorage.getItem(modalKey);
+
+      // If we've already shown toast this session and no URL param, skip entirely
+      if (alreadyShownToast && !showMissedParam) return;
 
       try {
-        const res = await fetch(getApiUrl('/reports/missed_summary'), {
+        const res = await fetch(getApiUrl('/api/reports/missed_summary'), {
           headers: { Authorization: `Bearer ${session.token}` },
         });
         if (!res) return;
@@ -125,18 +130,41 @@ function Layout({ session, setSession, setNotification }) {
             return null;
           });
           if (data && data.status === 'success' && data.summary) {
-            // If no reports, still show a friendly summary message
-            setMissedSummary(data);
-            setShowMissedModal(true);
-            // Mark as shown so we never flash this again for this user
-            try { localStorage.setItem(persistKey, '1'); } catch { /* ignore */ }
-            // Show a single gentle toast (do not spam)
-            if (toastRef.current) {
-              const msg = data.summary.total && data.summary.total > 0 ? data.summary.message : (data.summary.message || "Community Helper detected no missed reports while you were away.");
-              toastRef.current.show(msg, 'info');
+            const totalMissed = data.summary.total || 0;
+            
+            // ALWAYS show toast for missed reports (once per session)
+            if (!alreadyShownToast && totalMissed > 0 && toastRef.current) {
+              // Delay toast by 2.5 seconds after login
+              setTimeout(() => {
+                if (toastRef.current) {
+                  const userBarangay = user.address_barangay || '';
+                  const barangayCounts = data.summary.barangays || {};
+                  const missedInBarangay = userBarangay ? (barangayCounts[userBarangay] || 0) : totalMissed;
+                  
+                  if (missedInBarangay > 0) {
+                    toastRef.current.show(
+                      `📢 You missed ${missedInBarangay} report${missedInBarangay > 1 ? 's' : ''} in ${userBarangay || 'your area'} while you were away. Check it out!`,
+                      'info'
+                    );
+                  } else if (totalMissed > 0) {
+                    toastRef.current.show(
+                      `📢 You missed ${totalMissed} report${totalMissed > 1 ? 's' : ''} while you were away. Check it out!`,
+                      'info'
+                    );
+                  }
+                }
+              }, 2500);
+              // Mark toast as shown for this session
+              try { sessionStorage.setItem(toastKey, '1'); } catch { /* ignore */ }
             }
-            // Keep legacy sessionStorage key for compatibility
-            try { sessionStorage.setItem(`missed_shown_${user.id || user?.email || 'anon'}`, '1'); } catch { /* ignore */ }
+            
+            // Only show MODAL when URL param is set AND not shown before
+            if (showMissedParam && !alreadyShownModal) {
+              setMissedSummary(data);
+              setShowMissedModal(true);
+              // Mark modal as shown so we never flash it again for this user
+              try { localStorage.setItem(modalKey, '1'); } catch { /* ignore */ }
+            }
 
             // If user is partially verified (isverified true but verified false) show verify modal after summary
             try {

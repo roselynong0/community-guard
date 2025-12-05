@@ -338,6 +338,10 @@ const generateToastMessage = (notification, role) => {
   }
   // Responder Messages
   if (role === 'Responder') {
+    // Responder assignment notification
+    if (notifType === 'responder_assignment' || content.includes('assigned') || content.includes('assignment')) {
+      return { message: '📋 You have been assigned to a new report!', type: 'info' };
+    }
     if (content.includes('approved') || content.includes('post accepted')) {
       return { message: '✅ Your post has been approved by the Barangay Official!', type: 'approved' };
     }

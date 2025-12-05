@@ -1557,6 +1557,7 @@
     letter-spacing: 0.5px;
     display: inline-flex;
     align-items: center;
+    gap: 5px;
     height: 24px;
 }
 
@@ -1565,7 +1566,7 @@
 }
 
 .status-ongoing {
-    background-color: var(--status-ongoing);
+    background-color: var(--status-ongoing) !important;
 }
 
 .status-resolved {
@@ -2192,6 +2193,22 @@ button.delete-btn:hover {
     box-shadow: 0 2px 6px rgba(244, 67, 54, 0.3);
 }
 
+/* Empty state styling for trending pill when count is 0 */
+.trending-pill-btn.empty {
+    background: linear-gradient(135deg, #9ca3af 0%, #6b7280 100%);
+    box-shadow: 0 3px 10px rgba(107, 114, 128, 0.35);
+}
+
+.trending-pill-btn.empty:hover {
+    background: linear-gradient(135deg, #6b7280 0%, #4b5563 100%);
+    box-shadow: 0 5px 15px rgba(107, 114, 128, 0.45);
+}
+
+.trending-pill-btn.empty .trending-pill-icon {
+    animation: none;
+    opacity: 0.7;
+}
+
 .trending-pill-icon {
     font-size: 1rem;
     animation: flicker 1.5s ease-in-out infinite;
@@ -2484,6 +2501,17 @@ button.delete-btn:hover {
     width: 100%;
 }
 
+.no-trending-reports p {
+    margin: 0 0 8px 0;
+}
+
+.no-trending-reports .trending-criteria {
+    font-size: 0.8rem;
+    color: #9ca3af;
+    font-style: italic;
+    margin-top: 8px;
+}
+
 .heart-icon-small {
     font-size: 0.85rem;
 }
@@ -2555,6 +2583,80 @@ button.delete-btn:hover {
     100% {
         transform: scale(1);
     }
+}
+
+/* ========================================
+   REPORT ACTION BUTTONS
+   ======================================== */
+/* Accept/Reject Action Buttons */
+.report-action-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    padding: 8px 14px;
+    border: none;
+    border-radius: 6px;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    min-width: 90px;
+}
+
+.report-action-btn:disabled {
+    opacity: 0.7;
+    cursor: not-allowed;
+}
+
+/* Update Button - Green Theme */
+.report-update-btn {
+    background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+    color: #ffffff;
+    box-shadow: 0 2px 6px rgba(16, 185, 129, 0.3);
+}
+
+.report-update-btn:hover:not(:disabled) {
+    background: linear-gradient(135deg, #059669 0%, #047857 100%);
+    box-shadow: 0 4px 12px rgba(16, 185, 129, 0.4);
+    transform: translateY(-1px);
+}
+
+.report-update-btn:active:not(:disabled) {
+    transform: translateY(0);
+    box-shadow: 0 2px 4px rgba(16, 185, 129, 0.3);
+}
+
+/* Delete Button - Red Theme */
+.report-delete-btn {
+    background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+    color: #ffffff;
+    box-shadow: 0 2px 6px rgba(239, 68, 68, 0.3);
+}
+
+.report-delete-btn:hover:not(:disabled) {
+    background: linear-gradient(135deg, #dc2626 0%, #b91c1c 100%);
+    box-shadow: 0 4px 12px rgba(239, 68, 68, 0.4);
+    transform: translateY(-1px);
+}
+
+.report-delete-btn:active:not(:disabled) {
+    transform: translateY(0);
+    box-shadow: 0 2px 4px rgba(239, 68, 68, 0.3);
+}
+
+/* Button Spinner for Loading State */
+.report-btn-spinner {
+    width: 14px;
+    height: 14px;
+    border: 2px solid rgba(255, 255, 255, 0.3);
+    border-top-color: #ffffff;
+    border-radius: 50%;
+    animation: report-spin 0.8s linear infinite;
+}
+
+@keyframes report-spin {
+    to { transform: rotate(360deg); }
 }
 
 /* Responsive adjustments for trending */

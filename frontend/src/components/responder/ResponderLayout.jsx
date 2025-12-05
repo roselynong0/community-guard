@@ -113,6 +113,51 @@ export default function ResponderLayout({ session, setSession, setNotification }
     loadProfile();
   }, [token, setSession, setNotification, navigate]);
 
+  // 🔹 Fetch missed reports summary for responder (toast only)
+  useEffect(() => {
+    const fetchMissedReports = async () => {
+      if (!token || !user) return;
+
+      // Only show toast once per session
+      const toastKey = `missed_toast_shown_responder_${user.id || 'anon'}`;
+      if (sessionStorage.getItem(toastKey)) return;
+
+      try {
+        const res = await fetch(getApiUrl('/api/reports/missed_summary'), {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        
+        if (!res.ok) return;
+        
+        const data = await res.json();
+        if (data?.status === 'success' && data?.summary?.total > 0) {
+          const totalMissed = data.summary.total;
+          const userBarangay = user.address_barangay || '';
+          const barangayCounts = data.summary.barangays || {};
+          const missedInBarangay = userBarangay ? (barangayCounts[userBarangay] || 0) : totalMissed;
+          
+          if (missedInBarangay > 0) {
+            // Show toast after 2.5 seconds delay
+            setTimeout(() => {
+              if (toastRef.current) {
+                toastRef.current.show(
+                  `📢 ${missedInBarangay} new report${missedInBarangay > 1 ? 's' : ''} in ${userBarangay || 'your area'} while you were away.`,
+                  'info'
+                );
+              }
+            }, 2500);
+            
+            sessionStorage.setItem(toastKey, '1');
+          }
+        }
+      } catch (e) {
+        console.warn('Failed to fetch missed reports for responder:', e);
+      }
+    };
+
+    fetchMissedReports();
+  }, [token, user]);
+
   // Check for AI evaluations after user profile is loaded
   useEffect(() => {
     if (user && token && !hasCheckedEvaluations.current) {

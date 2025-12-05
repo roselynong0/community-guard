@@ -51,31 +51,36 @@
 }
 
 .btn {
-    padding: 8px 15px;
+    padding: 8px 14px;
     border-radius: 6px;
     cursor: pointer;
-    font-size: 14px;
-    transition: background-color 0.2s, border-color 0.2s, color 0.2s;
-    border: 1px solid transparent;
-    display: flex;
+    font-size: 13px;
+    font-weight: 600;
+    transition: all 0.2s ease;
+    border: none;
+    display: inline-flex;
     align-items: center;
-    gap: 5px;
+    justify-content: center;
+    gap: 6px;
+    min-width: 90px;
 }
 
 .btn.mark-all, .btn.refresh {
-    background-color: #2d2d73;
+    background: linear-gradient(135deg, #2d2d73 0%, #1a1a5b 100%);
     color: white;
-    width: auto;
+    box-shadow: 0 2px 6px rgba(45, 45, 115, 0.3);
 }
 
 .btn.mark-all:hover:not(:disabled), .btn.refresh:hover:not(:disabled) {
-    background-color: #1a1a5b;
+    background: linear-gradient(135deg, #1a1a5b 0%, #131344 100%);
+    box-shadow: 0 4px 12px rgba(45, 45, 115, 0.4);
+    transform: translateY(-1px);
 }
 
 .btn:disabled {
-    background-color: #ccc;
-    color: #888;
+    opacity: 0.7;
     cursor: not-allowed;
+    transform: none;
 }
 
 .btn .icon {
@@ -442,31 +447,36 @@
 }
 
 .btn {
-    padding: 8px 15px;
+    padding: 8px 14px;
     border-radius: 6px;
     cursor: pointer;
-    font-size: 14px;
-    transition: background-color 0.2s, border-color 0.2s, color 0.2s;
-    border: 1px solid transparent;
-    display: flex;
+    font-size: 13px;
+    font-weight: 600;
+    transition: all 0.2s ease;
+    border: none;
+    display: inline-flex;
     align-items: center;
-    gap: 5px;
+    justify-content: center;
+    gap: 6px;
+    min-width: 90px;
 }
 
 .btn.mark-all, .btn.refresh {
-    background-color: #2d2d73;
+    background: linear-gradient(135deg, #2d2d73 0%, #1a1a5b 100%);
     color: white;
-    width: auto;
+    box-shadow: 0 2px 6px rgba(45, 45, 115, 0.3);
 }
 
 .btn.mark-all:hover:not(:disabled), .btn.refresh:hover:not(:disabled) {
-    background-color: #1a1a5b;
+    background: linear-gradient(135deg, #1a1a5b 0%, #131344 100%);
+    box-shadow: 0 4px 12px rgba(45, 45, 115, 0.4);
+    transform: translateY(-1px);
 }
 
 .btn:disabled {
-    background-color: #ccc;
-    color: #888;
+    opacity: 0.7;
     cursor: not-allowed;
+    transform: none;
 }
 
 .btn .icon {

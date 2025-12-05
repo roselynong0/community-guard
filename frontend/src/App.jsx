@@ -28,6 +28,7 @@ import BarangayReports from "./components/barangay/BarangayReports";
 import BarangayNotifications from "./components/barangay/BarangayNotifications";
 import CommunityFeedBarangay from "./components/barangay/CommunityFeedBarangay";
 import CCTVViewer from "./components/barangay/CCTVViewer";
+import Premium from "./components/barangay/Premium";
 
 // Responder components
 import ResponderLogin from "./components/responder/ResponderLogin";
@@ -445,6 +446,7 @@ function App() {
           <Route path="/barangay/notifications" element={<Notifications token={session?.token} />} />
           <Route path="/barangay/community-feed" element={<CommunityFeedBarangay token={session?.token} session={session} />} />
           <Route path="/barangay/profile" element={<Profile token={session?.token} />} />
+          <Route path="/barangay/premium" element={<Premium token={session?.token} />} />
         </Route>
 
         {/* --- RESPONDER PROTECTED ROUTES --- */}

@@ -17,6 +17,7 @@ import "../resident/Reports.css";
 import "./ArchivedReports.css";
 import "./Admin-Reports.css";
 import LoadingScreen from "../shared/LoadingScreen";
+import ModalPortal from "../shared/ModalPortal";
 
 // Hook for keyboard navigation
 const useKeyboardNavigation = (containerRef, selector) => {
@@ -97,7 +98,6 @@ function ArchivedReports({ session }) {
     { value: "Others", label: "Others" },
   ];
 
-  // Fetch resolved reports only
   const fetchArchivedReports = useCallback(async () => {
     if (!token) return;
     setOverlayExited(false);
@@ -112,7 +112,6 @@ function ArchivedReports({ session }) {
         }
       );
       if (res.data.status === "success" && Array.isArray(res.data.reports)) {
-        // Filter only resolved reports and transform image format
         const resolvedReports = res.data.reports
           .filter(r => r.status === "Resolved")
           .map(report => ({
@@ -177,18 +176,14 @@ function ArchivedReports({ session }) {
     }
   }, [loading]);
 
-  // Toggle expand/collapse
   const toggleExpand = (id) => {
     setExpandedPosts((prev) =>
       prev.includes(id) ? prev.filter((p) => p !== id) : [...prev, id]
     );
   };
 
-  // Filter logic - only show resolved reports
-  // For Barangay Officials and Responders, filter by their barangay
   const filteredReports = reports
     .filter((r) => r.deleted !== true)
-    // Apply role-based barangay filter for Barangay Officials and Responders
     .filter((r) => {
       if (canExportAll) return true; // Admin sees all
       if (isBarangayOrResponder && userBarangay) {
@@ -457,7 +452,6 @@ function ArchivedReports({ session }) {
             <span>Community Guard</span>
           </div>
           <p class="footer-tagline">Protecting Communities Together</p>
-          <p class="footer-subtitle">This report was generated with Community Helper Smart Analytics</p>
         </div>
       </body>
       </html>
@@ -628,12 +622,14 @@ function ArchivedReports({ session }) {
                             ? new Date(report.created_at).toLocaleString()
                             : ""}
                           {" "}· {report.category}
-                          {" "}· <span className="status-tag status-resolved"><FaCheckCircle /> Resolved</span>
                         </p>
                         <p className="report-address-info">
                           {report.address_street || ""}, {report.address_barangay || ""}, Olongapo City
                         </p>
                       </div>
+                    </div>
+                    <div className="report-header-actions">
+                      <span className="status-tag status-resolved"><FaCheckCircle /> Resolved</span>
                     </div>
                   </div>
 
@@ -764,24 +760,26 @@ function ArchivedReports({ session }) {
         )}
       </div>
 
-      {/* Fullscreen Image Preview */}
+      {/* Fullscreen Image Preview - wrapped in ModalPortal */}
       {previewImage && (
-        <div
-          className="fullscreen-preview"
-          onClick={() => setPreviewImage(null)}
-          role="dialog"
-          aria-modal="true"
-          aria-label="Image preview"
-        >
-          <img src={previewImage} alt="Full size preview" />
-          <button 
-            className="close-preview"
+        <ModalPortal>
+          <div
+            className="fullscreen-preview"
             onClick={() => setPreviewImage(null)}
-            aria-label="Close preview"
+            role="dialog"
+            aria-modal="true"
+            aria-label="Image preview"
           >
-            ×
-          </button>
-        </div>
+            <img src={previewImage} alt="Full size preview" />
+            <button 
+              className="close-preview"
+              onClick={() => setPreviewImage(null)}
+              aria-label="Close preview"
+            >
+              ×
+            </button>
+          </div>
+        </ModalPortal>
       )}
     </>
   );
@@ -792,7 +790,7 @@ function ArchivedReports({ session }) {
       description: "Gathering completed incident reports for review.",
     },
     {
-      title: "AI Analytics",
+      title: "Smart Analytics",
       description: "Building Community Helper insights and trends.",
     },
     {
@@ -829,7 +827,7 @@ function ArchivedReports({ session }) {
     <LoadingScreen
       variant="inline"
       features={loadingFeatures}
-      title={loading ? "Syncing archived reports..." : undefined}
+      title={loading ? "Syncing archieves..." : undefined}
       subtitle={loading ? "Preparing resolved cases and analytics" : undefined}
       stage={effectiveStage}
       onExited={handleLoadingExited}

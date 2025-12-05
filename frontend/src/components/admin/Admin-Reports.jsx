@@ -4,7 +4,7 @@ import {
     FaTrashAlt,
     FaSearch,
     FaRedo, FaCheckCircle, FaTimesCircle, FaCheck, FaTimes,
-    FaSyncAlt, FaClock, FaFileCsv, FaFilePdf, FaThLarge, FaList, FaArchive, FaFileAlt, FaHeart, FaRegHeart } from "react-icons/fa";
+    FaSyncAlt, FaClock, FaFileCsv, FaFilePdf, FaThLarge, FaList, FaArchive, FaFileAlt, FaHeart, FaRegHeart, FaFire, FaPlus, FaMinus, FaMapPin, FaChartLine } from "react-icons/fa";
 import { API_CONFIG, getApiUrl } from "../../utils/apiConfig";
 import "./Admin-Reports.css";
 import "../shared/Notification.css";
@@ -206,8 +206,12 @@ function AdminReports({ token, reportTitle = 'All Community Reports', showTitle 
     const [showCommunityHelper] = useState(true); // show inline category suggestion
     const [isPremium, setIsPremium] = useState(false); // Admin premium status - unlimited AI usage
 
+    // ⭐ NEW: Trending reports states
+    const [trendingReports, setTrendingReports] = useState([]);
+    const [trendingExpanded, setTrendingExpanded] = useState(true);
+    const [trendingTimeFilter, setTrendingTimeFilter] = useState("this-month"); // today, yesterday, this-month
+
     // Loading animation states
-    const [overlayExited, setOverlayExited] = useState(false);
     const [showMountAnimation, setShowMountAnimation] = useState(false);
     const [mountStage, setMountStage] = useState("exit");
     const loadingRef = useRef(loading);
@@ -430,8 +434,6 @@ function AdminReports({ token, reportTitle = 'All Community Reports', showTitle 
     // Elements we want to navigate between with arrow keys
     const filterSelector = 'input.admin-search-input, .admin-top-controls .admin-filter-select, .reports-list button:first-child'; 
     useKeyboardNavigation(filterContainerRef, filterSelector);
-    // Keep a ref for timer updates (if needed elsewhere)
-    const smartFilterTimerRef = useRef(null);
     // -----------------------------------
 
     // Notification handler
@@ -626,7 +628,7 @@ function AdminReports({ token, reportTitle = 'All Community Reports', showTitle 
         } finally {
             setLoading(false);
         }
-    }, [token]);
+    }, [token, sort]);
 
     useEffect(() => {
         fetchReports();
@@ -688,6 +690,70 @@ function AdminReports({ token, reportTitle = 'All Community Reports', showTitle 
             }, 500);
         }
     }, [reports]);
+
+    // ⭐ NEW: Compute trending reports using newsfeed algorithm
+    useEffect(() => {
+        if (!reports.length) {
+            setTrendingReports([]);
+            return;
+        }
+
+        // Time filter logic
+        const now = new Date();
+        const filterByTime = (createdAt) => {
+            const reportDate = new Date(createdAt);
+            const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+            const yesterday = new Date(today);
+            yesterday.setDate(yesterday.getDate() - 1);
+            const thisMonthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+            
+            switch (trendingTimeFilter) {
+                case "today":
+                    return reportDate >= today;
+                case "yesterday":
+                    return reportDate >= yesterday && reportDate < today;
+                case "this-month":
+                    return reportDate >= thisMonthStart;
+                default:
+                    return true;
+            }
+        };
+
+        // Filter approved reports that are not resolved
+        const eligibleReports = reports.filter((r) => 
+            r.is_approved === true &&
+            r.status !== "Resolved" &&
+            r.deleted_at === null &&
+            r.is_rejected !== true &&
+            filterByTime(r.created_at)
+        );
+
+        // Apply trending algorithm: reactions + engagement + recency
+        // Score = (reactions * 2 + category_weight) / (hours_old + 2)^1.5
+        const scored = eligibleReports.map((r) => {
+            const createdAt = new Date(r.created_at || 0);
+            const hoursOld = Math.max(0, (now - createdAt) / (1000 * 60 * 60));
+            
+            // Engagement: reactions + severity weight
+            const severityWeight = { Crime: 3, Hazard: 2.5, Concern: 2, 'Lost&Found': 1, Others: 1 };
+            const reactionBoost = (r.reaction_count || 0) * 2;
+            const engagement = reactionBoost + (severityWeight[r.category] || 1) * 2;
+            
+            // Time decay factor
+            const timeFactor = Math.pow(hoursOld + 2, 1.5);
+            const trendingScore = engagement / timeFactor;
+            
+            return { ...r, trendingScore };
+        });
+
+        // Sort by trending score descending, limit to 5
+        const trending = scored
+            .sort((a, b) => b.trendingScore - a.trendingScore)
+            .slice(0, 5);
+
+        setTrendingReports(trending);
+        console.log(`🔥 ${trending.length} trending reports (admin view)`);
+    }, [reports, trendingTimeFilter]);
 
     const toggleExpand = (id) => {
         setExpandedPosts((prev) =>
@@ -1160,7 +1226,6 @@ function AdminReports({ token, reportTitle = 'All Community Reports', showTitle 
                         <span>Community Guard</span>
                     </div>
                     <p>Protecting Communities Together</p>
-                    <p class="footer-subtitle">This report was generated with Community Helper Smart Analytics</p>
                 </div>
             </body>
             </html>
@@ -1217,9 +1282,7 @@ function AdminReports({ token, reportTitle = 'All Community Reports', showTitle 
 
     const handleLoadingExited = () => {
         setShowMountAnimation(false);
-        setOverlayExited(true);
     };
-
     return (
         <LoadingScreen
             variant="inline"
@@ -1275,8 +1338,8 @@ function AdminReports({ token, reportTitle = 'All Community Reports', showTitle 
                                 <FaFilePdf /> PDF
                             </button>
                         </div>
+                    </div>
                 </div>
-            </div>
 
             {/* IMPROVEMENT: Added ref to the filter container for keyboard navigation */}
             <div className="admin-top-controls" ref={filterContainerRef}>
@@ -1597,6 +1660,89 @@ function AdminReports({ token, reportTitle = 'All Community Reports', showTitle 
                 </ModalPortal>
             )}
 
+            {/* ⭐ Trending Pill Button Row - Always visible, shows count */}
+            <div className="trending-pill-row">
+                <button
+                    className={`trending-pill-btn ${trendingReports.length === 0 ? 'empty' : ''}`}
+                    onClick={() => setTrendingExpanded(!trendingExpanded)}
+                    title={trendingExpanded ? 'Hide trending reports' : 'Show trending reports'}
+                >
+                    <FaFire className="trending-pill-icon" />
+                    Trending ({trendingReports.length})
+                    {trendingExpanded ? <FaMinus className="trending-pill-toggle" /> : <FaPlus className="trending-pill-toggle" />}
+                </button>
+            </div>
+
+            {/* ⭐ Trending Reports Section - Collapsible */}
+            {trendingExpanded && (
+                <div className="trending-reports-container expanded">
+                    <div className="trending-reports-header">
+                        <div className="trending-header-left">
+                            <h3><FaMapPin className="trending-pin-icon" /> Current Trending Reports</h3>
+                        </div>
+                        <div className="trending-header-right">
+                            <select
+                                className="trending-time-filter"
+                                value={trendingTimeFilter}
+                                onChange={(e) => setTrendingTimeFilter(e.target.value)}
+                            >
+                                <option value="today">Today</option>
+                                <option value="yesterday">Yesterday</option>
+                                <option value="this-month">This Month</option>
+                            </select>
+                        </div>
+                    </div>
+                    
+                    <div className="trending-reports-list">
+                        {trendingReports.map((report) => (
+                            <div 
+                                key={`trending-${report.id}`} 
+                                className="trending-report-card"
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    const element = document.getElementById(`report-${report.id}`);
+                                    if (element) {
+                                        element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                                        setHighlightedReportId(report.id);
+                                        setTimeout(() => setHighlightedReportId(null), 3000);
+                                    }
+                                }}
+                            >
+                                <div className="trending-report-category" data-category={report.category}>
+                                    {report.category}
+                                </div>
+                                <div className="trending-report-title">{report.title}</div>
+                                <div className="trending-report-location">
+                                    📍 {report.address_barangay}
+                                </div>
+                                <div className="trending-report-meta">
+                                    <span className="trending-report-status" data-status={report.status?.toLowerCase()}>
+                                        {report.status}
+                                    </span>
+                                    <span className="trending-report-time">
+                                        {new Date(report.created_at).toLocaleDateString()}
+                                    </span>
+                                </div>
+                                <div className="trending-report-likes">
+                                    <FaHeart className="heart-icon-small" aria-hidden="true" />
+                                    <span>{report.reaction_count || 0}</span>
+                                </div>
+                            </div>
+                        ))}
+                        
+                        {trendingReports.length === 0 && (
+                            <div className="no-trending-reports">
+                                <p>No trending reports for this time period.</p>
+                                <p className="trending-criteria">
+                                    Reports become trending based on: reactions, category (Crime → Hazard → Concern), and recency.
+                                    Try selecting "This Month" to see more results.
+                                </p>
+                            </div>
+                        )}
+                    </div>
+                </div>
+            )}
+
             <div className="reports-list">
                 {loading ? (
                     <div className="loading-container" role="status" aria-live="polite">
@@ -1604,11 +1750,10 @@ function AdminReports({ token, reportTitle = 'All Community Reports', showTitle 
                         <p>Loading reports...</p>
                     </div>
                 ) : reports.length === 0 ? (
-                    <div style={{ padding: '20px', textAlign: 'center' }}>
+                    <div className="no-reports" role="status">
+                        <FaChartLine style={{ fontSize: '3rem', color: '#ccc', marginBottom: '1rem' }} />
                         <p>No reports found.</p>
-                        <button onClick={fetchReports} style={{ marginTop: '10px' }}>
-                            <FaRedo aria-hidden="true" /> Retry Loading Reports
-                        </button>
+                        <p className="muted">Active incidents will appear here.</p>
                     </div>
                 ) : filteredReports.length > 0 ? (
                     viewMode === "card" ? (
@@ -1868,13 +2013,18 @@ function AdminReports({ token, reportTitle = 'All Community Reports', showTitle 
                                     </div>
                                 )}
 
-                                {/* Heart/Like Button */}
+                                {/* Heart/Like Button - Disabled for pending reports */}
                                 <div className="report-reactions">
                                     <button
-                                        className={`reaction-btn heart-btn ${report.user_liked ? 'liked' : ''}`}
-                                        onClick={(e) => { e.stopPropagation(); handleToggleLike(report.id); }}
-                                        aria-label={report.user_liked ? 'Unlike this report' : 'Like this report'}
-                                        title={report.user_liked ? 'Unlike' : 'Like'}
+                                        className={`reaction-btn heart-btn ${report.user_liked ? 'liked' : ''} ${isPending ? 'disabled' : ''}`}
+                                        onClick={(e) => { 
+                                            e.stopPropagation(); 
+                                            if (!isPending) handleToggleLike(report.id); 
+                                        }}
+                                        disabled={isPending}
+                                        aria-label={isPending ? 'Cannot like pending report' : (report.user_liked ? 'Unlike this report' : 'Like this report')}
+                                        title={isPending ? 'Cannot like pending report' : (report.user_liked ? 'Unlike' : 'Like')}
+                                        style={isPending ? { opacity: 0.5, cursor: 'not-allowed' } : {}}
                                     >
                                         {report.user_liked ? (
                                             <FaHeart className="heart-icon filled" aria-hidden="true" />
@@ -1962,9 +2112,11 @@ function AdminReports({ token, reportTitle = 'All Community Reports', showTitle 
                                             : "N/A"}
                                     </div>
                                     <div className="list-col col-status">
-                                        <span className={`admin-status-badge admin-status-${report.status.toLowerCase()}`}>
-                                            {getStatusIcon(report.status)} {report.status}
-                                        </span>
+                                        {!(report.is_approved === true && report.status === "Pending") && (
+                                            <span className={`admin-status-badge admin-status-${report.status.toLowerCase()}`}>
+                                                {getStatusIcon(report.status)} {report.status}
+                                            </span>
+                                        )}
                                     </div>
                                     <div className="list-col col-actions">
                                         {isPending ? (
@@ -2011,16 +2163,38 @@ function AdminReports({ token, reportTitle = 'All Community Reports', showTitle 
                     </div>
                     )
                 ) : (
-                    <div style={{ padding: '20px', textAlign: 'center' }}>
+                    <div className="no-reports" role="status">
+                        <FaChartLine style={{ fontSize: '3rem', color: '#ccc', marginBottom: '1rem' }} />
                         <p>No reports match your current filters.</p>
+                        <p className="muted">Try adjusting your search criteria.</p>
                         <button 
                             onClick={() => {
                                 setSearch("");
                                 setCategory("All");
                                 setBarangay("All");
                                 setStatusFilter("All");
+                                setPriorityFilter("All");
                             }}
-                            style={{ marginTop: '10px' }}
+                            style={{ 
+                                marginTop: '1rem',
+                                padding: '10px 24px',
+                                background: 'linear-gradient(135deg, #f59e0b, #d97706)',
+                                color: 'white',
+                                border: 'none',
+                                borderRadius: '8px',
+                                fontWeight: '600',
+                                cursor: 'pointer',
+                                boxShadow: '0 2px 8px rgba(245, 158, 11, 0.3)',
+                                transition: 'all 0.2s ease'
+                            }}
+                            onMouseOver={(e) => {
+                                e.target.style.transform = 'translateY(-2px)';
+                                e.target.style.boxShadow = '0 4px 12px rgba(245, 158, 11, 0.4)';
+                            }}
+                            onMouseOut={(e) => {
+                                e.target.style.transform = 'translateY(0)';
+                                e.target.style.boxShadow = '0 2px 8px rgba(245, 158, 11, 0.3)';
+                            }}
                         >
                             Clear All Filters
                         </button>
@@ -2075,11 +2249,16 @@ function AdminReports({ token, reportTitle = 'All Community Reports', showTitle 
                                 onChange={(e) => setNewStatus(e.target.value)}
                                 style={{ width: '100%', padding: '8px', borderRadius: '4px', border: '1px solid #ccc' }}
                             >
-                                {REPORT_STATUSES.map(status => (
-                                    <option key={status} value={status}>
-                                        {status} {status === selectedReport.status ? '(Current)' : ''}
-                                    </option>
-                                ))}
+                                {REPORT_STATUSES.map(status => {
+                                    const currentIndex = REPORT_STATUSES.indexOf(selectedReport.status);
+                                    const statusIndex = REPORT_STATUSES.indexOf(status);
+                                    const isDisabled = statusIndex < currentIndex;
+                                    return (
+                                        <option key={status} value={status} disabled={isDisabled}>
+                                            {status} {status === selectedReport.status ? '(Current)' : ''} {isDisabled ? '(Cannot revert)' : ''}
+                                        </option>
+                                    );
+                                })}
                             </select>
                         </div>
                         
@@ -2091,7 +2270,7 @@ function AdminReports({ token, reportTitle = 'All Community Reports', showTitle 
                             </div>
                         )}
                         
-                        <div className="modal-buttons edit-actions">
+                        <div className="modal-buttons">
                             <button 
                                 onClick={closeStatusModal}
                                 disabled={isUpdatingStatus}
@@ -2310,15 +2489,17 @@ function AdminReports({ token, reportTitle = 'All Community Reports', showTitle 
                 </ModalPortal>
             )}
 
-            {/* Notification */}
+            {/* Notification - wrapped in ModalPortal for proper z-index */}
             {notification && (
-                <div 
-                    className={`notif notif-${notification.type}`}
-                    role="alert" 
-                    aria-live="assertive"
-                >
-                    {notification.message}
-                </div>
+                <ModalPortal>
+                    <div 
+                        className={`notif notif-${notification.type}`}
+                        role="alert" 
+                        aria-live="assertive"
+                    >
+                        {notification.message}
+                    </div>
+                </ModalPortal>
             )}
         </div>
         </LoadingScreen>

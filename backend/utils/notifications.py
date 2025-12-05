@@ -825,8 +825,17 @@ def _notify_barangay_officials_urgent(report_id, report_title, report_category, 
     """
     count = 0
     try:
-        # Get barangay officials for this barangay
-        officials_resp = supabase.table("users").select("id, firstname, lastname").eq("role", "Barangay Official").eq("barangay", barangay).execute()
+        # Get barangay officials for this barangay (barangay is stored in info table as address_barangay)
+        # First get user_ids from info table that match the barangay
+        info_resp = supabase.table("info").select("user_id").eq("address_barangay", barangay).execute()
+        barangay_user_ids = [i.get("user_id") for i in (getattr(info_resp, "data", []) or []) if i.get("user_id")]
+        
+        if not barangay_user_ids:
+            print(f"⚠️ No users found in barangay {barangay}")
+            return 0
+        
+        # Then filter to only Barangay Officials
+        officials_resp = supabase.table("users").select("id, firstname, lastname").eq("role", "Barangay Official").in_("id", barangay_user_ids).execute()
         officials = getattr(officials_resp, "data", []) or []
         
         for official in officials:
@@ -857,12 +866,23 @@ def _notify_barangay_officials_urgent(report_id, report_title, report_category, 
 
 def _notify_responders_urgent(report_id, report_title, report_category, priority, barangay):
     """
-    Send urgent notifications to available responders.
+    Send urgent notifications to available responders in the same barangay.
     """
     count = 0
     try:
-        # Get responders (optionally filter by barangay if needed)
-        responders_resp = supabase.table("users").select("id, firstname, lastname").eq("role", "Responder").execute()
+        # Get responders in the same barangay (barangay is stored in info table as address_barangay)
+        if barangay:
+            info_resp = supabase.table("info").select("user_id").eq("address_barangay", barangay).execute()
+            barangay_user_ids = [i.get("user_id") for i in (getattr(info_resp, "data", []) or []) if i.get("user_id")]
+            
+            if barangay_user_ids:
+                responders_resp = supabase.table("users").select("id, firstname, lastname").eq("role", "Responder").in_("id", barangay_user_ids).execute()
+            else:
+                responders_resp = type('obj', (object,), {'data': []})()
+        else:
+            # If no barangay specified, notify all responders
+            responders_resp = supabase.table("users").select("id, firstname, lastname").eq("role", "Responder").execute()
+        
         responders = getattr(responders_resp, "data", []) or []
         
         for responder in responders:
@@ -897,7 +917,17 @@ def _notify_barangay_for_evaluation(report_id, report_title, report_category, pr
     """
     count = 0
     try:
-        officials_resp = supabase.table("users").select("id").eq("role", "Barangay Official").eq("barangay", barangay).execute()
+        # Get barangay officials for this barangay (barangay is stored in info table as address_barangay)
+        # First get user_ids from info table that match the barangay
+        info_resp = supabase.table("info").select("user_id").eq("address_barangay", barangay).execute()
+        barangay_user_ids = [i.get("user_id") for i in (getattr(info_resp, "data", []) or []) if i.get("user_id")]
+        
+        if not barangay_user_ids:
+            print(f"⚠️ No users found in barangay {barangay}")
+            return 0
+        
+        # Then filter to only Barangay Officials
+        officials_resp = supabase.table("users").select("id").eq("role", "Barangay Official").in_("id", barangay_user_ids).execute()
         officials = getattr(officials_resp, "data", []) or []
         
         for official in officials:

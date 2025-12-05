@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
+import { useNavigate } from "react-router-dom";
 import {
   FaExclamationTriangle,
   FaCheckCircle,
@@ -28,6 +29,7 @@ import MapView from "../resident/Mapview";
 import "./BarangayDashboard.css";
 import "../shared/Notification.css";
 import LoadingScreen from "../shared/LoadingScreen";
+import ModalPortal from "../shared/ModalPortal";
 
 // ✅ Fetch helper (same as resident)
 async function fetchWithToken(url, token, retries = 3) {
@@ -126,6 +128,7 @@ function AnimatedNumber({ value, duration = 800 }) {
 }
 
 export default function BarangayDashboard({ token }) {
+  const navigate = useNavigate();
 
   const [stats, setStats] = useState([
     { title: "Total Reports", value: null, icon: <FaExclamationTriangle />, colorClass: "primary" },
@@ -313,7 +316,7 @@ export default function BarangayDashboard({ token }) {
                 // Check premium status before allowing monthly view
                 if (newView === "monthly" && !onpremium) {
                   console.log('📊 Monthly reports require premium - showing upgrade modal');
-                  showNotification('✨ Premium feature - Please upgrade to unlock Monthly Reports', 'warning');
+                  showNotification('✨ Premium feature - Upgrade to unlock Monthly Reports', 'premium');
                   setShowPremiumModal(true);
                   return; // Don't change view
                 }
@@ -355,67 +358,38 @@ export default function BarangayDashboard({ token }) {
 
       {/* --- PREMIUM UPGRADE MODAL --- */}
       {showPremiumModal && (
+        <ModalPortal>
         <div 
-          className="modal-overlay"
+          className="modal-overlay premium-modal-overlay"
           onClick={() => setShowPremiumModal(false)}
-          style={{ zIndex: 1000 }}
         >
           <div 
-            className="modal"
+            className="modal premium-upgrade-modal"
             onClick={(e) => e.stopPropagation()}
-            style={{
-              maxWidth: "450px",
-              borderLeft: "6px solid #f39c12",
-              backgroundColor: "#fffbf0"
-            }}
           >
-            <div style={{
-              display: "flex",
-              justifyContent: "space-between",
-              alignItems: "center",
-              marginBottom: "16px",
-              borderBottom: "2px solid #f39c12",
-              paddingBottom: "12px"
-            }}>
-              <h3 style={{ margin: 0, color: "#f39c12" }}>✨ Premium Feature</h3>
+            <div className="premium-modal-header">
+              <h3>✨ Premium Feature</h3>
               <button
+                className="premium-modal-close"
                 onClick={() => setShowPremiumModal(false)}
-                style={{
-                  background: "none",
-                  border: "none",
-                  fontSize: "1.5em",
-                  cursor: "pointer",
-                  color: "#666"
-                }}
+                aria-label="Close modal"
               >
                 ✕
               </button>
             </div>
 
-            <div style={{ display: "flex", flexDirection: "column", gap: "16px", marginBottom: "20px" }}>
-              <div style={{
-                padding: "14px",
-                backgroundColor: "#fff9e6",
-                borderRadius: "6px",
-                borderLeft: "4px solid #f39c12"
-              }}>
-                <div style={{ fontWeight: "600", color: "#f39c12", marginBottom: "8px" }}>
-                  📊 Monthly Report Summary
-                </div>
-                <p style={{ margin: 0, fontSize: "0.95em", color: "#666", lineHeight: "1.4" }}>
+            <div className="premium-modal-body">
+              <div className="premium-feature-highlight">
+                <div className="premium-feature-icon">📊</div>
+                <div className="premium-feature-title">Monthly Report Summary</div>
+                <p className="premium-feature-desc">
                   Access detailed monthly report analytics and trends. This feature is reserved for Premium subscribers.
                 </p>
               </div>
 
-              <div style={{
-                padding: "14px",
-                backgroundColor: "#f5f5f5",
-                borderRadius: "6px"
-              }}>
-                <div style={{ fontWeight: "600", marginBottom: "8px", color: "#333" }}>
-                  ✨ Premium Benefits
-                </div>
-                <ul style={{ margin: 0, paddingLeft: "20px", fontSize: "0.95em", color: "#666", lineHeight: "1.5" }}>
+              <div className="premium-benefits-section">
+                <div className="premium-benefits-title">✨ Premium Benefits</div>
+                <ul className="premium-benefits-list">
                   <li>📊 Monthly report summaries</li>
                   <li>⏱️ Unlimited Smart Filter usage</li>
                   <li>📈 Advanced analytics</li>
@@ -424,62 +398,42 @@ export default function BarangayDashboard({ token }) {
               </div>
             </div>
 
-            <div style={{ display: "flex", gap: "10px", justifyContent: "flex-end" }}>
+            <div className="premium-modal-actions">
               <button 
+                className="premium-btn-cancel"
                 onClick={() => setShowPremiumModal(false)}
-                style={{
-                  padding: "10px 20px",
-                  backgroundColor: "#ccc",
-                  color: "#333",
-                  border: "none",
-                  borderRadius: "4px",
-                  cursor: "pointer",
-                  fontWeight: "500",
-                  fontSize: "0.95em",
-                  transition: "all 0.3s ease"
-                }}
-                onMouseEnter={(e) => e.target.style.backgroundColor = "#bbb"}
-                onMouseLeave={(e) => e.target.style.backgroundColor = "#ccc"}
               >
                 Close
               </button>
               <button 
+                className="premium-btn-upgrade"
                 onClick={() => {
                   console.log('User clicked upgrade button');
-                  showNotification('🚀 Redirecting to Premium upgrade page...', 'info');
+                  showNotification('🚀 Redirecting to Premium page...', 'premium');
                   setShowPremiumModal(false);
-                  // TODO: Navigate to upgrade page or show payment modal
+                  // Navigate to premium page
+                  setTimeout(() => navigate('/barangay/premium'), 500);
                 }}
-                style={{
-                  padding: "10px 20px",
-                  backgroundColor: "#f39c12",
-                  color: "white",
-                  border: "none",
-                  borderRadius: "4px",
-                  cursor: "pointer",
-                  fontWeight: "600",
-                  fontSize: "0.95em",
-                  transition: "all 0.3s ease"
-                }}
-                onMouseEnter={(e) => e.target.style.backgroundColor = "#e67e22"}
-                onMouseLeave={(e) => e.target.style.backgroundColor = "#f39c12"}
               >
                 ✨ Upgrade Now
               </button>
             </div>
           </div>
         </div>
+        </ModalPortal>
       )}
 
-      {/* Toast Notification */}
+      {/* Toast Notification - wrapped in ModalPortal for proper z-index */}
       {notification && (
-        <div 
-          className={`notif notif-${notification.type}`}
-          role="alert" 
-          aria-live="assertive"
-        >
-          {notification.message}
-        </div>
+        <ModalPortal>
+          <div 
+            className={`notif notif-${notification.type}`}
+            role="alert" 
+            aria-live="assertive"
+          >
+            {notification.message}
+          </div>
+        </ModalPortal>
       )}
 
     </div>

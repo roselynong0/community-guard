@@ -123,7 +123,7 @@ function Home({ token, session }) {
       try {
         const shownKey = `missed_shown_${session?.user?.id || session?.user?.email || 'anon'}`;
         if (sessionStorage.getItem(shownKey)) return;
-        const res = await fetch(getApiUrl('/reports/missed_summary'), {
+        const res = await fetch(getApiUrl('/api/reports/missed_summary'), {
           headers: { Authorization: `Bearer ${token}` },
         });
         if (!res) return;

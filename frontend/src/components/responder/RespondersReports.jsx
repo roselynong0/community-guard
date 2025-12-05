@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useCallback, useRef } from "react";
-import { FaEdit, FaTrashAlt, FaSearch, FaRedo, FaCheckCircle, FaTimesCircle } from "react-icons/fa";
+import React, { useState, useEffect, useCallback, useRef, useMemo } from "react";
+import { FaEdit, FaTrashAlt, FaSearch, FaRedo, FaCheckCircle, FaTimesCircle, FaHeart, FaRegHeart, FaFire, FaPlus, FaMinus, FaMapPin, FaClock, FaSyncAlt, FaChartLine } from "react-icons/fa";
 import "../resident/Reports.css"; 
 import ModalPortal from "../shared/ModalPortal";
 
@@ -7,6 +7,20 @@ import { API_CONFIG, getApiUrl } from "../../utils/apiConfig";
 // ... existing code ...
 const API_URL = getApiUrl(API_CONFIG.endpoints.reports);
 const REPORT_STATUSES = ["Pending", "Ongoing", "Resolved"];
+
+// Status badge icon helper
+const getStatusIcon = (status) => {
+    switch (status?.toLowerCase()) {
+        case 'pending':
+            return <FaClock aria-hidden="true" />;
+        case 'ongoing':
+            return <FaSyncAlt aria-hidden="true" />;
+        case 'resolved':
+            return <FaCheckCircle aria-hidden="true" />;
+        default:
+            return null;
+    }
+};
 
 // Utility Hook for Modal Accessibility (Focus trap and Esc key)
 const useAriaModal = (isOpen, onClose) => {
@@ -147,6 +161,11 @@ function RespondersReports({ token }) {
     const [isDeleteReasonOpen, setIsDeleteReasonOpen] = useState(false);
     const [deleteReason, setDeleteReason] = useState('');
     const [deleteReasonOther, setDeleteReasonOther] = useState('');
+
+    // ⭐ NEW: Trending reports states
+    const [trendingReports, setTrendingReports] = useState([]);
+    const [trendingExpanded, setTrendingExpanded] = useState(true);
+    const [trendingTimeFilter, setTrendingTimeFilter] = useState("this-month"); // today, yesterday, this-month
     
     const barangays = [
         "All Barangay", "Barretto", "East Bajac-Bajac", "East Tapinac", "Gordon Heights",
@@ -324,10 +343,115 @@ function RespondersReports({ token }) {
         }
     }, [reports]);
 
+    // ⭐ NEW: Compute trending reports using newsfeed algorithm
+    useEffect(() => {
+        if (!reports.length) {
+            setTrendingReports([]);
+            return;
+        }
+
+        // Time filter logic
+        const now = new Date();
+        const filterByTime = (createdAt) => {
+            const reportDate = new Date(createdAt);
+            const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+            const yesterday = new Date(today);
+            yesterday.setDate(yesterday.getDate() - 1);
+            const thisMonthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+            
+            switch (trendingTimeFilter) {
+                case "today":
+                    return reportDate >= today;
+                case "yesterday":
+                    return reportDate >= yesterday && reportDate < today;
+                case "this-month":
+                    return reportDate >= thisMonthStart;
+                default:
+                    return true;
+            }
+        };
+
+        // Filter approved reports that are not resolved
+        const eligibleReports = reports.filter((r) => 
+            r.is_approved === true &&
+            r.status !== "Resolved" &&
+            r.deleted_at === null &&
+            r.is_rejected !== true &&
+            filterByTime(r.created_at)
+        );
+
+        // Apply trending algorithm: reactions + engagement + recency
+        // Score = (reactions * 2 + category_weight) / (hours_old + 2)^1.5
+        const scored = eligibleReports.map((r) => {
+            const createdAt = new Date(r.created_at || 0);
+            const hoursOld = Math.max(0, (now - createdAt) / (1000 * 60 * 60));
+            
+            // Engagement: reactions + severity weight
+            const severityWeight = { Crime: 3, Hazard: 2.5, Concern: 2, 'Lost&Found': 1, Others: 1 };
+            const reactionBoost = (r.reaction_count || 0) * 2;
+            const engagement = reactionBoost + (severityWeight[r.category] || 1) * 2;
+            
+            // Time decay factor
+            const timeFactor = Math.pow(hoursOld + 2, 1.5);
+            const trendingScore = engagement / timeFactor;
+            
+            return { ...r, trendingScore };
+        });
+
+        // Sort by trending score descending, limit to 5
+        const trending = scored
+            .sort((a, b) => b.trendingScore - a.trendingScore)
+            .slice(0, 5);
+
+        setTrendingReports(trending);
+        console.log(`🔥 ${trending.length} trending reports (responder view)`);
+    }, [reports, trendingTimeFilter]);
+
     const toggleExpand = (id) => {
         setExpandedPosts((prev) =>
             prev.includes(id) ? prev.filter((i) => i !== id) : [...prev, id]
         );
+    };
+
+    // ⭐ NEW: Handle heart/like toggle for reports
+    const handleToggleLike = async (reportId) => {
+        if (!token) {
+            showNotification("Please log in to like reports", "error");
+            return;
+        }
+
+        try {
+            const response = await fetch(getApiUrl(`/api/reports/${reportId}/react`), {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ reaction_type: 'heart' })
+            });
+
+            const data = await response.json();
+            
+            if (data.status === 'success') {
+                // Update the report's reaction data in state
+                setReports(prevReports => 
+                    prevReports.map(report => 
+                        report.id === reportId 
+                            ? { 
+                                ...report, 
+                                user_liked: data.action === 'added',
+                                reaction_count: data.reaction_count
+                            }
+                            : report
+                    )
+                );
+            } else {
+                showNotification("Failed to update reaction", "error");
+            }
+        } catch (error) {
+            console.error("Error toggling like:", error);
+            showNotification("Failed to update reaction", "error");
+        }
     };
 
     const handleUpdateStatus = async () => {
@@ -521,6 +645,89 @@ function RespondersReports({ token }) {
                 </select>
             </div>
 
+            {/* ⭐ Trending Pill Button Row - Always visible, shows count */}
+            <div className="trending-pill-row">
+                <button
+                    className={`trending-pill-btn ${trendingReports.length === 0 ? 'empty' : ''}`}
+                    onClick={() => setTrendingExpanded(!trendingExpanded)}
+                    title={trendingExpanded ? 'Hide trending reports' : 'Show trending reports'}
+                >
+                    <FaFire className="trending-pill-icon" />
+                    Trending ({trendingReports.length})
+                    {trendingExpanded ? <FaMinus className="trending-pill-toggle" /> : <FaPlus className="trending-pill-toggle" />}
+                </button>
+            </div>
+
+            {/* ⭐ Trending Reports Section - Collapsible */}
+            {trendingExpanded && (
+                <div className="trending-reports-container expanded">
+                    <div className="trending-reports-header">
+                        <div className="trending-header-left">
+                            <h3><FaMapPin className="trending-pin-icon" /> Current Trending Reports</h3>
+                        </div>
+                        <div className="trending-header-right">
+                            <select
+                                className="trending-time-filter"
+                                value={trendingTimeFilter}
+                                onChange={(e) => setTrendingTimeFilter(e.target.value)}
+                            >
+                                <option value="today">Today</option>
+                                <option value="yesterday">Yesterday</option>
+                                <option value="this-month">This Month</option>
+                            </select>
+                        </div>
+                    </div>
+                    
+                    <div className="trending-reports-list">
+                        {trendingReports.map((report) => (
+                            <div 
+                                key={`trending-${report.id}`} 
+                                className="trending-report-card"
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    const element = document.getElementById(`report-${report.id}`);
+                                    if (element) {
+                                        element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                                        setHighlightedReportId(report.id);
+                                        setTimeout(() => setHighlightedReportId(null), 3000);
+                                    }
+                                }}
+                            >
+                                <div className="trending-report-category" data-category={report.category}>
+                                    {report.category}
+                                </div>
+                                <div className="trending-report-title">{report.title}</div>
+                                <div className="trending-report-location">
+                                    📍 {report.address_barangay}
+                                </div>
+                                <div className="trending-report-meta">
+                                    <span className="trending-report-status" data-status={report.status?.toLowerCase()}>
+                                        {report.status}
+                                    </span>
+                                    <span className="trending-report-time">
+                                        {new Date(report.created_at).toLocaleDateString()}
+                                    </span>
+                                </div>
+                                <div className="trending-report-likes">
+                                    <FaHeart className="heart-icon-small" aria-hidden="true" />
+                                    <span>{report.reaction_count || 0}</span>
+                                </div>
+                            </div>
+                        ))}
+                        
+                        {trendingReports.length === 0 && (
+                            <div className="no-trending-reports">
+                                <p>No trending reports for this time period.</p>
+                                <p className="trending-criteria">
+                                    Reports become trending based on: reactions, category (Crime → Hazard → Concern), and recency.
+                                    Try selecting "This Month" to see more results.
+                                </p>
+                            </div>
+                        )}
+                    </div>
+                </div>
+            )}
+
             <div className="reports-list">
                 {loading ? (
                     <div className="loading-container" role="status" aria-live="polite">
@@ -528,11 +735,10 @@ function RespondersReports({ token }) {
                         <p>Loading reports...</p>
                     </div>
                 ) : reports.length === 0 ? (
-                    <div style={{ padding: '20px', textAlign: 'center' }}>
+                    <div className="no-reports" role="status">
+                        <FaChartLine style={{ fontSize: '3rem', color: '#ccc', marginBottom: '1rem' }} />
                         <p>No reports found.</p>
-                        <button onClick={fetchReports} style={{ marginTop: '10px' }}>
-                            <FaRedo aria-hidden="true" /> Retry Loading Reports
-                        </button>
+                        <p className="muted">Assigned reports incidents will appear here.</p>
                     </div>
                 ) : filteredReports.length > 0 ? (
                     filteredReports.map((report, index) => {
@@ -598,6 +804,7 @@ function RespondersReports({ token }) {
 
                                     <div className="report-header-actions">
                                         <span className={`status-badge status-${report.status.toLowerCase()}`}>
+                                            {getStatusIcon(report.status)}
                                             {report.status}
                                         </span>
                                         <button 
@@ -654,12 +861,31 @@ function RespondersReports({ token }) {
                                         ))}
                                     </div>
                                 )}
+
+                                {/* ⭐ NEW: Like/Heart Button */}
+                                <div className="report-reactions">
+                                    <button 
+                                        className={`reaction-btn heart-btn ${report.user_liked ? 'liked' : ''}`}
+                                        onClick={(e) => { e.stopPropagation(); handleToggleLike(report.id); }}
+                                        aria-label={report.user_liked ? 'Unlike this report' : 'Like this report'}
+                                        title={report.user_liked ? 'Unlike' : 'Like'}
+                                    >
+                                        {report.user_liked ? (
+                                            <FaHeart className="heart-icon filled" aria-hidden="true" />
+                                        ) : (
+                                            <FaRegHeart className="heart-icon" aria-hidden="true" />
+                                        )}
+                                        <span className="reaction-count">{report.reaction_count || 0}</span>
+                                    </button>
+                                </div>
                             </div>
                         );
                     })
                 ) : (
-                    <div style={{ padding: '20px', textAlign: 'center' }}>
+                    <div className="no-reports" role="status">
+                        <FaChartLine style={{ fontSize: '3rem', color: '#ccc', marginBottom: '1rem' }} />
                         <p>No reports match your current filters.</p>
+                        <p className="muted">Try adjusting your search criteria.</p>
                         <button 
                             onClick={() => {
                                 setSearch("");
@@ -667,7 +893,26 @@ function RespondersReports({ token }) {
                                 setBarangay("All");
                                 setStatusFilter("All");
                             }}
-                            style={{ marginTop: '10px' }}
+                            style={{ 
+                                marginTop: '1rem',
+                                padding: '10px 24px',
+                                background: 'linear-gradient(135deg, #f59e0b, #d97706)',
+                                color: 'white',
+                                border: 'none',
+                                borderRadius: '8px',
+                                fontWeight: '600',
+                                cursor: 'pointer',
+                                boxShadow: '0 2px 8px rgba(245, 158, 11, 0.3)',
+                                transition: 'all 0.2s ease'
+                            }}
+                            onMouseOver={(e) => {
+                                e.target.style.transform = 'translateY(-2px)';
+                                e.target.style.boxShadow = '0 4px 12px rgba(245, 158, 11, 0.4)';
+                            }}
+                            onMouseOut={(e) => {
+                                e.target.style.transform = 'translateY(0)';
+                                e.target.style.boxShadow = '0 2px 8px rgba(245, 158, 11, 0.3)';
+                            }}
                         >
                             Clear All Filters
                         </button>
@@ -722,11 +967,16 @@ function RespondersReports({ token }) {
                                 onChange={(e) => setNewStatus(e.target.value)}
                                 style={{ width: '100%', padding: '8px', borderRadius: '4px', border: '1px solid #ccc' }}
                             >
-                                {REPORT_STATUSES.map(status => (
-                                    <option key={status} value={status}>
-                                        {status} {status === selectedReport.status ? '(Current)' : ''}
-                                    </option>
-                                ))}
+                                {REPORT_STATUSES.map(status => {
+                                    const currentIndex = REPORT_STATUSES.indexOf(selectedReport.status);
+                                    const statusIndex = REPORT_STATUSES.indexOf(status);
+                                    const isDisabled = statusIndex < currentIndex;
+                                    return (
+                                        <option key={status} value={status} disabled={isDisabled}>
+                                            {status} {status === selectedReport.status ? '(Current)' : ''} {isDisabled ? '(Cannot revert)' : ''}
+                                        </option>
+                                    );
+                                })}
                             </select>
                         </div>
                         
@@ -738,7 +988,7 @@ function RespondersReports({ token }) {
                             </div>
                         )}
                         
-                        <div className="modal-buttons edit-actions">
+                        <div className="modal-buttons">
                             <button 
                                 onClick={closeStatusModal}
                                 disabled={isUpdatingStatus}

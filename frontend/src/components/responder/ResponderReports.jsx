@@ -1,10 +1,11 @@
-import React, { useState, useEffect, useCallback, useRef } from "react";
-import { FaEdit, FaTrashAlt, FaSearch, FaRedo, FaCheckCircle, FaTimesCircle, FaCheck, FaTimes, FaSyncAlt, FaClock, FaFileCsv, FaFilePdf, FaThLarge, FaList, FaArchive, FaFileAlt } from "react-icons/fa";
-import { API_CONFIG, getApiUrl } from "../../utils/apiConfig";
-import LoadingScreen from "../shared/LoadingScreen";
+import React, { useState, useEffect, useCallback, useRef, useMemo } from "react";
+import { FaEdit, FaTrashAlt, FaSearch, FaRedo, FaCheckCircle, FaTimesCircle, FaHeart, FaRegHeart, FaFire, FaPlus, FaMinus, FaMapPin, FaClock, FaSyncAlt, FaChartLine } from "react-icons/fa";
+import "../resident/Reports.css"; 
 import ModalPortal from "../shared/ModalPortal";
-import "./ResponderReports.css";
 
+import { API_CONFIG, getApiUrl } from "../../utils/apiConfig";
+// ... existing code ...
+const API_URL = getApiUrl(API_CONFIG.endpoints.reports);
 const REPORT_STATUSES = ["Pending", "Ongoing", "Resolved"];
 
 // Status badge icon helper
@@ -83,7 +84,7 @@ const useAriaModal = (isOpen, onClose) => {
     return modalRef;
 };
 
-// --- Hook for Arrow Key Navigation in Filter Controls ---
+// --- NEW Hook for Arrow Key Navigation in Filter Controls ---
 const useKeyboardNavigation = (containerRef, selector) => {
     useEffect(() => {
         const container = containerRef.current;
@@ -102,22 +103,28 @@ const useKeyboardNavigation = (containerRef, selector) => {
 
             if (event.key === 'ArrowRight' || event.key === 'ArrowDown') {
                 if (currentIndex === -1) {
+                    // If no element is currently focused in the list, focus the first one
                     focusableElements[0]?.focus();
                 } else if (currentIndex < focusableElements.length - 1) {
+                    // Move to the next element
                     focusableElements[currentIndex + 1].focus();
                 } else {
+                    // Loop to the first element (optional, but often helpful)
                     focusableElements[0].focus();
                 }
-                event.preventDefault();
+                event.preventDefault(); // Prevent default scroll/behavior
             } else if (event.key === 'ArrowLeft' || event.key === 'ArrowUp') {
                 if (currentIndex === -1) {
+                    // If no element is currently focused in the list, focus the last one
                     focusableElements[focusableElements.length - 1]?.focus();
                 } else if (currentIndex > 0) {
+                    // Move to the previous element
                     focusableElements[currentIndex - 1].focus();
                 } else {
+                    // Loop to the last element (optional)
                     focusableElements[focusableElements.length - 1].focus();
                 }
-                event.preventDefault();
+                event.preventDefault(); // Prevent default scroll/behavior
             }
         };
 
@@ -125,12 +132,12 @@ const useKeyboardNavigation = (containerRef, selector) => {
         return () => window.removeEventListener('keydown', handleArrowNavigation);
     }, [containerRef, selector]);
 };
-// -----------------------------------------------
+// -------------------------------------------------------------
 
-function ResponderReports({ token }) {
+
+function RespondersReports({ token }) {
     const [reports, setReports] = useState([]);
     const [loading, setLoading] = useState(true);
-    const [overlayExited, setOverlayExited] = useState(false);
     const [search, setSearch] = useState("");
     const [category, setCategory] = useState("All");
     const [barangay, setBarangay] = useState("All");
@@ -139,27 +146,26 @@ function ResponderReports({ token }) {
     const [previewImage, setPreviewImage] = useState(null);
     const [notification, setNotification] = useState(null);
     const [highlightedReportId, setHighlightedReportId] = useState(null);
-    const [responderBarangay, setResponderBarangay] = useState(null);
-    const [viewMode, setViewMode] = useState("card"); // "card" or "list" view
-
-    const loadingFeatures = [
-        { icon: "📋", text: "Loading reports data..." },
-        { icon: "🔍", text: "Preparing search filters..." },
-    ];
 
     // States for the Status Update Modal
     const [isStatusModalOpen, setIsStatusModalOpen] = useState(false);
     const [selectedReport, setSelectedReport] = useState(null);
     const [newStatus, setNewStatus] = useState("");
-    const [isUpdatingStatus, setIsUpdatingStatus] = useState(false);
+    const [isUpdatingStatus, setIsUpdatingStatus] = useState(false); // Prevent double submissions
 
     const [expandedPosts, setExpandedPosts] = useState([]);
     const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false);
     const [deleteTarget, setDeleteTarget] = useState(null);
     const [isDeleting, setIsDeleting] = useState(false);
+    // New states for deletion reason flow
     const [isDeleteReasonOpen, setIsDeleteReasonOpen] = useState(false);
     const [deleteReason, setDeleteReason] = useState('');
     const [deleteReasonOther, setDeleteReasonOther] = useState('');
+
+    // ⭐ NEW: Trending reports states
+    const [trendingReports, setTrendingReports] = useState([]);
+    const [trendingExpanded, setTrendingExpanded] = useState(true);
+    const [trendingTimeFilter, setTrendingTimeFilter] = useState("this-month"); // today, yesterday, this-month
     
     const barangays = [
         "All Barangay", "Barretto", "East Bajac-Bajac", "East Tapinac", "Gordon Heights",
@@ -170,7 +176,8 @@ function ResponderReports({ token }) {
 
     // --- REFS for Keyboard Navigation ---
     const filterContainerRef = useRef(null);
-    const filterSelector = 'input.responder-search-input, .responder-top-controls .responder-filter-select, .reports-list button:first-child'; 
+    // Elements we want to navigate between with arrow keys
+    const filterSelector = 'input.admin-search-input, .admin-top-controls .admin-filter-select, .reports-list button:first-child'; 
     useKeyboardNavigation(filterContainerRef, filterSelector);
     // -----------------------------------
 
@@ -180,13 +187,13 @@ function ResponderReports({ token }) {
         setTimeout(() => setNotification(null), 4000);
     }, []);
 
-    // --- Modal Control Functions ---
+    // --- Modal Control Functions for Accessibility ---
     const closeStatusModal = useCallback(() => {
-        if (!isUpdatingStatus) {
+        if (!isUpdatingStatus) { // Only allow closing if not updating
             setIsStatusModalOpen(false);
             setSelectedReport(null);
             setNewStatus("");
-            setIsUpdatingStatus(false);
+            setIsUpdatingStatus(false); // Reset state
         }
     }, [isUpdatingStatus]);
 
@@ -197,12 +204,15 @@ function ResponderReports({ token }) {
     };
 
     const closeDeleteConfirm = useCallback(() => {
-        if (!isDeleting) {
+        if (!isDeleting) { // Only allow closing if not deleting
             setIsDeleteConfirmOpen(false);
             setDeleteTarget(null);
         }
     }, [isDeleting]);
 
+    
+
+    // New: open initial delete-reason modal instead of immediately showing permanent delete
     const closeDeleteReason = useCallback(() => {
         if (!isDeleting) {
             setIsDeleteReasonOpen(false);
@@ -219,14 +229,16 @@ function ResponderReports({ token }) {
     };
 
     const proceedToConfirmDelete = () => {
+        // Ensure a reason is selected; allow 'Other' with text
         if (!deleteReason) return;
         if (deleteReason === 'Other' && !deleteReasonOther.trim()) return;
 
+        // close reason modal and open the confirm modal
         setIsDeleteReasonOpen(false);
         setIsDeleteConfirmOpen(true);
     };
 
-    // Use the custom hook to handle focus trapping
+    // Use the custom hook to handle focus trapping and ESC key for both modals
     const statusRef = useAriaModal(isStatusModalOpen, closeStatusModal);
     const deleteRef = useAriaModal(isDeleteConfirmOpen, closeDeleteConfirm);
     const reasonRef = useAriaModal(isDeleteReasonOpen, closeDeleteReason);
@@ -243,7 +255,8 @@ function ResponderReports({ token }) {
         try {
             const sortParam = sort === "latest" ? "desc" : "asc";
             // Use responder-specific endpoint that filters by barangay and excludes rejected reports
-            let response = await fetch(getApiUrl(`/api/responder/reports?limit=50`), {
+            const responderEndpoint = getApiUrl(`/api/responder/reports?limit=50`);
+            let response = await fetch(responderEndpoint, {
                 headers: { 
                     'Authorization': `Bearer ${token}`,
                     'Content-Type': 'application/json'
@@ -253,7 +266,7 @@ function ResponderReports({ token }) {
             // Fallback to regular reports endpoint if responder endpoint fails
             if (!response.ok) {
                 console.warn("Responder reports endpoint failed, falling back to regular reports");
-                response = await fetch(getApiUrl(`/api/reports?limit=50&sort=${sortParam}`), {
+                response = await fetch(`${API_URL}/reports?limit=50&sort=${sortParam}`, {
                     headers: { 
                         'Authorization': `Bearer ${token}`,
                         'Content-Type': 'application/json'
@@ -266,6 +279,7 @@ function ResponderReports({ token }) {
 
             const data = await response.json();
             if (data.status === "success") {
+                // Use reports from responder endpoint or fallback
                 const reports = Array.isArray(data.reports) ? data.reports : [];
                 
                 const transformedReports = reports.map(report => {
@@ -310,26 +324,7 @@ function ResponderReports({ token }) {
         fetchReports();
     }, [fetchReports]);
 
-    // Fetch responder's barangay
-    useEffect(() => {
-        const fetchResponderBarangay = async () => {
-            if (!token) return;
-            try {
-                const response = await fetch(`${getApiUrl('/api/profile')}`, {
-                    headers: { Authorization: `Bearer ${token}` }
-                });
-                const data = await response.json();
-                if (data.status === 'success' && data.profile?.address_barangay) {
-                    setResponderBarangay(data.profile.address_barangay);
-                }
-            } catch (error) {
-                console.error('Error fetching responder barangay:', error);
-            }
-        };
-        fetchResponderBarangay();
-    }, [token]);
-
-    // Handle highlight parameter from URL
+    // Handle highlight parameter from URL (kept original logic)
     useEffect(() => {
         const urlParams = new URLSearchParams(window.location.search);
         const highlightId = urlParams.get('highlight');
@@ -348,15 +343,121 @@ function ResponderReports({ token }) {
         }
     }, [reports]);
 
+    // ⭐ NEW: Compute trending reports using newsfeed algorithm
+    useEffect(() => {
+        if (!reports.length) {
+            setTrendingReports([]);
+            return;
+        }
+
+        // Time filter logic
+        const now = new Date();
+        const filterByTime = (createdAt) => {
+            const reportDate = new Date(createdAt);
+            const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+            const yesterday = new Date(today);
+            yesterday.setDate(yesterday.getDate() - 1);
+            const thisMonthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+            
+            switch (trendingTimeFilter) {
+                case "today":
+                    return reportDate >= today;
+                case "yesterday":
+                    return reportDate >= yesterday && reportDate < today;
+                case "this-month":
+                    return reportDate >= thisMonthStart;
+                default:
+                    return true;
+            }
+        };
+
+        // Filter approved reports that are not resolved
+        const eligibleReports = reports.filter((r) => 
+            r.is_approved === true &&
+            r.status !== "Resolved" &&
+            r.deleted_at === null &&
+            r.is_rejected !== true &&
+            filterByTime(r.created_at)
+        );
+
+        // Apply trending algorithm: reactions + engagement + recency
+        // Score = (reactions * 2 + category_weight) / (hours_old + 2)^1.5
+        const scored = eligibleReports.map((r) => {
+            const createdAt = new Date(r.created_at || 0);
+            const hoursOld = Math.max(0, (now - createdAt) / (1000 * 60 * 60));
+            
+            // Engagement: reactions + severity weight
+            const severityWeight = { Crime: 3, Hazard: 2.5, Concern: 2, 'Lost&Found': 1, Others: 1 };
+            const reactionBoost = (r.reaction_count || 0) * 2;
+            const engagement = reactionBoost + (severityWeight[r.category] || 1) * 2;
+            
+            // Time decay factor
+            const timeFactor = Math.pow(hoursOld + 2, 1.5);
+            const trendingScore = engagement / timeFactor;
+            
+            return { ...r, trendingScore };
+        });
+
+        // Sort by trending score descending, limit to 5
+        const trending = scored
+            .sort((a, b) => b.trendingScore - a.trendingScore)
+            .slice(0, 5);
+
+        setTrendingReports(trending);
+        console.log(`🔥 ${trending.length} trending reports (responder view)`);
+    }, [reports, trendingTimeFilter]);
+
     const toggleExpand = (id) => {
         setExpandedPosts((prev) =>
             prev.includes(id) ? prev.filter((i) => i !== id) : [...prev, id]
         );
     };
 
+    // ⭐ NEW: Handle heart/like toggle for reports
+    const handleToggleLike = async (reportId) => {
+        if (!token) {
+            showNotification("Please log in to like reports", "error");
+            return;
+        }
+
+        try {
+            const response = await fetch(getApiUrl(`/api/reports/${reportId}/react`), {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ reaction_type: 'heart' })
+            });
+
+            const data = await response.json();
+            
+            if (data.status === 'success') {
+                // Update the report's reaction data in state
+                setReports(prevReports => 
+                    prevReports.map(report => 
+                        report.id === reportId 
+                            ? { 
+                                ...report, 
+                                user_liked: data.action === 'added',
+                                reaction_count: data.reaction_count
+                            }
+                            : report
+                    )
+                );
+            } else {
+                showNotification("Failed to update reaction", "error");
+            }
+        } catch (error) {
+            console.error("Error toggling like:", error);
+            showNotification("Failed to update reaction", "error");
+        }
+    };
+
     const handleUpdateStatus = async () => {
         if (!selectedReport || !newStatus || !token) return;
 
+        // Prevent double submissions
         if (isUpdatingStatus) {
             console.log("⚠️ Already updating status, ignoring duplicate request");
             return;
@@ -371,7 +472,7 @@ function ResponderReports({ token }) {
         setIsUpdatingStatus(true);
 
         try {
-            const response = await fetch(getApiUrl(`/api/reports/${selectedReport.id}/status`), {
+            const response = await fetch(`${API_URL}/reports/${selectedReport.id}/status`, {
                 method: 'PUT',
                 headers: {
                     'Authorization': `Bearer ${token}`,
@@ -417,12 +518,13 @@ function ResponderReports({ token }) {
 
         setIsDeleting(true);
         try {
-            const response = await fetch(getApiUrl(`/api/reports/${deleteTarget.id}`), {
+            const response = await fetch(`${API_URL}/reports/${deleteTarget.id}`, {
                 method: 'DELETE',
                 headers: {
                     'Authorization': `Bearer ${token}`,
                     'Content-Type': 'application/json'
                 },
+                // include deletion reason for auditing; server may accept or ignore
                 body: JSON.stringify({ reason: deleteReason || null, reason_other: deleteReasonOther || null })
             });
 
@@ -451,189 +553,8 @@ function ResponderReports({ token }) {
         }
     };
 
-    // Export to CSV
-    const exportToCSV = () => {
-        const headers = ["ID", "Title", "Category", "Status", "Barangay", "Address", "Reporter", "Created At", "Description"];
-        const rows = filteredReports.map((r) => [
-            r.id,
-            `"${(r.title || "").replace(/"/g, '""')}"`,
-            r.category || "N/A",
-            r.status || "N/A",
-            r.barangay || r.address_barangay || "N/A",
-            `"${(r.addressStreet || r.address_street || "").replace(/"/g, '""')}"`,
-            r.reporter ? `${r.reporter.firstname || ""} ${r.reporter.lastname || ""}`.trim() : "Unknown",
-            r.created_at ? new Date(r.created_at).toLocaleString() : "N/A",
-            `"${(r.description || "").replace(/"/g, '""').substring(0, 200)}..."`
-        ]);
-        
-        const csvContent = [headers.join(","), ...rows.map((r) => r.join(","))].join("\n");
-        const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
-        const url = URL.createObjectURL(blob);
-        const link = document.createElement("a");
-        link.href = url;
-        link.download = `${responderBarangay || 'responder'}_reports_${new Date().toISOString().split("T")[0]}.csv`;
-        link.click();
-    };
-
-    // Export to PDF with Community Helper AI Analytics
-    const exportToPDF = async () => {
-        const reportDate = new Date().toLocaleDateString("en-US", {
-            weekday: "long",
-            year: "numeric",
-            month: "long",
-            day: "numeric",
-        });
-        
-        const totalReports = filteredReports.length;
-        const categoryStats = {};
-        const statusStats = { Pending: 0, Ongoing: 0, Resolved: 0 };
-        
-        filteredReports.forEach((report) => {
-            const cat = report.category || "Unknown";
-            categoryStats[cat] = (categoryStats[cat] || 0) + 1;
-            
-            const status = report.status || "Pending";
-            statusStats[status] = (statusStats[status] || 0) + 1;
-        });
-        
-        const sortedCategories = Object.entries(categoryStats).sort((a, b) => b[1] - a[1]);
-        const logoPath = new URL('../assets/logo.png', import.meta.url).href;
-        
-        const printContent = `
-            <!DOCTYPE html>
-            <html>
-            <head>
-                <title>Community Guard - ${responderBarangay || 'Responder'} Reports</title>
-                <style>
-                    * { box-sizing: border-box; margin: 0; padding: 0; }
-                    body { font-family: 'Segoe UI', Arial, sans-serif; padding: 40px; color: #333; }
-                    .header { text-align: center; margin-bottom: 30px; border-bottom: 3px solid #2d3b8f; padding-bottom: 20px; }
-                    .header-logo { display: flex; align-items: center; justify-content: center; gap: 12px; margin-bottom: 10px; }
-                    .header-logo img { width: 48px; height: 48px; object-fit: contain; }
-                    .header h1 { color: #2d3b8f; font-size: 28px; margin-bottom: 5px; }
-                    .header .subtitle { color: #666; font-size: 14px; }
-                    .header .role-badge { background: #3b82f6; color: white; padding: 4px 12px; border-radius: 12px; font-size: 12px; margin-top: 8px; display: inline-block; }
-                    .ai-badge { background: linear-gradient(135deg, #2d3b8f, #1e2966); color: white; padding: 10px 20px; border-radius: 20px; display: inline-flex; align-items: center; gap: 10px; margin: 15px 0; font-size: 14px; font-weight: 500; }
-                    .ai-badge img { width: 24px; height: 24px; object-fit: contain; border-radius: 4px; }
-                    .section { margin-bottom: 30px; }
-                    .section-title { font-size: 18px; color: #2d3b8f; margin-bottom: 15px; padding-bottom: 8px; border-bottom: 2px solid #e5e7eb; }
-                    .stats-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 15px; margin-bottom: 25px; }
-                    .stat-card { background: #f8fafc; padding: 20px; border-radius: 10px; text-align: center; border: 1px solid #e5e7eb; }
-                    .stat-card .number { font-size: 32px; font-weight: bold; color: #2d3b8f; }
-                    .stat-card .label { font-size: 12px; color: #666; margin-top: 5px; }
-                    .analytics-card { background: #f8fafc; padding: 20px; border-radius: 10px; border: 1px solid #e5e7eb; margin-bottom: 20px; }
-                    .analytics-card h3 { font-size: 14px; color: #2d3b8f; margin-bottom: 15px; }
-                    .analytics-item { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #e5e7eb; }
-                    .analytics-item:last-child { border-bottom: none; }
-                    table { width: 100%; border-collapse: collapse; font-size: 11px; margin-top: 15px; }
-                    th { background: #2d3b8f; color: white; padding: 10px 8px; text-align: left; }
-                    td { padding: 10px 8px; border-bottom: 1px solid #e5e7eb; vertical-align: top; }
-                    tr:nth-child(even) { background: #f8fafc; }
-                    .footer { margin-top: 40px; text-align: center; font-size: 12px; color: #666; padding-top: 20px; border-top: 2px solid #2d3b8f; }
-                    .footer-brand { display: flex; align-items: center; justify-content: center; gap: 10px; margin-bottom: 8px; }
-                    .footer-brand img { width: 28px; height: 28px; object-fit: contain; }
-                    .footer-brand span { font-weight: 600; color: #2d3b8f; font-size: 14px; }
-                    .footer-subtitle { margin-top: 8px; font-size: 11px; color: #888; font-style: italic; }
-                    @media print { body { padding: 20px; } }
-                </style>
-            </head>
-            <body>
-                <div class="header">
-                    <div class="header-logo">
-                        <img src="${logoPath}" alt="Community Guard Logo" onerror="this.style.display='none'" />
-                        <h1>Community Guard</h1>
-                    </div>
-                    <p class="subtitle">${responderBarangay || 'Responder'} Reports - Analytics Report</p>
-                    <div class="ai-badge">💡 Community Helper</div>
-                    <p style="margin-top: 10px; font-size: 13px; color: #666;">Generated: ${reportDate}</p>
-                </div>
-                
-                <div class="section">
-                    <div class="stats-grid">
-                        <div class="stat-card">
-                            <div class="number">${totalReports}</div>
-                            <div class="label">Total Reports</div>
-                        </div>
-                        <div class="stat-card">
-                            <div class="number" style="color: #f59e0b;">${statusStats.Pending}</div>
-                            <div class="label">Pending</div>
-                        </div>
-                        <div class="stat-card">
-                            <div class="number" style="color: #3b82f6;">${statusStats.Ongoing}</div>
-                            <div class="label">Ongoing</div>
-                        </div>
-                        <div class="stat-card">
-                            <div class="number" style="color: #22c55e;">${statusStats.Resolved}</div>
-                            <div class="label">Resolved</div>
-                        </div>
-                    </div>
-                </div>
-                
-                <div class="analytics-card">
-                    <h3>📁 Reports by Category</h3>
-                    ${sortedCategories.map(([name, count]) => `
-                        <div class="analytics-item">
-                            <span class="name">${name}</span>
-                            <span class="count">${count}</span>
-                        </div>
-                    `).join("")}
-                </div>
-                
-                <div class="section">
-                    <h2 class="section-title">📋 Detailed Report List</h2>
-                    <table>
-                        <thead>
-                            <tr>
-                                <th>ID</th>
-                                <th>Title</th>
-                                <th>Category</th>
-                                <th>Status</th>
-                                <th>Created</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            ${filteredReports.slice(0, 50).map((report) => `
-                                <tr>
-                                    <td>${report.id}</td>
-                                    <td>${report.title || "Untitled"}</td>
-                                    <td>${report.category || "N/A"}</td>
-                                    <td>${report.status || "N/A"}</td>
-                                    <td>${new Date(report.created_at).toLocaleDateString()}</td>
-                                </tr>
-                            `).join("")}
-                        </tbody>
-                    </table>
-                    ${filteredReports.length > 50 ? `<p style="margin-top: 15px; color: #666; font-size: 12px; text-align: center;">Showing first 50 of ${filteredReports.length} reports</p>` : ""}
-                </div>
-                
-                <div class="footer">
-                    <div class="footer-brand">
-                        <img src="${logoPath}" alt="Community Guard Logo" onerror="this.style.display='none'" />
-                        <span>Community Guard</span>
-                    </div>
-                    <p>Protecting Communities Together</p>
-                    <p class="footer-subtitle">This report was generated with Community Helper Smart Analytics</p>
-                </div>
-            </body>
-            </html>
-        `;
-        
-        const printWindow = window.open("", "_blank");
-        printWindow.document.write(printContent);
-        printWindow.document.close();
-        printWindow.print();
-    };
-
-    // Filtered reports - Responders see approved reports + pending reports that are approved
+    // Filtered reports (kept original logic)
     const filteredReports = reports
-        .filter((r) => {
-            // Show approved reports (Ongoing/Resolved status)
-            if (r.is_approved === true) return true;
-            // Show pending reports only if they are approved
-            if (r.status === "Pending" && r.is_approved === true) return true;
-            return false;
-        })
-        .filter((r) => r.status !== "Resolved") // Exclude resolved reports - they go to Archived
         .filter((r) => (category === "All" ? true : r.category === category))
         .filter((r) => (barangay === "All" ? true : r.barangay === barangay))
         .filter((r) => (statusFilter === "All" ? true : r.status === statusFilter))
@@ -648,62 +569,14 @@ function ResponderReports({ token }) {
         );
 
     return (
-        <LoadingScreen
-            variant="inline"
-            inlineOffset="20vh"
-            stage={loading ? "loading" : "exit"}
-            features={loadingFeatures}
-            onExited={() => setOverlayExited(true)}
-        >
-        <div className={`admin-container ${overlayExited ? 'loading-revealed' : 'loading-hidden'}`}>
-            <div className="responder-header-row">
-                <h2>{responderBarangay ? `${responderBarangay} Reports` : 'Loading...'}</h2>
-                <div className="header-right">
-                    {/* View Toggle */}
-                    <div className="view-toggle">
-                        <button
-                            className={`view-toggle-btn ${viewMode === 'card' ? 'active' : ''}`}
-                            onClick={() => setViewMode('card')}
-                            title="Card View"
-                            aria-label="Switch to card view"
-                        >
-                            <FaThLarge />
-                        </button>
-                        <button
-                            className={`view-toggle-btn ${viewMode === 'list' ? 'active' : ''}`}
-                            onClick={() => setViewMode('list')}
-                            title="List View"
-                            aria-label="Switch to list view"
-                        >
-                            <FaList />
-                        </button>
-                    </div>
-                    
-                    {/* Export Buttons */}
-                    <div className="export-buttons">
-                        <button
-                            className="export-btn csv"
-                            onClick={exportToCSV}
-                            title="Export to CSV"
-                            aria-label="Export reports to CSV"
-                        >
-                            <FaFileCsv /> CSV
-                        </button>
-                        <button
-                            className="export-btn pdf"
-                            onClick={exportToPDF}
-                            title="Export to PDF with Analytics"
-                            aria-label="Export reports to PDF with AI analytics"
-                        >
-                            <FaFilePdf /> PDF
-                        </button>
-                    </div>
-                </div>
+        <div className="admin-container">
+            <div className="admin-header-row">
+                <h2>All Community Reports</h2>
             </div>
 
-            {/* Filter Controls */}
-            <div className="responder-top-controls" ref={filterContainerRef}>
-                <div className="responder-search-container">
+            {/* IMPROVEMENT: Added ref to the filter container for keyboard navigation */}
+            <div className="admin-top-controls" ref={filterContainerRef}>
+                <div className="admin-search-container">
                     <label htmlFor="search-input" className="sr-only">Search reports by title or reporter name</label>
                     <input
                         id="search-input"
@@ -711,9 +584,9 @@ function ResponderReports({ token }) {
                         placeholder="Search reports..."
                         value={search}
                         onChange={(e) => setSearch(e.target.value)} 
-                        className="responder-search-input" 
+                        className="admin-search-input" 
                     />
-                    <FaSearch className="responder-search-icon" aria-hidden="true" />
+                    <FaSearch className="admin-search-icon" aria-hidden="true" />
                 </div>
                 
                 <label htmlFor="category-filter" className="sr-only">Filter by Category</label>
@@ -721,7 +594,7 @@ function ResponderReports({ token }) {
                     id="category-filter"
                     value={category} 
                     onChange={(e) => setCategory(e.target.value)}
-                    className="responder-filter-select"
+                    className="admin-filter-select"
                     aria-label="Filter reports by category"
                 >
                     <option value="All">All Categories</option>
@@ -737,7 +610,7 @@ function ResponderReports({ token }) {
                     id="barangay-filter"
                     value={barangay} 
                     onChange={(e) => setBarangay(e.target.value)}
-                    className="responder-filter-select"
+                    className="admin-filter-select"
                     aria-label="Filter reports by barangay"
                 >
                     {barangays.map((b) => (
@@ -750,7 +623,7 @@ function ResponderReports({ token }) {
                     id="status-filter"
                     value={statusFilter} 
                     onChange={(e) => setStatusFilter(e.target.value)}
-                    className="responder-filter-select"
+                    className="admin-filter-select"
                     aria-label="Filter reports by status"
                 >
                     <option value="All">All Statuses</option>
@@ -764,7 +637,7 @@ function ResponderReports({ token }) {
                     id="sort-order"
                     value={sort} 
                     onChange={(e) => setSort(e.target.value)}
-                    className="responder-filter-select"
+                    className="admin-filter-select"
                     aria-label="Sort reports by date"
                 >
                     <option value="latest">Latest → Oldest</option>
@@ -772,15 +645,102 @@ function ResponderReports({ token }) {
                 </select>
             </div>
 
-            {/* Reports List */}
+            {/* ⭐ Trending Pill Button Row - Always visible, shows count */}
+            <div className="trending-pill-row">
+                <button
+                    className={`trending-pill-btn ${trendingReports.length === 0 ? 'empty' : ''}`}
+                    onClick={() => setTrendingExpanded(!trendingExpanded)}
+                    title={trendingExpanded ? 'Hide trending reports' : 'Show trending reports'}
+                >
+                    <FaFire className="trending-pill-icon" />
+                    Trending ({trendingReports.length})
+                    {trendingExpanded ? <FaMinus className="trending-pill-toggle" /> : <FaPlus className="trending-pill-toggle" />}
+                </button>
+            </div>
+
+            {/* ⭐ Trending Reports Section - Collapsible */}
+            {trendingExpanded && (
+                <div className="trending-reports-container expanded">
+                    <div className="trending-reports-header">
+                        <div className="trending-header-left">
+                            <h3><FaMapPin className="trending-pin-icon" /> Current Trending Reports</h3>
+                        </div>
+                        <div className="trending-header-right">
+                            <select
+                                className="trending-time-filter"
+                                value={trendingTimeFilter}
+                                onChange={(e) => setTrendingTimeFilter(e.target.value)}
+                            >
+                                <option value="today">Today</option>
+                                <option value="yesterday">Yesterday</option>
+                                <option value="this-month">This Month</option>
+                            </select>
+                        </div>
+                    </div>
+                    
+                    <div className="trending-reports-list">
+                        {trendingReports.map((report) => (
+                            <div 
+                                key={`trending-${report.id}`} 
+                                className="trending-report-card"
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    const element = document.getElementById(`report-${report.id}`);
+                                    if (element) {
+                                        element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                                        setHighlightedReportId(report.id);
+                                        setTimeout(() => setHighlightedReportId(null), 3000);
+                                    }
+                                }}
+                            >
+                                <div className="trending-report-category" data-category={report.category}>
+                                    {report.category}
+                                </div>
+                                <div className="trending-report-title">{report.title}</div>
+                                <div className="trending-report-location">
+                                    📍 {report.address_barangay}
+                                </div>
+                                <div className="trending-report-meta">
+                                    <span className="trending-report-status" data-status={report.status?.toLowerCase()}>
+                                        {report.status}
+                                    </span>
+                                    <span className="trending-report-time">
+                                        {new Date(report.created_at).toLocaleDateString()}
+                                    </span>
+                                </div>
+                                <div className="trending-report-likes">
+                                    <FaHeart className="heart-icon-small" aria-hidden="true" />
+                                    <span>{report.reaction_count || 0}</span>
+                                </div>
+                            </div>
+                        ))}
+                        
+                        {trendingReports.length === 0 && (
+                            <div className="no-trending-reports">
+                                <p>No trending reports for this time period.</p>
+                                <p className="trending-criteria">
+                                    Reports become trending based on: reactions, category (Crime → Hazard → Concern), and recency.
+                                    Try selecting "This Month" to see more results.
+                                </p>
+                            </div>
+                        )}
+                    </div>
+                </div>
+            )}
+
             <div className="reports-list">
                 {loading ? (
                     <div className="loading-container" role="status" aria-live="polite">
                         <div className="spinner"></div>
                         <p>Loading reports...</p>
                     </div>
+                ) : reports.length === 0 ? (
+                    <div className="no-reports" role="status">
+                        <FaChartLine style={{ fontSize: '3rem', color: '#ccc', marginBottom: '1rem' }} />
+                        <p>No reports found.</p>
+                        <p className="muted">Assigned reports incidents will appear here.</p>
+                    </div>
                 ) : filteredReports.length > 0 ? (
-                    viewMode === "card" ? (
                     filteredReports.map((report, index) => {
                         const isExpanded = expandedPosts.includes(report.id);
 
@@ -843,27 +803,25 @@ function ResponderReports({ token }) {
                                     </div>
 
                                     <div className="report-header-actions">
-                                        <span className={`responder-status-badge responder-status-${report.status.toLowerCase()}`}>
+                                        <span className={`status-badge status-${report.status.toLowerCase()}`}>
                                             {getStatusIcon(report.status)}
                                             {report.status}
                                         </span>
                                         <button 
-                                            className="responder-action-btn responder-update-btn" 
+                                            className="icon-btn edit-btn" 
                                             onClick={() => openStatusModal(report)}
-                                            aria-label={`Update status for report: ${report.title}`}
-                                            title="Update Status"
+                                            aria-label={`Edit status for report: ${report.title}`}
+                                            title="Edit Status"
                                         >
                                             <FaEdit aria-hidden="true" />
-                                            <span>Update</span>
                                         </button>
                                         <button 
-                                            className="responder-action-btn responder-delete-btn" 
+                                            className="icon-btn delete-btn" 
                                             onClick={() => openDeleteReason(report)}
                                             aria-label={`Delete report: ${report.title}`}
                                             title="Delete Report"
                                         >
                                             <FaTrashAlt aria-hidden="true" />
-                                            <span>Delete</span>
                                         </button>
                                     </div>
                                 </div>
@@ -903,107 +861,31 @@ function ResponderReports({ token }) {
                                         ))}
                                     </div>
                                 )}
+
+                                {/* ⭐ NEW: Like/Heart Button */}
+                                <div className="report-reactions">
+                                    <button 
+                                        className={`reaction-btn heart-btn ${report.user_liked ? 'liked' : ''}`}
+                                        onClick={(e) => { e.stopPropagation(); handleToggleLike(report.id); }}
+                                        aria-label={report.user_liked ? 'Unlike this report' : 'Like this report'}
+                                        title={report.user_liked ? 'Unlike' : 'Like'}
+                                    >
+                                        {report.user_liked ? (
+                                            <FaHeart className="heart-icon filled" aria-hidden="true" />
+                                        ) : (
+                                            <FaRegHeart className="heart-icon" aria-hidden="true" />
+                                        )}
+                                        <span className="reaction-count">{report.reaction_count || 0}</span>
+                                    </button>
+                                </div>
                             </div>
                         );
                     })
-                    ) : (
-                    // List View
-                    <div className="responder-list-table">
-                        <div className="list-header">
-                            <div className="list-col col-image">Image</div>
-                            <div className="list-col col-title">Title</div>
-                            <div className="list-col col-category">Category</div>
-                            <div className="list-col col-barangay">Barangay</div>
-                            <div className="list-col col-reporter">Reporter</div>
-                            <div className="list-col col-date">Date</div>
-                            <div className="list-col col-status">Status</div>
-                            <div className="list-col col-actions">Actions</div>
-                        </div>
-                        {filteredReports.map((report, index) => {
-                            const isExpanded = expandedPosts.includes(report.id);
-                            
-                            return (
-                                <div 
-                                    key={report.id} 
-                                    className="list-row"
-                                    style={{ animationDelay: `${index * 0.05}s` }}
-                                >
-                                    <div className="list-col col-image">
-                                        {report.images && report.images.length > 0 ? (
-                                            <img
-                                                src={report.images[0]}
-                                                alt="Report thumbnail"
-                                                className="list-thumbnail"
-                                                onClick={(e) => {
-                                                    e.stopPropagation();
-                                                    setPreviewImage(report.images[0]);
-                                                }}
-                                            />
-                                        ) : (
-                                            <div className="no-thumbnail">
-                                                <FaFileAlt />
-                                            </div>
-                                        )}
-                                    </div>
-                                    <div className="list-col col-title" onClick={() => toggleExpand(report.id)}>
-                                        <span className="list-title">{report.title || "Untitled"}</span>
-                                        {isExpanded && (
-                                            <p className="list-description">{report.description}</p>
-                                        )}
-                                    </div>
-                                    <div className="list-col col-category">
-                                        <span className="category-tag">{report.category || "N/A"}</span>
-                                    </div>
-                                    <div className="list-col col-barangay">{report.barangay || report.address_barangay || "N/A"}</div>
-                                    <div className="list-col col-reporter">
-                                        <div className="reporter-info">
-                                            <img
-                                                src={report.reporter?.avatar_url || "/src/assets/profile.png"}
-                                                alt=""
-                                                className="reporter-avatar"
-                                                onError={(e) => {
-                                                    e.target.src = "/src/assets/profile.png";
-                                                }}
-                                            />
-                                            <span>{report.reporter?.firstname || "Unknown"}</span>
-                                        </div>
-                                    </div>
-                                    <div className="list-col col-date">
-                                        {report.date || report.created_at
-                                            ? new Date(report.date || report.created_at).toLocaleDateString()
-                                            : "N/A"}
-                                    </div>
-                                    <div className="list-col col-status">
-                                        <span className={`responder-status-badge responder-status-${report.status.toLowerCase()}`}>
-                                            {getStatusIcon(report.status)} {report.status}
-                                        </span>
-                                    </div>
-                                    <div className="list-col col-actions">
-                                        <div className="list-actions">
-                                            <button 
-                                                className="list-action-btn edit"
-                                                onClick={() => openStatusModal(report)}
-                                                title="Update Status"
-                                            >
-                                                <FaEdit />
-                                            </button>
-                                            <button 
-                                                className="list-action-btn delete"
-                                                onClick={() => openDeleteReason(report)}
-                                                title="Delete"
-                                            >
-                                                <FaTrashAlt />
-                                            </button>
-                                        </div>
-                                    </div>
-                                </div>
-                            );
-                        })}
-                    </div>
-                    )
                 ) : (
-                    <div style={{ padding: '20px', textAlign: 'center' }}>
+                    <div className="no-reports" role="status">
+                        <FaChartLine style={{ fontSize: '3rem', color: '#ccc', marginBottom: '1rem' }} />
                         <p>No reports match your current filters.</p>
+                        <p className="muted">Try adjusting your search criteria.</p>
                         <button 
                             onClick={() => {
                                 setSearch("");
@@ -1011,7 +893,26 @@ function ResponderReports({ token }) {
                                 setBarangay("All");
                                 setStatusFilter("All");
                             }}
-                            style={{ marginTop: '10px' }}
+                            style={{ 
+                                marginTop: '1rem',
+                                padding: '10px 24px',
+                                background: 'linear-gradient(135deg, #f59e0b, #d97706)',
+                                color: 'white',
+                                border: 'none',
+                                borderRadius: '8px',
+                                fontWeight: '600',
+                                cursor: 'pointer',
+                                boxShadow: '0 2px 8px rgba(245, 158, 11, 0.3)',
+                                transition: 'all 0.2s ease'
+                            }}
+                            onMouseOver={(e) => {
+                                e.target.style.transform = 'translateY(-2px)';
+                                e.target.style.boxShadow = '0 4px 12px rgba(245, 158, 11, 0.4)';
+                            }}
+                            onMouseOut={(e) => {
+                                e.target.style.transform = 'translateY(0)';
+                                e.target.style.boxShadow = '0 2px 8px rgba(245, 158, 11, 0.3)';
+                            }}
                         >
                             Clear All Filters
                         </button>
@@ -1066,11 +967,16 @@ function ResponderReports({ token }) {
                                 onChange={(e) => setNewStatus(e.target.value)}
                                 style={{ width: '100%', padding: '8px', borderRadius: '4px', border: '1px solid #ccc' }}
                             >
-                                {REPORT_STATUSES.map(status => (
-                                    <option key={status} value={status}>
-                                        {status} {status === selectedReport.status ? '(Current)' : ''}
-                                    </option>
-                                ))}
+                                {REPORT_STATUSES.map(status => {
+                                    const currentIndex = REPORT_STATUSES.indexOf(selectedReport.status);
+                                    const statusIndex = REPORT_STATUSES.indexOf(status);
+                                    const isDisabled = statusIndex < currentIndex;
+                                    return (
+                                        <option key={status} value={status} disabled={isDisabled}>
+                                            {status} {status === selectedReport.status ? '(Current)' : ''} {isDisabled ? '(Cannot revert)' : ''}
+                                        </option>
+                                    );
+                                })}
                             </select>
                         </div>
                         
@@ -1082,7 +988,7 @@ function ResponderReports({ token }) {
                             </div>
                         )}
                         
-                        <div className="modal-buttons edit-actions">
+                        <div className="modal-buttons">
                             <button 
                                 onClick={closeStatusModal}
                                 disabled={isUpdatingStatus}
@@ -1152,7 +1058,7 @@ function ResponderReports({ token }) {
                 </ModalPortal>
             )}
 
-            {/* Delete Reason Modal */}
+            {/* Delete Reason Modal: ask admin why the report is being deleted */}
             {isDeleteReasonOpen && (
                 <ModalPortal>
                 <div
@@ -1242,19 +1148,20 @@ function ResponderReports({ token }) {
                 </ModalPortal>
             )}
 
-            {/* Notification */}
+            {/* Notification - wrapped in ModalPortal for proper z-index */}
             {notification && (
-                <div 
-                    className={`notification ${notification.type}`}
-                    role="alert" 
-                    aria-live="assertive"
-                >
-                    {notification.message}
-                </div>
+                <ModalPortal>
+                    <div 
+                        className={`notif notif-${notification.type}`}
+                        role="alert" 
+                        aria-live="assertive"
+                    >
+                        {notification.message}
+                    </div>
+                </ModalPortal>
             )}
         </div>
-        </LoadingScreen>
     );
 }
 
-export default ResponderReports;
+export default RespondersReports;

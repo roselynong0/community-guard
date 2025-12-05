@@ -15,7 +15,9 @@ import {
   FaPlus,
   FaMinus,
   FaMapPin,
-  FaFire } from "react-icons/fa";
+  FaFire,
+  FaClock,
+  FaSyncAlt } from "react-icons/fa";
 import {
   MapContainer,
   TileLayer, Marker,
@@ -43,6 +45,20 @@ const getImageUrl = (imgUrl) => {
     return `${API_CONFIG.BASE_URL}${imgUrl}`;
   }
   return "/src/assets/placeholder.png";
+};
+
+// Status badge icon helper
+const getStatusIcon = (status) => {
+  switch (status?.toLowerCase()) {
+    case 'pending':
+      return <FaClock aria-hidden="true" />;
+    case 'ongoing':
+      return <FaSyncAlt aria-hidden="true" />;
+    case 'resolved':
+      return <FaCheckCircle aria-hidden="true" />;
+    default:
+      return null;
+  }
 };
 
 delete L.Icon.Default.prototype._getIconUrl;
@@ -163,7 +179,6 @@ function Reports({ session }) {
     date: new Date(),
   });
   const [editReportId, setEditReportId] = useState(null);
-  const [editReportOwner, setEditReportOwner] = useState(false);
   const [expandedPosts, setExpandedPosts] = useState([]);
   const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState(null);
@@ -324,13 +339,14 @@ function Reports({ session }) {
     };
 
     // Filter reports from user's barangay (excluding own)
+    // Only show APPROVED reports from other users (is_approved = true)
     const fromBarangay = reports.filter((r) => 
       r.address_barangay === userBarangay && 
       String(r.user_id) !== String(session.user.id) &&
       r.status !== "Resolved" &&
-      !r.deleted &&
+      r.deleted_at === null &&
+      r.is_approved === true &&
       r.is_rejected !== true &&
-      r.is_approved !== false &&
       filterByTime(r.created_at)
     );
 
@@ -390,13 +406,14 @@ function Reports({ session }) {
     };
 
     // Filter reports from OTHER barangays (excluding own reports)
+    // Only show APPROVED reports from other users (is_approved = true)
     const fromOtherBarangays = reports.filter((r) => 
       r.address_barangay !== userBarangay && 
       String(r.user_id) !== String(session.user.id) &&
       r.status !== "Resolved" &&
-      !r.deleted &&
+      r.deleted_at === null &&
+      r.is_approved === true &&
       r.is_rejected !== true &&
-      r.is_approved !== false &&
       r.address_barangay &&
       filterByTime(r.created_at)
     );
@@ -721,9 +738,7 @@ function Reports({ session }) {
     }
     
     setEditReportId(report.id);
-    setEditReportOwner(String(report.user_id) === String(session?.user?.id));
     setNewReport({
-      title: report.title || "",
       description: report.description || "",
       category: report.category || "Concern",
       barangay: report.address_barangay || "", // Use address_barangay from the report object, but don't default to "All"
@@ -857,11 +872,30 @@ function Reports({ session }) {
   const filteredReports = reports
     .filter((r) => r.deleted !== true) 
     .filter((r) => r.status !== "Resolved") // Exclude resolved reports - they go to Archived
-    .filter((r) =>
-      showMyReports
-        ? String(r.user_id) === String(session?.user?.id) // My Reports
-        : true // All Reports
-    )
+    .filter((r) => {
+      // Always show user's own reports if they are pending (is_approved=false) or rejected
+      const isOwnReport = String(r.user_id) === String(session?.user?.id);
+      const isPendingApproval = r.is_approved === false;
+      const isRejected = r.is_rejected === true;
+      
+      // If it's user's own pending/rejected report, always show it
+      if (isOwnReport && (isPendingApproval || isRejected)) {
+        return true;
+      }
+      
+      // For other reports, only show approved ones (is_approved !== false)
+      // This hides other users' pending reports from the feed
+      if (!isOwnReport && isPendingApproval) {
+        return false;
+      }
+      
+      // Apply My Reports filter
+      if (showMyReports) {
+        return isOwnReport;
+      }
+      
+      return true;
+    })
     .filter((r) => appliedCategory === "All" || r.category === appliedCategory)
     .filter(
       (r) => appliedBarangay === "All Barangays" || r.address_barangay === appliedBarangay
@@ -930,9 +964,15 @@ function Reports({ session }) {
   const mainContent = (
     <div className={`reports-container ${overlayExited ? 'overlay-exited' : ''}`}>
       {notification && (
-        <div className={`notif notif-${notification.type}`}>
-          {notification.message}
-        </div>
+        <ModalPortal>
+          <div 
+            className={`notif notif-${notification.type}`}
+            role="alert"
+            aria-live="assertive"
+          >
+            {notification.message}
+          </div>
+        </ModalPortal>
       )}
 
       {error && <p className="error">{error}</p>}
@@ -1039,11 +1079,11 @@ function Reports({ session }) {
         </div>
       </div>
 
-      {/* ⭐ Trending Pill Button Row - Below search, above reports */}
-      {allTrendingReports.length > 0 && !showMyReports && (
+      {/* ⭐ Trending Pill Button Row - Always visible, shows count */}
+      {!showMyReports && (
         <div className="trending-pill-row">
           <button
-            className="trending-pill-btn"
+            className={`trending-pill-btn ${allTrendingReports.length === 0 ? 'empty' : ''}`}
             onClick={() => setTrendingExpanded(!trendingExpanded)}
             title={trendingExpanded ? 'Hide trending reports' : 'Show trending reports'}
           >
@@ -1055,7 +1095,7 @@ function Reports({ session }) {
       )}
 
       {/* ⭐ Unified Trending Reports Section - Collapsible */}
-      {allTrendingReports.length > 0 && !showMyReports && trendingExpanded && (
+      {!showMyReports && trendingExpanded && (
         <div className="trending-reports-container expanded">
           <div className="trending-reports-header">
             <div className="trending-header-left">
@@ -1120,7 +1160,11 @@ function Reports({ session }) {
               
               {allTrendingReports.length === 0 && (
                 <div className="no-trending-reports">
-                  No trending reports for this time period
+                  <p>No trending reports for this time period.</p>
+                  <p className="trending-criteria">
+                    Reports become trending based on: reactions, category, and recency.<br/>
+                    Try selecting "This Month" to see more results.
+                  </p>
                 </div>
               )}
             </div>
@@ -1265,15 +1309,25 @@ function Reports({ session }) {
                       </>
                     )}
 
-                    {/* Hide PENDING badge if is_approved is TRUE or report is rejected */}
-                    {!(report.is_approved === true && report.status === "Pending") && !isRejected && (
-                      <span
-                        className={`status-badge status-${(
-                          report.status || "pending"
-                        ).toLowerCase()}`}
-                      >
-                        {report.status || "Pending"}
-                      </span>
+                    {/* Hide PENDING badge if is_approved is TRUE, only show when is_approved is FALSE */}
+                    {!isRejected && (
+                      isPending ? (
+                        // Show PENDING badge only when is_approved is FALSE
+                        <span className="status-badge status-pending">
+                          {getStatusIcon("Pending")}
+                          Pending
+                        </span>
+                      ) : (
+                        // Show normal status badge for approved reports (not Pending status)
+                        report.status !== "Pending" && (
+                          <span
+                            className={`status-badge status-${(report.status || "pending").toLowerCase()}`}
+                          >
+                            {getStatusIcon(report.status)}
+                            {report.status}
+                          </span>
+                        )
+                      )
                     )}
 
                     {/* Show edit/delete for non-rejected reports only if user is owner */}
@@ -1281,7 +1335,7 @@ function Reports({ session }) {
                       String(report.user_id) === String(session.user.id) && (
                         <>
                           <button
-                            className="icon-btn edit-btn"
+                            className="report-action-btn report-update-btn"
                             onClick={() => {
                               console.log("=== Edit button clicked ===");
                               console.log("Report to edit:", report);
@@ -1294,11 +1348,11 @@ function Reports({ session }) {
                              title="Edit Report"
                           >
                             <FaEdit aria-hidden="true" />
+                            <span>Update</span>
                           </button>
                           <button
-                            className="icon-btn delete-btn"
+                            className="report-action-btn report-delete-btn"
                             onClick={() => {
-                              console.log("=== Delete button clicked ===");
                               console.log("Report to delete:", report);
                               console.log("Report object keys:", Object.keys(report));
                               console.log("Report ID:", report.id);
@@ -1311,6 +1365,7 @@ function Reports({ session }) {
                              title="Delete Report"
                           >
                             <FaTrashAlt aria-hidden="true" />
+                            <span>Delete</span>
                           </button>
                         </>
                       )}
@@ -1358,13 +1413,15 @@ function Reports({ session }) {
                   </div>
                 )}
 
-                {/* Heart/Like Button */}
+                {/* Heart/Like Button - Disabled for pending reports */}
                 <div className="report-reactions">
                   <button
-                    className={`reaction-btn heart-btn ${report.user_liked ? 'liked' : ''}`}
-                    onClick={() => handleToggleLike(report.id)}
-                    aria-label={report.user_liked ? 'Unlike this report' : 'Like this report'}
-                    title={report.user_liked ? 'Unlike' : 'Like'}
+                    className={`reaction-btn heart-btn ${report.user_liked ? 'liked' : ''} ${isPending ? 'disabled' : ''}`}
+                    onClick={() => !isPending && handleToggleLike(report.id)}
+                    aria-label={isPending ? 'Liking disabled for pending reports' : (report.user_liked ? 'Unlike this report' : 'Like this report')}
+                    title={isPending ? 'Liking disabled until report is approved' : (report.user_liked ? 'Unlike' : 'Like')}
+                    disabled={isPending}
+                    style={isPending ? { opacity: 0.5, cursor: 'not-allowed' } : {}}
                   >
                     {report.user_liked ? (
                       <FaHeart className="heart-icon filled" aria-hidden="true" />

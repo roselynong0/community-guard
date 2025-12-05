@@ -201,6 +201,46 @@ function AdminLayout({ session, setSession, setNotification }) {
     }
   }, [user, session?.token, checkForNewEvaluations]);
 
+  // 🔹 Fetch missed reports summary for admin (toast only)
+  useEffect(() => {
+    const fetchMissedReports = async () => {
+      if (!session?.token || !user) return;
+
+      // Only show toast once per session
+      const toastKey = `missed_toast_shown_admin_${user.id || 'anon'}`;
+      if (sessionStorage.getItem(toastKey)) return;
+
+      try {
+        const res = await fetch(getApiUrl('/api/reports/missed_summary'), {
+          headers: { Authorization: `Bearer ${session.token}` },
+        });
+        
+        if (!res.ok) return;
+        
+        const data = await res.json();
+        if (data?.status === 'success' && data?.summary?.total > 0) {
+          const totalMissed = data.summary.total;
+          
+          // Show toast after 2.5 seconds delay
+          setTimeout(() => {
+            if (toastRef.current) {
+              toastRef.current.show(
+                `📢 ${totalMissed} new report${totalMissed > 1 ? 's' : ''} submitted while you were away.`,
+                'info'
+              );
+            }
+          }, 2500);
+          
+          sessionStorage.setItem(toastKey, '1');
+        }
+      } catch (e) {
+        console.warn('Failed to fetch missed reports for admin:', e);
+      }
+    };
+
+    fetchMissedReports();
+  }, [session?.token, user]);
+
   // Handle evaluation completion callback
   const handleEvaluationComplete = (approvalResult) => {
     if (approvalResult?.approved_count > 0) {

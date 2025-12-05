@@ -2,7 +2,9 @@ import React, { useState, useEffect, useCallback } from "react";
 import { FaSearch, FaUserPlus, FaCheck, FaTimes, FaFileAlt, FaCheckCircle, FaClock, FaSyncAlt, FaUserShield, FaRedo } from "react-icons/fa";
 import { API_CONFIG, getApiUrl } from "../../utils/apiConfig";
 import LoadingScreen from "../shared/LoadingScreen";
+import ModalPortal from "../shared/ModalPortal";
 import "./AssignResponders.css";
+import "../shared/Notification.css";
 
 // Status icon helper
 const getStatusIcon = (status) => {
@@ -15,6 +17,19 @@ const getStatusIcon = (status) => {
             return <FaCheckCircle aria-hidden="true" />;
         default:
             return null;
+    }
+};
+
+const getStatusLabel = (status) => {
+    switch (status?.toLowerCase()) {
+        case 'pending':
+            return 'Pending';
+        case 'ongoing':
+            return 'Ongoing';
+        case 'resolved':
+            return 'Resolved';
+        default:
+            return status || 'Unknown';
     }
 };
 
@@ -40,9 +55,25 @@ function AssignResponders({ token }) {
     const [isRemoving, setIsRemoving] = useState(false);
 
     const loadingFeatures = [
-        { icon: "📋", text: "Loading reports inventory..." },
-        { icon: "👥", text: "Fetching available responders..." },
+        {
+            title: "Reports Inventory",
+            description: "Loading all assigned reports requiring responder assignment."
+        },
+        {
+            title: "Available Responders",
+            description: "Fetching certified responders in your barangay."
+        },
+        {
+            title: "Assignment Status",
+            description: "Syncing current responder assignments and availability."
+        },
+        {
+            title: "Dashboard Ready",
+            description: "Preparing your responder management dashboard."
+        },
     ];
+    const loadingTitle = "Loading Assignments";
+    const successTitle = "Assignments Ready!";
 
     // Notification handler
     const showNotification = useCallback((message, type = "success") => {
@@ -231,6 +262,8 @@ function AssignResponders({ token }) {
             inlineOffset="20vh"
             stage={loading ? "loading" : "exit"}
             features={loadingFeatures}
+            title={loadingTitle}
+            successTitle={successTitle}
             onExited={() => setOverlayExited(true)}
         >
         <div className={`assign-responders-page ${overlayExited ? 'loading-revealed' : 'loading-hidden'}`}>
@@ -356,7 +389,7 @@ function AssignResponders({ token }) {
                             </div>
                             <div className="list-col col-status">
                                 <span className={`status-badge status-${report.status.toLowerCase()}`}>
-                                    {getStatusIcon(report.status)} {report.status}
+                                    {getStatusIcon(report.status)} {getStatusLabel(report.status)}
                                 </span>
                             </div>
                             <div className="list-col col-actions">
@@ -400,8 +433,9 @@ function AssignResponders({ token }) {
                 )}
             </div>
 
-            {/* Assignment Modal */}
+            {/* Assignment Modal - wrapped in ModalPortal for proper z-index */}
             {isAssignModalOpen && (
+                <ModalPortal>
                 <div className="modal-backdrop" onClick={() => !isAssigning && setIsAssignModalOpen(false)}>
                     <div className="modal-content" onClick={(e) => e.stopPropagation()}>
                         <div className="modal-header">
@@ -460,10 +494,12 @@ function AssignResponders({ token }) {
                         </div>
                     </div>
                 </div>
+                </ModalPortal>
             )}
 
             {/* Remove Assignment Confirmation Modal */}
             {isRemoveModalOpen && (
+                <ModalPortal>
                 <div className="modal-backdrop" onClick={() => !isRemoving && setIsRemoveModalOpen(false)}>
                     <div className="modal-content" onClick={(e) => e.stopPropagation()}>
                         <div className="modal-header">
@@ -507,17 +543,20 @@ function AssignResponders({ token }) {
                         </div>
                     </div>
                 </div>
+                </ModalPortal>
             )}
 
-            {/* Notification */}
+            {/* Notification - wrapped in ModalPortal for proper z-index display */}
             {notification && (
-                <div 
-                    className={`notification ${notification.type}`}
-                    role="alert" 
-                    aria-live="assertive"
-                >
-                    {notification.message}
-                </div>
+                <ModalPortal>
+                    <div 
+                        className={`notif notif-${notification.type}`}
+                        role="alert" 
+                        aria-live="assertive"
+                    >
+                        {notification.message}
+                    </div>
+                </ModalPortal>
             )}
         </div>
         </LoadingScreen>

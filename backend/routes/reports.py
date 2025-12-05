@@ -60,9 +60,10 @@ def fetch_reports(limit=10, sort="desc", user_only=False, barangay_filter=False,
                 # Admins and Barangay Officials see all reports that are not rejected
                 query = query.eq("is_rejected", False)
             elif current_user_id:
-                # Regular users see approved non-rejected reports (simplified for postgrest compatibility)
-                # TODO: Add own reports separately if needed
-                query = query.eq("is_approved", True).eq("is_rejected", False)
+                # Regular users: We need to fetch approved reports + their own reports
+                # PostgREST doesn't support OR conditions easily, so we'll filter in Python later
+                # Just exclude rejected reports here
+                query = query.eq("is_rejected", False)
             else:
                 # Public/unauthenticated users only see approved and not rejected posts
                 query = query.eq("is_approved", True).eq("is_rejected", False)
@@ -72,6 +73,13 @@ def fetch_reports(limit=10, sort="desc", user_only=False, barangay_filter=False,
         
         resp = supabase_retry(fetch_main_reports)
         reports_list = getattr(resp, "data", []) or []
+        
+        # For regular users, filter out other users' unapproved reports (but keep their own)
+        if user_role not in ["Barangay Official", "Admin"] and current_user_id:
+            reports_list = [
+                r for r in reports_list 
+                if r.get("is_approved") == True or str(r.get("user_id")) == str(current_user_id)
+            ]
 
         if not reports_list:
             print("📊 No reports found")
@@ -463,7 +471,38 @@ def add_report():
         print(f"📊 New report with {len(images_data)} images")
 
         # =================================================================
-        # PRIORITY-BASED AUTOMATIC RESPONSE SYSTEM
+        # STEP 1: NOTIFY BARANGAY OFFICIALS - "New Report in Your Barangay"
+        # =================================================================
+        # This notification goes FIRST before any emergency alerts
+        try:
+            barangay_name = report.get('address_barangay')
+            if barangay_name and barangay_name != "No barangay selected":
+                # Get barangay officials for this barangay (from info table)
+                info_resp = supabase.table("info").select("user_id").eq("address_barangay", barangay_name).execute()
+                barangay_user_ids = [i.get("user_id") for i in (getattr(info_resp, "data", []) or []) if i.get("user_id")]
+                
+                if barangay_user_ids:
+                    # Get Barangay Officials only
+                    officials_resp = supabase.table("users").select("id").eq("role", "Barangay Official").in_("id", barangay_user_ids).execute()
+                    officials = getattr(officials_resp, "data", []) or []
+                    
+                    for official in officials:
+                        official_id = official.get('id')
+                        if official_id:
+                            create_barangay_notification(
+                                barangay_official_id=official_id,
+                                report_id=report_id,
+                                report_title=report.get('title'),
+                                event_type="created",
+                                barangay_name=barangay_name,
+                                report_category=report.get('category')
+                            )
+                    print(f"📧 Notified {len(officials)} barangay official(s) about new report")
+        except Exception as brgy_err:
+            print(f"⚠️ Failed to notify barangay officials: {brgy_err}")
+
+        # =================================================================
+        # STEP 2: PRIORITY-BASED AUTOMATIC RESPONSE SYSTEM
         # =================================================================
         # Trigger priority-based notifications based on report category
         # High-risk (Crime/Hazard) -> Automatic urgent response
@@ -780,10 +819,10 @@ def get_barangay_map_reports():
         
         print(f"📍 Fetching map reports for barangay official {user_id} in barangay: {user_barangay}")
         
-        # Fetch only reports from their barangay with valid coordinates (exclude rejected reports)
+        # Fetch only reports from their barangay with valid coordinates (exclude rejected and non-approved reports)
         response = supabase.table("reports").select(
             "id, title, category, status, address_barangay, address_street, latitude, longitude, user_id, created_at"
-        ).eq("address_barangay", user_barangay).is_("deleted_at", "null").eq("is_rejected", False).execute()
+        ).eq("address_barangay", user_barangay).is_("deleted_at", "null").eq("is_rejected", False).eq("is_approved", True).execute()
 
         reports_list = getattr(response, "data", []) or []
         print(f"📊 Total reports in {user_barangay}: {len(reports_list)}")
@@ -828,10 +867,10 @@ def get_barangay_map_reports():
 def get_map_reports():
     """Optimized endpoint for map view - returns only reports with valid coordinates"""
     try:
-        # Fetch only relevant fields from reports (exclude deleted and rejected reports)
+        # Fetch only relevant fields from reports (exclude deleted, rejected, and non-approved reports)
         response = supabase.table("reports").select(
             "id, title, category, status, address_barangay, address_street, latitude, longitude, user_id, created_at"
-        ).is_("deleted_at", "null").eq("is_rejected", False).execute()
+        ).is_("deleted_at", "null").eq("is_rejected", False).eq("is_approved", True).execute()
 
         reports_list = response.data or []
         print(f"📊 Total reports fetched from DB: {len(reports_list)}")
@@ -872,8 +911,8 @@ def get_map_reports():
 def get_map_report_counts():
     """Returns the number of reports per barangay for the map view"""
     try:
-        # Fetch all reports with barangay info (exclude deleted and rejected reports)
-        response = supabase.table("reports").select("address_barangay").is_("deleted_at", "null").eq("is_rejected", False).execute()
+        # Fetch all reports with barangay info (exclude deleted, rejected, and non-approved reports)
+        response = supabase.table("reports").select("address_barangay").is_("deleted_at", "null").eq("is_rejected", False).eq("is_approved", True).execute()
         reports_list = response.data or []
         print(f"📊 Total reports fetched for counts: {len(reports_list)}")
 
@@ -1168,10 +1207,10 @@ def get_responder_map_reports():
         
         print(f"📍 Fetching responder map reports for user {user_id}, barangay: {user_barangay}")
         
-        # Build query - filter by barangay if set, exclude rejected and deleted reports
+        # Build query - filter by barangay if set, exclude rejected, deleted, and non-approved reports
         query = supabase.table("reports").select(
             "id, title, address_barangay, address_street, latitude, longitude, user_id, created_at, status, category"
-        ).is_("deleted_at", "null").eq("is_rejected", False)
+        ).is_("deleted_at", "null").eq("is_rejected", False).eq("is_approved", True)
         
         # Filter by responder's barangay if they have one set
         if user_barangay and user_barangay != "No barangay selected":
@@ -1836,9 +1875,9 @@ def assign_responder(report_id):
         from utils.notifications import create_notification
         create_notification(
             responder_id,
-            "New Report Assignment",
-            f'You have been assigned to report: "{report.get("title")}" in {report.get("address_barangay")}.',
-            "Report Alert"
+            "🚨 New Report Assignment",
+            f'You have been assigned to respond to: "{report.get("title")}" in {report.get("address_barangay")}. Please respond immediately.',
+            "responder_assignment"  # Specific type for responder assignments
         )
         
         return jsonify({"status": "success", "message": "Responder assigned successfully"}), 200
