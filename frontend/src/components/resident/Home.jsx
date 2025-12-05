@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
+import { useNavigate } from "react-router-dom";
 import {
   FaExclamationTriangle,
   FaCheckCircle,
@@ -66,6 +67,7 @@ async function fetchWithToken(url, token, retries = 3) {
 }
 
 function Home({ token, session }) {
+  const navigate = useNavigate();
   const [stats, setStats] = useState([
     { title: "Community Reports", value: 0, icon: <FaExclamationTriangle />, color: "primary" },
     { title: "Ongoing Cases", value: 0, icon: <FaSyncAlt />, color: "danger" },
@@ -73,7 +75,7 @@ function Home({ token, session }) {
     { title: "Pending Reports", value: 0, icon: <FaClock />, color: "warning" },
   ]);
   const [recentReports, setRecentReports] = useState([]);
-  const [categoryData, setCategoryData] = useState([{ name: "No Data", value: 0, color: "#ccc" }]); 
+  const [categoryData, setCategoryData] = useState([{ name: "No Data", value: 0, color: "#e9ecef" }]); 
   const [_activeSlice, setActiveSlice] = useState(null);
   const [userBarangay, setUserBarangay] = useState(null);
   
@@ -84,7 +86,7 @@ function Home({ token, session }) {
   // Prepare pie data - use value=1 for rendering "No Data" pie slice visually, but display 0
   const pieDisplayData = hasRealData 
     ? categoryData 
-    : [{ name: "No Data", value: 1, color: "#ccc", displayValue: 0 }];
+    : [{ name: "No Data", value: 1, color: "#e9ecef", displayValue: 0 }];
 
   // Custom tooltip to show category amount + percentage
   function CustomTooltip({ active, payload, total }) {
@@ -230,7 +232,7 @@ function Home({ token, session }) {
           setCategoryData(formattedCategoryData);
           console.log("📊 Categories loaded for barangay:", barangay || "All", categoryRes.data.length, "categories");
         } else {
-          setCategoryData([{ name: "No Data", value: 0, color: "#ccc" }]);
+          setCategoryData([{ name: "No Data", value: 0, color: "#e9ecef" }]);
         }
 
         // 4. Fetch recent reports filtered by user's barangay from info table
@@ -255,7 +257,7 @@ function Home({ token, session }) {
         ]);
         setRecentReports([]);
         setCategoryData([
-          { name: "No Data", value: 0, color: "#ccc" }
+          { name: "No Data", value: 0, color: "#e9ecef" }
         ]);
       } finally {
         setLoading(false);
@@ -350,9 +352,9 @@ function Home({ token, session }) {
     const isAdmin = session?.user?.role === "Admin";
     
     if (isAdmin) {
-      window.location.href = `/admin/reports?highlight=${reportId}`;
+      navigate(`/admin/reports?highlight=${reportId}`);
     } else {
-      window.location.href = `/reports?highlight=${reportId}`;
+      navigate(`/reports?highlight=${reportId}`);
     }
   };
 

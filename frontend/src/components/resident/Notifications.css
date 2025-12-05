@@ -758,6 +758,7 @@
 
     .notifications-container {
         margin: 0;
+        padding-bottom: 100px; /* Reserve space for mobile bottom nav */
     }
 
     .btn.icon-btn .btn-text {
@@ -774,8 +775,65 @@
         order: -1; 
     }
 
+    /* Collapsible notification items on mobile */
     .notification-item {
-        flex-wrap: nowrap; 
+        flex-direction: column;
+        align-items: stretch;
+        gap: 0;
+        padding: 0;
+        overflow: hidden;
+    }
+    
+    /* Collapsed header row with icon, title, and delete */
+    .notif-collapsed-header {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 14px;
+        cursor: pointer;
+        background: #fff;
+        transition: background 0.2s ease;
+    }
+    
+    .notif-collapsed-header:hover {
+        background: #f6f8fa;
+    }
+    
+    .notification-item.unread .notif-collapsed-header {
+        background: #eff5fd;
+    }
+    
+    .notif-collapsed-title {
+        flex: 1;
+        font-size: 14px;
+        font-weight: 500;
+        color: #222;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+    
+    .notif-expand-icon {
+        color: #999;
+        transition: transform 0.2s ease;
+    }
+    
+    .notification-item.expanded .notif-expand-icon {
+        transform: rotate(180deg);
+    }
+    
+    /* Collapsible content area */
+    .notif-collapse-content {
+        max-height: 0;
+        overflow: hidden;
+        transition: max-height 0.3s ease;
+        background: #fafbfc;
+        border-top: 1px solid #eee;
+    }
+    
+    .notification-item.expanded .notif-collapse-content {
+        max-height: 200px;
+        padding: 14px;
     }
     
     .notification-actions {
@@ -789,10 +847,27 @@
 }
 
 @media (max-width: 480px) {
+    .notifications-container {
+        padding: 12px;
+        padding-bottom: 110px;
+    }
+    
     .notif-header {
         display: flex;
         flex-wrap: wrap;
         gap: 0;
+    }
+    
+    .notification-item {
+        margin-bottom: 8px;
+    }
+    
+    .notif-collapsed-header {
+        padding: 12px;
+    }
+    
+    .notif-collapsed-title {
+        font-size: 13px;
     }
 }
 

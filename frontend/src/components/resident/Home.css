@@ -512,6 +512,34 @@ h3 {
   }
 }
 
+/* Extra small screens - stats in single column */
+@media (max-width: 480px) {
+  .stats-grid {
+    grid-template-columns: 1fr;
+    gap: 0.75rem;
+  }
+  .stat-card {
+    padding: 1rem;
+    min-height: 70px;
+  }
+  .stat-content {
+    flex-direction: row;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .stat-icon {
+    width: 42px;
+    height: 42px;
+    font-size: 1.1rem;
+  }
+  .stat-text {
+    text-align: right;
+  }
+  .stat-text p {
+    font-size: 1.5rem;
+  }
+}
+
 @media (max-width: 510px) {
   .dashboard {
     padding: 0;

@@ -1,8 +1,27 @@
 import React, { useState, useEffect, useRef, useImperativeHandle, forwardRef } from "react";
-import { MapContainer, TileLayer, Marker, Popup, Circle } from "react-leaflet";
+import { MapContainer, TileLayer, Marker, Popup, Circle, useMap } from "react-leaflet";
+import { useNavigate } from "react-router-dom";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import { API_CONFIG, getApiUrl } from "../../utils/apiConfig";
+
+// Component to recenter map when user location is detected
+function RecenterOnUser({ userLocation, onCentered }) {
+  const map = useMap();
+  useEffect(() => {
+    if (userLocation) {
+      map.setView([userLocation.latitude, userLocation.longitude], 15, {
+        animate: true,
+        duration: 1
+      });
+      // Mark as centered so we don't keep recentering
+      if (onCentered) {
+        setTimeout(() => onCentered(), 100);
+      }
+    }
+  }, [userLocation, map, onCentered]);
+  return null;
+}
 
 delete L.Icon.Default.prototype._getIconUrl;
 L.Icon.Default.mergeOptions({
@@ -161,7 +180,9 @@ const MapView = forwardRef(function MapView(props, ref) {
   const [hotspots, setHotspots] = useState([]);
   const [barangayReports, setBarangayReports] = useState([]);
   const [userLocation, setUserLocation] = useState(null);
+  const [initialCenterDone, setInitialCenterDone] = useState(false);
   const mapRef = useRef(null);
+  const navigate = useNavigate();
 
   // Get user's current location
   useEffect(() => {
@@ -271,10 +292,18 @@ const MapView = forwardRef(function MapView(props, ref) {
 
       <MapContainer
         whenCreated={(mapInstance) => { mapRef.current = mapInstance; }}
-        center={userLocation ? [userLocation.latitude, userLocation.longitude] : [14.8292, 120.2828]}
+        center={[14.8292, 120.2828]}
         zoom={14}
         style={{ height: "100%", width: "100%", borderRadius: "12px" }}
       >
+        {/* Auto-recenter on user location when detected */}
+        {!initialCenterDone && userLocation && (
+          <RecenterOnUser 
+            userLocation={userLocation} 
+            onCentered={() => setInitialCenterDone(true)}
+          />
+        )}
+        
         <TileLayer
           attribution='&copy; <a href="https://www.openstreetmap.org/">OpenStreetMap</a> contributors'
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
@@ -446,9 +475,34 @@ const MapView = forwardRef(function MapView(props, ref) {
                         <div style={{ fontSize: '12px', fontWeight: '600', marginBottom: '3px' }}>
                           {report.title}
                         </div>
-                        <div style={{ fontSize: '10px', color: '#555' }}>
+                        <div style={{ fontSize: '10px', color: '#555', marginBottom: '6px' }}>
                           📍 {report.address_street || 'Unknown street'}
                         </div>
+                        {/* View Report Button */}
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            navigate(`/reports?highlight=${report.id}`);
+                          }}
+                          style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '4px',
+                            padding: '4px 10px',
+                            fontSize: '10px',
+                            fontWeight: '600',
+                            color: '#fff',
+                            background: 'linear-gradient(135deg, #2d2d73, #1e1e5a)',
+                            border: 'none',
+                            borderRadius: '4px',
+                            cursor: 'pointer',
+                            transition: 'all 0.2s ease',
+                          }}
+                          onMouseOver={(e) => e.target.style.background = 'linear-gradient(135deg, #3b3b8a, #2d2d73)'}
+                          onMouseOut={(e) => e.target.style.background = 'linear-gradient(135deg, #2d2d73, #1e1e5a)'}
+                        >
+                          👁️ View Report
+                        </button>
                       </div>
                     );
                   })}

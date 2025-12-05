@@ -32,32 +32,25 @@
   letter-spacing: 0.3px;
 }
 
-/* Filter loading indicator - inline, not fullscreen */
+/* Filter loading indicator - minimal, no text */
 .feed-filter-loading {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 10px;
   padding: 16px;
-  background: linear-gradient(135deg, #f0f4ff 0%, #e8f0fe 100%);
-  border-radius: 8px;
-  margin-bottom: 16px;
-  border: 1px solid rgba(45, 59, 143, 0.1);
 }
 
 .feed-filter-loading .spinner-small {
   width: 20px;
   height: 20px;
-  border: 2px solid rgba(45, 59, 143, 0.15);
-  border-top: 2px solid #2d3b8f;
+  border: 2px solid rgba(45, 59, 143, 0.12);
+  border-top: 2px solid #6b7280;
   border-radius: 50%;
-  animation: spin 0.7s linear infinite;
+  animation: spin 0.8s linear infinite;
 }
 
 .feed-filter-loading span {
-  color: #2d3b8f;
-  font-size: 0.9rem;
-  font-weight: 500;
+  display: none; /* Hide "Updating feed..." text */
 }
 
 /* ========================================
@@ -1260,18 +1253,28 @@
 }
 
 .toggle-comment-btn {
-  background: none;
-  border: none;
-  color: #3578e5;
-  font-size: 14px;
-  width: 150px;
+  background: rgba(45, 45, 115, 0.08);
+  border: 1px solid rgba(45, 45, 115, 0.15);
+  color: #4b5563;
+  font-size: 13px;
+  width: auto;
+  padding: 8px 16px;
+  border-radius: 20px;
   cursor: pointer;
-  padding: 6px 0;
   font-weight: 500;
+  transition: all 0.2s ease;
 }
 
 .toggle-comment-btn:hover {
-  text-decoration: underline;
+  background: rgba(45, 45, 115, 0.12);
+  border-color: rgba(45, 45, 115, 0.25);
+  color: #2d2d73;
+}
+
+.toggle-comment-btn:active,
+.toggle-comment-btn:focus {
+  outline: none;
+  box-shadow: none;
 }
 
 .comment-info {
@@ -2026,7 +2029,163 @@
     padding: 10px;
   }
   .post-card {
-    padding: 16px;
+    padding: 14px;
+  }
+}
+
+/* ========================================
+   MOBILE RESPONSIVENESS - POST CARDS
+   ======================================== */
+@media (max-width: 768px) {
+  .post-card {
+    padding: 14px 16px;
+  }
+  
+  .post-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 10px;
+  }
+  
+  .post-header h3 {
+    font-size: 1.1rem;
+  }
+  
+  .post-title-section {
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+  
+  .post-header-right {
+    width: 100%;
+    flex-direction: row;
+    align-items: center;
+    justify-content: flex-start;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+  
+  .post-meta {
+    width: 100%;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+  
+  .role-badge {
+    font-size: 0.7rem !important;
+    padding: 0.2rem 0.6rem !important;
+  }
+  
+  .user-post-label {
+    font-size: 11px;
+    padding: 3px 8px;
+  }
+  
+  .badge-pinned,
+  .badge-pending,
+  .badge-rejected {
+    font-size: 11px;
+    padding: 3px 8px;
+  }
+  
+  .post-type-badge {
+    font-size: 0.7rem !important;
+    padding: 0.2rem 0.6rem !important;
+  }
+  
+  .post-content {
+    font-size: 0.9rem;
+    line-height: 1.4rem;
+  }
+  
+  .post-subinfo {
+    font-size: 11px;
+  }
+  
+  .post-reactions {
+    padding: 10px 12px;
+  }
+  
+  .post-reactions .reaction-btn {
+    padding: 6px 12px;
+    font-size: 0.85rem;
+  }
+  
+  .toggle-comment-btn {
+    font-size: 12px;
+    padding: 6px 12px;
+  }
+  
+  .comment-input-section input {
+    font-size: 13px;
+    padding: 8px 10px;
+  }
+  
+  .comment-send-btn {
+    padding: 0 10px;
+  }
+  
+  .comment-author {
+    font-size: 12px;
+  }
+  
+  .comment-time {
+    font-size: 11px;
+  }
+  
+  .comment-item p {
+    font-size: 13px;
+  }
+}
+
+/* Pill row mobile - icon only with badges */
+@media (max-width: 768px) {
+  .feed-pill-row {
+    gap: 8px;
+    margin: 12px 0;
+  }
+  
+  .feed-trending-pill-btn,
+  .feed-pending-pill-btn,
+  .feed-top-pill-btn,
+  .feed-sort-pill-btn {
+    padding: 10px 12px;
+    font-size: 13px;
+  }
+  
+  .feed-pill-toggle {
+    display: none;
+  }
+  
+  .feed-trending-container,
+  .feed-pending-container {
+    padding: 14px;
+    margin-bottom: 14px;
+  }
+  
+  .feed-trending-header h3,
+  .feed-pending-header h3 {
+    font-size: 1rem;
+  }
+  
+  .trending-time-filter {
+    font-size: 12px;
+    padding: 6px 10px;
+  }
+  
+  .feed-trending-card,
+  .feed-pending-card {
+    padding: 10px;
+  }
+  
+  .feed-trending-title,
+  .feed-pending-title {
+    font-size: 0.85rem;
+  }
+  
+  .feed-trending-location,
+  .feed-pending-location {
+    font-size: 0.75rem;
   }
 }
 

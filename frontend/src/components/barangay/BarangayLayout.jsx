@@ -13,6 +13,7 @@ import {
   FaVideo,
   FaCrown,
   FaComments,
+  FaEllipsisV,
 } from "react-icons/fa";
 import { Outlet, NavLink, useNavigate } from "react-router-dom";
 import { API_CONFIG, getApiUrl } from "../../utils/apiConfig";
@@ -37,47 +38,13 @@ function BarangayLayout({ session, setSession, setNotification }) {
   const [loading, setLoading] = useState(true);
   const [notificationCount, setNotificationCount] = useState(0);
   const [showChatBot, setShowChatBot] = useState(false);
-  const [autoEvaluationTrigger, setAutoEvaluationTrigger] = useState(false);
+  const [showMobileMenu, setShowMobileMenu] = useState(false);
   const [isPremiumUser, setIsPremiumUser] = useState(false); // Track premium status from user profile
   const toastRef = useRef(null);
   const pollingIntervalRef = useRef(null);
   const logoutConfirmBtnRef = useRef(null);
-  const hasCheckedEvaluations = useRef(false);
 
   const navigate = useNavigate();
-
-  // Check for new AI evaluations (for Barangay Officials)
-  const checkForNewEvaluations = useCallback(async () => {
-    if (!session?.token || hasCheckedEvaluations.current) return;
-    
-    try {
-      const res = await fetch(getApiUrl('/api/chat/check-new-evaluations'), {
-        headers: { Authorization: `Bearer ${session.token}` },
-      });
-      
-      if (res.ok) {
-        const data = await res.json();
-        
-        if (data.should_notify && data.has_new_evaluations) {
-          hasCheckedEvaluations.current = true;
-          
-          // Auto-open chatbot with evaluation prompt for officials
-          setAutoEvaluationTrigger(true);
-          setShowChatBot(true);
-          
-          // Show toast notification
-          if (toastRef.current) {
-            toastRef.current.show(
-              `🤖 AI found ${data.count} new report(s) to evaluate - Check Community Helper`,
-              'info'
-            );
-          }
-        }
-      }
-    } catch (e) {
-      console.warn('Error checking for new evaluations:', e);
-    }
-  }, [session?.token]);
 
   // Fetch barangay official profile if session exists
   useEffect(() => {
@@ -183,29 +150,6 @@ function BarangayLayout({ session, setSession, setNotification }) {
 
     fetchMissedReports();
   }, [session?.token, user]);
-
-  // Check for AI evaluations after user profile is loaded
-  useEffect(() => {
-    if (user && session?.token && !hasCheckedEvaluations.current) {
-      // Small delay to not overwhelm initial load
-      const timer = setTimeout(() => {
-        checkForNewEvaluations();
-      }, 2000);
-      return () => clearTimeout(timer);
-    }
-  }, [user, session?.token, checkForNewEvaluations]);
-
-  // Handle evaluation completion callback
-  const handleEvaluationComplete = (approvalResult) => {
-    if (approvalResult?.approved_count > 0) {
-      if (toastRef.current) {
-        toastRef.current.show(
-          `✅ Auto-approved ${approvalResult.approved_count} HIGH/CRITICAL report(s)`,
-          'success'
-        );
-      }
-    }
-  };
 
   // 🔹 Setup real-time notifications via SSE for barangay official
   useEffect(() => {
@@ -487,19 +431,10 @@ function BarangayLayout({ session, setSession, setNotification }) {
         </NavLink>
       </nav>
 
-      {/* Mobile logout bubble */}
-      <div
-        className="mobile-logout-bubble"
-        onClick={() => setShowLogoutConfirm(true)}
-        title="Barangay Official Logout"
-      >
-        <FaSignOutAlt />
-      </div>
-
-      {/* Floating Chat Button - Always visible when chat is closed */}
+      {/* Desktop: Floating Chat Button - Always visible when chat is closed */}
       {session?.token && !showChatBot && (
         <button
-          className="floating-chat-btn"
+          className="floating-chat-btn desktop-only"
           onClick={() => setShowChatBot(true)}
           title="Open Community Helper"
           aria-label="Open chat"
@@ -507,6 +442,43 @@ function BarangayLayout({ session, setSession, setNotification }) {
           <FaComments />
         </button>
       )}
+
+      {/* Mobile: 3-dot action menu */}
+      <div className="mobile-action-menu">
+        <button
+          className="mobile-action-trigger"
+          onClick={() => setShowMobileMenu(!showMobileMenu)}
+          aria-label="Open menu"
+          title="More options"
+        >
+          <FaEllipsisV />
+        </button>
+        
+        {showMobileMenu && (
+          <div className="mobile-action-dropdown">
+            {session?.token && (
+              <button
+                className="mobile-action-item"
+                onClick={() => {
+                  setShowMobileMenu(false);
+                  setShowChatBot(true);
+                }}
+              >
+                <FaComments /> Community Helper
+              </button>
+            )}
+            <button
+              className="mobile-action-item logout-item"
+              onClick={() => {
+                setShowMobileMenu(false);
+                setShowLogoutConfirm(true);
+              }}
+            >
+              <FaSignOutAlt /> Sign Out
+            </button>
+          </div>
+        )}
+      </div>
 
       {/* Logout confirmation modal (shared design with Layout.jsx) */}
       {showLogoutConfirm && (
@@ -542,18 +514,13 @@ function BarangayLayout({ session, setSession, setNotification }) {
         </ModalPortal>
       )}
 
-      {/* ChatBot Component with AI Evaluation - Premium feature for Officials */}
+      {/* ChatBot Component - Premium for Officials */}
       {session?.token && (
         <ChatBot 
           isOpen={showChatBot} 
-          onClose={() => {
-            setShowChatBot(false);
-            setAutoEvaluationTrigger(false);
-          }}
+          onClose={() => setShowChatBot(false)}
           token={session.token}
           isPremium={isPremiumUser}
-          autoEvaluationTrigger={autoEvaluationTrigger}
-          onEvaluationComplete={handleEvaluationComplete}
         />
       )}
     </div>

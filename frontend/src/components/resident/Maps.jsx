@@ -215,7 +215,7 @@ function Maps({ session, userRole }) {
   const [userBarangay, setUserBarangay] = useState(null);
   const [loading, setLoading] = useState(true);
   const [selectedBarangay, setSelectedBarangay] = useState('all');
-  const [statusFilter, setStatusFilter] = useState('active'); // 'active' = all except resolved, 'resolved' = resolved only, 'all' = all
+  const [showFilters, setShowFilters] = useState(false); // Collapsible filter panel for mobile
   const [showHotspots, setShowHotspots] = useState(true);
   const [showSafezones, setShowSafezones] = useState(true);
   const [userLocation, setUserLocation] = useState(null);
@@ -321,8 +321,11 @@ function Maps({ session, userRole }) {
     fetchMapReports();
   }, [session, userRole]);
 
-  // Group reports by barangay
-  const reportsByBarangay = reports.reduce((acc, r) => {
+  // Only count accepted reports in barangay counts (is_accepted !== false)
+  const acceptedReports = reports.filter(r => r.is_accepted !== false);
+  
+  // Group reports by barangay (only accepted reports)
+  const reportsByBarangay = acceptedReports.reduce((acc, r) => {
     if (!acc[r.address_barangay]) acc[r.address_barangay] = [];
     acc[r.address_barangay].push(r);
     return acc;
@@ -331,27 +334,23 @@ function Maps({ session, userRole }) {
   // Get all unique barangays for filter dropdown
   const allBarangays = Object.keys(reportsByBarangay).sort();
 
-  // Filter reports based on selected barangay and status
-  const filteredReports = reports
+  // Filter reports: only show active (non-resolved), accepted reports
+  const filteredReports = acceptedReports
     .filter(r => selectedBarangay === 'all' || r.address_barangay === selectedBarangay)
-    .filter(r => {
-      if (statusFilter === 'active') return r.status !== 'Resolved'; // Pending + Ongoing
-      if (statusFilter === 'pending') return r.status === 'Pending';
-      if (statusFilter === 'ongoing') return r.status === 'Ongoing';
-      if (statusFilter === 'resolved') return r.status === 'Resolved';
-      return true; // 'all' shows everything
-    });
+    .filter(r => r.status !== 'Resolved'); // Only show active reports (Pending + Ongoing)
 
   // Group overlapping markers for display
   const groupedMarkers = groupOverlappingReports(filteredReports);
 
   const content = (
     <div className="maps-page">
-      <h2>Olongapo City Reports Map</h2>
-      <p>View all community reports across the city. Click on colored markers to view report details.</p>
+      <div className="maps-header desktop-only">
+        <h2>Olongapo City Reports Map</h2>
+        <p>View all community reports across the city.</p>
+      </div>
 
       {/* Map with overlaid controls */}
-      <div style={{ position: 'relative', height: '80vh', overflow: 'hidden' }}>
+      <div className="maps-container">
         <MapContainer
           center={OLONGAPO_CENTER}
           zoom={INITIAL_ZOOM}
@@ -595,19 +594,9 @@ function Maps({ session, userRole }) {
           )}
         </MapContainer>
 
-        {/* Control Panel Overlay - Top Right */}
+        {/* Control Panel Overlay - Top Right (Desktop only) */}
         {!loading && allBarangays.length > 0 && (
-          <div style={{
-            position: 'absolute',
-            top: '16px',
-            right: '16px',
-            backgroundColor: '#fff',
-            borderRadius: '8px',
-            padding: '16px',
-            boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
-            zIndex: 1000,
-            maxWidth: '320px'
-          }}>
+          <div className="maps-control-panel desktop-only">
             {/* Barangay Filter */}
             <div style={{ marginBottom: '16px' }}>
               <label style={{ display: 'block', fontSize: '12px', fontWeight: '600', color: '#666', marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
@@ -628,40 +617,12 @@ function Maps({ session, userRole }) {
                   fontWeight: '500'
                 }}
               >
-                <option value="all">All Barangays ({reports.length})</option>
+                <option value="all">All Barangays ({acceptedReports.length})</option>
                 {allBarangays.map(barangay => (
                   <option key={barangay} value={barangay}>
                     {barangay} ({reportsByBarangay[barangay].length})
                   </option>
                 ))}
-              </select>
-            </div>
-
-            {/* Status Filter */}
-            <div style={{ marginBottom: '16px' }}>
-              <label style={{ display: 'block', fontSize: '12px', fontWeight: '600', color: '#666', marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-                Filter Status
-              </label>
-              <select
-                value={statusFilter}
-                onChange={(e) => setStatusFilter(e.target.value)}
-                style={{
-                  width: '100%',
-                  padding: '8px 12px',
-                  borderRadius: '6px',
-                  border: '1px solid #d1d5db',
-                  fontSize: '14px',
-                  cursor: 'pointer',
-                  backgroundColor: '#fff',
-                  color: '#111',
-                  fontWeight: '500'
-                }}
-              >
-                <option value="active">All Active Reports</option>
-                <option value="pending">Pending Only</option>
-                <option value="ongoing">Ongoing Only</option>
-                <option value="resolved">Resolved Only</option>
-                <option value="all">All Reports</option>
               </select>
             </div>
 
@@ -689,35 +650,83 @@ function Maps({ session, userRole }) {
           </div>
         )}
 
-        {/* Statistics Overlay - Bottom Left */}
+        {/* Mobile Filter Toggle Button */}
+        {!loading && allBarangays.length > 0 && (
+          <button
+            className="mobile-filter-toggle"
+            onClick={() => setShowFilters(!showFilters)}
+          >
+            {showFilters ? '✕' : '☰'} {showFilters ? 'Close' : 'Filters'}
+          </button>
+        )}
+
+        {/* Mobile Collapsible Filter Panel */}
+        {!loading && showFilters && (
+          <div className="mobile-filter-panel">
+            <div className="mobile-filter-content">
+              {/* Barangay Filter */}
+              <div className="mobile-filter-section">
+                <label className="mobile-filter-label">Filter Barangay</label>
+                <select
+                  value={selectedBarangay}
+                  onChange={(e) => setSelectedBarangay(e.target.value)}
+                  className="mobile-filter-select"
+                >
+                  <option value="all">All Barangays ({acceptedReports.length})</option>
+                  {allBarangays.map(barangay => (
+                    <option key={barangay} value={barangay}>
+                      {barangay} ({reportsByBarangay[barangay].length})
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Toggle Controls */}
+              <div className="mobile-filter-toggles">
+                <label className="mobile-toggle-item hotspot-toggle">
+                  <input
+                    type="checkbox"
+                    checked={showHotspots}
+                    onChange={(e) => setShowHotspots(e.target.checked)}
+                  />
+                  <span>Hotspots ({hotspots.length})</span>
+                </label>
+                <label className="mobile-toggle-item safezone-toggle">
+                  <input
+                    type="checkbox"
+                    checked={showSafezones}
+                    onChange={(e) => setShowSafezones(e.target.checked)}
+                  />
+                  <span>Safezones ({safezones.length})</span>
+                </label>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Statistics Overlay - Bottom Left (Desktop) / Bottom Bar (Mobile) */}
         {!loading && (
-          <div style={{
-            position: 'absolute',
-            bottom: '16px',
-            left: '16px',
-            backgroundColor: '#fff',
-            borderRadius: '8px',
-            padding: '16px',
-            boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
-            zIndex: 1000,
-            maxWidth: '320px'
-          }}>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', fontSize: '13px' }}>
-              <div style={{ padding: '8px 12px', backgroundColor: '#f3f4f6', borderRadius: '6px' }}>
-                <div style={{ fontSize: '11px', color: '#666', fontWeight: '600', textTransform: 'uppercase', marginBottom: '4px' }}>Total Reports</div>
-                <div style={{ fontSize: '18px', fontWeight: '700', color: '#111' }}>{filteredReports.length}</div>
+          <div className="maps-stats-panel">
+            <div className="maps-stats-grid">
+              <div className="maps-stat-item stat-reports">
+                <span className="stat-icon">📋</span>
+                <span className="stat-value">{filteredReports.length}</span>
+                <span className="stat-label">Reports</span>
               </div>
-              <div style={{ padding: '8px 12px', backgroundColor: '#fef2f2', borderRadius: '6px' }}>
-                <div style={{ fontSize: '11px', color: '#666', fontWeight: '600', textTransform: 'uppercase', marginBottom: '4px' }}>Hotspots</div>
-                <div style={{ fontSize: '18px', fontWeight: '700', color: '#dc2626' }}>{hotspots.length}</div>
+              <div className="maps-stat-item stat-hotspots">
+                <span className="stat-icon">🔴</span>
+                <span className="stat-value">{hotspots.length}</span>
+                <span className="stat-label">Hotspots</span>
               </div>
-              <div style={{ padding: '8px 12px', backgroundColor: '#f0fdf4', borderRadius: '6px' }}>
-                <div style={{ fontSize: '11px', color: '#666', fontWeight: '600', textTransform: 'uppercase', marginBottom: '4px' }}>Safezones</div>
-                <div style={{ fontSize: '18px', fontWeight: '700', color: '#16a34a' }}>{safezones.length}</div>
+              <div className="maps-stat-item stat-safezones">
+                <span className="stat-icon">🛡️</span>
+                <span className="stat-value">{safezones.length}</span>
+                <span className="stat-label">Safezones</span>
               </div>
-              <div style={{ padding: '8px 12px', backgroundColor: '#f3f4f6', borderRadius: '6px' }}>
-                <div style={{ fontSize: '11px', color: '#666', fontWeight: '600', textTransform: 'uppercase', marginBottom: '4px' }}>Barangays</div>
-                <div style={{ fontSize: '18px', fontWeight: '700', color: '#111' }}>{allBarangays.length}</div>
+              <div className="maps-stat-item stat-barangays">
+                <span className="stat-icon">🏘️</span>
+                <span className="stat-value">{allBarangays.length}</span>
+                <span className="stat-label">Barangays</span>
               </div>
             </div>
           </div>

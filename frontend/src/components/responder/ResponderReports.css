@@ -357,6 +357,43 @@
     color: white;
 }
 
+/* Mobile: Action buttons and status badges */
+@media (max-width: 768px) {
+    .responder-report-header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 12px;
+    }
+    
+    .responder-report-actions {
+        width: 100%;
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 8px;
+        margin-top: 8px;
+    }
+    
+    .responder-report-actions .responder-action-btn {
+        width: 100%;
+        min-width: 0;
+        justify-content: center;
+        padding: 10px 12px;
+    }
+    
+    /* Status badges - compact pill style */
+    .responder-status-badge {
+        font-size: 11px;
+        padding: 4px 10px;
+        white-space: nowrap;
+    }
+    
+    /* Icon buttons stay compact */
+    .responder-report-actions .responder-icon-btn {
+        width: auto;
+        grid-column: auto;
+    }
+}
+
 /* Action Buttons */
 .responder-report-actions {
     display: flex;
@@ -1132,6 +1169,50 @@
     .responder-list-table .list-header .col-date,
     .responder-list-table .list-row .col-barangay,
     .responder-list-table .list-row .col-date {
+        display: none;
+    }
+    
+    /* Modal sizing - match Profile modal */
+    .responder-modal-content {
+        width: 92%;
+        max-width: 92%;
+        margin: 10px auto;
+    }
+    
+    /* Modal buttons full width on mobile */
+    .responder-modal-buttons {
+        flex-direction: column;
+        gap: 10px;
+    }
+    
+    .responder-modal-buttons button {
+        width: 100%;
+    }
+    
+    /* Action buttons full width */
+    .responder-report-header-actions {
+        width: 100%;
+        flex-direction: column;
+        gap: 8px;
+    }
+    
+    .responder-report-header-actions .report-action-btn {
+        width: 100%;
+    }
+    
+    /* Pill buttons mobile */
+    .trending-pill-row {
+        gap: 8px;
+    }
+    
+    .trending-pill-btn,
+    .top-pill-btn {
+        padding: 8px 12px;
+    }
+    
+    .trending-pill-btn .pill-text,
+    .top-pill-btn .pill-text,
+    .trending-pill-toggle {
         display: none;
     }
 }

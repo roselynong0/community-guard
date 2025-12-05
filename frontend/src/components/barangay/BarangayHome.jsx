@@ -68,7 +68,7 @@ function Home({ token, session }) {
     { title: "Pending Reports", value: 0, icon: <FaClock />, color: "#f4b761ff" },
   ]);
   const [recentReports, setRecentReports] = useState([]);
-  const [categoryData, setCategoryData] = useState([{ name: "No Data", value: 1, color: "#ccc" }]); 
+  const [categoryData, setCategoryData] = useState([{ name: "No Data", value: 1, color: "#e9ecef" }]); 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   // const [selectedBarangay, setSelectedBarangay] = useState("all");
@@ -125,7 +125,7 @@ function Home({ token, session }) {
           setCategoryData(formattedCategoryData);
         } else {
             // Handle case with no category data
-            setCategoryData([{ name: "No Data", value: 1, color: "#ccc" }]);
+            setCategoryData([{ name: "No Data", value: 1, color: "#e9ecef" }]);
         }
 
         // 4. Fetch recent reports - all reports for everyone (barangay filtering disabled)
@@ -145,7 +145,7 @@ function Home({ token, session }) {
         ]);
         setRecentReports([]);
         setCategoryData([
-          { name: "No Data", value: 1, color: "#ccc" }
+          { name: "No Data", value: 1, color: "#e9ecef" }
         ]);
       } finally {
         setLoading(false);

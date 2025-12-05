@@ -756,6 +756,119 @@
 }
 
 /* ========================================
+   MOBILE ACTION MENU (3-dot dropdown)
+   ======================================== */
+.mobile-action-menu {
+  display: none;
+  position: fixed;
+  bottom: 4.5rem;
+  right: 1rem;
+  z-index: 999;
+}
+
+.mobile-action-trigger {
+  background: linear-gradient(135deg, #11163e, #1a1f4e);
+  color: #fff;
+  border: none;
+  border-radius: 50%;
+  width: 48px;
+  height: 48px;
+  box-shadow: 0 4px 15px rgba(17, 22, 62, 0.5);
+  font-size: 1.2rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  border: 2px solid rgba(255, 255, 255, 0.15);
+}
+
+.mobile-action-trigger:hover,
+.mobile-action-trigger:active {
+  background: linear-gradient(135deg, #1a1f4e, #252b5c);
+  transform: scale(1.05);
+  box-shadow: 0 6px 20px rgba(17, 22, 62, 0.6);
+}
+
+.mobile-action-dropdown {
+  position: absolute;
+  bottom: 56px;
+  right: 0;
+  background: #fff;
+  border-radius: 12px;
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.2);
+  overflow: hidden;
+  min-width: 180px;
+  animation: dropdownSlideUp 0.2s ease-out;
+}
+
+@keyframes dropdownSlideUp {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.mobile-action-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 14px 16px;
+  border: none;
+  background: transparent;
+  color: #11163e;
+  font-size: 0.95rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.mobile-action-item:hover {
+  background: #f5f6fa;
+}
+
+.mobile-action-item:first-child {
+  border-bottom: 1px solid #eee;
+}
+
+.mobile-action-item svg {
+  font-size: 1.1rem;
+  color: #f4b761;
+}
+
+.mobile-action-item.logout-item svg {
+  color: #d9534f;
+}
+
+@media (max-width: 768px) {
+  .mobile-action-menu {
+    display: block;
+  }
+  
+  /* Hide the old separate buttons */
+  .floating-chat-btn,
+  .mobile-logout-btn {
+    display: none !important;
+  }
+}
+
+/* Desktop: show floating chat button */
+.desktop-only {
+  display: flex;
+}
+
+@media (max-width: 768px) {
+  .desktop-only {
+    display: none !important;
+  }
+}
+
+/* ========================================
    VERIFICATION HINT FOR DISABLED BUTTONS
    ======================================== */
 .verification-hint {

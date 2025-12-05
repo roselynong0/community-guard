@@ -418,6 +418,43 @@
     color: white;
 }
 
+/* Mobile: Action buttons and status badges */
+@media (max-width: 768px) {
+    .barangay-report-header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 12px;
+    }
+    
+    .barangay-report-actions {
+        width: 100%;
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 8px;
+        margin-top: 8px;
+    }
+    
+    .barangay-report-actions .barangay-action-btn {
+        width: 100%;
+        min-width: 0;
+        justify-content: center;
+        padding: 10px 12px;
+    }
+    
+    /* Status badges - compact pill style */
+    .barangay-status-badge {
+        font-size: 11px;
+        padding: 4px 10px;
+        white-space: nowrap;
+    }
+    
+    /* Icon buttons stay compact */
+    .barangay-report-actions .barangay-icon-btn {
+        width: auto;
+        grid-column: auto;
+    }
+}
+
 /* Severity Badges */
 .barangay-severity-badge {
     display: inline-block;
@@ -1156,6 +1193,50 @@
     .barangay-report-images.images-3,
     .barangay-report-images.images-4 {
         grid-template-columns: 1fr;
+    }
+    
+    /* Modal sizing - match Profile modal */
+    .barangay-modal-content {
+        width: 92%;
+        max-width: 92%;
+        margin: 10px auto;
+    }
+    
+    /* Modal buttons full width on mobile */
+    .barangay-modal-buttons {
+        flex-direction: column;
+        gap: 10px;
+    }
+    
+    .barangay-modal-buttons button {
+        width: 100%;
+    }
+    
+    /* Action buttons full width */
+    .barangay-report-header-actions {
+        width: 100%;
+        flex-direction: column;
+        gap: 8px;
+    }
+    
+    .barangay-report-header-actions .report-action-btn {
+        width: 100%;
+    }
+    
+    /* Pill buttons mobile */
+    .trending-pill-row {
+        gap: 8px;
+    }
+    
+    .trending-pill-btn,
+    .top-pill-btn {
+        padding: 8px 12px;
+    }
+    
+    .trending-pill-btn .pill-text,
+    .top-pill-btn .pill-text,
+    .trending-pill-toggle {
+        display: none;
     }
 }
 

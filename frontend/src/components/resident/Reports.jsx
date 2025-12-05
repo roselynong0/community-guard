@@ -1195,6 +1195,7 @@ function Reports({ session }) {
           {/* Trending Pill - Toggle sort */}
           <button
             className={`trending-pill-btn ${sort === 'trending' ? 'active' : ''} ${allTrendingReports.length === 0 ? 'empty' : ''}`}
+            data-count={allTrendingReports.length}
             onClick={() => {
               if (sort === 'trending') {
                 setSort(null);
@@ -1207,18 +1208,19 @@ function Reports({ session }) {
             title={sort === 'trending' ? 'Turn off trending sort' : 'Sort by trending'}
           >
             <FaFire className="trending-pill-icon" />
-            Trending ({allTrendingReports.length})
+            <span className="pill-text">Trending ({allTrendingReports.length})</span>
             {sort === 'trending' ? <FaMinus className="trending-pill-toggle" /> : <FaPlus className="trending-pill-toggle" />}
           </button>
           
           {/* Pending Pill - Show user's pending reports */}
           <button
             className={`pending-pill-btn ${pendingExpanded ? 'active' : ''} ${userPendingReports.length === 0 ? 'empty' : ''}`}
+            data-count={userPendingReports.length}
             onClick={() => setPendingExpanded(!pendingExpanded)}
             title={pendingExpanded ? 'Hide pending reports' : 'Show your pending reports'}
           >
             <FaClock className="pending-pill-icon" />
-            Pending ({userPendingReports.length})
+            <span className="pill-text">Pending ({userPendingReports.length})</span>
             {pendingExpanded ? <FaMinus className="pending-pill-toggle" /> : <FaPlus className="pending-pill-toggle" />}
           </button>
 
@@ -1229,14 +1231,14 @@ function Reports({ session }) {
             title={sort === 'top' ? 'Turn off top sort' : 'Sort by most engagement'}
           >
             <FaStar className="top-pill-icon" />
-            Top
+            <span className="pill-text">Top</span>
           </button>
         </div>
       )}
 
       {/* ⭐ Trending Reports Section - Collapsible */}
       {!showMyReports && trendingExpanded && (
-        <div className="feed-trending-container expanded">
+        <div className={`feed-trending-container expanded ${allTrendingReports.length === 0 ? 'empty' : ''}`}>
           <div className="feed-trending-header">
             <h3><FaMapPin className="feed-trending-pin" /> Trending Reports</h3>
             <select
@@ -1250,17 +1252,18 @@ function Reports({ session }) {
             </select>
           </div>
           
-          <div className="feed-trending-list">
-            {allTrendingReports.map((report) => (
-              <div 
-                key={`trending-${report.id}`} 
-                className={`feed-trending-card ${report.isUserBarangay ? 'from-your-barangay' : ''}`}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  const element = document.getElementById(`report-${report.id}`);
-                  if (element) {
-                    element.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                    setHighlightedReportId(report.id);
+          {allTrendingReports.length > 0 ? (
+            <div className="feed-trending-list">
+              {allTrendingReports.map((report) => (
+                <div 
+                  key={`trending-${report.id}`} 
+                  className={`feed-trending-card ${report.isUserBarangay ? 'from-your-barangay' : ''}`}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    const element = document.getElementById(`report-${report.id}`);
+                    if (element) {
+                      element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                      setHighlightedReportId(report.id);
                       setTimeout(() => setHighlightedReportId(null), 3000);
                     }
                   }}
@@ -1296,17 +1299,13 @@ function Reports({ session }) {
                 </div>
               ))}
             </div>
-        </div>
-      )}
-
-      {/* Trending Empty State */}
-      {!showMyReports && trendingExpanded && allTrendingReports.length === 0 && (
-        <div className="feed-trending-container expanded empty">
-          <div className="feed-trending-empty">
-            <FaFire className="empty-icon" />
-            <p>No trending reports yet</p>
-            <span>Reports become trending based on reactions and recency. Try "This Month".</span>
-          </div>
+          ) : (
+            <div className="feed-trending-empty">
+              <FaFire className="empty-icon" />
+              <p>No trending reports yet</p>
+              <span>Reports become trending based on reactions and recency. Try "This Month".</span>
+            </div>
+          )}
         </div>
       )}
 
@@ -1789,16 +1788,7 @@ function Reports({ session }) {
                       alert("Geolocation is not supported by your browser.");
                     }
                   }}
-                  style={{
-                    backgroundColor: "#1976d2",
-                    color: "#fff",
-                    border: "none",
-                    padding: "6px 12px",
-                    borderRadius: "8px",
-                    cursor: "pointer",
-                    fontSize: "13px",
-                    marginBottom: "10px",
-                  }}
+                  className="use-location-btn"
                 >
                   📍 Use My Current Location
                 </button>

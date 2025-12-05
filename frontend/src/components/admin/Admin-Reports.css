@@ -963,6 +963,43 @@
     color: white;
 }
 
+/* Mobile: Action buttons and status badges */
+@media (max-width: 768px) {
+    .admin-report-header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 12px;
+    }
+    
+    .admin-report-actions {
+        width: 100%;
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 8px;
+        margin-top: 8px;
+    }
+    
+    .admin-report-actions .admin-action-btn {
+        width: 100%;
+        min-width: 0;
+        justify-content: center;
+        padding: 10px 12px;
+    }
+    
+    /* Status badges - compact pill style */
+    .admin-status-badge {
+        font-size: 11px;
+        padding: 4px 10px;
+        white-space: nowrap;
+    }
+    
+    /* Icon buttons stay compact */
+    .admin-report-actions .admin-icon-btn {
+        width: auto;
+        grid-column: auto;
+    }
+}
+
 /* Action Buttons */
 .admin-report-actions {
     display: flex;
@@ -1490,6 +1527,50 @@
     .admin-report-images.images-3,
     .admin-report-images.images-4 {
         grid-template-columns: 1fr;
+    }
+    
+    /* Modal sizing - match Profile modal */
+    .admin-modal-content {
+        width: 92%;
+        max-width: 92%;
+        margin: 10px auto;
+    }
+    
+    /* Modal buttons full width on mobile */
+    .admin-modal-buttons {
+        flex-direction: column;
+        gap: 10px;
+    }
+    
+    .admin-modal-buttons button {
+        width: 100%;
+    }
+    
+    /* Action buttons full width */
+    .admin-report-header-actions {
+        width: 100%;
+        flex-direction: column;
+        gap: 8px;
+    }
+    
+    .admin-report-header-actions .report-action-btn {
+        width: 100%;
+    }
+    
+    /* Pill buttons mobile */
+    .trending-pill-row {
+        gap: 8px;
+    }
+    
+    .trending-pill-btn,
+    .top-pill-btn {
+        padding: 8px 12px;
+    }
+    
+    .trending-pill-btn .pill-text,
+    .top-pill-btn .pill-text,
+    .trending-pill-toggle {
+        display: none;
     }
 }
 

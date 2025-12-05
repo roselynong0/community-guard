@@ -12,6 +12,7 @@ import {
   FaChartLine,
   FaArchive,
   FaComments,
+  FaEllipsisV,
 } from "react-icons/fa";
 import { Outlet, NavLink, useNavigate } from "react-router-dom";
 import { logout, handleSessionExpired, isSessionExpired } from "../../utils/session";
@@ -39,6 +40,7 @@ function Layout({ session, setSession, setNotification }) {
   const logoutConfirmBtnRef = useRef(null);
   const [showVerifyModal, setShowVerifyModal] = useState(false);
   const [verifyUserData, setVerifyUserData] = useState(null);
+  const [showMobileMenu, setShowMobileMenu] = useState(false); // Mobile 3-dot menu
 
   const navigate = useNavigate();
 
@@ -411,8 +413,14 @@ function Layout({ session, setSession, setNotification }) {
         <NavLink to="/reports">
           <FaChartLine />
         </NavLink>
+        <NavLink to="/community-feed">
+          <FaUserFriends />
+        </NavLink>
         <NavLink to="/notifications">
           <FaBell />
+          {notificationCount > 0 && (
+            <span className="notification-badge">{notificationCount}</span>
+          )}
         </NavLink>
         <NavLink
           to={user ? "/profile" : "#"}
@@ -427,21 +435,10 @@ function Layout({ session, setSession, setNotification }) {
         </NavLink>
       </nav>
 
-      {/* Mobile logout - Hide when modal is open */}
-      {!showLogoutConfirm && !showAuthModal && (
-        <div
-          className="mobile-logout-btn"
-          onClick={() => setShowLogoutConfirm(true)}
-          title="Sign Out"
-        >
-          <FaSignOutAlt />
-        </div>
-      )}
-
-      {/* Floating Chat Button - Always visible when chat is closed */}
+      {/* Desktop: Floating Chat Button - Always visible when chat is closed */}
       {session?.token && !showChatBot && (
         <button
-          className="floating-chat-btn"
+          className="floating-chat-btn desktop-only"
           onClick={() => setShowChatBot(true)}
           title="Open Community Helper"
           aria-label="Open chat"
@@ -449,6 +446,43 @@ function Layout({ session, setSession, setNotification }) {
           <FaComments />
         </button>
       )}
+
+      {/* Mobile: 3-dot action menu (replaces separate logout and chat buttons) */}
+      <div className="mobile-action-menu">
+        <button
+          className="mobile-action-trigger"
+          onClick={() => setShowMobileMenu(!showMobileMenu)}
+          aria-label="Open menu"
+          title="More options"
+        >
+          <FaEllipsisV />
+        </button>
+        
+        {showMobileMenu && (
+          <div className="mobile-action-dropdown">
+            {session?.token && (
+              <button
+                className="mobile-action-item"
+                onClick={() => {
+                  setShowMobileMenu(false);
+                  setShowChatBot(true);
+                }}
+              >
+                <FaComments /> Helper
+              </button>
+            )}
+            <button
+              className="mobile-action-item logout-item"
+              onClick={() => {
+                setShowMobileMenu(false);
+                setShowLogoutConfirm(true);
+              }}
+            >
+              <FaSignOutAlt /> Sign Out
+            </button>
+          </div>
+        )}
+      </div>
 
       {/* Logout Confirmation */}
       {showLogoutConfirm && (
@@ -487,14 +521,13 @@ function Layout({ session, setSession, setNotification }) {
       {/* Verification prompt modal (shows if user needs to complete profile) */}
       <VerificationModal open={showVerifyModal} onClose={() => setShowVerifyModal(false)} user={verifyUserData} />
 
-      {/* ChatBot Component - Basic for residents (AI evaluation moved to official layouts) */}
+      {/* ChatBot Component - Basic for residents */}
       {session?.token && (
         <ChatBot 
           isOpen={showChatBot} 
           onClose={() => setShowChatBot(false)}
           token={session.token}
           isPremium={false}
-          autoEvaluationTrigger={false}
         />
       )}
     </div>

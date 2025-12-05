@@ -1025,3 +1025,55 @@ label {
     background: rgba(59, 130, 246, 0.1);
     color: #3b82f6;
 }
+
+/* ========================================
+   MOBILE PROFILE IMPROVEMENTS
+   ======================================== */
+@media (max-width: 768px) {
+    .profile-page {
+        padding-bottom: 100px; /* Reserve space for mobile bottom nav */
+    }
+    
+    /* Align delete button beside change photo */
+    .profile-header-actions {
+        display: flex;
+        flex-direction: row !important;
+        gap: 10px;
+        align-items: center;
+        justify-content: center;
+        flex-wrap: wrap;
+    }
+    
+    .upload-btn,
+    .delete-account-btn {
+        flex: 1;
+        min-width: 120px;
+        max-width: 180px;
+        justify-content: center;
+    }
+    
+    /* Activity section spacing */
+    .profile-activity,
+    .activity-section,
+    .reports-section {
+        margin-bottom: 20px;
+    }
+}
+
+@media (max-width: 480px) {
+    .profile-page {
+        padding: 12px;
+        padding-bottom: 110px;
+    }
+    
+    .profile-header-actions {
+        width: 100%;
+    }
+    
+    .upload-btn,
+    .delete-account-btn {
+        flex: 1;
+        min-width: 0;
+        max-width: none;
+    }
+}

@@ -380,6 +380,38 @@
     justify-content: flex-end;
 }
 
+/* Mobile: Two buttons side-by-side spanning container */
+@media (max-width: 768px) {
+    .report-header-actions {
+        width: 100%;
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 8px; 
+        margin-top: 10px;
+        align-items: stretch;
+    }
+
+    .report-header-actions .report-action-btn {
+        width: 100%;
+        min-width: 0;
+        flex: 1;
+        justify-content: center;
+        padding: 10px 12px;
+    }
+    
+    /* Status badges span full width */
+    .report-header-actions .status-badge {
+        grid-column: 1 / -1;
+        justify-self: start;
+    }
+    
+    /* Icon buttons stay compact */
+    .report-header-actions .icon-btn {
+        width: auto;
+        grid-column: auto;
+    }
+}
+
 .report-user {
     font-weight: 700;
     color: var(--primary-color);
@@ -943,8 +975,8 @@
 .modal-content {
     background-color: var(--bg-white);
     border-radius: var(--radius-xl);
-    width: 520px;
-    max-width: 95%;
+    width: 400px;
+    max-width: 90%;
     max-height: 85vh; 
     padding: 0;
     box-shadow: 0 12px 40px rgba(0, 0, 0, 0.15);
@@ -1179,6 +1211,30 @@
 
 .map-field label {
     margin-bottom: 10px;
+}
+
+/* Use My Current Location Button */
+.use-location-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    background-color: #1976d2;
+    color: #fff;
+    border: none;
+    padding: 10px 16px;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 13px;
+    font-weight: 600;
+    margin-bottom: 10px;
+    transition: all 0.2s ease;
+    width: auto;
+}
+
+.use-location-btn:hover {
+    background-color: #1565c0;
+    transform: translateY(-1px);
 }
 
 .modal-scrollable .leaflet-container {
@@ -1422,14 +1478,22 @@
         grid-column: unset;
     }
 
+    /* Modal sizing - match Profile modal */
     .modal-content {
-        width: 95%;
+        width: 92%;
+        max-width: 92%;
         max-height: 90vh;
-        margin: 10px;
+        margin: 10px auto;
+        border-radius: 10px;
+    }
+    
+    .modal {
+        width: 92%;
+        max-width: 92%;
     }
 
     .modal-scrollable {
-        max-height: calc(90vh - 80px);
+        max-height: calc(90vh - 100px);
         padding: 15px;
     }
 
@@ -1438,19 +1502,38 @@
         grid-template-areas: none !important;
     }
 
+    /* Modal buttons full width on mobile */
     .modal-buttons {
         padding: 12px 15px;
-        flex-direction: row;
-        justify-content: flex-end;
+        flex-direction: column;
         gap: 10px;
         margin-right: 0;
     }
 
     .modal-buttons button {
-        flex: 0 0 auto;
-        min-width: 80px;
-        max-width: calc(50% - 5px);
+        width: 100%;
+        max-width: 100%;
         margin-bottom: 0;
+    }
+    
+    /* Modal action buttons (in confirm dialogs) */
+    .modal-actions {
+        flex-direction: column;
+        gap: 10px;
+    }
+    
+    .modal-actions button {
+        width: 100%;
+    }
+
+    /* Upload and Location buttons full width */
+    .upload-btn {
+        width: 100% !important;
+    }
+    
+    .map-field button {
+        width: 100% !important;
+        box-sizing: border-box;
     }
 
     .modal-scrollable .report-images.images-2,
@@ -2161,42 +2244,59 @@ button.delete-btn:hover {
 .trending-pill-row {
     display: flex;
     align-items: center;
-    gap: 12px;
-    margin-bottom: 16px;
-    padding: 0;
+    gap: 10px;
+    margin: 16px 0;
+    padding: 8px 0;
+    flex-wrap: wrap;
 }
 
 .trending-pill-btn {
-    display: inline-flex;
+    display: flex;
     align-items: center;
     gap: 8px;
     padding: 10px 18px;
-    background: linear-gradient(135deg, #ff6b35 0%, #f44336 100%);
+    background: linear-gradient(135deg, #ff6b35 0%, #f7931e 100%);
     color: white;
     border: none;
-    border-radius: 25px;
-    font-size: 0.95rem;
+    border-radius: 50px;
+    font-size: 14px;
     font-weight: 600;
     cursor: pointer;
-    transition: all 0.3s ease;
-    box-shadow: 0 3px 10px rgba(244, 67, 54, 0.35);
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    box-shadow: 0 4px 15px rgba(255, 107, 53, 0.35);
+    position: relative;
+    overflow: hidden;
+}
+
+.trending-pill-btn::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -100%;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
+    transition: left 0.5s;
+}
+
+.trending-pill-btn:hover::before {
+    left: 100%;
 }
 
 .trending-pill-btn:hover {
-    background: linear-gradient(135deg, #f44336 0%, #d32f2f 100%);
-    transform: translateY(-2px);
-    box-shadow: 0 5px 15px rgba(244, 67, 54, 0.45);
+    transform: translateY(-2px) scale(1.02);
+    box-shadow: 0 6px 20px rgba(255, 107, 53, 0.45);
 }
 
 .trending-pill-btn:active {
     transform: translateY(0);
-    box-shadow: 0 2px 6px rgba(244, 67, 54, 0.3);
+    box-shadow: 0 2px 6px rgba(255, 107, 53, 0.3);
 }
 
 /* Active state for trending pill when sort is active */
 .trending-pill-btn.active {
     background: linear-gradient(135deg, #ea580c 0%, #dc2626 100%);
-    box-shadow: 0 5px 18px rgba(234, 88, 12, 0.5);
+    box-shadow: 0 6px 20px rgba(234, 88, 12, 0.5);
     transform: translateY(-1px);
 }
 
@@ -2211,13 +2311,12 @@ button.delete-btn:hover {
 
 /* Empty state styling for trending pill when count is 0 */
 .trending-pill-btn.empty {
-    background: linear-gradient(135deg, #9ca3af 0%, #6b7280 100%);
-    box-shadow: 0 3px 10px rgba(107, 114, 128, 0.35);
+    background: linear-gradient(135deg, #94a3b8 0%, #64748b 100%);
+    box-shadow: 0 4px 15px rgba(100, 116, 139, 0.25);
 }
 
 .trending-pill-btn.empty:hover {
-    background: linear-gradient(135deg, #6b7280 0%, #4b5563 100%);
-    box-shadow: 0 5px 15px rgba(107, 114, 128, 0.45);
+    box-shadow: 0 6px 20px rgba(100, 116, 139, 0.35);
 }
 
 .trending-pill-btn.empty .trending-pill-icon {
@@ -2227,24 +2326,24 @@ button.delete-btn:hover {
 
 /* Pending Pill Button - Clock icon style */
 .pending-pill-btn {
-    display: inline-flex;
+    display: flex;
     align-items: center;
     gap: 8px;
     padding: 10px 18px;
     background: rgba(245, 158, 11, 0.15);
     color: #b45309;
     border: 1px solid rgba(245, 158, 11, 0.3);
-    border-radius: 25px;
-    font-size: 0.95rem;
+    border-radius: 50px;
+    font-size: 14px;
     font-weight: 600;
     cursor: pointer;
-    transition: all 0.3s ease;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .pending-pill-btn:hover {
     background: rgba(245, 158, 11, 0.25);
     border-color: rgba(245, 158, 11, 0.5);
-    transform: translateY(-2px);
+    transform: translateY(-2px) scale(1.02);
 }
 
 .pending-pill-btn.active {
@@ -2282,7 +2381,6 @@ button.delete-btn:hover {
 
 .trending-pill-icon {
     font-size: 1rem;
-    animation: flicker 1.5s ease-in-out infinite;
 }
 
 .trending-pill-toggle {
@@ -2293,24 +2391,24 @@ button.delete-btn:hover {
 
 /* Top Pill Button - Star icon style */
 .top-pill-btn {
-    display: inline-flex;
+    display: flex;
     align-items: center;
     gap: 8px;
     padding: 10px 18px;
     background: rgba(234, 179, 8, 0.15);
     color: #a16207;
     border: 1px solid rgba(234, 179, 8, 0.3);
-    border-radius: 25px;
-    font-size: 0.95rem;
+    border-radius: 50px;
+    font-size: 14px;
     font-weight: 600;
     cursor: pointer;
-    transition: all 0.3s ease;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .top-pill-btn:hover {
     background: rgba(234, 179, 8, 0.25);
     border-color: rgba(234, 179, 8, 0.5);
-    transform: translateY(-2px);
+    transform: translateY(-2px) scale(1.02);
 }
 
 .top-pill-btn:active {
@@ -2354,6 +2452,70 @@ button.delete-btn:hover {
     50% {
         opacity: 0.6;
     }
+}
+
+/* Mobile: Convert pills to icon-only with count badge */
+@media (max-width: 768px) {
+  .trending-pill-row {
+    gap: 8px;
+    margin-bottom: 12px;
+  }
+  
+  .trending-pill-btn,
+  .pending-pill-btn,
+  .top-pill-btn {
+    padding: 10px 12px;
+    gap: 0;
+    position: relative;
+  }
+  
+  .trending-pill-btn .trending-pill-icon,
+  .pending-pill-btn .pending-pill-icon,
+  .top-pill-btn .top-pill-icon {
+    font-size: 1.1rem;
+  }
+  
+  /* Hide text and toggle icons on mobile */
+  .pill-text,
+  .trending-pill-toggle,
+  .pending-pill-toggle {
+    display: none;
+  }
+  
+  /* Badge for count on mobile */
+  .trending-pill-btn::after {
+    content: attr(data-count);
+    position: absolute;
+    top: -6px;
+    right: -6px;
+    background: #fff;
+    color: #f44336;
+    font-size: 10px;
+    font-weight: 700;
+    padding: 2px 6px;
+    border-radius: 10px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+  }
+  
+  .pending-pill-btn::after {
+    content: attr(data-count);
+    position: absolute;
+    top: -6px;
+    right: -6px;
+    background: #fff;
+    color: #b45309;
+    font-size: 10px;
+    font-weight: 700;
+    padding: 2px 6px;
+    border-radius: 10px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+  }
+  
+  .trending-pill-btn.empty::after,
+  .pending-pill-btn.empty::after {
+    background: #e5e7eb;
+    color: #6b7280;
+  }
 }
 
 /* ========================================
@@ -3178,5 +3340,99 @@ button.delete-btn:hover {
     .reaction-btn {
         padding: 6px 12px;
         font-size: 0.9rem;
+    }
+    
+    /* Fix reports container padding for bottom nav */
+    .reports-container {
+        padding-bottom: 100px;
+    }
+    
+    /* Make action buttons full width */
+    .report-actions {
+        flex-direction: column;
+        gap: 8px;
+    }
+    
+    .report-action-btn {
+        width: 100%;
+        justify-content: center;
+        padding: 12px;
+    }
+    
+    /* Modal improvements */
+    .modal-content {
+        width: 100%;
+        max-width: 100%;
+        max-height: 100vh;
+        border-radius: 0;
+        margin: 0;
+    }
+    
+    .modal-scrollable {
+        max-height: calc(100vh - 120px);
+        padding: 16px;
+        padding-right: 16px;
+    }
+    
+    /* Location and upload buttons full width */
+    .location-btn,
+    .use-location-btn,
+    .location-btn-wrapper button {
+        width: 100% !important;
+        justify-content: center;
+    }
+    
+    .image-upload-wrapper,
+    .image-upload-btn {
+        width: 100% !important;
+    }
+    
+    /* Fix dropdown display */
+    .modal select,
+    .reports-filter-select {
+        width: 100%;
+        min-width: auto;
+        appearance: menulist;
+        -webkit-appearance: menulist;
+        background-position: right 10px center;
+    }
+}
+
+/* Extra small screens */
+@media (max-width: 480px) {
+    .reports-container {
+        padding: 12px;
+        padding-bottom: 110px;
+    }
+    
+    /* Header adjustments */
+    .header-row {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 12px;
+    }
+    
+    .header-row h2 {
+        font-size: 1.25rem;
+        text-align: center;
+    }
+    
+    /* Add Report button full width */
+    .add-report-btn,
+    .action-buttons-group button {
+        width: 100%;
+        justify-content: center;
+    }
+    
+    /* Modal actions */
+    .form-actions,
+    .modal-actions {
+        flex-direction: column;
+        gap: 10px;
+    }
+    
+    .form-actions button,
+    .modal-actions button {
+        width: 100%;
     }
 }
