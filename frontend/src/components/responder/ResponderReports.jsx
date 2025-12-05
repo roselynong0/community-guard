@@ -434,12 +434,13 @@ function RespondersReports({ token }) {
             
             if (data.status === 'success') {
                 // Update the report's reaction data in state
+                // Backend returns 'liked' or 'unliked' for action
                 setReports(prevReports => 
                     prevReports.map(report => 
                         report.id === reportId 
                             ? { 
                                 ...report, 
-                                user_liked: data.action === 'added',
+                                user_liked: data.user_liked ?? (data.action === 'liked'),
                                 reaction_count: data.reaction_count
                             }
                             : report

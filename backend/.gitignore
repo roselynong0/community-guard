@@ -29,11 +29,9 @@ env.bak/
 venv.bak/
 
 # Environment Variables
-# Note: .env files are tracked for team collaboration in private repo
-# Vercel ignores these files automatically and uses Dashboard environment variables
-# .env
-# .env.local
-# .env.*.local
+.env
+.env.local
+.env.*.local
 
 # IDE
 .vscode/
@@ -63,12 +61,28 @@ htmlcov/
 .tox/
 .hypothesis/
 
+# Shell scripts
+*.sh
+
+# Markdown (except README)
+*.md
+!README.md
+
 # Misc
 .cache/
 .mypy_cache/
 .dmypy.json
 dmypy.json
 
-# Markdown
-*.md
-!README.md
+# OS generated files
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# Temporary files
+*.tmp
+*.temp
+*.bak
+
+# ChromaDB (if local testing)
+chroma_db/

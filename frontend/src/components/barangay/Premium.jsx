@@ -81,7 +81,7 @@ export default function Premium({ token }) {
       icon: <FaCrown />,
       price: 499,
       period: "month",
-      description: "Most popular choice for barangay officials",
+      description: "Most recommended choice for barangay officials",
       features: [
         "📊 Monthly report summaries",
         "⏱️ Unlimited Smart Filter usage",
@@ -157,7 +157,7 @@ export default function Premium({ token }) {
           >
             {plan.popular && (
               <div className="popular-badge">
-                <FaStar /> Most Popular
+                <FaStar /> Most Recommended
               </div>
             )}
             

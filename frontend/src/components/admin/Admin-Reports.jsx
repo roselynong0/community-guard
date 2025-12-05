@@ -211,6 +211,10 @@ function AdminReports({ token, reportTitle = 'All Community Reports', showTitle 
     const [trendingExpanded, setTrendingExpanded] = useState(true);
     const [trendingTimeFilter, setTrendingTimeFilter] = useState("this-month"); // today, yesterday, this-month
 
+    // Export modal states
+    const [showExportModal, setShowExportModal] = useState(false);
+    const [exportType, setExportType] = useState(null); // 'csv' or 'pdf'
+
     // Loading animation states
     const [showMountAnimation, setShowMountAnimation] = useState(false);
     const [mountStage, setMountStage] = useState("exit");
@@ -782,12 +786,13 @@ function AdminReports({ token, reportTitle = 'All Community Reports', showTitle 
             
             if (data.status === 'success') {
                 // Update the report's reaction data in state
+                // Backend returns 'liked' or 'unliked' for action
                 setReports(prevReports => 
                     prevReports.map(report => 
                         report.id === reportId 
                             ? { 
                                 ...report, 
-                                user_liked: data.action === 'added',
+                                user_liked: data.user_liked ?? (data.action === 'liked'),
                                 reaction_count: data.reaction_count
                             }
                             : report
@@ -1031,10 +1036,40 @@ function AdminReports({ token, reportTitle = 'All Community Reports', showTitle 
         return catPriority.priority || 'Low';
     };
 
-    // Export to CSV
-    const exportToCSV = () => {
+    // Helper to filter reports by time range
+    const filterReportsByTime = (reportsToFilter, timeRange) => {
+        if (timeRange === 'all') return reportsToFilter;
+        
+        const now = new Date();
+        const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+        
+        return reportsToFilter.filter(report => {
+            const reportDate = new Date(report.created_at);
+            
+            switch (timeRange) {
+                case 'today':
+                    return reportDate >= startOfToday;
+                case 'this-week': {
+                    const startOfWeek = new Date(startOfToday);
+                    startOfWeek.setDate(startOfToday.getDate() - startOfToday.getDay());
+                    return reportDate >= startOfWeek;
+                }
+                case 'this-month': {
+                    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+                    return reportDate >= startOfMonth;
+                }
+                default:
+                    return true;
+            }
+        });
+    };
+
+    // Export to CSV with time filter
+    const exportToCSV = (timeFilter = 'all') => {
+        const reportsToExport = filterReportsByTime(filteredReports, timeFilter);
+        
         const headers = ["ID", "Title", "Category", "Status", "Barangay", "Address", "Reporter", "Priority", "Created At", "Description"];
-        const rows = filteredReports.map((r) => [
+        const rows = reportsToExport.map((r) => [
             r.id,
             `"${(r.title || "").replace(/"/g, '""')}"`,
             r.category || "N/A",
@@ -1047,17 +1082,24 @@ function AdminReports({ token, reportTitle = 'All Community Reports', showTitle 
             `"${(r.description || "").replace(/"/g, '""').substring(0, 200)}..."`
         ]);
         
+        const timeLabel = timeFilter === 'all' ? 'all' : timeFilter.replace('-', '_');
         const csvContent = [headers.join(","), ...rows.map((r) => r.join(","))].join("\n");
         const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
         const url = URL.createObjectURL(blob);
         const link = document.createElement("a");
         link.href = url;
-        link.download = `admin_reports_${new Date().toISOString().split("T")[0]}.csv`;
+        link.download = `admin_reports_${timeLabel}_${new Date().toISOString().split("T")[0]}.csv`;
         link.click();
+        
+        setShowExportModal(false);
+        showNotification(`Exported ${reportsToExport.length} reports to CSV`, 'success');
     };
 
     // Export to PDF with Community Helper AI Analytics
-    const exportToPDF = async () => {
+    const exportToPDF = async (timeFilter = 'all') => {
+        const reportsToExport = filterReportsByTime(filteredReports, timeFilter);
+        const timeLabel = timeFilter === 'all' ? 'All Time' : timeFilter === 'today' ? 'Today' : timeFilter === 'this-week' ? 'This Week' : 'This Month';
+        
         const reportDate = new Date().toLocaleDateString("en-US", {
             weekday: "long",
             year: "numeric",
@@ -1066,13 +1108,13 @@ function AdminReports({ token, reportTitle = 'All Community Reports', showTitle 
         });
         
         // Calculate analytics
-        const totalReports = filteredReports.length;
+        const totalReports = reportsToExport.length;
         const categoryStats = {};
         const barangayStats = {};
         const statusStats = { Pending: 0, Ongoing: 0, Resolved: 0 };
         const priorityStats = { Critical: 0, High: 0, Medium: 0, Low: 0 };
         
-        filteredReports.forEach((report) => {
+        reportsToExport.forEach((report) => {
             const cat = report.category || "Unknown";
             categoryStats[cat] = (categoryStats[cat] || 0) + 1;
             
@@ -1141,7 +1183,7 @@ function AdminReports({ token, reportTitle = 'All Community Reports', showTitle 
                         <img src="${logoPath}" alt="Community Guard Logo" onerror="this.style.display='none'" />
                         <h1>Community Guard</h1>
                     </div>
-                    <p class="subtitle">Admin Reports - Complete Analytics Report</p>
+                    <p class="subtitle">Admin Reports - Complete Analytics Report (${timeLabel})</p>
                     <div class="ai-badge">💡 Community Helper</div>
                     <p style="margin-top: 10px; font-size: 13px; color: #666;">Generated: ${reportDate}</p>
                 </div>
@@ -1204,7 +1246,7 @@ function AdminReports({ token, reportTitle = 'All Community Reports', showTitle 
                             </tr>
                         </thead>
                         <tbody>
-                            ${filteredReports.slice(0, 50).map((report) => `
+                            ${reportsToExport.slice(0, 50).map((report) => `
                                 <tr>
                                     <td>${report.id}</td>
                                     <td>${report.title || "Untitled"}</td>
@@ -1217,7 +1259,7 @@ function AdminReports({ token, reportTitle = 'All Community Reports', showTitle 
                             `).join("")}
                         </tbody>
                     </table>
-                    ${filteredReports.length > 50 ? `<p style="margin-top: 15px; color: #666; font-size: 12px; text-align: center;">Showing first 50 of ${filteredReports.length} reports</p>` : ""}
+                    ${reportsToExport.length > 50 ? `<p style="margin-top: 15px; color: #666; font-size: 12px; text-align: center;">Showing first 50 of ${reportsToExport.length} reports</p>` : ""}
                 </div>
                 
                 <div class="footer">
@@ -1226,6 +1268,7 @@ function AdminReports({ token, reportTitle = 'All Community Reports', showTitle 
                         <span>Community Guard</span>
                     </div>
                     <p>Protecting Communities Together</p>
+                    <p style="margin-top: 5px; font-size: 11px; color: #888;">Time Range: ${timeLabel}</p>
                 </div>
             </body>
             </html>
@@ -1235,6 +1278,9 @@ function AdminReports({ token, reportTitle = 'All Community Reports', showTitle 
         printWindow.document.write(printContent);
         printWindow.document.close();
         printWindow.print();
+        
+        setShowExportModal(false);
+        showNotification(`Exported ${reportsToExport.length} reports to PDF`, 'success');
     };
 
     const filteredReports = reports
@@ -1323,7 +1369,7 @@ function AdminReports({ token, reportTitle = 'All Community Reports', showTitle 
                         <div className="export-buttons">
                             <button
                                 className="export-btn csv"
-                                onClick={exportToCSV}
+                                onClick={() => { setExportType('csv'); setShowExportModal(true); }}
                                 title="Export to CSV"
                                 aria-label="Export reports to CSV"
                             >
@@ -1331,7 +1377,7 @@ function AdminReports({ token, reportTitle = 'All Community Reports', showTitle 
                             </button>
                             <button
                                 className="export-btn pdf"
-                                onClick={exportToPDF}
+                                onClick={() => { setExportType('pdf'); setShowExportModal(true); }}
                                 title="Export to PDF with Analytics"
                                 aria-label="Export reports to PDF with AI analytics"
                             >
@@ -1340,7 +1386,6 @@ function AdminReports({ token, reportTitle = 'All Community Reports', showTitle 
                         </div>
                     </div>
                 </div>
-
             {/* IMPROVEMENT: Added ref to the filter container for keyboard navigation */}
             <div className="admin-top-controls" ref={filterContainerRef}>
                 <div className="admin-search-container">
@@ -2486,6 +2531,115 @@ function AdminReports({ token, reportTitle = 'All Community Reports', showTitle 
                         &times;
                     </button>
                 </div>
+                </ModalPortal>
+            )}
+
+            {/* Export Modal with Time Range Options */}
+            {showExportModal && (
+                <ModalPortal>
+                    <div 
+                        className="modal-overlay"
+                        onClick={() => setShowExportModal(false)}
+                        role="dialog"
+                        aria-modal="true"
+                        aria-labelledby="export-modal-title"
+                    >
+                        <div className="modal" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '400px' }}>
+                            <h3 id="export-modal-title">📊 Export Reports</h3>
+                            <p style={{ marginBottom: '20px', color: '#666' }}>
+                                Select a time range for your {exportType === 'csv' ? 'CSV' : 'PDF'} export:
+                            </p>
+                            
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginBottom: '20px' }}>
+                                <button 
+                                    onClick={() => exportType === 'csv' ? exportToCSV('today') : exportToPDF('today')}
+                                    style={{ 
+                                        padding: '12px 20px', 
+                                        borderRadius: '8px', 
+                                        border: '1px solid #e5e7eb',
+                                        background: '#f8fafc',
+                                        cursor: 'pointer',
+                                        textAlign: 'left',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        gap: '10px'
+                                    }}
+                                >
+                                    <span style={{ fontSize: '18px' }}>📅</span>
+                                    <span><strong>Today</strong> - Reports from today only</span>
+                                </button>
+                                
+                                <button 
+                                    onClick={() => exportType === 'csv' ? exportToCSV('this-week') : exportToPDF('this-week')}
+                                    style={{ 
+                                        padding: '12px 20px', 
+                                        borderRadius: '8px', 
+                                        border: '1px solid #e5e7eb',
+                                        background: '#f8fafc',
+                                        cursor: 'pointer',
+                                        textAlign: 'left',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        gap: '10px'
+                                    }}
+                                >
+                                    <span style={{ fontSize: '18px' }}>📆</span>
+                                    <span><strong>This Week</strong> - Reports from this week</span>
+                                </button>
+                                
+                                <button 
+                                    onClick={() => exportType === 'csv' ? exportToCSV('this-month') : exportToPDF('this-month')}
+                                    style={{ 
+                                        padding: '12px 20px', 
+                                        borderRadius: '8px', 
+                                        border: '1px solid #e5e7eb',
+                                        background: '#f8fafc',
+                                        cursor: 'pointer',
+                                        textAlign: 'left',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        gap: '10px'
+                                    }}
+                                >
+                                    <span style={{ fontSize: '18px' }}>🗓️</span>
+                                    <span><strong>This Month</strong> - Reports from this month</span>
+                                </button>
+                                
+                                <button 
+                                    onClick={() => exportType === 'csv' ? exportToCSV('all') : exportToPDF('all')}
+                                    style={{ 
+                                        padding: '12px 20px', 
+                                        borderRadius: '8px', 
+                                        border: '1px solid #2d3b8f',
+                                        background: '#2d3b8f',
+                                        color: 'white',
+                                        cursor: 'pointer',
+                                        textAlign: 'left',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        gap: '10px'
+                                    }}
+                                >
+                                    <span style={{ fontSize: '18px' }}>📋</span>
+                                    <span><strong>All Time</strong> - Export all reports</span>
+                                </button>
+                            </div>
+                            
+                            <button 
+                                onClick={() => setShowExportModal(false)}
+                                style={{ 
+                                    width: '100%',
+                                    padding: '10px',
+                                    borderRadius: '8px',
+                                    border: '1px solid #e5e7eb',
+                                    background: 'white',
+                                    cursor: 'pointer'
+                                }}
+                            >
+                                Cancel
+                            </button>
+                        </div>
+                    </div>
                 </ModalPortal>
             )}
 

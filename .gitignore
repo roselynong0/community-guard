@@ -7,10 +7,25 @@ yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
 
+# Dependencies
 node_modules
+
+# Build outputs
 dist
 dist-ssr
+build
 *.local
+
+# Shell scripts
+*.sh
+
+# Markdown (except README)
+*.md
+!README.md
+!**/README.md
+
+# Migrations folder
+migrations/
 
 # Editor directories and files
 .vscode/*
@@ -22,4 +37,36 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Vercel
 .vercel
+
+# Python cache (if any)
+__pycache__/
+*.py[cod]
+*.pyo
+
+# Environment files
+.env
+.env.local
+.env.*.local
+
+# OS generated files
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# Temporary files
+*.tmp
+*.temp
+*.bak
+*.swp
+*~
+
+# Test coverage
+coverage/
+.nyc_output/
+
+# Misc
+*.map
+.cache/

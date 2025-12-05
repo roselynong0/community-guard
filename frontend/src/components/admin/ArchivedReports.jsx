@@ -11,6 +11,11 @@ import {
   FaFilePdf,
   FaDownload,
   FaMapMarkerAlt,
+  FaHeart,
+  FaFire,
+  FaPlus,
+  FaMinus,
+  FaTimes,
 } from "react-icons/fa";
 import { API_CONFIG, getApiUrl } from "../../utils/apiConfig";
 import "../resident/Reports.css";
@@ -77,6 +82,16 @@ function ArchivedReports({ session }) {
   const [appliedSearch, setAppliedSearch] = useState("");
   const [appliedCategory, setAppliedCategory] = useState("All");
 
+  // Export modal states
+  const [showExportModal, setShowExportModal] = useState(false);
+  const [exportType, setExportType] = useState(null); // 'csv' or 'pdf'
+  const [exportTimeFilter, setExportTimeFilter] = useState("all"); // 'today', 'this-week', 'this-month', 'all'
+
+  // Trending reports states
+  const [trendingReports, setTrendingReports] = useState([]);
+  const [trendingExpanded, setTrendingExpanded] = useState(true);
+  const [trendingTimeFilter, setTrendingTimeFilter] = useState("this-month");
+
   const token = session?.token;
   const userRole = session?.user?.role;
   const userBarangay = session?.user?.address_barangay || session?.user?.barangay;
@@ -116,7 +131,9 @@ function ArchivedReports({ session }) {
           .filter(r => r.status === "Resolved")
           .map(report => ({
             ...report,
-            images: report.images?.map(img => img.url) || []
+            images: report.images?.map(img => img.url) || [],
+            reaction_count: report.reaction_count || 0,
+            user_liked: report.user_liked || false
           }));
         setReports(resolvedReports);
         console.log(`📦 Loaded ${resolvedReports.length} archived (resolved) reports`);
@@ -147,6 +164,70 @@ function ArchivedReports({ session }) {
   useEffect(() => {
     loadingRef.current = loading;
   }, [loading]);
+
+  // Calculate trending reports for archived (resolved) reports
+  useEffect(() => {
+    if (!reports.length) {
+      setTrendingReports([]);
+      return;
+    }
+
+    // Time filter logic
+    const now = new Date();
+    const filterByTime = (createdAt) => {
+      const reportDate = new Date(createdAt);
+      const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+      const yesterday = new Date(today);
+      yesterday.setDate(yesterday.getDate() - 1);
+      const thisMonthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+      
+      switch (trendingTimeFilter) {
+        case "today":
+          return reportDate >= today;
+        case "yesterday":
+          return reportDate >= yesterday && reportDate < today;
+        case "this-month":
+          return reportDate >= thisMonthStart;
+        default:
+          return true;
+      }
+    };
+
+    // Filter reports based on barangay for non-admin users and time filter
+    const eligibleReports = reports.filter((r) => {
+      if (!filterByTime(r.created_at)) return false;
+      if (canExportAll) return true;
+      if (isBarangayOrResponder && userBarangay) {
+        return r.address_barangay === userBarangay;
+      }
+      return true;
+    });
+
+    // Trending algorithm based on reaction count and recency
+    const scored = eligibleReports.map((r) => {
+      const createdAt = new Date(r.created_at || 0);
+      const hoursOld = Math.max(0, (now - createdAt) / (1000 * 60 * 60));
+      
+      // Engagement: reactions + severity weight
+      const severityWeight = { Crime: 3, Hazard: 2.5, Concern: 2, 'Lost&Found': 1, Others: 1 };
+      const reactionBoost = (r.reaction_count || 0) * 2;
+      const engagement = reactionBoost + (severityWeight[r.category] || 1) * 2;
+      
+      // Time decay factor
+      const timeFactor = Math.pow(hoursOld + 2, 1.5);
+      const trendingScore = engagement / timeFactor;
+      
+      return { ...r, trendingScore };
+    });
+
+    // Sort by trending score descending, limit to 5
+    const trending = scored
+      .sort((a, b) => b.trendingScore - a.trendingScore)
+      .slice(0, 5);
+
+    setTrendingReports(trending);
+    console.log(`🔥 ${trending.length} trending archived reports`);
+  }, [reports, trendingTimeFilter, canExportAll, isBarangayOrResponder, userBarangay]);
 
   useEffect(() => {
     let startTimer = null;
@@ -203,8 +284,57 @@ function ArchivedReports({ session }) {
       return sort === "latest" ? dateB - dateA : dateA - dateB;
     });
 
-  // Export to CSV
-  const exportToCSV = () => {
+  // Helper function to filter reports by time period
+  const filterReportsByTime = (reportsToFilter, timeFilter) => {
+    if (timeFilter === "all") return reportsToFilter;
+    
+    const now = new Date();
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const thisWeekStart = new Date(today);
+    thisWeekStart.setDate(today.getDate() - today.getDay()); // Start of week (Sunday)
+    const thisMonthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+    
+    return reportsToFilter.filter((r) => {
+      const reportDate = new Date(r.created_at);
+      switch (timeFilter) {
+        case "today":
+          return reportDate >= today;
+        case "this-week":
+          return reportDate >= thisWeekStart;
+        case "this-month":
+          return reportDate >= thisMonthStart;
+        default:
+          return true;
+      }
+    });
+  };
+
+  // Get time period label for export filename
+  const getTimeFilterLabel = (timeFilter) => {
+    switch (timeFilter) {
+      case "today": return "today";
+      case "this-week": return "this_week";
+      case "this-month": return "this_month";
+      default: return "all_time";
+    }
+  };
+
+  // Open export modal
+  const openExportModal = (type) => {
+    setExportType(type);
+    setExportTimeFilter("all");
+    setShowExportModal(true);
+  };
+
+  // Export to CSV with time filter
+  const exportToCSV = (timeFilter = "all") => {
+    const reportsToExport = filterReportsByTime(filteredReports, timeFilter);
+    
+    if (reportsToExport.length === 0) {
+      alert("No reports found for the selected time period.");
+      return;
+    }
+    
     const headers = [
       "ID",
       "Title",
@@ -212,7 +342,7 @@ function ArchivedReports({ session }) {
       "Status",
       "Barangay",
       "Priority",
-      "AI Analysis",
+      "Likes",
       "Reporter",
       "Created At",
       "Resolved At",
@@ -221,7 +351,7 @@ function ArchivedReports({ session }) {
     
     const csvRows = [headers.join(",")];
     
-    filteredReports.forEach((report) => {
+    reportsToExport.forEach((report) => {
       const row = [
         report.id,
         `"${(report.title || "").replace(/"/g, '""')}"`,
@@ -229,7 +359,7 @@ function ArchivedReports({ session }) {
         report.status || "",
         report.address_barangay || "",
         report.priority || "N/A",
-        `"${(report.ai_analysis || "No AI analysis").replace(/"/g, '""')}"`,
+        report.reaction_count || 0,
         `"${report.reporter?.firstname || "Unknown"} ${report.reporter?.lastname || ""}"`,
         new Date(report.created_at).toLocaleString(),
         report.resolved_at ? new Date(report.resolved_at).toLocaleString() : "N/A",
@@ -243,21 +373,30 @@ function ArchivedReports({ session }) {
     const link = document.createElement("a");
     link.href = URL.createObjectURL(blob);
     
-    // Generate filename based on role
+    // Generate filename based on role and time filter
     const dateStr = new Date().toISOString().split("T")[0];
-    let filename = `archived_reports_${dateStr}`;
+    const timeLabel = getTimeFilterLabel(timeFilter);
+    let filename = `archived_reports_${timeLabel}_${dateStr}`;
     if (canExportAll) {
-      filename = `all_archived_reports_${dateStr}`;
+      filename = `all_archived_reports_${timeLabel}_${dateStr}`;
     } else if (isBarangayOrResponder && userBarangay) {
       const safeBarangay = userBarangay.replace(/\s+/g, '_').toLowerCase();
-      filename = `archived_reports_${safeBarangay}_${dateStr}`;
+      filename = `archived_reports_${safeBarangay}_${timeLabel}_${dateStr}`;
     }
     link.download = `${filename}.csv`;
     link.click();
+    setShowExportModal(false);
   };
 
   // Export to PDF with Community Helper AI Analytics
-  const exportToPDF = async () => {
+  const exportToPDF = async (timeFilter = "all") => {
+    const reportsToExport = filterReportsByTime(filteredReports, timeFilter);
+    
+    if (reportsToExport.length === 0) {
+      alert("No reports found for the selected time period.");
+      return;
+    }
+    
     // Create a printable HTML document
     const reportDate = new Date().toLocaleDateString("en-US", {
       weekday: "long",
@@ -266,13 +405,14 @@ function ArchivedReports({ session }) {
       day: "numeric",
     });
     
-    // Calculate analytics
-    const totalReports = filteredReports.length;
+    // Calculate analytics from filtered reports
+    const totalReports = reportsToExport.length;
     const categoryStats = {};
     const barangayStats = {};
     const priorityStats = { high: 0, medium: 0, low: 0 };
+    let totalLikes = 0;
     
-    filteredReports.forEach((report) => {
+    reportsToExport.forEach((report) => {
       // Category stats
       const cat = report.category || "Unknown";
       categoryStats[cat] = (categoryStats[cat] || 0) + 1;
@@ -286,6 +426,9 @@ function ArchivedReports({ session }) {
       if (priority === "high" || priority === "critical") priorityStats.high++;
       else if (priority === "medium") priorityStats.medium++;
       else priorityStats.low++;
+      
+      // Total likes
+      totalLikes += (report.reaction_count || 0);
     });
     
     // Sort stats by count
@@ -426,19 +569,19 @@ function ArchivedReports({ session }) {
                 <th>Category</th>
                 <th>Barangay</th>
                 <th>Priority</th>
-                <th>AI Analysis</th>
+                <th>Likes</th>
                 <th>Created</th>
               </tr>
             </thead>
             <tbody>
-              ${filteredReports.map((report) => `
+              ${reportsToExport.map((report) => `
                 <tr>
                   <td>${report.id}</td>
                   <td>${report.title || "Untitled"}</td>
                   <td>${report.category || "N/A"}</td>
                   <td>${report.address_barangay || "N/A"}</td>
                   <td class="priority-${(report.priority || "low").toLowerCase()}">${report.priority || "N/A"}</td>
-                  <td class="ai-analysis">${report.ai_analysis || "No AI analysis available"}</td>
+                  <td>${report.reaction_count || 0}</td>
                   <td>${new Date(report.created_at).toLocaleDateString()}</td>
                 </tr>
               `).join("")}
@@ -461,6 +604,7 @@ function ArchivedReports({ session }) {
     printWindow.document.write(printContent);
     printWindow.document.close();
     printWindow.print();
+    setShowExportModal(false);
   };
 
   useEffect(() => {
@@ -479,6 +623,11 @@ function ArchivedReports({ session }) {
         <div className="header-left">
           <h2 style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
             <FaArchive /> Archived Reports
+            {isBarangayOrResponder && userBarangay && (
+              <span style={{ fontSize: '0.6em', color: '#666', fontWeight: 'normal' }}>
+                ({userBarangay})
+              </span>
+            )}
           </h2>
         </div>
         <div className="header-right">
@@ -502,11 +651,11 @@ function ArchivedReports({ session }) {
             </button>
           </div>
           
-          {/* Export Buttons - Always visible */}
+          {/* Export Buttons - Opens time filter modal */}
           <div className="export-buttons">
             <button
               className="export-btn csv"
-              onClick={exportToCSV}
+              onClick={() => openExportModal('csv')}
               title="Export to CSV"
               aria-label="Export reports to CSV"
             >
@@ -514,7 +663,7 @@ function ArchivedReports({ session }) {
             </button>
             <button
               className="export-btn pdf"
-              onClick={exportToPDF}
+              onClick={() => openExportModal('pdf')}
               title="Export to PDF with Analytics"
               aria-label="Export reports to PDF with AI analytics"
             >
@@ -523,6 +672,108 @@ function ArchivedReports({ session }) {
           </div>
         </div>
       </div>
+
+      {/* Trending Archived Reports Section */}
+      {trendingReports.length > 0 && (
+        <div className="trending-section" style={{
+          background: 'linear-gradient(135deg, #fff5f5 0%, #fffaf0 100%)',
+          borderRadius: '12px',
+          padding: '16px',
+          marginBottom: '20px',
+          border: '1px solid #fed7aa'
+        }}>
+          <div className="trending-header" style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            marginBottom: trendingExpanded ? '12px' : '0'
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <FaFire style={{ color: '#f97316', fontSize: '1.2em' }} />
+              <span style={{ fontWeight: '600', color: '#ea580c' }}>
+                Top Archived Reports
+              </span>
+              <span style={{ 
+                fontSize: '0.75em', 
+                background: '#fed7aa', 
+                color: '#c2410c', 
+                padding: '2px 8px', 
+                borderRadius: '10px' 
+              }}>
+                {trendingReports.length}
+              </span>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <select
+                value={trendingTimeFilter}
+                onChange={(e) => setTrendingTimeFilter(e.target.value)}
+                style={{
+                  padding: '4px 8px',
+                  borderRadius: '6px',
+                  border: '1px solid #fed7aa',
+                  background: 'white',
+                  fontSize: '0.85em'
+                }}
+              >
+                <option value="today">Today</option>
+                <option value="yesterday">Yesterday</option>
+                <option value="this-month">This Month</option>
+              </select>
+              <button
+                onClick={() => setTrendingExpanded(!trendingExpanded)}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  cursor: 'pointer',
+                  color: '#ea580c'
+                }}
+              >
+                {trendingExpanded ? <FaMinus /> : <FaPlus />}
+              </button>
+            </div>
+          </div>
+          
+          {trendingExpanded && (
+            <div className="trending-list" style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+              {trendingReports.map((report, idx) => (
+                <div
+                  key={report.id}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '12px',
+                    padding: '10px 12px',
+                    background: 'white',
+                    borderRadius: '8px',
+                    border: '1px solid #fde68a'
+                  }}
+                >
+                  <span style={{
+                    fontWeight: 'bold',
+                    color: idx === 0 ? '#f97316' : '#9ca3af',
+                    fontSize: '0.9em',
+                    minWidth: '20px'
+                  }}>
+                    #{idx + 1}
+                  </span>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontWeight: '500', fontSize: '0.9em', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {report.title || 'Untitled Report'}
+                    </div>
+                    <div style={{ fontSize: '0.75em', color: '#6b7280' }}>
+                      {report.category} · {report.address_barangay}
+                    </div>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '4px', color: '#ef4444' }}>
+                    <FaHeart style={{ fontSize: '0.85em' }} />
+                    <span style={{ fontSize: '0.85em', fontWeight: '500' }}>{report.reaction_count || 0}</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Top Controls - Matching BarangayReports */}
       <div className="archived-top-controls" ref={filterContainerRef}>
@@ -668,6 +919,25 @@ function ArchivedReports({ session }) {
                       ))}
                     </div>
                   )}
+
+                  {/* Like Count Display (disabled - resolved status) */}
+                  <div className="report-reactions" style={{ padding: '8px 0' }}>
+                    <div
+                      className="reaction-display"
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '6px',
+                        color: '#9ca3af',
+                        fontSize: '0.9em',
+                        cursor: 'default'
+                      }}
+                      title="Likes are disabled for resolved reports"
+                    >
+                      <FaHeart style={{ color: '#ef4444', opacity: 0.6 }} />
+                      <span>{report.reaction_count || 0} likes</span>
+                    </div>
+                  </div>
                 </div>
               );
             })
@@ -683,6 +953,7 @@ function ArchivedReports({ session }) {
                 <div className="list-col col-reporter">Reporter</div>
                 <div className="list-col col-date">Date</div>
                 <div className="list-col col-status">Status</div>
+                <div className="list-col col-likes" style={{ width: '60px', textAlign: 'center' }}>Likes</div>
               </div>
               {filteredReports.map((report, index) => (
                 <div 
@@ -747,6 +1018,12 @@ function ArchivedReports({ session }) {
                       <FaCheckCircle /> Resolved
                     </span>
                   </div>
+                  <div className="list-col col-likes" style={{ width: '60px', textAlign: 'center' }}>
+                    <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px', color: '#9ca3af' }}>
+                      <FaHeart style={{ color: '#ef4444', opacity: 0.6, fontSize: '0.8em' }} />
+                      {report.reaction_count || 0}
+                    </span>
+                  </div>
                 </div>
               ))}
             </div>
@@ -778,6 +1055,123 @@ function ArchivedReports({ session }) {
             >
               ×
             </button>
+          </div>
+        </ModalPortal>
+      )}
+
+      {/* Export Options Modal */}
+      {showExportModal && (
+        <ModalPortal>
+          <div
+            className="modal-overlay"
+            onClick={() => setShowExportModal(false)}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="export-modal-title"
+          >
+            <div 
+              className="modal"
+              onClick={(e) => e.stopPropagation()}
+              style={{
+                maxWidth: '400px',
+                padding: '24px',
+                borderRadius: '12px'
+              }}
+            >
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+                <h3 id="export-modal-title" style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  {exportType === 'csv' ? <FaFileCsv style={{ color: '#10b981' }} /> : <FaFilePdf style={{ color: '#ef4444' }} />}
+                  Export {exportType?.toUpperCase()}
+                </h3>
+                <button
+                  onClick={() => setShowExportModal(false)}
+                  style={{
+                    background: 'none',
+                    border: 'none',
+                    fontSize: '1.2em',
+                    cursor: 'pointer',
+                    color: '#6b7280'
+                  }}
+                >
+                  <FaTimes />
+                </button>
+              </div>
+
+              <p style={{ marginBottom: '16px', color: '#6b7280', fontSize: '0.9em' }}>
+                Select the time period for your export:
+              </p>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginBottom: '24px' }}>
+                {[
+                  { value: 'today', label: 'Today' },
+                  { value: 'this-week', label: 'This Week' },
+                  { value: 'this-month', label: 'This Month' },
+                  { value: 'all', label: 'All Time' }
+                ].map((option) => (
+                  <label
+                    key={option.value}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '10px',
+                      padding: '12px 16px',
+                      border: `2px solid ${exportTimeFilter === option.value ? '#2d3b8f' : '#e5e7eb'}`,
+                      borderRadius: '8px',
+                      cursor: 'pointer',
+                      background: exportTimeFilter === option.value ? '#f0f4ff' : 'white',
+                      transition: 'all 0.2s'
+                    }}
+                  >
+                    <input
+                      type="radio"
+                      name="exportTimeFilter"
+                      value={option.value}
+                      checked={exportTimeFilter === option.value}
+                      onChange={(e) => setExportTimeFilter(e.target.value)}
+                      style={{ accentColor: '#2d3b8f' }}
+                    />
+                    <span style={{ fontWeight: exportTimeFilter === option.value ? '600' : '400' }}>
+                      {option.label}
+                    </span>
+                  </label>
+                ))}
+              </div>
+
+              <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
+                <button
+                  onClick={() => setShowExportModal(false)}
+                  style={{
+                    padding: '10px 20px',
+                    border: '1px solid #e5e7eb',
+                    background: 'white',
+                    borderRadius: '8px',
+                    cursor: 'pointer'
+                  }}
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={() => {
+                    if (exportType === 'csv') {
+                      exportToCSV(exportTimeFilter);
+                    } else {
+                      exportToPDF(exportTimeFilter);
+                    }
+                  }}
+                  style={{
+                    padding: '10px 20px',
+                    border: 'none',
+                    background: exportType === 'csv' ? '#10b981' : '#ef4444',
+                    color: 'white',
+                    borderRadius: '8px',
+                    cursor: 'pointer',
+                    fontWeight: '600'
+                  }}
+                >
+                  Export {exportType?.toUpperCase()}
+                </button>
+              </div>
+            </div>
           </div>
         </ModalPortal>
       )}
