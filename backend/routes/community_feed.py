@@ -33,7 +33,7 @@ def get_all_community_posts_admin():
         print(f"📝 Admin fetching all community posts - barangay: {barangay_filter}, type: {post_type_filter}")
         
         # Build query - OPTIMIZATION: Select only needed fields
-        # Status values: approved, pending, rejected
+        # Status values: approved, pending, rejected (no is_accepted/is_rejected booleans)
         query = supabase.table("community_posts").select(
             "id, user_id, title, content, post_type, barangay, status, "
             "created_at, updated_at, is_pinned, allow_comments, deleted_at"
@@ -130,7 +130,7 @@ def get_community_posts():
         print(f"📝 Fetching community posts - barangay: {barangay_filter}, type: {post_type_filter}, sort: {sort_algorithm}")
         
         # Build query - OPTIMIZATION: Select only needed fields
-        # Status values: approved, pending, rejected
+        # Status values: approved, pending, rejected (no is_accepted/is_rejected booleans)
         query = supabase.table("community_posts").select(
             "id, user_id, title, content, post_type, barangay, status, "
             "created_at, updated_at, is_pinned, allow_comments, deleted_at"
@@ -239,8 +239,8 @@ def get_community_posts():
             """
             Trending Score Algorithm:
             - Combines engagement (reactions + comments) with time decay
-            - Formula: (reactions * 2 + comments * 3) / (hours_old + 2)^1.5
-            - Post type weight adds priority to certain types
+            - Formula: (reactions * 10 + comments * 5 + type_weight) / (hours_old + 2)^1.2
+            - Higher weight on reactions to surface popular content
             """
             reactions = post.get("reaction_count", 0)
             comments = post.get("comment_count", 0)
@@ -248,13 +248,13 @@ def get_community_posts():
             
             # Post type weights - incident/safety posts get priority
             type_weights = {
-                "incident": 2.5,
-                "safety": 2.0,
-                "suggestion": 1.5,
+                "incident": 3,
+                "safety": 2.5,
+                "suggestion": 2,
                 "recommendation": 1.5,
-                "general": 1.0
+                "general": 1
             }
-            type_weight = type_weights.get(post_type, 1.0)
+            type_weight = type_weights.get(post_type, 1)
             
             # Calculate age in hours
             created_at = post.get("created_at", "")
@@ -270,11 +270,11 @@ def get_community_posts():
             except:
                 hours_old = 24
             
-            # Engagement score with weighted factors
-            engagement = (reactions * 2) + (comments * 3) + (type_weight * 2)
+            # Engagement score - reactions weighted heavily to surface popular posts
+            engagement = (reactions * 10) + (comments * 5) + type_weight
             
-            # Time decay factor - newer posts get boosted
-            time_factor = (hours_old + 2) ** 1.5
+            # Time decay factor - gentler decay (1.2 instead of 1.5)
+            time_factor = (hours_old + 2) ** 1.2
             
             # Calculate trending score
             trending_score = engagement / time_factor
@@ -296,7 +296,7 @@ def get_community_posts():
             
             # Pinned posts always on top
             base = 10000 if post.get("is_pinned") else 0
-            return base + (reactions * 2) + (comments * 3)
+            return base + (reactions * 10) + (comments * 5)
         
         # Sort based on algorithm type
         if sort_algorithm == "trending":
@@ -736,16 +736,16 @@ def toggle_reaction(post_id):
         data = request.get_json() or {}
         reaction_type = data.get("reaction_type", "like")
         
-        # Verify post exists and is accepted or approved
-        post_resp = supabase.table("community_posts").select("id, status, is_accepted").eq("id", post_id).is_("deleted_at", "null").execute()
+        # Verify post exists and is approved
+        post_resp = supabase.table("community_posts").select("id, status").eq("id", post_id).is_("deleted_at", "null").execute()
         post = getattr(post_resp, "data", [None])[0]
         
         if not post:
             return jsonify({"status": "error", "message": "Post not found"}), 404
         
-        # Only allow reactions on accepted or approved posts
-        if not (post.get("is_accepted") or post.get("status") == "approved"):
-            return jsonify({"status": "error", "message": "Reactions are only allowed on accepted or approved posts"}), 403
+        # Only allow reactions on approved posts
+        if post.get("status") != "approved":
+            return jsonify({"status": "error", "message": "Reactions are only allowed on approved posts"}), 403
         
         # Check if user already reacted
         existing_resp = supabase.table("community_post_reactions").select("id").eq("post_id", post_id).eq("user_id", user_id).execute()
@@ -906,9 +906,9 @@ def get_barangay_posts():
             # Responders and Residents use the requested barangay or their own
             barangay_filter = requested_barangay if requested_barangay and requested_barangay != "All" else user_barangay
 
-        # Build query - Select needed fields (is_rejected handled gracefully if missing)
+        # Build query - Select needed fields (only status, no is_accepted/is_rejected)
         query = supabase.table("community_posts").select(
-            "id, user_id, title, content, post_type, barangay, status, is_accepted, "
+            "id, user_id, title, content, post_type, barangay, status, "
             "created_at, updated_at, is_pinned, allow_comments, deleted_at"
         ).is_("deleted_at", "null")
         
@@ -935,11 +935,11 @@ def get_barangay_posts():
         response = query.order("status", desc=False).order("is_pinned", desc=True).order("created_at", desc=True).limit(limit).execute()
         posts = getattr(response, "data", []) or []
         
-        # Filter for non-moderators: only show approved or is_accepted=true or own posts
+        # Filter for non-moderators: only show approved or own posts
         if role not in ["Admin", "Barangay Official"]:
             posts = [
                 p for p in posts 
-                if (p.get("status") == "approved" or p.get("is_accepted") == True or p.get("user_id") == user_id)
+                if (p.get("status") == "approved" or p.get("user_id") == user_id)
             ]
         
         print(f"📊 Found {len(posts)} posts")
@@ -1065,17 +1065,18 @@ def accept_post(post_id):
             if user_barangay and post_barangay and user_barangay != post_barangay:
                 return jsonify({"status": "error", "message": "You can only moderate posts from your barangay"}), 403
 
-        # Update post is_accepted to true (keeps status as pending but displays normally)
+        # Update post status to approved (simple status-only approach)
         update_data = {
-            "is_accepted": True,
+            "status": "approved",
+            "allow_comments": True,
             "updated_at": datetime.now(timezone.utc).isoformat()
         }
 
         response = supabase.table("community_posts").update(update_data).eq("id", post_id).execute()
         updated_post = getattr(response, "data", [None])[0]
 
-        print(f"✅ Post {post_id} accepted by {role} {user_id}")
-        return jsonify({"status": "success", "post": updated_post, "message": "Post accepted"}), 200
+        print(f"✅ Post {post_id} approved by {role} {user_id}")
+        return jsonify({"status": "success", "post": updated_post, "message": "Post approved"}), 200
 
     except Exception as e:
         print(f"❌ Error accepting post: {e}")
@@ -1114,10 +1115,9 @@ def approve_post(post_id):
             if user_barangay and post_barangay and user_barangay != post_barangay:
                 return jsonify({"status": "error", "message": "You can only moderate posts from your barangay"}), 403
 
-        # Update post status to approved, is_accepted true, and automatically enable comments
+        # Update post status to approved and automatically enable comments
         update_data = {
             "status": "approved",
-            "is_accepted": True,
             "allow_comments": True,
             "updated_at": datetime.now(timezone.utc).isoformat()
         }
@@ -1165,22 +1165,13 @@ def reject_post(post_id):
             if user_barangay and post_barangay and user_barangay != post_barangay:
                 return jsonify({"status": "error", "message": "You can only moderate posts from your barangay"}), 403
 
-        # Mark the post as rejected - use status field (is_rejected column may not exist yet)
+        # Mark the post as rejected - use only status field
         update_data = {
             "status": "rejected",
             "updated_at": datetime.now(timezone.utc).isoformat()
         }
         
-        # Try to set is_rejected if column exists (graceful handling)
-        try:
-            supabase.table("community_posts").update({
-                **update_data,
-                "is_rejected": True
-            }).eq("id", post_id).execute()
-        except Exception as col_err:
-            # Column might not exist - just update status
-            print(f"⚠️ is_rejected column may not exist, updating status only: {col_err}")
-            supabase.table("community_posts").update(update_data).eq("id", post_id).execute()
+        supabase.table("community_posts").update(update_data).eq("id", post_id).execute()
 
         print(f"✅ Post {post_id} rejected by {role} {user_id}")
         
@@ -1434,7 +1425,6 @@ def create_announcement():
             "barangay": barangay,
             "status": "approved",
             "is_pinned": True,  # ✅ Always pinned
-            "is_accepted": True,
             "allow_comments": data.get("allow_comments", True),
             "created_at": datetime.now(timezone.utc).isoformat()
         }

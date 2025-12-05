@@ -2087,6 +2087,7 @@ function BarangayReports({ token }) {
             <div className="trending-pill-row">
                 <button
                     className={`trending-pill-btn ${sort === 'trending' ? 'active' : ''} ${trendingReports.length === 0 ? 'empty' : ''}`}
+                    data-count={trendingReports.length}
                     onClick={() => {
                         if (sort === 'trending') {
                             setSort('latest');
@@ -2099,7 +2100,7 @@ function BarangayReports({ token }) {
                     title={sort === 'trending' ? 'Turn off trending sort' : 'Sort by trending'}
                 >
                     <FaFire className="trending-pill-icon" />
-                    Trending ({trendingReports.length})
+                    <span className="pill-text">Trending ({trendingReports.length})</span>
                     {sort === 'trending' ? <FaMinus className="trending-pill-toggle" /> : <FaPlus className="trending-pill-toggle" />}
                 </button>
 
@@ -2110,7 +2111,7 @@ function BarangayReports({ token }) {
                     title={sort === 'top' ? 'Turn off top sort' : 'Sort by most engagement'}
                 >
                     <FaStar className="top-pill-icon" />
-                    Top
+                    <span className="pill-text">Top</span>
                 </button>
             </div>
 

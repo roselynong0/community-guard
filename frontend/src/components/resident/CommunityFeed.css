@@ -372,6 +372,30 @@
   border-color: rgba(251, 146, 60, 0.4);
 }
 
+/* Your Post badge (own posts in trending) */
+.feed-trending-card.your-post {
+  border-left: 3px solid #8b5cf6;
+  background: linear-gradient(135deg, #f5f3ff 0%, #ede9fe 100%);
+}
+
+.feed-trending-card.your-post:hover {
+  box-shadow: 0 8px 20px rgba(139, 92, 246, 0.15);
+  border-color: rgba(139, 92, 246, 0.5);
+}
+
+.your-post-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px;
+  background: rgba(139, 92, 246, 0.15);
+  color: #7c3aed;
+  border-radius: 8px;
+  font-size: 0.7rem;
+  font-weight: 600;
+  margin-bottom: 8px;
+}
+
 .feed-trending-type {
   display: inline-block;
   padding: 3px 10px;
@@ -640,7 +664,7 @@
 .feed-top-controls {
   display: flex;
   flex-wrap: wrap;
-  gap: 12px;
+  gap: 1rem;
   align-items: center;
   padding: 0;
 }
@@ -959,6 +983,10 @@
   display: flex;
   align-items: center;
   gap: 8px;
+  color: #2d2d73;
+  margin: 0;
+  font-size: 1.75rem;
+  font-weight: 700;
 }
 
 .feed-icon {
@@ -2151,10 +2179,60 @@
   .feed-sort-pill-btn {
     padding: 10px 12px;
     font-size: 13px;
+    gap: 0;
+    position: relative;
+    overflow: visible; /* Allow badge to show outside pill */
   }
   
-  .feed-pill-toggle {
+  .feed-pill-toggle,
+  .pill-text {
     display: none;
+  }
+  
+  /* Badge for count on mobile */
+  .feed-trending-pill-btn::after {
+    content: attr(data-count);
+    position: absolute;
+    top: -6px;
+    right: -6px;
+    background: #fff;
+    color: #f44336;
+    font-size: 10px;
+    font-weight: 700;
+    padding: 2px 6px;
+    border-radius: 10px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+    min-width: 18px;
+    text-align: center;
+    box-sizing: border-box;
+  }
+  
+  .feed-pending-pill-btn::after {
+    content: attr(data-count);
+    position: absolute;
+    top: -6px;
+    right: -6px;
+    background: #fff;
+    color: #b45309;
+    font-size: 10px;
+    font-weight: 700;
+    padding: 2px 6px;
+    border-radius: 10px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+    min-width: 18px;
+    text-align: center;
+    box-sizing: border-box;
+  }
+  
+  /* Hide badge for Top pill (no count) */
+  .feed-top-pill-btn::after {
+    display: none;
+  }
+  
+  .feed-trending-pill-btn.empty::after,
+  .feed-pending-pill-btn.empty::after {
+    background: #e5e7eb;
+    color: #6b7280;
   }
   
   .feed-trending-container,
@@ -2262,5 +2340,247 @@
   }
   100% {
     transform: scale(1);
+  }
+}
+
+/* ============================================
+   PORTAL MODAL STYLES FOR COMMUNITY FEED
+   ============================================ */
+
+/* Wide variant for tabbed forms */
+.portal-modal.wide {
+  max-width: 550px;
+}
+
+.portal-modal.wide .portal-modal-body {
+  max-height: 60vh;
+  overflow-y: auto;
+  padding: 0 5px;
+}
+
+/* Tab indicators inside portal modal */
+.portal-modal .tab-indicators {
+  display: flex;
+  justify-content: center;
+  gap: 12px;
+  margin-bottom: 20px;
+  padding-top: 10px;
+}
+
+.portal-modal .tab-dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: #e5e7eb;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.portal-modal .tab-dot.active {
+  background: #2d2d73;
+  transform: scale(1.2);
+}
+
+.portal-modal .tab-dot.disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Tab content styling */
+.portal-modal .tab-content {
+  display: none;
+}
+
+.portal-modal .tab-content.active {
+  display: block;
+}
+
+/* Form elements inside portal modal */
+.portal-modal .post-form {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.portal-modal .form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.portal-modal .form-group label {
+  font-weight: 600;
+  color: #333;
+  font-size: 14px;
+}
+
+.portal-modal .form-select,
+.portal-modal .form-input,
+.portal-modal .form-textarea {
+  width: 100%;
+  padding: 12px;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  font-size: 14px;
+  transition: all 0.2s ease;
+  box-sizing: border-box;
+}
+
+.portal-modal .form-select:focus,
+.portal-modal .form-input:focus,
+.portal-modal .form-textarea:focus {
+  outline: none;
+  border-color: #2d2d73;
+  box-shadow: 0 0 0 3px rgba(45, 45, 115, 0.1);
+}
+
+.portal-modal .form-textarea {
+  min-height: 120px;
+  resize: vertical;
+}
+
+.portal-modal .form-help-text {
+  font-size: 12px;
+  color: #6b7280;
+  margin-top: 4px;
+}
+
+.portal-modal .form-actions {
+  display: flex;
+  gap: 12px;
+  justify-content: flex-end;
+  margin-top: 16px;
+  flex-wrap: wrap;
+}
+
+.portal-modal .btn-primary,
+.portal-modal .btn-secondary,
+.portal-modal .btn-success {
+  padding: 10px 20px;
+  border-radius: 8px;
+  font-weight: 600;
+  font-size: 14px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  border: none;
+}
+
+.portal-modal .btn-primary {
+  background: #2d2d73;
+  color: white;
+}
+
+.portal-modal .btn-primary:hover {
+  background: #3d3d8a;
+}
+
+.portal-modal .btn-secondary {
+  background: #e5e7eb;
+  color: #374151;
+}
+
+.portal-modal .btn-secondary:hover {
+  background: #d1d5db;
+}
+
+.portal-modal .btn-success {
+  background: #22c55e;
+  color: white;
+}
+
+.portal-modal .btn-success:hover {
+  background: #16a34a;
+}
+
+.portal-modal .btn-success:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* Warning/Guidelines section */
+.portal-modal .warning-section {
+  background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%);
+  border: 2px solid #22c55e;
+  border-radius: 12px;
+  padding: 20px;
+  margin-bottom: 16px;
+  text-align: center;
+}
+
+/* Confirmation tab styling */
+.portal-modal .confirmation-field {
+  background: #f9fafb;
+  border-radius: 8px;
+  padding: 12px;
+  margin-bottom: 12px;
+}
+
+.portal-modal .field-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 6px;
+}
+
+.portal-modal .field-header label {
+  font-weight: 600;
+  color: #374151;
+  font-size: 13px;
+}
+
+.portal-modal .edit-field-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: #2d2d73;
+  font-size: 14px;
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+.portal-modal .edit-field-btn:hover {
+  background: rgba(45, 45, 115, 0.1);
+}
+
+.portal-modal .field-value {
+  color: #1f2937;
+  font-size: 14px;
+  word-break: break-word;
+}
+
+/* Mobile responsive for portal modal in Community Feed */
+@media (max-width: 768px) {
+  .portal-modal.wide {
+    width: 95%;
+    max-width: none;
+    margin: 10px;
+  }
+
+  .portal-modal.wide .portal-modal-body {
+    max-height: 55vh;
+    padding: 0 2px;
+  }
+
+  .portal-modal .form-actions {
+    flex-direction: column;
+  }
+
+  .portal-modal .form-actions button {
+    width: 100%;
+  }
+}
+
+@media (max-width: 480px) {
+  .portal-modal.wide .portal-modal-body {
+    max-height: 50vh;
+  }
+
+  .portal-modal .tab-indicators {
+    gap: 8px;
+  }
+
+  .portal-modal .tab-dot {
+    width: 10px;
+    height: 10px;
   }
 }

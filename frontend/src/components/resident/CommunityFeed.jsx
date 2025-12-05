@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useMemo } from "react";
 import "./CommunityFeed.css";
 import "./Notifications.css";
-import { FaPaperPlane, FaUsers, FaTrash, FaHeart, FaRegHeart, FaFire, FaStar, FaClock, FaPlus, FaMinus, FaMapPin, FaSearch, FaTimes } from "react-icons/fa";
+import { FaPaperPlane, FaUsers, FaTrash, FaHeart, FaRegHeart, FaFire, FaStar, FaClock, FaPlus, FaMinus, FaMapPin, FaSearch, FaTimes, FaUser } from "react-icons/fa";
 import { getApiUrl, API_CONFIG } from "../../utils/apiConfig";
 import LoadingScreen from "../shared/LoadingScreen";
 import ModalPortal from "../shared/ModalPortal";
@@ -60,7 +60,7 @@ const CommunityFeed = () => {
   // Trending section states
   const [trendingPosts, setTrendingPosts] = useState([]);
   const [trendingExpanded, setTrendingExpanded] = useState(false); // Collapsed by default
-  const [trendingTimeFilter, setTrendingTimeFilter] = useState("this-month"); // today, yesterday, this-month
+  const [trendingTimeFilter, setTrendingTimeFilter] = useState("all"); // today, yesterday, this-month, all
   const [pendingExpanded, setPendingExpanded] = useState(false); // Show pending posts section
   
   // User verification status
@@ -117,9 +117,15 @@ const CommunityFeed = () => {
       if (response.ok) {
         const data = await response.json();
         setAnnouncements(data.announcements || []);
+      } else {
+        // Silently handle non-200 responses - announcements are optional
+        console.warn("Announcements unavailable:", response.status);
+        setAnnouncements([]);
       }
     } catch (error) {
-      console.error("Error fetching announcements:", error);
+      // Silently handle errors - announcements are optional feature
+      console.warn("Could not fetch announcements:", error.message);
+      setAnnouncements([]);
     }
   };
 
@@ -148,8 +154,8 @@ const CommunityFeed = () => {
         params.append("post_type", postTypeFilter);
       }
 
-      // Add sort algorithm parameter
-      params.append("sort", sortBy);
+      // Add sort algorithm parameter (default to 'latest' if null)
+      params.append("sort", sortBy || "latest");
 
       const response = await fetch(url + (params.toString() ? `?${params.toString()}` : ''), {
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
@@ -192,7 +198,8 @@ const CommunityFeed = () => {
     }
   }, [barangayFilter, postTypeFilter, sortBy]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // ⭐ Compute trending posts based on engagement and recency (matching Reports algorithm)
+  // ⭐ Compute trending posts - Community Involvement Algorithm
+  // Shows ALL engaged posts (including your own) to encourage participation & awareness
   useEffect(() => {
     if (!posts.length) {
       setTrendingPosts([]);
@@ -202,8 +209,10 @@ const CommunityFeed = () => {
 
     const now = new Date();
     
-    // Time filter logic (matching Reports)
+    // Time filter logic - more generous time windows for stability
     const filterByTime = (createdAt) => {
+      if (trendingTimeFilter === "all") return true; // Show all posts
+      
       const postDate = new Date(createdAt);
       const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
       const yesterday = new Date(today);
@@ -222,35 +231,41 @@ const CommunityFeed = () => {
       }
     };
     
-    // Filter only approved posts for trending and apply time filter
-    const approvedPosts = posts.filter(p => 
+    // Filter approved posts with likes for trending (INCLUDING your own posts!)
+    // Community involvement = showing ALL engaged content regardless of author
+    const engagedPosts = posts.filter(p => 
       p.status === 'approved' && 
+      (p.reaction_count || 0) > 0 &&
       filterByTime(p.created_at)
     );
     
-    console.log(`📋 Filtered ${approvedPosts.length} approved posts from ${posts.length} total (${trendingTimeFilter})`);
+    console.log(`📋 Filtered ${engagedPosts.length} engaged posts from ${posts.length} total (${trendingTimeFilter})`);
     console.log(`📊 Post statuses: ${[...new Set(posts.map(p => p.status))].join(', ')}`);
     
-    // Apply trending algorithm: reactions + engagement + recency (matching Reports)
-    // Score = (reactions * 2 + comments * 1.5 + type_weight) / (hours_old + 2)^1.5
-    const scored = approvedPosts.map((p) => {
+    // Apply trending algorithm: Community Awareness & Involvement
+    // Shows popular content from all users (including your own) to encourage participation
+    // Score = (reactions * 15 + comments * 8 + type_weight + base_score) / (days_old + 1)^0.8
+    // Gentler decay keeps posts visible longer for stable trending display
+    const scored = engagedPosts.map((p) => {
       const createdAt = new Date(p.created_at || 0);
-      const hoursOld = Math.max(0, (now - createdAt) / (1000 * 60 * 60));
+      const daysOld = Math.max(0, (now - createdAt) / (1000 * 60 * 60 * 24));
       
-      // Engagement: reactions + comment count + type weight
-      const typeWeight = { incident: 3, safety: 2.5, suggestion: 2, recommendation: 1.5, general: 1 };
-      const reactionBoost = (p.reaction_count || 0) * 2;
-      const commentBoost = (p.comment_count || 0) * 1.5;
-      const engagement = reactionBoost + commentBoost + (typeWeight[p.post_type] || 1) * 2;
+      // Engagement weights - higher weights for community interaction
+      const typeWeight = { incident: 4, safety: 3.5, suggestion: 3, recommendation: 2.5, general: 2 };
+      const reactionBoost = (p.reaction_count || 0) * 15;  // High weight for reactions (community engagement)
+      const commentBoost = (p.comment_count || 0) * 8;     // Comments show discussion/awareness
+      const baseScore = 5; // Base score ensures posts don't disappear too quickly
+      const engagement = reactionBoost + commentBoost + (typeWeight[p.post_type] || 2) + baseScore;
       
-      // Time decay factor - matching Reports algorithm
-      const timeFactor = Math.pow(hoursOld + 2, 1.5);
+      // Very gentle time decay (0.8 exponent) - keeps trending stable, posts don't vanish suddenly
+      // Using days instead of hours for smoother decay
+      const timeFactor = Math.pow(daysOld + 1, 0.8);
       const trendingScore = engagement / timeFactor;
       
       return { ...p, trendingScore };
     });
 
-    // Sort by trending score descending, limit to 5
+    // Sort by trending score descending, limit to 5 for clean display
     const trending = scored
       .sort((a, b) => b.trendingScore - a.trendingScore)
       .slice(0, 5);
@@ -416,7 +431,7 @@ const CommunityFeed = () => {
   const filteredPosts = useMemo(() => {
     let result = posts.filter((p) => {
       // Filter out rejected posts (unless it's the user's own post - they can see to delete)
-      if ((p.status === 'rejected' || p.is_rejected) && !p.can_delete) {
+      if (p.status === 'rejected' && !p.can_delete) {
         return false;
       }
       
@@ -583,6 +598,7 @@ const CommunityFeed = () => {
         {/* Trending Pill - Toggle sort */}
         <button
           className={`feed-trending-pill-btn ${sortBy === 'trending' ? 'active' : ''} ${trendingPosts.length === 0 ? 'empty' : ''}`}
+          data-count={trendingPosts.length}
           onClick={() => {
             if (sortBy === 'trending') {
               setSortBy(DEFAULT_SORT);
@@ -595,35 +611,37 @@ const CommunityFeed = () => {
           title={sortBy === 'trending' ? 'Turn off trending sort' : 'Sort by trending'}
         >
           <FaFire className="feed-pill-icon" />
-          Trending ({trendingPosts.length})
+          <span className="pill-text">Trending ({trendingPosts.length})</span>
           {sortBy === 'trending' ? <FaMinus className="feed-pill-toggle" /> : <FaPlus className="feed-pill-toggle" />}
         </button>
         
         {/* Pending Pill - Show user's pending posts */}
         <button
           className={`feed-pending-pill-btn ${pendingExpanded ? 'active' : ''} ${userPendingPosts.length === 0 ? 'empty' : ''}`}
+          data-count={userPendingPosts.length}
           onClick={() => setPendingExpanded(!pendingExpanded)}
           title={pendingExpanded ? 'Hide pending posts' : 'Show your pending posts'}
         >
           <FaClock className="feed-pill-icon" />
-          Pending ({userPendingPosts.length})
+          <span className="pill-text">Pending ({userPendingPosts.length})</span>
           {pendingExpanded ? <FaMinus className="feed-pill-toggle" /> : <FaPlus className="feed-pill-toggle" />}
         </button>
 
         {/* Top Pill - Toggle sort */}
         <button
           className={`feed-top-pill-btn ${sortBy === 'top' ? 'active' : ''}`}
+          data-count=""
           onClick={() => setSortBy(sortBy === 'top' ? DEFAULT_SORT : 'top')}
           title={sortBy === 'top' ? 'Turn off top sort' : 'Sort by most engagement'}
         >
           <FaStar className="feed-pill-icon" />
-          Top
+          <span className="pill-text">Top</span>
         </button>
       </div>
 
       {/* ⭐ Trending Posts Section - Collapsible */}
-      {trendingExpanded && trendingPosts.length > 0 && (
-        <div className="feed-trending-container expanded">
+      {trendingExpanded && (
+        <div className={`feed-trending-container expanded ${trendingPosts.length === 0 ? 'empty' : ''}`}>
           <div className="feed-trending-header">
             <h3><FaMapPin className="feed-trending-pin" /> Trending Posts</h3>
             <select
@@ -631,56 +649,61 @@ const CommunityFeed = () => {
               value={trendingTimeFilter}
               onChange={(e) => setTrendingTimeFilter(e.target.value)}
             >
+              <option value="all">All Time</option>
               <option value="today">Today</option>
               <option value="yesterday">Yesterday</option>
               <option value="this-month">This Month</option>
             </select>
           </div>
-          <div className="feed-trending-list">
-            {trendingPosts.map((post) => (
-              <div 
-                key={`trending-${post.id}`} 
-                className="feed-trending-card"
-                onClick={() => {
-                  const element = document.getElementById(`post-${post.id}`);
-                  if (element) {
-                    element.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                  }
-                }}
-              >
-                <div className="feed-trending-type" data-type={post.post_type}>
-                  {post.post_type}
+          {trendingPosts.length > 0 ? (
+            <div className="feed-trending-list">
+              {trendingPosts.map((post) => (
+                <div 
+                  key={`trending-${post.id}`} 
+                  className={`feed-trending-card ${post.can_delete ? 'your-post' : ''}`}
+                  onClick={() => {
+                    const element = document.getElementById(`post-${post.id}`);
+                    if (element) {
+                      element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    }
+                  }}
+                >
+                  {/* Badge for your own post */}
+                  {post.can_delete && (
+                    <div className="your-post-badge">
+                      <FaUser /> Your Post
+                    </div>
+                  )}
+                  <div className="feed-trending-type" data-type={post.post_type}>
+                    {post.post_type}
+                  </div>
+                  <div className="feed-trending-title">{post.title}</div>
+                  <div className="feed-trending-location">
+                    📍 {post.barangay}
+                  </div>
+                  <div className="feed-trending-meta">
+                    <span className="feed-trending-author">
+                      {post.author?.firstname} {post.author?.lastname}
+                    </span>
+                    <span className="feed-trending-time">
+                      {new Date(post.created_at).toLocaleDateString()}
+                    </span>
+                  </div>
+                  <div className="feed-trending-engagement">
+                    <span className="feed-trending-likes">
+                      <FaHeart className="heart-icon-small" /> {post.reaction_count || 0}
+                    </span>
+                  </div>
                 </div>
-                <div className="feed-trending-title">{post.title}</div>
-                <div className="feed-trending-location">
-                  📍 {post.barangay}
-                </div>
-                <div className="feed-trending-meta">
-                  <span className="feed-trending-author">
-                    {post.author?.firstname} {post.author?.lastname}
-                  </span>
-                  <span className="feed-trending-time">
-                    {new Date(post.created_at).toLocaleDateString()}
-                  </span>
-                </div>
-                <div className="feed-trending-engagement">
-                  <span className="feed-trending-likes">
-                    <FaHeart className="heart-icon-small" /> {post.reaction_count || 0}
-                  </span>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {trendingExpanded && trendingPosts.length === 0 && (
-        <div className="feed-trending-container expanded empty">
-          <div className="feed-trending-empty">
-            <FaFire className="empty-icon" />
-            <p>No trending posts yet</p>
-            <span>Posts become trending based on engagement and recency</span>
-          </div>
+              ))}
+            </div>
+          ) : (
+            <div className="feed-trending-empty">
+              <FaFire className="empty-icon" />
+              <p>No trending posts for this period</p>
+              <span>Posts with likes will appear here</span>
+            </div>
+          )}
         </div>
       )}
 
@@ -732,14 +755,7 @@ const CommunityFeed = () => {
       )}
 
       <div className="feed-list">
-        {/* Show inline filter loading indicator */}
-        {isFilterLoading && (
-          <div className="feed-filter-loading">
-            <div className="spinner-small" />
-            <span>Updating feed...</span>
-          </div>
-        )}
-        {!loading && !isFilterLoading && filteredPosts.length === 0 && <p>No posts found.</p>}
+        {!loading && filteredPosts.length === 0 && <p>No posts found.</p>}
         {!loading && filteredPosts.map((post) => (
           <PostCard key={post.id} post={post} onAddComment={handleAddComment} onDeleteComment={handleDeleteComment} onDeletePost={handleDeletePost} onLikePost={handleLikePost} />
         ))}
@@ -823,8 +839,8 @@ const PostCard = ({ post, onAddComment, onDeleteComment, onDeletePost, onLikePos
   const authorName = `${post.author?.firstname} ${post.author?.lastname}`;
   const postedDate = new Date(post.created_at).toLocaleDateString();
 
-  const isPending = post.status === 'pending' && !post.is_accepted && !post.is_rejected;
-  const isRejected = post.is_rejected || post.status === 'rejected';
+  const isPending = post.status === 'pending';
+  const isRejected = post.status === 'rejected';
 
   return (
     <div className={`post-card ${post.is_pinned ? "post-pinned" : ""} ${isPending ? 'pending' : ''} ${isRejected ? 'rejected' : ''}`}>
@@ -913,8 +929,8 @@ const PostCard = ({ post, onAddComment, onDeleteComment, onDeletePost, onLikePos
         </div>
       )}
 
-      {/* Like button - only for accepted/approved posts */}
-      {(post.is_accepted || post.status === 'approved') && !isRejected && (
+      {/* Like button - only for approved posts */}
+      {post.status === 'approved' && (
         <div className="post-reactions">
           <button
             className={`reaction-btn heart-btn ${post.user_liked ? 'liked' : ''}`}
@@ -1180,12 +1196,12 @@ const PostModal = ({ onClose, onSubmit, userBarangay }) => {
   const showGuidelinesTab = isFirstTimePost || !skipGuidelinesChecked;
 
   return (
-    <div className="modal-overlay" onClick={onClose}>
-      <div className="modal-content modal-tabbed" onClick={(e) => e.stopPropagation()}>
-        <div className="modal-header">
-          <h2>Create Community Post</h2>
+    <div className="portal-modal-overlay" onClick={onClose}>
+      <div className="portal-modal wide" onClick={(e) => e.stopPropagation()}>
+        <div className="portal-modal-header">
+          <h3>Create Community Post</h3>
           <button 
-            className="close-modal-btn" 
+            className="portal-modal-close" 
             onClick={handleModalClose}
             aria-label="Close modal"
             title="Close"
@@ -1194,6 +1210,7 @@ const PostModal = ({ onClose, onSubmit, userBarangay }) => {
           </button>
         </div>
 
+        <div className="portal-modal-body">
         {/* TAB INDICATORS */}
         <div className="tab-indicators">
           <div 
@@ -1475,6 +1492,7 @@ const PostModal = ({ onClose, onSubmit, userBarangay }) => {
             </div>
           </div>
         </div>
+        </div>{/* portal-modal-body */}
       </div>
     </div>
   );

@@ -93,7 +93,7 @@ export default function CommunityFeedResponder({ session, token }) {
         const data = await response.json();
         // Filter out rejected posts
         const visiblePosts = (data.posts || []).filter(p => 
-          p.status !== 'rejected' && !p.is_rejected
+          p.status !== 'rejected'
         );
         setPosts(visiblePosts);
       } else {
@@ -466,9 +466,8 @@ const ResponderPostCard = ({ post, onAddComment, onDeleteComment, onLike }) => {
   const authorName = `${post.author?.firstname || 'Unknown'} ${post.author?.lastname || 'User'}`;
   const postedDate = new Date(post.created_at).toLocaleDateString();
   
-  // Accepted posts show normally
-  const isAccepted = post.is_accepted === true || post.status === 'approved';
-  const canLike = isAccepted;
+  // Approved posts can be liked
+  const canLike = post.status === 'approved';
 
   const handleCommentKey = (e) => {
     if (e.key === "Enter" && comment.trim()) {

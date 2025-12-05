@@ -1047,15 +1047,21 @@ const PostModal = ({ onClose, onSubmit, userBarangay, isOfficialUser }) => {
   };
 
   return (
-    <div className="modal-overlay" onClick={onClose}>
-      <div className="modal-content" onClick={(e) => e.stopPropagation()}>
-        <div className="modal-header">
-          <h2>Create Community Post</h2>
-          <button className="modal-close" onClick={onClose}>
-            ✕
+    <div className="portal-modal-overlay" onClick={onClose}>
+      <div className="portal-modal wide" onClick={(e) => e.stopPropagation()}>
+        <div className="portal-modal-header">
+          <h3>Create Community Post</h3>
+          <button 
+            className="portal-modal-close" 
+            onClick={onClose}
+            aria-label="Close modal"
+            title="Close"
+          >
+            <FaTimes aria-hidden="true" />
           </button>
         </div>
 
+        <div className="portal-modal-body">
         {showWarning && (
           <div className="warning-section">
             <FaExclamationTriangle className="warning-icon" />
@@ -1137,6 +1143,7 @@ const PostModal = ({ onClose, onSubmit, userBarangay, isOfficialUser }) => {
             </button>
           </div>
         </form>
+        </div>{/* portal-modal-body */}
       </div>
     </div>
   );

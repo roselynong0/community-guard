@@ -18,7 +18,9 @@ import {
   FaFire,
   FaClock,
   FaStar,
-  FaSyncAlt } from "react-icons/fa";
+  FaSyncAlt,
+  FaUser,
+  FaFlag } from "react-icons/fa";
 import {
   MapContainer,
   TileLayer, Marker,
@@ -153,7 +155,7 @@ function Reports({ session }) {
   const [search, setSearch] = useState("");
   const [category, setCategory] = useState("All");
   const [barangay, setBarangay] = useState("All Barangays");
-  const [sort, setSort] = useState(null); // null = pending first, 'trending' or 'top'
+  const [sort, setSort] = useState("latest"); // 'latest', 'oldest', 'trending', 'top'
   const [showMyReports, setShowMyReports] = useState(false);
   const [previewImage, setPreviewImage] = useState(null);
   
@@ -164,7 +166,7 @@ function Reports({ session }) {
   
   // ⭐ NEW: Trending container state
   const [trendingExpanded, setTrendingExpanded] = useState(false); // Collapsed by default
-  const [trendingTimeFilter, setTrendingTimeFilter] = useState("this-month"); // today, yesterday, this-month
+  const [trendingTimeFilter, setTrendingTimeFilter] = useState("all"); // today, yesterday, this-month, all
   const [pendingExpanded, setPendingExpanded] = useState(false); // Show pending reports section
   
   // ⭐ User verification status - posting requires full verification (users_info.verified = true)
@@ -330,6 +332,8 @@ function Reports({ session }) {
     // Time filter logic
     const now = new Date();
     const filterByTime = (createdAt) => {
+      if (trendingTimeFilter === "all") return true; // Show all reports
+      
       const reportDate = new Date(createdAt);
       const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
       const yesterday = new Date(today);
@@ -348,34 +352,37 @@ function Reports({ session }) {
       }
     };
 
-    // Filter reports from user's barangay (excluding own)
-    // Only show APPROVED reports from other users (is_approved = true)
+    // Filter reports from user's barangay (INCLUDING your own!)
+    // Community Involvement - shows ALL engaged reports to encourage participation
     const fromBarangay = reports.filter((r) => 
       r.address_barangay === userBarangay && 
-      String(r.user_id) !== String(session.user.id) &&
       r.status !== "Resolved" &&
       r.deleted_at === null &&
       r.is_approved === true &&
       r.is_rejected !== true &&
+      (r.reaction_count || 0) > 0 &&
       filterByTime(r.created_at)
     );
 
-    // Apply trending algorithm: reactions + engagement + recency
-    // Score = (reactions * 2 + category_weight) / (hours_old + 2)^1.5
+    // Apply trending algorithm: Community Awareness & Involvement
+    // Score = (reactions * 15 + base_score + category_weight) / (days_old + 1)^0.8
+    // Gentler decay keeps reports visible longer for stable trending
     const scored = fromBarangay.map((r) => {
       const createdAt = new Date(r.created_at || 0);
-      const hoursOld = Math.max(0, (now - createdAt) / (1000 * 60 * 60));
+      const daysOld = Math.max(0, (now - createdAt) / (1000 * 60 * 60 * 24));
       
-      // Engagement: reactions + severity weight
-      const severityWeight = { Crime: 3, Hazard: 2.5, Concern: 2, 'Lost&Found': 1, Others: 1 };
-      const reactionBoost = (r.reaction_count || 0) * 2;
-      const engagement = reactionBoost + (severityWeight[r.category] || 1) * 2;
+      // Engagement weights - higher for community interaction
+      const severityWeight = { Crime: 4, Hazard: 3.5, Concern: 3, 'Lost&Found': 2, Others: 2 };
+      const reactionBoost = (r.reaction_count || 0) * 15; // High weight for community engagement
+      const baseScore = 5; // Base score ensures reports don't vanish suddenly
+      const isOwnReport = String(r.user_id) === String(session.user.id);
+      const engagement = reactionBoost + (severityWeight[r.category] || 2) + baseScore;
       
-      // Time decay factor
-      const timeFactor = Math.pow(hoursOld + 2, 1.5);
+      // Very gentle time decay (0.8 exponent) - keeps trending stable
+      const timeFactor = Math.pow(daysOld + 1, 0.8);
       const trendingScore = engagement / timeFactor;
       
-      return { ...r, trendingScore, isUserBarangay: true };
+      return { ...r, trendingScore, isUserBarangay: true, isOwnReport };
     });
 
     // Sort by trending score descending, limit to 5
@@ -397,6 +404,8 @@ function Reports({ session }) {
     // Time filter logic
     const now = new Date();
     const filterByTime = (createdAt) => {
+      if (trendingTimeFilter === "all") return true; // Show all reports
+      
       const reportDate = new Date(createdAt);
       const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
       const yesterday = new Date(today);
@@ -415,32 +424,35 @@ function Reports({ session }) {
       }
     };
 
-    // Filter reports from OTHER barangays (excluding own reports)
-    // Only show APPROVED reports from other users (is_approved = true)
+    // Filter reports from OTHER barangays (INCLUDING your own reports!)
+    // Community Awareness - shows engaged content from all barangays
     const fromOtherBarangays = reports.filter((r) => 
       r.address_barangay !== userBarangay && 
-      String(r.user_id) !== String(session.user.id) &&
       r.status !== "Resolved" &&
       r.deleted_at === null &&
       r.is_approved === true &&
       r.is_rejected !== true &&
       r.address_barangay &&
+      (r.reaction_count || 0) > 0 &&
       filterByTime(r.created_at)
     );
 
-    // Apply trending algorithm with reaction count
+    // Apply trending algorithm: Community Awareness across barangays
+    // Gentler decay keeps cross-barangay reports visible longer
     const scored = fromOtherBarangays.map((r) => {
       const createdAt = new Date(r.created_at || 0);
-      const hoursOld = Math.max(0, (now - createdAt) / (1000 * 60 * 60));
+      const daysOld = Math.max(0, (now - createdAt) / (1000 * 60 * 60 * 24));
       
-      const severityWeight = { Crime: 3, Hazard: 2.5, Concern: 2, 'Lost&Found': 1, Others: 1 };
-      const reactionBoost = (r.reaction_count || 0) * 2;
-      const engagement = reactionBoost + (severityWeight[r.category] || 1) * 2;
+      const severityWeight = { Crime: 4, Hazard: 3.5, Concern: 3, 'Lost&Found': 2, Others: 2 };
+      const reactionBoost = (r.reaction_count || 0) * 15; // High weight for community engagement
+      const baseScore = 5; // Base score for stability
+      const isOwnReport = String(r.user_id) === String(session.user.id);
+      const engagement = reactionBoost + (severityWeight[r.category] || 2) + baseScore;
       
-      const timeFactor = Math.pow(hoursOld + 2, 1.5);
+      const timeFactor = Math.pow(daysOld + 1, 0.8); // Very gentle decay
       const trendingScore = engagement / timeFactor;
       
-      return { ...r, trendingScore, isUserBarangay: false };
+      return { ...r, trendingScore, isUserBarangay: false, isOwnReport };
     });
 
     // Sort by trending score descending, limit to 5
@@ -1078,7 +1090,7 @@ function Reports({ session }) {
 
       {/* Header */}
       <div className="header-row">
-        <h2>Community Reports</h2>
+        <h2><FaFlag className="header-icon" /> Community Reports</h2>
         <button
           className="history-btn"
           onClick={() => setShowMyReports(!showMyReports)}
@@ -1142,7 +1154,7 @@ function Reports({ session }) {
         <label htmlFor="sort-order" className="sr-only">Sort Order</label>
         <select 
           id="sort-order"
-          value={sort} 
+          value={sort || 'latest'} 
           onChange={(e) => setSort(e.target.value)}
           tabIndex="0"
         >
@@ -1246,6 +1258,7 @@ function Reports({ session }) {
               value={trendingTimeFilter}
               onChange={(e) => setTrendingTimeFilter(e.target.value)}
             >
+              <option value="all">All Time</option>
               <option value="today">Today</option>
               <option value="yesterday">Yesterday</option>
               <option value="this-month">This Month</option>
@@ -1257,7 +1270,7 @@ function Reports({ session }) {
               {allTrendingReports.map((report) => (
                 <div 
                   key={`trending-${report.id}`} 
-                  className={`feed-trending-card ${report.isUserBarangay ? 'from-your-barangay' : ''}`}
+                  className={`feed-trending-card ${report.isUserBarangay ? 'from-your-barangay' : ''} ${report.isOwnReport ? 'your-report' : ''}`}
                   onClick={(e) => {
                     e.stopPropagation();
                     const element = document.getElementById(`report-${report.id}`);
@@ -1268,12 +1281,16 @@ function Reports({ session }) {
                     }
                   }}
                 >
-                  {/* Pin badge for user's barangay */}
-                  {report.isUserBarangay && (
+                  {/* Badge for user's barangay or own report */}
+                  {report.isOwnReport ? (
+                    <div className="your-report-badge">
+                      <FaUser /> Your Report
+                    </div>
+                  ) : report.isUserBarangay ? (
                     <div className="your-barangay-badge">
                       <FaMapPin /> Your Barangay
                     </div>
-                  )}
+                  ) : null}
                   
                   <div className="feed-trending-type" data-type={report.category}>
                     {report.category}
@@ -1302,8 +1319,8 @@ function Reports({ session }) {
           ) : (
             <div className="feed-trending-empty">
               <FaFire className="empty-icon" />
-              <p>No trending reports yet</p>
-              <span>Reports become trending based on reactions and recency. Try "This Month".</span>
+              <p>No trending reports for this period</p>
+              <span>Reports with likes will appear here</span>
             </div>
           )}
         </div>
@@ -1637,7 +1654,7 @@ function Reports({ session }) {
       {/* Add/Edit Modal */}
       {isModalOpen && (
         <ModalPortal>
-        <div className="modal-overlay" onClick={() => {
+        <div className="portal-modal-overlay" onClick={() => {
           if (!isSubmitting) { // Only allow closing if not submitting
             console.log("=== Modal overlay clicked ===");
             console.log("Previous editReportId:", editReportId);
@@ -1648,14 +1665,14 @@ function Reports({ session }) {
           }
         }}>
           <div 
-            className="modal-content" 
+            className="portal-modal wide" 
             onClick={(e) => e.stopPropagation()}
             ref={modalRef}
           >
-            <div className="modal-header-row">
+            <div className="portal-modal-header">
               <h3>{editReportId ? "Edit Report" : "Add New Report"}</h3>
               <button 
-                className="close-modal-btn"
+                className="portal-modal-close"
                 onClick={() => {
                   if (!isSubmitting) {
                     setIsModalOpen(false);
@@ -1671,7 +1688,7 @@ function Reports({ session }) {
                 <FaTimes aria-hidden="true" />
               </button>
             </div>
-            <div className="modal-scrollable">
+            <div className="portal-modal-body">
               <p style={{ fontSize: '14px', color: '#666', marginBottom: '15px' }}>
                 Fields marked with <span style={{ color: 'red' }}>*</span> are required
               </p>
@@ -1907,8 +1924,9 @@ function Reports({ session }) {
               )}
             </div>
 
-            <div className="modal-buttons">
+            <div className="portal-modal-actions">
               <button
+                className="cancel-btn"
                 onClick={() => {
                   console.log("=== Cancel button clicked ===");
                   console.log("Previous editReportId:", editReportId);
@@ -1923,6 +1941,7 @@ function Reports({ session }) {
                 Cancel
               </button>
               <button 
+                className="confirm-btn"
                 onClick={handleAddOrUpdateReport}
                 tabIndex="0"
                 disabled={isSubmitting}
@@ -1940,7 +1959,7 @@ function Reports({ session }) {
       {isDeleteConfirmOpen && (
         <ModalPortal>
         <div 
-            className="modal-overlay"
+            className="portal-modal-overlay"
             role="dialog" 
             aria-modal="true" 
             aria-labelledby="delete-modal-title"
@@ -1950,11 +1969,11 @@ function Reports({ session }) {
               }
             }}
         >
-          <div className="modal" onClick={(e) => e.stopPropagation()}>
-            <div className="modal-header-row">
+          <div className="portal-modal delete-confirm" onClick={(e) => e.stopPropagation()}>
+            <div className="portal-modal-header">
               <h3 id="delete-modal-title">Delete Report</h3>
               <button 
-                className="close-modal-btn"
+                className="portal-modal-close"
                 onClick={() => {
                   if (!isDeleting) {
                     setIsDeleteConfirmOpen(false);
@@ -1967,10 +1986,12 @@ function Reports({ session }) {
                 <FaTimes aria-hidden="true" />
               </button>
             </div>
-            <p>
-              Are you sure you want to delete "<strong>{deleteTarget?.title}</strong>"?
-            </p>
-            <div className="modal-actions">
+            <div className="portal-modal-body">
+              <p>
+                Are you sure you want to delete "<strong>{deleteTarget?.title}</strong>"?
+              </p>
+            </div>
+            <div className="portal-modal-actions">
               <button 
                 className="cancel-btn"
                 onClick={() => {
@@ -1983,7 +2004,7 @@ function Reports({ session }) {
                 Cancel
               </button>
               <button 
-                className="confirm-btn"
+                className="danger-btn"
                 onClick={handleDelete} 
                 autoFocus
                 disabled={isDeleting}
@@ -2005,17 +2026,17 @@ function Reports({ session }) {
       {rejectionModalOpen && (
         <ModalPortal>
         <div 
-          className="modal-overlay rejection-modal-overlay"
+          className="portal-modal-overlay"
           role="dialog" 
           aria-modal="true" 
           aria-labelledby="rejection-modal-title"
           onClick={() => setRejectionModalOpen(false)}
         >
-          <div className="rejection-modal-content" onClick={(e) => e.stopPropagation()}>
-            <div className="rejection-modal-header">
+          <div className="portal-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="portal-modal-header">
               <h3 id="rejection-modal-title">Report Rejection Details</h3>
               <button
-                className="close-modal-btn"
+                className="portal-modal-close"
                 onClick={() => setRejectionModalOpen(false)}
                 aria-label="Close rejection modal"
                 title="Close"
@@ -2024,7 +2045,7 @@ function Reports({ session }) {
               </button>
             </div>
 
-            <div className="rejection-modal-body">
+            <div className="portal-modal-body rejection-modal-body">
               <div className="rejection-reason-section">
                 <h4>Reason for Rejection</h4>
                 <p className="rejection-reason-text">

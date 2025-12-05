@@ -103,6 +103,14 @@
     margin: 0;
     font-size: 1.75rem;
     font-weight: 700;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.header-row h2 .header-icon {
+    font-size: 1.4rem;
+    color: var(--primary-color);
 }
 
 .history-btn {
@@ -786,8 +794,34 @@
     
     .action-buttons-group {
         width: 100%;
-        justify-content: flex-start;
-        gap: 0.75rem;
+        flex-direction: row;
+        justify-content: space-between;
+        gap: 10px;
+        height: auto;
+    }
+    
+    .action-buttons-group .filter-btns {
+        flex: 0 0 auto;
+        order: 1;
+    }
+    
+    .action-buttons-group .filter-icon-btn {
+        width: 48px;
+        height: 48px;
+        justify-content: center;
+    }
+    
+    .action-buttons-group .add-btn {
+        flex: 1;
+        order: 2;
+        min-width: 0;
+    }
+    
+    .action-buttons-group .verification-hint {
+        order: 3;
+        width: 100%;
+        text-align: center;
+        flex-basis: 100%;
     }
 }
 
@@ -939,11 +973,15 @@
     left: 0;
     right: 0;
     bottom: 0;
-    background: var(--bg-overlay);
+    width: 100vw;
+    height: 100vh;
+    background: rgba(0, 0, 0, 0.65);
+    -webkit-backdrop-filter: blur(8px);
+    backdrop-filter: blur(8px);
     display: flex;
     justify-content: center;
     align-items: center;
-    z-index: 1000;
+    z-index: 99999;
 }
 
 .modal {
@@ -970,13 +1008,95 @@
 }
 
 /* ========================================
+   REPORTS PORTAL MODAL OVERRIDES
+   ======================================== */
+.portal-modal.wide {
+    max-width: 550px;
+    max-height: 90vh;
+    display: flex;
+    flex-direction: column;
+}
+
+.portal-modal .portal-modal-body {
+    flex: 1;
+    overflow-y: auto;
+    overflow-x: hidden;
+    padding: 0;
+    max-height: calc(90vh - 140px);
+}
+
+.portal-modal .portal-modal-body::-webkit-scrollbar {
+    width: 8px;
+}
+
+.portal-modal .portal-modal-body::-webkit-scrollbar-thumb {
+    background: linear-gradient(135deg, var(--primary-color), var(--primary-light));
+    border-radius: 4px;
+}
+
+.portal-modal .portal-modal-body::-webkit-scrollbar-track {
+    background: #f1f5f9;
+    border-radius: 4px;
+}
+
+/* Form elements inside portal modal */
+.portal-modal label {
+    display: block;
+    margin-bottom: 8px;
+    font-weight: 600;
+    color: var(--text-primary);
+    font-size: 14px;
+}
+
+.portal-modal input,
+.portal-modal textarea,
+.portal-modal select {
+    width: 100%;
+    padding: 12px;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    font-size: 14px;
+    margin-bottom: 15px;
+    box-sizing: border-box;
+    transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.portal-modal input:focus,
+.portal-modal textarea:focus,
+.portal-modal select:focus {
+    outline: none;
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 2px rgba(45, 45, 115, 0.1);
+}
+
+.portal-modal textarea {
+    resize: vertical;
+    min-height: 80px;
+    max-height: 200px;
+}
+
+/* Mobile responsiveness for Reports modal */
+@media (max-width: 768px) {
+    .portal-modal.wide {
+        width: 95%;
+        max-width: none;
+        margin: 10px;
+        max-height: 90vh;
+    }
+    
+    .portal-modal .portal-modal-body {
+        max-height: calc(90vh - 130px);
+    }
+}
+
+/* ========================================
    MODAL CONTENT & SCROLLABLE AREA
    ======================================== */
 .modal-content {
     background-color: var(--bg-white);
     border-radius: var(--radius-xl);
-    width: 400px;
-    max-width: 90%;
+    width: 90%;
+    max-width: 450px;
     max-height: 85vh; 
     padding: 0;
     box-shadow: 0 12px 40px rgba(0, 0, 0, 0.15);
@@ -1502,28 +1622,31 @@
         grid-template-areas: none !important;
     }
 
-    /* Modal buttons full width on mobile */
+    /* Modal buttons side-by-side on mobile (like Profile) */
     .modal-buttons {
         padding: 12px 15px;
-        flex-direction: column;
+        flex-direction: row;
         gap: 10px;
         margin-right: 0;
     }
 
     .modal-buttons button {
-        width: 100%;
-        max-width: 100%;
+        flex: 1;
+        min-width: 0;
+        max-width: none;
         margin-bottom: 0;
+        padding: 12px 16px;
     }
     
-    /* Modal action buttons (in confirm dialogs) */
+    /* Modal action buttons (in confirm dialogs) - side by side */
     .modal-actions {
-        flex-direction: column;
+        flex-direction: row;
         gap: 10px;
     }
     
     .modal-actions button {
-        width: 100%;
+        flex: 1;
+        min-width: 0;
     }
 
     /* Upload and Location buttons full width */
@@ -1558,6 +1681,7 @@
     justify-content: flex-end;
     gap: 10px;
     margin-top: 15px;
+    flex-wrap: wrap;
 }
 
 .edit-actions button,
@@ -1569,6 +1693,8 @@
     border-radius: 20px;
     cursor: pointer;
     transition: opacity 0.2s;
+    flex: 1;
+    min-width: 80px;
 }
 
 .edit-actions button:first-child { 
@@ -1723,6 +1849,10 @@ button.delete-btn:hover {
         flex-direction: row; 
         justify-content: flex-start;
         margin-top: 5px;
+    }
+
+    .filter-icon-btn {
+        margin-top: -12px !important;
     }
 }
 
@@ -2467,6 +2597,7 @@ button.delete-btn:hover {
     padding: 10px 12px;
     gap: 0;
     position: relative;
+    overflow: visible; /* Allow badge to show outside pill */
   }
   
   .trending-pill-btn .trending-pill-icon,
@@ -2495,6 +2626,9 @@ button.delete-btn:hover {
     padding: 2px 6px;
     border-radius: 10px;
     box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+    min-width: 18px;
+    text-align: center;
+    box-sizing: border-box;
   }
   
   .pending-pill-btn::after {
@@ -2509,6 +2643,31 @@ button.delete-btn:hover {
     padding: 2px 6px;
     border-radius: 10px;
     box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+    min-width: 18px;
+    text-align: center;
+    box-sizing: border-box;
+  }
+  
+  .top-pill-btn::after {
+    content: attr(data-count);
+    position: absolute;
+    top: -6px;
+    right: -6px;
+    background: #fff;
+    color: #a16207;
+    font-size: 10px;
+    font-weight: 700;
+    padding: 2px 6px;
+    border-radius: 10px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+    min-width: 18px;
+    text-align: center;
+    box-sizing: border-box;
+  }
+  
+  /* Hide badge for Top pill (no count) */
+  .top-pill-btn::after {
+    display: none;
   }
   
   .trending-pill-btn.empty::after,
@@ -2606,6 +2765,30 @@ button.delete-btn:hover {
 .feed-trending-card.from-your-barangay:hover {
   box-shadow: 0 8px 20px rgba(16, 185, 129, 0.15);
   border-color: rgba(16, 185, 129, 0.5);
+}
+
+/* Your Report badge (own reports in trending) */
+.feed-trending-card.your-report {
+  border-left: 3px solid #8b5cf6;
+  background: linear-gradient(135deg, #f5f3ff 0%, #ede9fe 100%);
+}
+
+.feed-trending-card.your-report:hover {
+  box-shadow: 0 8px 20px rgba(139, 92, 246, 0.15);
+  border-color: rgba(139, 92, 246, 0.5);
+}
+
+.your-report-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px;
+  background: rgba(139, 92, 246, 0.15);
+  color: #7c3aed;
+  border-radius: 8px;
+  font-size: 0.7rem;
+  font-weight: 600;
+  margin-bottom: 8px;
 }
 
 .your-barangay-badge {
@@ -3415,24 +3598,34 @@ button.delete-btn:hover {
     .header-row h2 {
         font-size: 1.25rem;
         text-align: center;
-    }
-    
-    /* Add Report button full width */
-    .add-report-btn,
-    .action-buttons-group button {
-        width: 100%;
         justify-content: center;
     }
     
-    /* Modal actions */
+    /* Action buttons stay side by side */
+    .action-buttons-group {
+        width: 100%;
+        flex-direction: row;
+        gap: 8px;
+    }
+    
+    .action-buttons-group .filter-btns {
+        flex: 0 0 48px;
+    }
+    
+    .action-buttons-group .add-btn {
+        flex: 1;
+    }
+    
+    /* Modal buttons side by side */
     .form-actions,
     .modal-actions {
-        flex-direction: column;
+        flex-direction: row;
         gap: 10px;
     }
     
     .form-actions button,
     .modal-actions button {
-        width: 100%;
+        flex: 1;
+        min-width: 0;
     }
 }
