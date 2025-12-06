@@ -322,15 +322,6 @@ function ChatBot({ isOpen, onClose, token, isPremium = false, onPremiumRequired 
           </div>
         </ModalPortal>
       )}
-
-      {/* Usage Counter Display (non-premium users) */}
-      {!isPremium && (
-        <div className="chatbot-usage-counter">
-          <span className={usageLimitReached ? 'limit-reached' : ''}>
-            {usageCount}/{DAILY_LIMIT} messages used today
-          </span>
-        </div>
-      )}
     </div>
   );
 }

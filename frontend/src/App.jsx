@@ -16,6 +16,7 @@ import AdminReports from "./components/admin/Admin-Reports";
 import AdminUsers from "./components/admin/Admin-Users";
 import AdminNotifications from "./components/admin/Admin-Notifications";
 import AdminMaps from "./components/admin/Admin-Maps";
+import AdminDashboard from "./components/admin/Admin-Dashboard";
 import ArchivedReports from "./components/admin/ArchivedReports";
 import AssignResponders from "./components/admin/AssignResponders";
 import CommunityFeedAdmin from "./components/admin/CommunityFeedAdmin";
@@ -489,7 +490,13 @@ function App() {
         >
           <Route
             path="/admin/dashboard"
-            element={<Navigate to="/admin/users" replace />}
+            element={
+              session?.user?.role !== "Admin" ? (
+                <Navigate to="/home" replace />
+              ) : (
+                <AdminDashboard token={session?.token} />
+              )
+            }
           />
           <Route
             path="/admin/maps"

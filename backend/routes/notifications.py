@@ -7,7 +7,7 @@ from datetime import datetime, timezone
 import time
 import json
 from middleware.auth import token_required
-from utils import supabase
+from utils import supabase, supabase_retry
 
 notifications_bp = Blueprint("notifications", __name__)
 
@@ -19,7 +19,10 @@ def get_notifications():
     """Get all notifications for the current user"""
     user_id = request.user_id
     try:
-        resp = supabase.table("notifications").select("*").eq("user_id", user_id).order("created_at", desc=True).execute()
+        def fetch_notifications():
+            return supabase.table("notifications").select("*").eq("user_id", user_id).order("created_at", desc=True).execute()
+        
+        resp = supabase_retry(fetch_notifications)
         notifications = getattr(resp, "data", []) or []
 
         normalized = []
@@ -51,7 +54,10 @@ def mark_notification_read(notif_id):
     """Mark a notification as read"""
     user_id = request.user_id
     try:
-        resp = supabase.table("notifications").update({"is_read": True}).eq("id", notif_id).eq("user_id", user_id).execute()
+        def update_notification():
+            return supabase.table("notifications").update({"is_read": True}).eq("id", notif_id).eq("user_id", user_id).execute()
+        
+        resp = supabase_retry(update_notification)
         updated = getattr(resp, "data", []) or []
         updated_row = updated[0] if updated else None
         return jsonify({"status": "success", "notification": updated_row}), 200
@@ -66,7 +72,10 @@ def delete_notification(notif_id):
     """Delete a notification"""
     user_id = request.user_id
     try:
-        resp = supabase.table("notifications").delete().eq("id", notif_id).eq("user_id", user_id).execute()
+        def delete_notif():
+            return supabase.table("notifications").delete().eq("id", notif_id).eq("user_id", user_id).execute()
+        
+        resp = supabase_retry(delete_notif)
         deleted = getattr(resp, "data", []) or []
         return jsonify({"status": "success", "deleted": deleted}), 200
     except Exception as e:
@@ -329,20 +338,29 @@ def barangay_get_notifications():
     user_id = request.user_id
     
     try:
-        # Verify that the user is a Barangay Official
-        current_user_resp = supabase.table("users").select("role, id").eq("id", user_id).single().execute()
+        # Verify that the user is a Barangay Official (with retry)
+        def get_user_role():
+            return supabase.table("users").select("role, id").eq("id", user_id).single().execute()
+        
+        current_user_resp = supabase_retry(get_user_role)
         current_user = current_user_resp.data if current_user_resp.data else {}
         
         if current_user.get("role") != "Barangay Official":
             return jsonify({"status": "error", "message": "Barangay Official access required"}), 403
         
-        # Fetch barangay from info table
-        info_resp = supabase.table("info").select("address_barangay").eq("user_id", user_id).single().execute()
+        # Fetch barangay from info table (with retry)
+        def get_user_info():
+            return supabase.table("info").select("address_barangay").eq("user_id", user_id).single().execute()
+        
+        info_resp = supabase_retry(get_user_info)
         info_data = info_resp.data if info_resp.data else {}
         user_barangay = info_data.get("address_barangay")
         
-        # Fetch all notifications for this user
-        resp = supabase.table("notifications").select("*").eq("user_id", user_id).order("created_at", desc=True).execute()
+        # Fetch all notifications for this user (with retry)
+        def get_notifications():
+            return supabase.table("notifications").select("*").eq("user_id", user_id).order("created_at", desc=True).execute()
+        
+        resp = supabase_retry(get_notifications)
         notifications = getattr(resp, "data", []) or []
         
         # If we have a barangay, filter to show only relevant notifications
@@ -353,8 +371,11 @@ def barangay_get_notifications():
             
             barangay_reports = []
             if report_ids:
-                # Fetch reports to check their barangay
-                reports_resp = supabase.table("reports").select("id, address_barangay").in_("id", report_ids).execute()
+                # Fetch reports to check their barangay (with retry)
+                def get_reports_by_ids():
+                    return supabase.table("reports").select("id, address_barangay").in_("id", report_ids).execute()
+                
+                reports_resp = supabase_retry(get_reports_by_ids)
                 reports = getattr(reports_resp, "data", []) or []
                 barangay_reports = [r.get("id") for r in reports if r.get("address_barangay") == user_barangay]
             
@@ -393,15 +414,21 @@ def barangay_mark_notification_read(notif_id):
     user_id = request.user_id
     
     try:
-        # Verify barangay official role
-        current_user_resp = supabase.table("users").select("role").eq("id", user_id).single().execute()
+        # Verify barangay official role (with retry)
+        def get_user_role():
+            return supabase.table("users").select("role").eq("id", user_id).single().execute()
+        
+        current_user_resp = supabase_retry(get_user_role)
         current_user = current_user_resp.data if current_user_resp.data else {}
         
         if current_user.get("role") != "Barangay Official":
             return jsonify({"status": "error", "message": "Barangay Official access required"}), 403
         
-        # Update notification (verify it belongs to this user)
-        resp = supabase.table("notifications").update({"is_read": True}).eq("id", notif_id).eq("user_id", user_id).execute()
+        # Update notification (verify it belongs to this user) (with retry)
+        def update_notification():
+            return supabase.table("notifications").update({"is_read": True}).eq("id", notif_id).eq("user_id", user_id).execute()
+        
+        resp = supabase_retry(update_notification)
         updated = getattr(resp, "data", []) or []
         updated_row = updated[0] if updated else None
         
@@ -424,15 +451,21 @@ def barangay_mark_all_notifications_read():
     user_id = request.user_id
     
     try:
-        # Verify barangay official role
-        current_user_resp = supabase.table("users").select("role").eq("id", user_id).single().execute()
+        # Verify barangay official role (with retry)
+        def get_user_role():
+            return supabase.table("users").select("role").eq("id", user_id).single().execute()
+        
+        current_user_resp = supabase_retry(get_user_role)
         current_user = current_user_resp.data if current_user_resp.data else {}
         
         if current_user.get("role") != "Barangay Official":
             return jsonify({"status": "error", "message": "Barangay Official access required"}), 403
         
-        # Mark all notifications for this user as read
-        resp = supabase.table("notifications").update({"is_read": True}).eq("user_id", user_id).eq("is_read", False).execute()
+        # Mark all notifications for this user as read (with retry)
+        def mark_all_read():
+            return supabase.table("notifications").update({"is_read": True}).eq("user_id", user_id).eq("is_read", False).execute()
+        
+        resp = supabase_retry(mark_all_read)
         updated = getattr(resp, "data", []) or []
         
         return jsonify({"status": "success", "updated_count": len(updated)}), 200
@@ -451,15 +484,21 @@ def barangay_delete_notification(notif_id):
     user_id = request.user_id
     
     try:
-        # Verify barangay official role
-        current_user_resp = supabase.table("users").select("role").eq("id", user_id).single().execute()
+        # Verify barangay official role (with retry)
+        def get_user_role():
+            return supabase.table("users").select("role").eq("id", user_id).single().execute()
+        
+        current_user_resp = supabase_retry(get_user_role)
         current_user = current_user_resp.data if current_user_resp.data else {}
         
         if current_user.get("role") != "Barangay Official":
             return jsonify({"status": "error", "message": "Barangay Official access required"}), 403
         
-        # Delete the notification (verify it belongs to this user)
-        resp = supabase.table("notifications").delete().eq("id", notif_id).eq("user_id", user_id).execute()
+        # Delete the notification (verify it belongs to this user) (with retry)
+        def delete_notification():
+            return supabase.table("notifications").delete().eq("id", notif_id).eq("user_id", user_id).execute()
+        
+        resp = supabase_retry(delete_notification)
         deleted = getattr(resp, "data", []) or []
         
         return jsonify({"status": "success", "deleted_count": len(deleted), "deleted": deleted[0] if deleted else None}), 200
@@ -506,15 +545,21 @@ def responder_get_notifications():
     user_id = request.user_id
     
     try:
-        # Verify that the user is a Responder
-        current_user_resp = supabase.table("users").select("role, id").eq("id", user_id).single().execute()
+        # Verify that the user is a Responder (with retry)
+        def get_user_role():
+            return supabase.table("users").select("role, id").eq("id", user_id).single().execute()
+        
+        current_user_resp = supabase_retry(get_user_role)
         current_user = current_user_resp.data if current_user_resp.data else {}
         
         if current_user.get("role") != "Responder":
             return jsonify({"status": "error", "message": "Responder access required"}), 403
         
-        # Fetch all notifications for this responder
-        resp = supabase.table("notifications").select("*").eq("user_id", user_id).order("created_at", desc=True).execute()
+        # Fetch all notifications for this responder (with retry)
+        def get_notifications():
+            return supabase.table("notifications").select("*").eq("user_id", user_id).order("created_at", desc=True).execute()
+        
+        resp = supabase_retry(get_notifications)
         notifications = getattr(resp, "data", []) or []
         
         # Normalize created_at timestamps
@@ -548,15 +593,21 @@ def responder_mark_notification_read(notif_id):
     user_id = request.user_id
     
     try:
-        # Verify responder role
-        current_user_resp = supabase.table("users").select("role").eq("id", user_id).single().execute()
+        # Verify responder role (with retry)
+        def get_user_role():
+            return supabase.table("users").select("role").eq("id", user_id).single().execute()
+        
+        current_user_resp = supabase_retry(get_user_role)
         current_user = current_user_resp.data if current_user_resp.data else {}
         
         if current_user.get("role") != "Responder":
             return jsonify({"status": "error", "message": "Responder access required"}), 403
         
-        # Update notification
-        updated = supabase.table("notifications").update({"is_read": True}).eq("id", notif_id).execute()
+        # Update notification (with retry)
+        def update_notification():
+            return supabase.table("notifications").update({"is_read": True}).eq("id", notif_id).execute()
+        
+        updated = supabase_retry(update_notification)
         
         if updated.data:
             return jsonify({
@@ -580,19 +631,28 @@ def responder_mark_all_read():
     user_id = request.user_id
     
     try:
-        # Verify responder role
-        current_user_resp = supabase.table("users").select("role").eq("id", user_id).single().execute()
+        # Verify responder role (with retry)
+        def get_user_role():
+            return supabase.table("users").select("role").eq("id", user_id).single().execute()
+        
+        current_user_resp = supabase_retry(get_user_role)
         current_user = current_user_resp.data if current_user_resp.data else {}
         
         if current_user.get("role") != "Responder":
             return jsonify({"status": "error", "message": "Responder access required"}), 403
         
-        # Get unread notifications for this responder
-        resp = supabase.table("notifications").select("id").eq("user_id", user_id).eq("is_read", False).execute()
+        # Get unread notifications for this responder (with retry)
+        def get_unread():
+            return supabase.table("notifications").select("id").eq("user_id", user_id).eq("is_read", False).execute()
+        
+        resp = supabase_retry(get_unread)
         unread_ids = [n["id"] for n in (getattr(resp, "data", []) or [])]
         
         if unread_ids:
-            updated = supabase.table("notifications").update({"is_read": True}).in_("id", unread_ids).execute()
+            def mark_read():
+                return supabase.table("notifications").update({"is_read": True}).in_("id", unread_ids).execute()
+            
+            updated = supabase_retry(mark_read)
             count = len(updated.data) if updated.data else 0
         else:
             count = 0
@@ -616,15 +676,21 @@ def responder_delete_notification(notif_id):
     user_id = request.user_id
     
     try:
-        # Verify responder role
-        current_user_resp = supabase.table("users").select("role").eq("id", user_id).single().execute()
+        # Verify responder role (with retry)
+        def get_user_role():
+            return supabase.table("users").select("role").eq("id", user_id).single().execute()
+        
+        current_user_resp = supabase_retry(get_user_role)
         current_user = current_user_resp.data if current_user_resp.data else {}
         
         if current_user.get("role") != "Responder":
             return jsonify({"status": "error", "message": "Responder access required"}), 403
         
-        # Delete notification
-        supabase.table("notifications").delete().eq("id", notif_id).eq("user_id", user_id).execute()
+        # Delete notification (with retry)
+        def delete_notif():
+            return supabase.table("notifications").delete().eq("id", notif_id).eq("user_id", user_id).execute()
+        
+        supabase_retry(delete_notif)
         
         return jsonify({
             "status": "success",

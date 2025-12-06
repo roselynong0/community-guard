@@ -862,7 +862,14 @@
     box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
 }
 
-.add-btn:hover {
+/* Disabled state for add button (matches CommunityFeed .feed-btn.disabled) */
+.add-btn.disabled,
+.add-btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+.add-btn:hover:not(.disabled):not(:disabled) {
     background-color: var(--primary-light);
     transform: translateY(-1px);
     box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);

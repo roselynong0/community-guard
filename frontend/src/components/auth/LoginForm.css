@@ -668,4 +668,173 @@ input[type="password"]::placeholder {
   }
 }
 
+/* ========================================
+   MOBILE RESPONSIVENESS
+   ======================================== */
+
+/* Tablet breakpoint */
+@media (max-width: 768px) {
+  .wrapper {
+    padding: 20px 15px;
+    margin: 10px;
+  }
+
+  .form-card {
+    padding: 1.25rem;
+    border-radius: 16px;
+    width: 100%;
+    max-width: 100%;
+    margin: 0 auto;
+  }
+
+  .tab-strip {
+    margin: -1.25rem -1.25rem 0.75rem -1.25rem;
+    padding: 6px 12px 10px 12px;
+    gap: 6px;
+  }
+
+  .tab-strip .tab-btn {
+    padding: 8px 12px;
+    font-size: 0.85rem;
+    border-radius: 12px;
+  }
+
+  .top-section h1 {
+    font-size: 1.75rem;
+  }
+
+  .top-section p {
+    font-size: 0.95rem;
+  }
+
+  .form-card h2 {
+    font-size: 1.35rem;
+    margin-bottom: 1rem;
+  }
+
+  .form-card input {
+    padding: 12px 14px;
+    font-size: 15px;
+  }
+
+  .form-submit-btn {
+    padding: 12px 18px;
+    font-size: 15px;
+  }
+}
+
+/* Mobile breakpoint */
+@media (max-width: 480px) {
+  .background {
+    padding: 10px;
+  }
+
+  .wrapper {
+    padding: 15px 10px;
+    margin: 5px;
+  }
+
+  .form-card {
+    padding: 1rem;
+    border-radius: 14px;
+  }
+
+  .tab-strip {
+    margin: -1rem -1rem 0.6rem -1rem;
+    padding: 5px 10px 8px 10px;
+    gap: 5px;
+    flex-wrap: nowrap;
+  }
+
+  .tab-strip .tab-btn {
+    padding: 7px 10px;
+    font-size: 0.8rem;
+    border-radius: 10px;
+    min-width: 0;
+    white-space: nowrap;
+  }
+
+  .top-section h1 {
+    font-size: 1.5rem;
+  }
+
+  .top-section p {
+    font-size: 0.9rem;
+  }
+
+  .form-card h2 {
+    font-size: 1.2rem;
+    margin-bottom: 0.75rem;
+  }
+
+  .form-card input {
+    padding: 11px 12px;
+    font-size: 14px;
+  }
+
+  .password-field-container {
+    margin-bottom: 10px;
+  }
+
+  .password-toggle-btn {
+    right: 10px;
+    padding: 8px;
+  }
+
+  .form-submit-btn {
+    padding: 11px 16px;
+    font-size: 14px;
+    margin-top: 8px;
+  }
+
+  .forgot-password-link,
+  .back-link {
+    font-size: 0.85rem;
+    padding: 8px 0;
+  }
+
+  .back-button-top-left {
+    top: 15px !important;
+    left: 15px !important;
+    font-size: 18px !important;
+  }
+}
+
+/* Extra small screens */
+@media (max-width: 360px) {
+  .wrapper {
+    padding: 10px 8px;
+  }
+
+  .form-card {
+    padding: 0.85rem;
+  }
+
+  .tab-strip {
+    margin: -0.85rem -0.85rem 0.5rem -0.85rem;
+    padding: 4px 8px 6px 8px;
+    gap: 4px;
+  }
+
+  .tab-strip .tab-btn {
+    padding: 6px 8px;
+    font-size: 0.75rem;
+    border-radius: 8px;
+  }
+
+  .form-card h2 {
+    font-size: 1.1rem;
+  }
+
+  .form-card input {
+    padding: 10px;
+    font-size: 13px;
+  }
+
+  .form-submit-btn {
+    padding: 10px 14px;
+    font-size: 13px;
+  }
+}
+
 /* ---- End base styles ---- */

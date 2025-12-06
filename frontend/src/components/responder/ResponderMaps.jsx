@@ -9,9 +9,12 @@ import {
 } from "react-leaflet";
 import { useMapEvents } from "react-leaflet";
 import { API_CONFIG, getApiUrl } from "../../utils/apiConfig";
+import { fetchSafezonesWithCache, addSafezonesToCache, clearSafezonesCache } from "../../utils/safezonesService";
 import L from "leaflet";
 import "../resident/Maps.css";
 import "leaflet/dist/leaflet.css";
+import SafezoneModal from "../shared/SafezoneModal";
+import LoadingScreen from "../shared/LoadingScreen";
 
 // Olongapo Center for map initialization
 const OLONGAPO_CENTER = [14.8291, 120.2829];
@@ -107,6 +110,12 @@ function ResponderMaps({ session }) {
   const [isCreatingSafezone, setIsCreatingSafezone] = useState(false);
   const [safezoneModal, setSafezoneModal] = useState(null);
   const [selectedBarangay, setSelectedBarangay] = useState('all');
+  const [showFilters, setShowFilters] = useState(false);
+  const [showHotspots, setShowHotspots] = useState(true);
+  const [showSafezones, setShowSafezones] = useState(true);
+  const [showSafezoneModalForm, setShowSafezoneModalForm] = useState(false);
+  const [isRefreshingHotspots, setIsRefreshingHotspots] = useState(false);
+  const [overlayExited, setOverlayExited] = useState(false);
   const mapRef = useRef(null);
 
   // Fetch responder profile to get barangay
@@ -198,18 +207,21 @@ function ResponderMaps({ session }) {
           setHotspots(hotspotsData.hotspots || []);
         }
 
-        // Fetch safezones
-        const safezonesEndpoint = getApiUrl('/api/safezones');
-        const safezonesResponse = await fetch(safezonesEndpoint, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-        const safezonesData = await safezonesResponse.json();
+        // Fetch safezones with caching
+        const cachedSafezones = await fetchSafezonesWithCache(token);
+        const normalizedSafezones = (cachedSafezones || []).map(sz => {
+          // Normalize safezone center format
+          if (sz?.center?.latitude && sz?.center?.longitude) {
+            return sz;
+          }
+          if (sz?.latitude && sz?.longitude) {
+            return { ...sz, center: { latitude: sz.latitude, longitude: sz.longitude } };
+          }
+          return sz;
+        }).filter(Boolean);
+        setSafezones(normalizedSafezones);
 
-        if (safezonesData.status === "success") {
-          setSafezones(safezonesData.safezones || []);
-        }
-
-        console.log(`✅ Loaded responder map data: ${hotspotsData.hotspots?.length || 0} hotspots, ${safezonesData.safezones?.length || 0} safezones`);
+        console.log(`✅ Loaded responder map data: ${hotspotsData.hotspots?.length || 0} hotspots, ${normalizedSafezones.length} safezones`);
       } catch (err) {
         console.error("Failed to load responder map data:", err);
       } finally {
@@ -247,6 +259,48 @@ function ResponderMaps({ session }) {
       description: "",
       radius: 100,
     });
+  };
+
+  // Refresh hotspots function
+  const handleRefreshHotspots = async () => {
+    setIsRefreshingHotspots(true);
+    try {
+      const token = session?.token || localStorage.getItem("token");
+      const response = await fetch(getApiUrl('/api/hotspots/refresh'), {
+        method: 'POST',
+        headers: { 
+          Authorization: `Bearer ${token}`, 
+          'Content-Type': 'application/json' 
+        },
+        body: JSON.stringify({ radius_meters: 200 })
+      });
+      const data = await response.json();
+      if (data.status === "success" && data.hotspots) {
+        setHotspots(data.hotspots);
+        alert(`✅ Refreshed ${data.hotspots.length} hotspots!`);
+      } else {
+        alert(`⚠️ ${data.message || 'No new hotspots found'}`);
+      }
+    } catch (err) {
+      console.error("Failed to refresh hotspots:", err);
+      alert("❌ Failed to refresh hotspots");
+    } finally {
+      setIsRefreshingHotspots(false);
+    }
+  };
+
+  // Handle safezone created from SafezoneModal
+  const handleSafezoneCreated = (newSafezone) => {
+    const normalized = {
+      ...newSafezone,
+      center: newSafezone.center || { latitude: newSafezone.latitude, longitude: newSafezone.longitude }
+    };
+    setSafezones(prev => [...prev, normalized]);
+    addSafezonesToCache([normalized]);
+    setShowSafezoneModalForm(false);
+    
+    // Trigger hotspots refresh
+    handleRefreshHotspots();
   };
 
   const handleSaveSafezone = async () => {
@@ -301,28 +355,48 @@ function ResponderMaps({ session }) {
 
   return (
     <div className="maps-page">
-      <h2>{responderBarangay ? `${responderBarangay} Operations Map` : "Responder Operations Map"}</h2>
-      <p>{responderBarangay ? `Viewing reports and operations in ${responderBarangay} barangay.` : "Viewing all reports, hotspots, and safezones."} Click 'Create Safezone' and then click on the map to add a new safezone.</p>
+      <div className="maps-header desktop-only">
+        <h2>{responderBarangay ? `${responderBarangay} Operations Map` : "Responder Operations Map"}</h2>
+        <p>{responderBarangay ? `Viewing reports and operations in ${responderBarangay} barangay.` : "Viewing all reports, hotspots, and safezones."}</p>
+      </div>
       
       {/* Control Buttons */}
-      <div style={{ marginBottom: '15px', display: 'flex', gap: '10px', flexWrap: 'wrap', alignItems: 'center' }}>
+      <div className="desktop-only" style={{ marginBottom: '15px', display: 'flex', gap: '10px', flexWrap: 'wrap', alignItems: 'center' }}>
         <button
           onClick={() => setIsCreatingSafezone(!isCreatingSafezone)}
           style={{
             padding: '8px 16px',
-            backgroundColor: isCreatingSafezone ? '#ef4444' : '#2563eb',
+            backgroundColor: isCreatingSafezone ? '#ef4444' : '#06b6d4',
             color: 'white',
             border: 'none',
             borderRadius: '6px',
             cursor: 'pointer',
             fontSize: '14px',
+            fontWeight: '600',
           }}
         >
-          {isCreatingSafezone ? "Cancel Safezone Creation" : "Create Safezone"}
+          {isCreatingSafezone ? "Cancel" : "+ Create Safezone"}
+        </button>
+        <button
+          onClick={handleRefreshHotspots}
+          disabled={isRefreshingHotspots}
+          style={{
+            padding: '8px 16px',
+            backgroundColor: '#f59e0b',
+            color: 'white',
+            border: 'none',
+            borderRadius: '6px',
+            cursor: isRefreshingHotspots ? 'not-allowed' : 'pointer',
+            fontSize: '14px',
+            fontWeight: '600',
+            opacity: isRefreshingHotspots ? 0.6 : 1,
+          }}
+        >
+          {isRefreshingHotspots ? "Refreshing..." : "⟳ Refresh Hotspots"}
         </button>
       </div>
 
-      <div style={{ position: "relative", height: "80vh" }}>
+      <div className="maps-container">
         <MapContainer
           center={OLONGAPO_CENTER}
           zoom={INITIAL_ZOOM}
@@ -341,42 +415,50 @@ function ResponderMaps({ session }) {
         )}
 
         {/* Render safezones as circles */}
-        {safezones.map((sz, idx) => (
-          <Circle
-            key={`safezone-${idx}`}
-            center={[sz.center.latitude, sz.center.longitude]}
-            radius={sz.radius_meters}
-            color="#06b6d4"
-            fillColor="#06b6d4"
-            fillOpacity={0.3}
-          >
-            <Popup>
-              <div>
-                <strong style={{ fontSize: "14px" }}>{sz.name}</strong>
-                <br />
-                <span style={{ fontSize: "12px" }}>{sz.description}</span>
-                <br />
-                <span style={{ fontSize: "11px", color: "#666" }}>
-                  Radius: {sz.radius_meters}m
-                </span>
-              </div>
-            </Popup>
-          </Circle>
-        ))}
+        {showSafezones && safezones.map((sz, idx) => {
+          const latitude = sz?.center?.latitude || sz?.latitude;
+          const longitude = sz?.center?.longitude || sz?.longitude;
+          if (!latitude || !longitude) return null;
+
+          return (
+            <Circle
+              key={`safezone-${sz.id || idx}`}
+              center={[Number(latitude), Number(longitude)]}
+              radius={sz.radius_meters || 100}
+              color="#0891b2"
+              fillColor="#06b6d4"
+              fillOpacity={0.25}
+              weight={3}
+              dashArray="5, 5"
+            >
+              <Popup>
+                <div>
+                  <strong style={{ fontSize: "14px" }}>🛡️ {sz.name}</strong>
+                  <br />
+                  <span style={{ fontSize: "12px" }}>{sz.description}</span>
+                  <br />
+                  <span style={{ fontSize: "11px", color: "#666" }}>
+                    Radius: {sz.radius_meters}m
+                  </span>
+                </div>
+              </Popup>
+            </Circle>
+          );
+        })}
 
         {/* Render hotspots */}
-        {hotspots.map((hs, idx) => (
+        {showHotspots && hotspots.map((hs, idx) => (
           <Circle
-            key={`hotspot-${idx}`}
+            key={`hotspot-${hs.id || idx}`}
             center={[hs.centroid.latitude, hs.centroid.longitude]}
-            radius={200}
+            radius={300}
             color="#dc2626"
             fillColor="#dc2626"
             fillOpacity={0.2}
           >
             <Popup>
               <div>
-                <strong style={{ fontSize: "14px" }}>Hotspot</strong>
+                <strong style={{ fontSize: "14px" }}>🔴 Hotspot</strong>
                 <br />
                 <span style={{ fontSize: "12px" }}>Reports: {hs.report_count}</span>
                 <br />
@@ -445,24 +527,86 @@ function ResponderMaps({ session }) {
         )}
       </MapContainer>
 
-        {/* Control Panel Overlay - Top Right */}
+        {/* Mobile Filter Toggle Button */}
         {!loading && (
-          <div style={{
-            position: 'absolute',
-            top: '16px',
-            right: '16px',
-            backgroundColor: '#fff',
-            borderRadius: '8px',
-            padding: '16px',
-            boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
-            zIndex: 1000,
-            maxWidth: '320px'
-          }}>
+          <button
+            className="mobile-filter-toggle"
+            onClick={() => setShowFilters(!showFilters)}
+          >
+            {showFilters ? '✕' : '☰'} {showFilters ? 'Close' : 'Filters'}
+          </button>
+        )}
+
+        {/* Mobile Collapsible Filter Panel */}
+        {!loading && showFilters && (
+          <div className="mobile-filter-panel">
+            <div className="mobile-filter-content">
+              {/* Toggle Controls */}
+              <div className="mobile-filter-toggles">
+                <label className="mobile-toggle-item hotspot-toggle">
+                  <input
+                    type="checkbox"
+                    checked={showHotspots}
+                    onChange={(e) => setShowHotspots(e.target.checked)}
+                  />
+                  <span>Hotspots ({hotspots.length})</span>
+                </label>
+                <label className="mobile-toggle-item safezone-toggle">
+                  <input
+                    type="checkbox"
+                    checked={showSafezones}
+                    onChange={(e) => setShowSafezones(e.target.checked)}
+                  />
+                  <span>Safezones ({safezones.length})</span>
+                </label>
+              </div>
+              
+              {/* Mobile action buttons */}
+              <div style={{ marginTop: '12px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                <button
+                  onClick={() => { setShowSafezoneModalForm(true); setShowFilters(false); }}
+                  style={{
+                    padding: '10px',
+                    backgroundColor: '#06b6d4',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '6px',
+                    fontWeight: '600',
+                    fontSize: '13px',
+                  }}
+                >
+                  + Create Safezone
+                </button>
+                <button
+                  onClick={() => { handleRefreshHotspots(); setShowFilters(false); }}
+                  disabled={isRefreshingHotspots}
+                  style={{
+                    padding: '10px',
+                    backgroundColor: '#f59e0b',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '6px',
+                    fontWeight: '600',
+                    fontSize: '13px',
+                    opacity: isRefreshingHotspots ? 0.6 : 1,
+                  }}
+                >
+                  {isRefreshingHotspots ? "Refreshing..." : "⟳ Refresh Hotspots"}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Desktop Control Panel Overlay - Top Right */}
+        {!loading && (
+          <div className="maps-control-panel desktop-only">
             {/* Toggle Hotspots */}
             <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', marginBottom: '12px' }}>
               <input
                 type="checkbox"
-                defaultChecked={true}
+                checked={showHotspots}
+                onChange={(e) => setShowHotspots(e.target.checked)}
                 style={{ cursor: 'pointer', width: '16px', height: '16px', accentColor: '#ef4444' }}
               />
               <span style={{ fontSize: '13px', fontWeight: '500', color: '#333' }}>Hotspots ({hotspots.length})</span>
@@ -472,7 +616,8 @@ function ResponderMaps({ session }) {
             <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
               <input
                 type="checkbox"
-                defaultChecked={true}
+                checked={showSafezones}
+                onChange={(e) => setShowSafezones(e.target.checked)}
                 style={{ cursor: 'pointer', width: '16px', height: '16px', accentColor: '#22c55e' }}
               />
               <span style={{ fontSize: '13px', fontWeight: '500', color: '#333' }}>Safezones ({safezones.length})</span>
@@ -480,31 +625,29 @@ function ResponderMaps({ session }) {
           </div>
         )}
 
-        {/* Statistics Overlay - Bottom Left */}
+        {/* Statistics Overlay - Bottom Left (Desktop) / Bottom Bar (Mobile) */}
         {!loading && (
-          <div style={{
-            position: 'absolute',
-            bottom: '16px',
-            left: '16px',
-            backgroundColor: '#fff',
-            borderRadius: '8px',
-            padding: '16px',
-            boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
-            zIndex: 1000,
-            maxWidth: '320px'
-          }}>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', fontSize: '13px' }}>
-              <div style={{ padding: '8px 12px', backgroundColor: '#f3f4f6', borderRadius: '6px' }}>
-                <div style={{ fontSize: '11px', color: '#666', fontWeight: '600', textTransform: 'uppercase', marginBottom: '4px' }}>Total Reports</div>
-                <div style={{ fontSize: '18px', fontWeight: '700', color: '#111' }}>{reports.length}</div>
+          <div className="maps-stats-panel">
+            <div className="maps-stats-grid">
+              <div className="maps-stat-item stat-reports">
+                <span className="stat-icon">📋</span>
+                <span className="stat-value">{reports.length}</span>
+                <span className="stat-label">Reports</span>
               </div>
-              <div style={{ padding: '8px 12px', backgroundColor: '#fef2f2', borderRadius: '6px' }}>
-                <div style={{ fontSize: '11px', color: '#666', fontWeight: '600', textTransform: 'uppercase', marginBottom: '4px' }}>Hotspots</div>
-                <div style={{ fontSize: '18px', fontWeight: '700', color: '#dc2626' }}>{hotspots.length}</div>
+              <div className="maps-stat-item stat-hotspots">
+                <span className="stat-icon">🔴</span>
+                <span className="stat-value">{hotspots.length}</span>
+                <span className="stat-label">Hotspots</span>
               </div>
-              <div style={{ padding: '8px 12px', backgroundColor: '#f0fdf4', borderRadius: '6px' }}>
-                <div style={{ fontSize: '11px', color: '#666', fontWeight: '600', textTransform: 'uppercase', marginBottom: '4px' }}>Safezones</div>
-                <div style={{ fontSize: '18px', fontWeight: '700', color: '#16a34a' }}>{safezones.length}</div>
+              <div className="maps-stat-item stat-safezones">
+                <span className="stat-icon">🛡️</span>
+                <span className="stat-value">{safezones.length}</span>
+                <span className="stat-label">Safezones</span>
+              </div>
+              <div className="maps-stat-item stat-barangays">
+                <span className="stat-icon">🏘️</span>
+                <span className="stat-value">{Object.keys(reportsByBarangay).length}</span>
+                <span className="stat-label">Barangays</span>
               </div>
             </div>
           </div>

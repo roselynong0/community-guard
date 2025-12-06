@@ -24,7 +24,7 @@ SYSTEM_KNOWLEDGE = {
     
     "features": {
         "incident_reporting": "Users can report various types of incidents including crime, hazards, accidents, harassment, vandalism, and lost & found items with detailed descriptions, images, and location data.",
-        "ai_categorization": "AI-powered automatic categorization system that intelligently classifies incidents into appropriate categories (Crime, Hazard, Concern, Lost&Found, Others) to streamline reporting and response.",
+        "smart_categorization": "Smart automatic categorization system that intelligently classifies incidents into appropriate categories (Crime, Hazard, Concern, Lost&Found, Others) to streamline reporting and response.",
         "real_time_mapping": "Interactive maps showing incident locations, allowing users to visualize safety trends and community hotspots across different barangays.",
         "notifications": "Real-time notifications for incident updates, official responses, and community alerts to keep users informed about incidents in their area.",
         "community_feed": "A social feed where community members can discuss, share updates, and provide mutual support regarding local incidents and safety.",
@@ -54,7 +54,7 @@ SYSTEM_KNOWLEDGE = {
         "Report incidents with photos, GPS location, and detailed descriptions",
         "View incident history and trends on interactive maps",
         "Receive real-time notifications about incidents in your area",
-        "AI-powered automatic incident categorization",
+        "Smart automatic incident categorization",
         "Participate in community discussions and safety forums",
         "Track incident resolution status and official responses",
         "Access safety tips and emergency guidelines",
@@ -62,11 +62,11 @@ SYSTEM_KNOWLEDGE = {
         "Coordinate emergency response with multiple teams",
     ],
     
-    "ai_features": {
-        "automatic_categorization": "AI system automatically analyzes incident descriptions and assigns appropriate categories with confidence scores",
-        "real_time_suggestions": "As you type your incident report, the AI provides category suggestions to help you classify correctly",
-        "confidence_scoring": "Each AI classification includes a confidence score indicating how certain the AI is about the categorization",
-        "alternative_suggestions": "The AI provides alternative category suggestions in case the primary suggestion isn't accurate",
+    "smart_features": {
+        "automatic_categorization": "Smart system automatically analyzes incident descriptions and assigns appropriate categories with confidence scores",
+        "real_time_suggestions": "As you type your incident report, the system provides category suggestions to help you classify correctly",
+        "confidence_scoring": "Each smart classification includes a confidence score indicating how certain the system is about the categorization",
+        "alternative_suggestions": "The system provides alternative category suggestions in case the primary suggestion isn't accurate",
         "smart_detection": "Special detection for Lost & Found items, hazard types, and crime patterns",
     },
     
@@ -78,7 +78,7 @@ SYSTEM_KNOWLEDGE = {
         "Enhanced emergency response coordination",
         "Transparent communication between residents and authorities",
         "Community empowerment through information sharing",
-        "AI-assisted incident classification for accuracy",
+        "Smart-assisted incident classification for accuracy",
     ],
     
     "emergency_guidance": {
@@ -137,9 +137,9 @@ def search_knowledge_base(query):
     if "incident" in query_lower:
         feature_map = {
             "reporting": "incident_reporting",
-            "ai_categorization": "ai_categorization",
-            "categorization": "ai_categorization",
-            "categoriz": "ai_categorization",
+            "smart_categorization": "smart_categorization",
+            "categorization": "smart_categorization",
+            "categoriz": "smart_categorization",
             "mapping": "real_time_mapping",
             "map": "real_time_mapping",
         }
@@ -207,14 +207,14 @@ def search_knowledge_base(query):
             benefits_text += f"{i}. {benefit}\n"
         return [benefits_text]
     
-    # ============ AI FEATURES QUERY ============
-    ai_keywords = ["ai feature", "ai", "artificial intellig", "categoriz", "classification", "automat", "confidence", "suggestion", "detection", "smart"]
-    if any(word in query_lower for word in ai_keywords):
-        ai_text = "AI FEATURES\n\n"
-        for i, (k, v) in enumerate(SYSTEM_KNOWLEDGE["ai_features"].items(), 1):
-            ai_name = k.replace('_', ' ').title()
-            ai_text += f"{i}. {ai_name}\n{v}\n\n"
-        return [ai_text]
+    # ============ SMART FEATURES QUERY ============
+    smart_keywords = ["smart feature", "ai", "artificial intellig", "categoriz", "classification", "automat", "confidence", "suggestion", "detection", "smart"]
+    if any(word in query_lower for word in smart_keywords):
+        smart_text = "SMART FEATURES\n\n"
+        for i, (k, v) in enumerate(SYSTEM_KNOWLEDGE["smart_features"].items(), 1):
+            smart_name = k.replace('_', ' ').title()
+            smart_text += f"{i}. {smart_name}\n{v}\n\n"
+        return [smart_text]
     
     # ============ EMERGENCY GUIDANCE QUERY ============
     emergency_keywords = ["emergency", "urgent", "help", "sos", "emergency contact", "emergency number", "quick report", "safety tip", "fire", "crime", "health emergency", "earthquake", "flood"]

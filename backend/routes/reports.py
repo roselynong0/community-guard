@@ -1416,6 +1416,149 @@ def get_barangay_dashboard_stats():
         return jsonify({"status": "error", "message": str(e)}), 500
 
 
+# Admin Dashboard Stats - System-wide statistics for ALL barangays
+@reports_bp.route("/dashboard/admin/stats", methods=["GET"])
+@token_required
+def get_admin_dashboard_stats():
+    """
+    Admin Dashboard Stats
+    Returns system-wide statistics for ALL barangays
+    Only accessible by Admin users
+    """
+    try:
+        from datetime import datetime as dt, timedelta
+        
+        user_id = request.user_id
+        time_filter = request.args.get("filter", "all").lower()
+        
+        print(f"🔧 Admin dashboard stats requested by user {user_id}, time filter: {time_filter}")
+        
+        # Verify user is Admin
+        def get_user_role():
+            return supabase.table("users").select("role").eq("id", user_id).single().execute()
+        
+        try:
+            user_resp = supabase_retry(get_user_role)
+            user_role = getattr(user_resp, "data", {}).get("role")
+            if user_role != "Admin":
+                print(f"⚠️ Non-admin user {user_id} tried to access admin dashboard")
+                return jsonify({"status": "error", "message": "Admin access required"}), 403
+        except Exception as e:
+            print(f"⚠️ Could not verify user role: {e}")
+            return jsonify({"status": "error", "message": "Could not verify user role"}), 403
+        
+        # Calculate date range based on filter
+        now = dt.now(timezone.utc)
+        date_filter = None
+        
+        if time_filter == "today":
+            date_filter = now.replace(hour=0, minute=0, second=0, microsecond=0)
+        elif time_filter == "yesterday":
+            yesterday = now - timedelta(days=1)
+            date_filter = yesterday.replace(hour=0, minute=0, second=0, microsecond=0)
+        elif time_filter == "this-month":
+            date_filter = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+        elif time_filter == "this-year":
+            date_filter = now.replace(month=1, day=1, hour=0, minute=0, second=0, microsecond=0)
+        elif time_filter == "all":
+            date_filter = None
+        
+        print(f"🕐 Date filter: {date_filter}")
+        
+        # Fetch ALL reports (system-wide) - only approved reports
+        def fetch_all_reports_for_stats():
+            query = supabase.table("reports").select("status, created_at, address_barangay").is_("deleted_at", "null").eq("is_rejected", False).eq("is_approved", True)
+            if date_filter:
+                query = query.gte("created_at", date_filter.isoformat())
+            return query.execute()
+        
+        reports_resp = supabase_retry(fetch_all_reports_for_stats)
+        reports_list = getattr(reports_resp, "data", []) or []
+        
+        print(f"✅ Fetched {len(reports_list)} system-wide reports")
+        
+        # Calculate stats
+        stats = {
+            "totalReports": len(reports_list),
+            "pending": 0,
+            "ongoing": 0,
+            "resolved": 0
+        }
+        
+        # Count by status
+        for report in reports_list:
+            status = (report.get("status") or "").lower()
+            if status == "pending":
+                stats["pending"] += 1
+            elif status == "ongoing":
+                stats["ongoing"] += 1
+            elif status == "resolved":
+                stats["resolved"] += 1
+        
+        # Calculate barangay counts
+        from collections import defaultdict
+        barangay_counts = defaultdict(int)
+        
+        for report in reports_list:
+            barangay = report.get("address_barangay", "Unknown")
+            barangay_counts[barangay] += 1
+        
+        # Sort by count and get ALL barangays
+        all_barangays_sorted = sorted(
+            [{"barangay": k, "total": v} for k, v in barangay_counts.items()],
+            key=lambda x: x["total"],
+            reverse=True
+        )
+        
+        # Calculate monthly trends for ALL reports (system-wide)
+        month_order = {"Jan": 1, "Feb": 2, "Mar": 3, "Apr": 4, "May": 5, "Jun": 6,
+                       "Jul": 7, "Aug": 8, "Sep": 9, "Oct": 10, "Nov": 11, "Dec": 12}
+        monthly_counts = defaultdict(int)
+        
+        for report in reports_list:
+            created_at = report.get("created_at")
+            if created_at:
+                try:
+                    report_date = dt.fromisoformat(created_at.replace('Z', '+00:00'))
+                    month = report_date.strftime("%b")
+                    monthly_counts[month] += 1
+                except:
+                    pass
+        
+        # Sort by month order
+        trends = [
+            {"month": month, "count": monthly_counts[month]}
+            for month in sorted(monthly_counts.keys(), key=lambda m: month_order.get(m, 0))
+        ]
+        
+        # Count total users
+        def fetch_total_users():
+            return supabase.table("users").select("id", count="exact").execute()
+        
+        try:
+            users_resp = supabase_retry(fetch_total_users)
+            total_users = users_resp.count if hasattr(users_resp, 'count') else len(getattr(users_resp, "data", []) or [])
+        except:
+            total_users = 0
+        
+        print(f"✅ Admin Stats: {stats}, Barangays: {len(all_barangays_sorted)}, Trends: {len(trends)} months, Users: {total_users}")
+        
+        return jsonify({
+            "status": "success",
+            "stats": stats,
+            "topBarangays": all_barangays_sorted,
+            "trends": trends,
+            "totalUsers": total_users,
+            "filter": time_filter
+        }), 200
+        
+    except Exception as e:
+        print(f"❌ get_admin_dashboard_stats error: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+
 @reports_bp.route("/dashboard/monthly-trends", methods=["GET"])
 @token_required
 def get_monthly_trends():
@@ -1928,18 +2071,27 @@ def unassign_responder(report_id):
 def get_responders():
     """
     Get list of responders, optionally filtered by barangay.
+    Admin users can see ALL responders or filter by any barangay.
+    Barangay Officials can only see responders in their own barangay.
     """
     user_id = request.user_id
     barangay = request.args.get("barangay")
     
     try:
-        # Get user role to check authorization
+        # Get user role and barangay to check authorization
         user_resp = supabase.table("users").select("role").eq("id", user_id).execute()
         user_data = getattr(user_resp, "data", [None])[0]
         user_role = user_data.get("role") if user_data else None
         
         if user_role not in ["Admin", "Barangay Official"]:
             return jsonify({"status": "error", "message": "Not authorized to view responders"}), 403
+        
+        # Get user's barangay from info table
+        user_barangay = None
+        if user_role == "Barangay Official":
+            info_resp = supabase.table("info").select("address_barangay").eq("user_id", user_id).execute()
+            info_data = getattr(info_resp, "data", [None])[0]
+            user_barangay = info_data.get("address_barangay") if info_data else None
         
         # Query users with Responder role
         query = supabase.table("users").select("id, firstname, lastname, phone_number, email").eq("role", "Responder")
@@ -1948,8 +2100,21 @@ def get_responders():
         
         print(f"🔍 Found {len(responders)} total responders: {[r.get('id') for r in responders]}")
         
-        # If barangay filter is provided, filter responders by their address_barangay from info table
-        if barangay and responders:
+        # Determine which barangay to filter by
+        # Admin: can use any barangay filter or none (sees all)
+        # Barangay Official: must use their own barangay (override any provided filter)
+        filter_barangay = None
+        if user_role == "Admin":
+            # Admin can filter by any barangay or see all
+            filter_barangay = barangay if barangay else None
+            print(f"👑 Admin user - filtering by: {filter_barangay or 'ALL responders'}")
+        else:
+            # Barangay Official must use their own barangay
+            filter_barangay = user_barangay
+            print(f"🏘️ Barangay Official - filtering by own barangay: {filter_barangay}")
+        
+        # If barangay filter is needed, filter responders by their address_barangay from info table
+        if filter_barangay and responders:
             responder_ids = [r["id"] for r in responders]
             print(f"🔍 Looking for responders in barangay: '{barangay}' from IDs: {responder_ids}")
             
@@ -1969,26 +2134,26 @@ def get_responders():
                     print(f"  → User {uid}: address_barangay = '{addr_brgy}'")
             
             print(f"🗺️ Barangay map: {barangay_map}")
-            print(f"🎯 Looking for barangay: '{barangay}'")
+            print(f"🎯 Looking for barangay: '{filter_barangay}'")
             
             # Filter responders by barangay - try both exact match and case-insensitive
             filtered_responders = []
             for r in responders:
                 rid = r["id"]
-                user_barangay = barangay_map.get(rid, "")
+                responder_barangay = barangay_map.get(rid, "")
                 
                 # Try exact match first (for ENUM), then case-insensitive fallback
-                if user_barangay == barangay:
+                if responder_barangay == filter_barangay:
                     filtered_responders.append(r)
-                    print(f"  ✓ Exact match: {rid} in '{user_barangay}'")
-                elif user_barangay and barangay and user_barangay.lower().strip() == barangay.lower().strip():
+                    print(f"  ✓ Exact match: {rid} in '{responder_barangay}'")
+                elif responder_barangay and filter_barangay and responder_barangay.lower().strip() == filter_barangay.lower().strip():
                     filtered_responders.append(r)
-                    print(f"  ✓ Case-insensitive match: {rid} in '{user_barangay}'")
+                    print(f"  ✓ Case-insensitive match: {rid} in '{responder_barangay}'")
                 else:
-                    print(f"  ✗ No match: {rid} has '{user_barangay}', looking for '{barangay}'")
+                    print(f"  ✗ No match: {rid} has '{responder_barangay}', looking for '{filter_barangay}'")
             
             responders = filtered_responders
-            print(f"✅ Found {len(responders)} responders in barangay '{barangay}'")
+            print(f"✅ Found {len(responders)} responders in barangay '{filter_barangay}'")
         
         return jsonify({"status": "success", "responders": responders}), 200
         

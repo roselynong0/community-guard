@@ -595,35 +595,29 @@ function AdminMaps({ session }) {
           </div>
         )}
 
-        {/* Statistics Overlay - Bottom Left */}
+        {/* Statistics Overlay - Bottom Left (Desktop) / Bottom Bar (Mobile) */}
         {!loading && (
-          <div style={{
-            position: 'absolute',
-            bottom: '16px',
-            left: '16px',
-            backgroundColor: '#fff',
-            borderRadius: '8px',
-            padding: '16px',
-            boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
-            zIndex: 1000,
-            maxWidth: '320px'
-          }}>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', fontSize: '13px' }}>
-              <div style={{ padding: '8px 12px', backgroundColor: '#f3f4f6', borderRadius: '6px' }}>
-                <div style={{ fontSize: '11px', color: '#666', fontWeight: '600', textTransform: 'uppercase', marginBottom: '4px' }}>Total Reports</div>
-                <div style={{ fontSize: '18px', fontWeight: '700', color: '#111' }}>{selectedBarangay === 'all' ? reports.length : filteredReports.length}</div>
+          <div className="maps-stats-panel">
+            <div className="maps-stats-grid">
+              <div className="maps-stat-item stat-reports">
+                <span className="stat-icon">📋</span>
+                <span className="stat-value">{selectedBarangay === 'all' ? reports.length : filteredReports.length}</span>
+                <span className="stat-label">Reports</span>
               </div>
-              <div style={{ padding: '8px 12px', backgroundColor: '#fef2f2', borderRadius: '6px' }}>
-                <div style={{ fontSize: '11px', color: '#666', fontWeight: '600', textTransform: 'uppercase', marginBottom: '4px' }}>Hotspots</div>
-                <div style={{ fontSize: '18px', fontWeight: '700', color: '#dc2626' }}>{hotspots.length}</div>
+              <div className="maps-stat-item stat-hotspots">
+                <span className="stat-icon">🔴</span>
+                <span className="stat-value">{hotspots.length}</span>
+                <span className="stat-label">Hotspots</span>
               </div>
-              <div style={{ padding: '8px 12px', backgroundColor: '#f0fdf4', borderRadius: '6px' }}>
-                <div style={{ fontSize: '11px', color: '#666', fontWeight: '600', textTransform: 'uppercase', marginBottom: '4px' }}>Safezones</div>
-                <div style={{ fontSize: '18px', fontWeight: '700', color: '#16a34a' }}>{safezones.length}</div>
+              <div className="maps-stat-item stat-safezones">
+                <span className="stat-icon">🛡️</span>
+                <span className="stat-value">{safezones.length}</span>
+                <span className="stat-label">Safezones</span>
               </div>
-              <div style={{ padding: '8px 12px', backgroundColor: '#f3f4f6', borderRadius: '6px' }}>
-                <div style={{ fontSize: '11px', color: '#666', fontWeight: '600', textTransform: 'uppercase', marginBottom: '4px' }}>Barangays</div>
-                <div style={{ fontSize: '18px', fontWeight: '700', color: '#111' }}>{allBarangays.length}</div>
+              <div className="maps-stat-item stat-barangays">
+                <span className="stat-icon">🏘️</span>
+                <span className="stat-value">{allBarangays.length}</span>
+                <span className="stat-label">Barangays</span>
               </div>
             </div>
           </div>

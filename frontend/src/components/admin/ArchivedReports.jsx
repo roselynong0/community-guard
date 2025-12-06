@@ -25,6 +25,35 @@ import LoadingScreen from "../shared/LoadingScreen";
 import ModalPortal from "../shared/ModalPortal";
 const logoImg = /* @vite-ignore */ new URL('../../assets/logo.png', import.meta.url).href;
 
+// ML Categorizer Priority Mapping - matches backend ml_categorizer.py CATEGORY_PRIORITY
+const PRIORITY_COLORS = {
+  Crime: { borderColor: '#c0392b', bgColor: '#fdedec', priority: 'Critical', label: '🔴 Critical', score: 10 },
+  Hazard: { borderColor: '#d35400', bgColor: '#fef5e7', priority: 'High', label: '🟠 High', score: 8 },
+  Concern: { borderColor: '#95a5a6', bgColor: '#ecf0f1', priority: 'Medium', label: '⚪ Medium', score: 5 },
+  'Lost&Found': { borderColor: '#95a5a6', bgColor: '#ecf0f1', priority: 'Low', label: '⚪ Low', score: 2 },
+  Others: { borderColor: '#95a5a6', bgColor: '#ecf0f1', priority: 'Low', label: '⚪ Low', score: 1 },
+};
+
+// Get priority style from category
+const getPriorityStyle = (category) => {
+  return PRIORITY_COLORS[category] || PRIORITY_COLORS['Others'];
+};
+
+// Get report priority - uses AI priority if available, falls back to category-based ML mapping
+const getReportPriority = (report) => {
+  // Use AI priority if available from backend
+  if (report.ai_priority) {
+    const pri = String(report.ai_priority).toLowerCase().trim();
+    if (pri === 'critical') return 'Critical';
+    if (pri === 'high') return 'High';
+    if (pri === 'medium') return 'Medium';
+    if (pri === 'low') return 'Low';
+  }
+  // Fallback to category-based priority from ML categorizer mapping
+  const catPriority = getPriorityStyle(report.category);
+  return catPriority.priority || 'Low';
+};
+
 // Hook for keyboard navigation
 const useKeyboardNavigation = (containerRef, selector) => {
   useEffect(() => {
@@ -353,13 +382,14 @@ function ArchivedReports({ session }) {
     const csvRows = [headers.join(",")];
     
     reportsToExport.forEach((report) => {
+      const priority = getReportPriority(report);
       const row = [
         report.id,
         `"${(report.title || "").replace(/"/g, '""')}"`,
         report.category || "",
         report.status || "",
         report.address_barangay || "",
-        report.priority || "N/A",
+        priority,
         report.reaction_count || 0,
         `"${report.reporter?.firstname || "Unknown"} ${report.reporter?.lastname || ""}"`,
         new Date(report.created_at).toLocaleString(),
@@ -410,7 +440,7 @@ function ArchivedReports({ session }) {
     const totalReports = reportsToExport.length;
     const categoryStats = {};
     const barangayStats = {};
-    const priorityStats = { high: 0, medium: 0, low: 0 };
+    const priorityStats = { Critical: 0, High: 0, Medium: 0, Low: 0 };
     let totalLikes = 0;
     
     reportsToExport.forEach((report) => {
@@ -422,11 +452,9 @@ function ArchivedReports({ session }) {
       const brgy = report.address_barangay || "Unknown";
       barangayStats[brgy] = (barangayStats[brgy] || 0) + 1;
       
-      // Priority stats
-      const priority = (report.priority || "").toLowerCase();
-      if (priority === "high" || priority === "critical") priorityStats.high++;
-      else if (priority === "medium") priorityStats.medium++;
-      else priorityStats.low++;
+      // Priority stats - use ML-based getReportPriority for accurate categorization
+      const priority = getReportPriority(report);
+      priorityStats[priority] = (priorityStats[priority] || 0) + 1;
       
       // Total likes
       totalLikes += (report.reaction_count || 0);
@@ -465,7 +493,7 @@ function ArchivedReports({ session }) {
           .ai-badge img { width: 24px; height: 24px; object-fit: contain; border-radius: 4px; }
           .section { margin-bottom: 30px; }
           .section-title { font-size: 18px; color: #2d3b8f; margin-bottom: 15px; padding-bottom: 8px; border-bottom: 2px solid #e5e7eb; }
-          .stats-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 15px; margin-bottom: 25px; }
+          .stats-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 15px; margin-bottom: 25px; }
           .stat-card { background: #f8fafc; padding: 20px; border-radius: 10px; text-align: center; border: 1px solid #e5e7eb; }
           .stat-card .number { font-size: 32px; font-weight: bold; color: #2d3b8f; }
           .stat-card .label { font-size: 12px; color: #666; margin-top: 5px; }
@@ -480,7 +508,8 @@ function ArchivedReports({ session }) {
           th { background: #2d3b8f; color: white; padding: 10px 8px; text-align: left; }
           td { padding: 10px 8px; border-bottom: 1px solid #e5e7eb; vertical-align: top; }
           tr:nth-child(even) { background: #f8fafc; }
-          .priority-high { color: #dc2626; font-weight: bold; }
+          .priority-critical { color: #c0392b; font-weight: bold; }
+          .priority-high { color: #d35400; font-weight: bold; }
           .priority-medium { color: #f59e0b; font-weight: bold; }
           .priority-low { color: #22c55e; }
           .footer { margin-top: 40px; text-align: center; font-size: 12px; color: #666; padding-top: 20px; border-top: 2px solid #2d3b8f; }
@@ -495,7 +524,7 @@ function ArchivedReports({ session }) {
           .phase { display: flex; align-items: center; gap: 10px; padding: 8px 0; }
           .phase-number { background: #2d3b8f; color: white; width: 24px; height: 24px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: bold; }
           .phase-text { font-size: 12px; }
-          @media print { body { padding: 20px; } .stats-grid { grid-template-columns: repeat(4, 1fr); } }
+          @media print { body { padding: 20px; } .stats-grid { grid-template-columns: repeat(5, 1fr); } }
         </style>
       </head>
       <body>
@@ -516,16 +545,20 @@ function ArchivedReports({ session }) {
               <div class="label">Total Archived Reports</div>
             </div>
             <div class="stat-card">
-              <div class="number" style="color: #dc2626;">${priorityStats.high}</div>
-              <div class="label">High Priority</div>
+              <div class="number" style="color: #dc2626;">${priorityStats.Critical}</div>
+              <div class="label">🔴 Critical Priority</div>
             </div>
             <div class="stat-card">
-              <div class="number" style="color: #f59e0b;">${priorityStats.medium}</div>
-              <div class="label">Medium Priority</div>
+              <div class="number" style="color: #d35400;">${priorityStats.High}</div>
+              <div class="label">🟠 High Priority</div>
             </div>
             <div class="stat-card">
-              <div class="number" style="color: #22c55e;">${priorityStats.low}</div>
-              <div class="label">Low Priority</div>
+              <div class="number" style="color: #f59e0b;">${priorityStats.Medium}</div>
+              <div class="label">⚪ Medium Priority</div>
+            </div>
+            <div class="stat-card">
+              <div class="number" style="color: #22c55e;">${priorityStats.Low}</div>
+              <div class="label">⚪ Low Priority</div>
             </div>
           </div>
         </div>
@@ -589,12 +622,13 @@ function ArchivedReports({ session }) {
           <h2 class="section-title" style="border-bottom-color: #3b82f6;">🤖 Community Helper - AI Analysis & Recommendations</h2>
           
           <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-top: 15px;">
-            <div style="background: white; padding: 15px; border-radius: 8px; border-left: 4px solid #22c55e;">
+            <div style="background: white; padding: 15px; border-radius: 8px; border-left: 4px solid ${priorityStats.Critical > 0 ? '#dc2626' : '#22c55e'};">
               <h4 style="color: #1e293b; margin-bottom: 10px;">📊 Archive Summary</h4>
               <p style="font-size: 13px; color: #475569; line-height: 1.5;">
                 ${totalReports} resolved reports archived. 
-                ${priorityStats.high > 0 ? `<strong style="color: #dc2626;">${priorityStats.high}</strong> were high priority cases. ` : ''}
-                ${priorityStats.medium > 0 ? `<strong style="color: #f59e0b;">${priorityStats.medium}</strong> medium priority. ` : ''}
+                ${priorityStats.Critical > 0 ? `<strong style="color: #dc2626;">🔴 ${priorityStats.Critical} Critical</strong> priority cases resolved. ` : ''}
+                ${priorityStats.High > 0 ? `<strong style="color: #d35400;">🟠 ${priorityStats.High} High</strong> priority. ` : ''}
+                ${priorityStats.Medium > 0 ? `<strong style="color: #f59e0b;">${priorityStats.Medium} Medium</strong>. ` : ''}
                 ✅ All reports successfully resolved.
               </p>
             </div>
@@ -611,6 +645,7 @@ function ArchivedReports({ session }) {
           <div style="background: white; padding: 15px; border-radius: 8px; margin-top: 15px; border-left: 4px solid #8b5cf6;">
             <h4 style="color: #1e293b; margin-bottom: 10px;">💡 Insights & Recommendations</h4>
             <ul style="font-size: 13px; color: #475569; line-height: 1.8; margin-left: 20px;">
+              ${priorityStats.Critical > 0 ? `<li><strong>🔴 Critical Cases Resolved:</strong> ${priorityStats.Critical} critical priority reports (Crime-related) were successfully resolved.</li>` : ''}
               ${sortedBarangays.length > 0 && sortedBarangays[0][1] > totalReports * 0.25 ? `<li><strong>Historical Hotspot:</strong> ${sortedBarangays[0][0]} had ${sortedBarangays[0][1]} resolved reports (${((sortedBarangays[0][1] / totalReports) * 100).toFixed(0)}%). Monitor for recurring issues.</li>` : ''}
               ${categoryStats['Crime'] && categoryStats['Crime'] > totalReports * 0.2 ? `<li><strong>Crime Resolution:</strong> ${categoryStats['Crime']} crime reports were successfully resolved. Continue coordination with law enforcement.</li>` : ''}
               ${categoryStats['Hazard'] && categoryStats['Hazard'] > totalReports * 0.2 ? `<li><strong>Hazard Mitigation:</strong> ${categoryStats['Hazard']} hazard reports addressed. Review for infrastructure improvement opportunities.</li>` : ''}
@@ -639,17 +674,19 @@ function ArchivedReports({ session }) {
               </tr>
             </thead>
             <tbody>
-              ${reportsToExport.map((report) => `
+              ${reportsToExport.map((report) => {
+                const priority = getReportPriority(report);
+                return `
                 <tr>
                   <td>${report.id}</td>
                   <td>${report.title || "Untitled"}</td>
                   <td>${report.category || "N/A"}</td>
                   <td>${report.address_barangay || "N/A"}</td>
-                  <td class="priority-${(report.priority || "low").toLowerCase()}">${report.priority || "N/A"}</td>
-                  <td>${report.reaction_count || 0}</td>
+                  <td class="priority-${priority.toLowerCase()}">${priority}</td>
+                  <td>${report.reaction_count || 0} ❤️</td>
                   <td>${new Date(report.created_at).toLocaleDateString()}</td>
                 </tr>
-              `).join("")}
+              `}).join("")}
             </tbody>
           </table>
         </div>

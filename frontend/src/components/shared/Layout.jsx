@@ -314,9 +314,6 @@ function Layout({ session, setSession, setNotification }) {
             <NavLink to="/reports">
               <FaChartLine /> Reports
             </NavLink>
-            <NavLink to="/archived">
-              <FaArchive /> Archived
-            </NavLink>
             <NavLink to="/community-feed">
               <FaUserFriends /> Community Feed
             </NavLink>
