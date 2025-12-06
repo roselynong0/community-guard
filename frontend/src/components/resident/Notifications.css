@@ -12,7 +12,7 @@
 .notifications-container { 
     padding: 20px;
     background-color: #f7f7f7;
-    border-radius: 10px;
+    border-radius: 12px;
     margin: 20px;
 }
 
@@ -21,7 +21,7 @@
     justify-content: space-between;
     align-items: center;
     padding-bottom: 15px;
-    border-bottom: 1px solid #ddd;
+    border-bottom: 1px solid #e2e8f0;
     margin-bottom: 20px;
     flex-wrap: wrap; 
 }
@@ -36,7 +36,7 @@
 
 .notifications-header .right {
     display: flex;
-    gap: 10px;
+    gap: 12px;
     align-items: center;
     flex-wrap: wrap;
 }
@@ -44,61 +44,102 @@
 .badge {
     background-color: #e5231d; 
     color: white;
-    padding: 3px 8px;
+    padding: 4px 10px;
     border-radius: 12px;
-    font-size: 14px;
-    font-weight: bold;
+    font-size: 13px;
+    font-weight: 600;
 }
 
+/* ========================================
+   NOTIFICATION ACTION BUTTONS (Reports-style)
+   ======================================== */
 .btn {
-    padding: 8px 15px;
-    border-radius: 6px;
+    padding: 0 20px;
+    height: 48px;
+    border-radius: 10px;
     cursor: pointer;
     font-size: 14px;
-    transition: background-color 0.2s, border-color 0.2s, color 0.2s;
-    border: 1px solid transparent;
-    display: flex;
+    font-weight: 600;
+    transition: all 0.3s ease;
+    border: none;
+    display: inline-flex;
     align-items: center;
-    gap: 5px;
+    justify-content: center;
+    gap: 8px;
+    white-space: nowrap;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
 }
 
-.btn.mark-all, .btn.refresh {
+.btn.icon-btn {
+    min-width: 48px;
+}
+
+.btn.mark-all {
     background-color: #2d2d73;
     color: white;
-    width: auto;
 }
 
-.btn.mark-all:hover:not(:disabled), .btn.refresh:hover:not(:disabled) {
-    background-color: #1a1a5b;
+.btn.mark-all:hover:not(:disabled) {
+    background-color: #3d3d93;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 8px rgba(45, 45, 115, 0.2);
+}
+
+.btn.refresh {
+    background: #fff;
+    border: 2px solid #e2e8f0;
+    color: #64748b;
+}
+
+.btn.refresh:hover:not(:disabled) {
+    border-color: #3b82f6;
+    color: #3b82f6;
+    background: #f8fafc;
+    transform: translateY(-1px);
+}
+
+.btn.refresh:focus {
+    outline: none;
+    border-color: #3b82f6;
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
 }
 
 .btn:disabled {
-    background-color: #ccc;
-    color: #888;
+    background-color: #e2e8f0;
+    color: #94a3b8;
     cursor: not-allowed;
+    transform: none;
+    box-shadow: none;
 }
 
 .btn .icon {
     font-size: 16px;
 }
 
+/* ========================================
+   FILTER BUTTON GROUP
+   ======================================== */
 .filter-button-group {
     display: flex;
-    border-radius: 6px;
+    border-radius: 10px;
     overflow: hidden;
-    border: 1px solid #ddd;
+    border: 2px solid #e2e8f0;
+    height: 48px;
 }
 
 .filter-btn {
     background: white;
     border: none;
-    padding: 8px 12px;
+    padding: 0 16px;
     cursor: pointer;
-    color: #555;
-    transition: all 0.2s;
+    color: #64748b;
+    transition: all 0.3s ease;
     font-size: 14px;
+    font-weight: 500;
     margin: 0;
-    border-right: 1px solid #ddd;
+    border-right: 1px solid #e2e8f0;
+    display: inline-flex;
+    align-items: center;
 }
 
 .filter-btn:last-child {
@@ -106,28 +147,38 @@
 }
 
 .filter-btn.active {
-    background: #5c89bd; 
+    background: #2d2d73; 
     color: white;
-    font-weight: bold;
+    font-weight: 600;
 }
 
 .filter-btn:not(.active):hover {
-    background: #e9e9e9;
+    background: #f1f5f9;
+    color: #334155;
 }
 
 /* Dropdown styles for admin filters */
 .filter-select {
-    padding: 6px 8px;
-    border-radius: 6px;
-    border: 1px solid #ddd;
+    padding: 0 12px;
+    height: 48px;
+    border-radius: 10px;
+    border: 2px solid #e2e8f0;
     background: #fff;
-    color: #333;
+    color: #334155;
     font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.3s ease;
 }
+
+.filter-select:hover {
+    border-color: #cbd5e1;
+}
+
 .filter-select:focus {
     outline: none;
-    box-shadow: 0 0 0 3px rgba(45,45,115,0.06);
-    border-color: #2d2d73;
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+    border-color: #3b82f6;
 }
 
 .notifications-list {
@@ -143,26 +194,27 @@
     padding: 15px;
     margin-bottom: 10px;
     background: #fff;
-    border-radius: 8px;
+    border-radius: 10px;
     box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08);
-    transition: background-color 0.2s;
+    transition: all 0.2s ease;
     position: relative;
     opacity: 0;
     animation: fadeIn 0.4s ease-out forwards; 
 }
 
 .notification-item:hover {
-    background-color: #f6f8fa;
+    background-color: #f8fafc;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
 }
 
 .notification-item.unread {
-    border-left: 4px solid #5c89bd; 
-    background-color: #eff5fd;
+    border-left: 4px solid #3b82f6; 
+    background-color: #eff6ff;
     font-weight: 500;
 }
 
 .notification-item.unread:hover {
-    background-color: #e3effc;
+    background-color: #dbeafe;
 }
 
 .notif-icon-container {
