@@ -1496,8 +1496,8 @@ function BarangayReports({ token }) {
             return sort === 'latest' ? bTime - aTime : aTime - bTime;
         });
 
-    // `address_barangay`, then a generic label.
-    const headerBase = 'Barangay';
+    // Use user's address_barangay if available, otherwise generic label
+    const headerBase = userBarangay ? `${userBarangay}` : 'Barangay';
 
     // Loading / mount animation features (cards shown during mount/loading)
     const loadingFeatures = [

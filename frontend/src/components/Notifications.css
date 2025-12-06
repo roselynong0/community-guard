@@ -301,40 +301,46 @@
     color: #888;
 }
 
-/* Notification Actions */
+/* ========================================
+   NOTIFICATION ITEM ACTION BUTTONS
+   ======================================== */
 .notification-actions {
     margin-left: auto; 
     padding-left: 10px;
     display: flex;
     align-items: center;
-    gap: 5px;
+    gap: 8px;
     flex-shrink: 0; 
 }
 
 .btn-action {
-    background: none;
+    background: #f1f5f9;
     border: none;
-    font-size: 18px; 
-    padding: 8px;
+    font-size: 16px; 
+    width: 36px;
+    height: 36px;
     cursor: pointer;
-    border-radius: 50%;
-    transition: all 0.2s;
+    border-radius: 8px;
+    transition: all 0.2s ease;
     line-height: 1;
-    color: #999; 
+    color: #64748b;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.btn-action:hover {
+    background: #e2e8f0;
 }
 
 .mark-read-btn:hover {
     color: #2d2d73; 
-    background-color: #e9e9ff;
-}
-
-.delete-notif-btn {
-    color: #999; 
+    background-color: #e0e7ff;
 }
 
 .delete-notif-btn:hover {
-    color: #e5231d; 
-    background-color: #ffeaea;
+    color: #ef4444; 
+    background-color: #fee2e2;
 }
 
 /* --- Loading and Empty States --- */

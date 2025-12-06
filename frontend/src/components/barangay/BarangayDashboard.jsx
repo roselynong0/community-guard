@@ -351,7 +351,7 @@ export default function BarangayDashboard({ token }) {
 
       {/* --- MAP --- */}
       <div className="map-section">
-        <h3>High-Risk Zones Map</h3>
+        <h3>{userBarangay ? `${userBarangay} High-Risk Zones Map` : 'High-Risk Zones Map'}</h3>
         <div className="map-placeholder">
           <MapView ref={mapRef} barangay={userBarangay} />
         </div>
