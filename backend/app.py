@@ -154,7 +154,7 @@ def create_app():
                 resp.headers['Access-Control-Allow-Origin'] = origin
                 resp.headers['Access-Control-Allow-Credentials'] = 'true'
             resp.headers['Access-Control-Allow-Headers'] = 'Content-Type,Authorization,Accept'
-            resp.headers['Access-Control-Allow-Methods'] = 'GET,POST,PUT,DELETE,OPTIONS,HEAD'
+            resp.headers['Access-Control-Allow-Methods'] = 'GET,POST,PUT,DELETE,OPTIONS,HEAD,PATCH'
             resp.headers['Access-Control-Expose-Headers'] = 'Content-Type,Authorization'
             return resp
 
@@ -166,7 +166,7 @@ def create_app():
             response.headers['Access-Control-Allow-Credentials'] = 'true'
 
         response.headers['Access-Control-Allow-Headers'] = 'Content-Type,Authorization,Accept'
-        response.headers['Access-Control-Allow-Methods'] = 'GET,POST,PUT,DELETE,OPTIONS,HEAD'
+        response.headers['Access-Control-Allow-Methods'] = 'GET,POST,PUT,DELETE,OPTIONS,HEAD,PATCH'
         response.headers['Access-Control-Expose-Headers'] = 'Content-Type,Authorization'
         return response
 

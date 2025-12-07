@@ -150,7 +150,7 @@ function ArchivedReports({ session }) {
     setLoading(true);
     try {
       const res = await axios.get(
-        getApiUrl(`/api/reports`),
+        getApiUrl(`/api/reports/archived?limit=1000`),
         { 
           headers: { Authorization: `Bearer ${token}` },
           timeout: 30000
@@ -297,10 +297,17 @@ function ArchivedReports({ session }) {
     .filter((r) => r.deleted !== true)
     .filter((r) => {
       if (canExportAll) return true; // Admin sees all
-      if (isBarangayOrResponder && userBarangay) {
-        return r.address_barangay === userBarangay;
+      if (isBarangayOrResponder) {
+        // Use session barangay if available, otherwise fallback to the barangay on the fetched reports
+        const effectiveBarangay = userBarangay || (reports && reports.length ? reports[0].address_barangay : null);
+        if (!effectiveBarangay) return false; // If still missing, show nothing
+        // Also ensure only resolved reports are shown in archived view for Barangay Official / Responder
+        const sameBarangay = String(r.address_barangay).toLowerCase() === String(effectiveBarangay).toLowerCase();
+        const isResolved = String((r.status || '')).toLowerCase() === 'resolved';
+        return sameBarangay && isResolved;
       }
-      return true; // Residents see all (but can only export their own filtered view)
+      // Residents and other roles: show all
+      return true;
     })
     .filter((r) => appliedCategory === "All" || r.category === appliedCategory)
     .filter((r) => {
@@ -717,6 +724,7 @@ function ArchivedReports({ session }) {
     setAppliedCategory(category);
   }, [category]);
 
+
   // Main content
   const mainContent = (
     <>
@@ -775,7 +783,45 @@ function ArchivedReports({ session }) {
         </div>
       </div>
 
-      {/* Trending Archived Reports Section */}
+      {/* Top Controls - Matching BarangayReports */}
+      <div className="archived-top-controls" ref={filterContainerRef}>
+        <div className="archived-search-container">
+          <input
+            type="text"
+            className="archived-search-input"
+            placeholder="Search archived reports..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            aria-label="Search archived reports"
+          />
+          <FaSearch className="archived-search-icon" aria-hidden="true" />
+        </div>
+
+        <select
+          className="archived-filter-select"
+          value={category}
+          onChange={(e) => setCategory(e.target.value)}
+          aria-label="Filter by category"
+        >
+          {categories.map((cat) => (
+            <option key={cat.value} value={cat.value}>
+              {cat.label}
+            </option>
+          ))}
+        </select>
+
+        <select
+          className="archived-filter-select"
+          value={sort}
+          onChange={(e) => setSort(e.target.value)}
+          aria-label="Sort reports"
+        >
+          <option value="latest">Latest → Oldest</option>
+          <option value="oldest">Oldest → Latest</option>
+        </select>
+      </div>
+
+      {/* Trending Archived Reports Section - moved below top controls */}
       {trendingReports.length > 0 && (
         <div className="trending-section" style={{
           background: 'linear-gradient(135deg, #fff5f5 0%, #fffaf0 100%)',
@@ -876,44 +922,6 @@ function ArchivedReports({ session }) {
           )}
         </div>
       )}
-
-      {/* Top Controls - Matching BarangayReports */}
-      <div className="archived-top-controls" ref={filterContainerRef}>
-        <div className="archived-search-container">
-          <input
-            type="text"
-            className="archived-search-input"
-            placeholder="Search archived reports..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            aria-label="Search archived reports"
-          />
-          <FaSearch className="archived-search-icon" aria-hidden="true" />
-        </div>
-
-        <select
-          className="archived-filter-select"
-          value={category}
-          onChange={(e) => setCategory(e.target.value)}
-          aria-label="Filter by category"
-        >
-          {categories.map((cat) => (
-            <option key={cat.value} value={cat.value}>
-              {cat.label}
-            </option>
-          ))}
-        </select>
-
-        <select
-          className="archived-filter-select"
-          value={sort}
-          onChange={(e) => setSort(e.target.value)}
-          aria-label="Sort reports"
-        >
-          <option value="latest">Latest → Oldest</option>
-          <option value="oldest">Oldest → Latest</option>
-        </select>
-      </div>
 
       {/* Reports List */}
       <div className="reports-list">

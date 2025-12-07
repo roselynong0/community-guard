@@ -7,7 +7,7 @@ import random
 from datetime import datetime, timezone, timedelta
 
 
-def supabase_retry(func, max_retries=3, delay=0.5):
+def supabase_retry(func, max_retries=2, delay=0.3):
     """
     Retry wrapper for Supabase operations to handle network issues
     Handles WinError 10054 (connection forcibly closed) and other connection errors

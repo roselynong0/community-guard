@@ -338,8 +338,15 @@ const generateToastMessage = (notification, role) => {
   }
   // Responder Messages
   if (role === 'Responder') {
+    // Assignment removed notification (reassigned to another responder)
+    if (notifType === 'assignment_removed' || content.includes('unassigned') || content.includes('assignment removed') || content.includes('reassigned to another')) {
+      return { message: '📋 You have been unassigned from a report.', type: 'warning' };
+    }
     // Responder assignment notification
     if (notifType === 'responder_assignment' || content.includes('assigned') || content.includes('assignment')) {
+      if (content.includes('reassign') || content.includes('previously assigned')) {
+        return { message: '🚨 A report has been reassigned to you!', type: 'info' };
+      }
       return { message: '📋 You have been assigned to a new report!', type: 'info' };
     }
     if (content.includes('approved') || content.includes('post accepted')) {

@@ -444,7 +444,12 @@ function RespondersReports({ token }) {
                         avatar_url: null
                     };
                     
+                    const fallbackPriority = getPriorityStyle(report.category);
                     return {
+                                                // AI priority fields (use backend ai priority if provided, otherwise derive from category)
+                                                ai_priority: report.ai_priority || fallbackPriority.priority,
+                                                ai_priority_score: report.ai_priority_score || fallbackPriority.score,
+                                                ai_priority_label: report.ai_priority_label || fallbackPriority.label,
                         id: report.id,
                         reporter: report.reporter || fallbackReporter,
                         user_id: report.user_id,
@@ -1065,6 +1070,7 @@ function RespondersReports({ token }) {
                 ) : filteredReports.length > 0 ? (
                     filteredReports.map((report, index) => {
                         const isExpanded = expandedPosts.includes(report.id);
+                        const priority = getReportPriority(report);
 
                         return (
                             <div
@@ -1128,6 +1134,9 @@ function RespondersReports({ token }) {
                                         <span className={`status-badge status-${report.status.toLowerCase()}`}>
                                             {getStatusIcon(report.status)}
                                             {report.status}
+                                        </span>
+                                        <span className={`priority-tag priority-${(priority || "low").toLowerCase()}`}>
+                                            {priority}
                                         </span>
                                         <button 
                                             className="icon-btn edit-btn" 

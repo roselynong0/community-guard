@@ -22,6 +22,7 @@ import {
 
 import MapView from "../resident/Mapview";
 import LoadingScreen from "../shared/LoadingScreen";
+import ModalPortal from "../shared/ModalPortal";
 import { getApiUrl } from "../../utils/apiConfig";
 import "./RespondersDashboard.css";
 
@@ -60,18 +61,19 @@ export default function RespondersDashboard() {
   const mapRef = useRef(null);
   
   const loadingFeatures = [
-    { title: "Responder Overview", description: "Loading active reports and statistics." },
+    { title: "Responder Overview", description: "Loading assigned reports and statistics." },
     { title: "Incident Areas", description: "Preparing hotspots and trends." },
   ];
 
   const [stats, setStats] = useState([
-    { title: "Active Reports", value: 0, icon: <FaExclamationTriangle />, colorClass: "danger" },
+    { title: "Assigned Reports", value: 0, icon: <FaExclamationTriangle />, colorClass: "danger" },
     { title: "Resolved Reports", value: 0, icon: <FaCheckCircle />, colorClass: "success" },
     { title: "Pending Reports", value: 0, icon: <FaTasks />, colorClass: "warning" },
     { title: "Avg Response Time", value: "0 hrs", icon: <FaClock />, colorClass: "primary" },
   ]);
 
   const [activeReports, setActiveReports] = useState([]);
+  const [notification, setNotification] = useState(null);
   const [trendData, setTrendData] = useState([]);
   // eslint-disable-next-line no-unused-vars
   const [allReports, setAllReports] = useState([]);
@@ -113,15 +115,15 @@ export default function RespondersDashboard() {
           // Use pre-calculated stats from backend
           if (data.stats) {
             setStats([
-              { title: "Active Reports", value: data.stats.ongoing || 0, icon: <FaExclamationTriangle />, colorClass: "danger" },
+              { title: "Assigned Reports", value: data.total || reports.length || 0, icon: <FaExclamationTriangle />, colorClass: "danger" },
               { title: "Resolved Reports", value: data.stats.resolved || 0, icon: <FaCheckCircle />, colorClass: "success" },
               { title: "Pending Reports", value: data.stats.pending || 0, icon: <FaTasks />, colorClass: "warning" },
               { title: "Avg Response Time", value: data.stats.avgResponseTime || "0h", icon: <FaClock />, colorClass: "primary" },
             ]);
           }
           
-          // Set active reports (only ongoing for the table)
-          const active = reports.filter(r => r.status === "Ongoing").slice(0, 10);
+          // Set assigned reports (show all assigned reports, any status)
+          const active = reports.slice(0, 10);
           setActiveReports(active);
           
           // Use pre-calculated trends from backend
@@ -149,19 +151,18 @@ export default function RespondersDashboard() {
 
       // Calculate stats
       const pending = reports.filter(r => r.status === "Pending").length;
-      const ongoing = reports.filter(r => r.status === "Ongoing").length;
       const resolved = reports.filter(r => r.status === "Resolved").length;
       const avgResponseTime = calculateAvgResponseTime(reports);
 
       setStats([
-        { title: "Active Reports", value: ongoing, icon: <FaExclamationTriangle />, colorClass: "danger" },
+        { title: "Assigned Reports", value: reports.length || 0, icon: <FaExclamationTriangle />, colorClass: "danger" },
         { title: "Resolved Reports", value: resolved, icon: <FaCheckCircle />, colorClass: "success" },
         { title: "Pending Reports", value: pending, icon: <FaTasks />, colorClass: "warning" },
         { title: "Avg Response Time", value: avgResponseTime, icon: <FaClock />, colorClass: "primary" },
       ]);
 
-      // Set active reports (only ongoing for the table)
-      const active = reports.filter(r => r.status === "Ongoing").slice(0, 10);
+      // Set assigned reports (show all assigned reports, any status)
+      const active = reports.slice(0, 10);
       setActiveReports(active);
 
       // Generate trend data by month
@@ -201,28 +202,62 @@ export default function RespondersDashboard() {
   }, []);
 
   // Handle Mark as Resolved
-  const handleResolve = (reportId) => {
-    setActiveReports((prev) => prev.filter((r) => r.id !== reportId));
-    setStats((prev) =>
-      prev.map((s) =>
-        s.title === "Resolved Reports"
-          ? { ...s, value: s.value + 1 }
-          : s.title === "Active Reports"
-          ? { ...s, value: s.value - 1 }
-          : s
-      )
-    );
+  const handleResolve = async (reportId) => {
+    const report = activeReports.find(r => r.id === reportId);
+    if (!report) return;
+    let newStatus = null;
+    if (report.status === "Pending") newStatus = "Ongoing";
+    else if (report.status === "Ongoing") newStatus = "Resolved";
+    if (!newStatus) return;
+
+    try {
+      const token = localStorage.getItem("token");
+      const res = await fetch(getApiUrl(`/api/reports/${reportId}`), {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`,
+        },
+        body: JSON.stringify({ status: newStatus }),
+      });
+      if (!res.ok) throw new Error("Failed to update status");
+      setNotification({
+        type: "success",
+        message: `Report status updated to ${newStatus}`,
+      });
+      setTimeout(() => setNotification(null), 3000);
+      setActiveReports((prev) => prev.map((r) => r.id === reportId ? { ...r, status: newStatus } : r));
+      setStats((prev) => {
+        return prev.map((s) => {
+          if (newStatus === "Ongoing" && s.title === "Pending Reports") {
+            return { ...s, value: Math.max(0, s.value - 1) };
+          }
+          if (newStatus === "Ongoing" && s.title === "Ongoing Reports") {
+            return { ...s, value: s.value + 1 };
+          }
+          if (newStatus === "Resolved" && s.title === "Ongoing Reports") {
+            return { ...s, value: Math.max(0, s.value - 1) };
+          }
+          if (newStatus === "Resolved" && s.title === "Resolved Reports") {
+            return { ...s, value: s.value + 1 };
+          }
+          return s;
+        });
+      });
+    } catch (err) {
+      setNotification({ type: "error", message: "Failed to update report status." });
+      setTimeout(() => setNotification(null), 3000);
+    }
   };
 
   const content = (
     <div className={`dashboard ${overlayExited ? 'overlay-exited' : ''}`}>
-      {/* BARANGAY HEADER */}
-      {userBarangay && (
-        <div className="barangay-header" style={{ marginBottom: "1rem", padding: "0.5rem 1rem", background: "#f0f4f8", borderRadius: "8px", display: "inline-block" }}>
-          <span style={{ color: "#2d2d73", fontWeight: 500 }}>📍 {userBarangay}</span>
-        </div>
+      {notification && (
+        <ModalPortal>
+          <div className={`notif notif-${notification.type}`}>{notification.message}</div>
+        </ModalPortal>
       )}
-      
+      {/* BARANGAY HEADER */}
       {/* STAT CARDS */}
       <div className="stats-grid">
         {stats.map((stat, i) => (
@@ -246,7 +281,7 @@ export default function RespondersDashboard() {
       {/* ACTIVE REPORTS TABLE */}
       <div className="section-card">
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-          <h3>Active Reports</h3>
+          <h3>Assigned Reports</h3>
 
           <NavLink
             to="/responder/reports"
@@ -272,22 +307,34 @@ export default function RespondersDashboard() {
             </tr>
           </thead>
           <tbody>
-            {activeReports.map((report) => (
-              <tr key={report.id}>
-                <td>{new Date(report.created_at).toLocaleDateString()}</td>
-                <td>{report.title}</td>
-                <td>{extractBarangay(report)}</td>
-                <td>{report.status}</td>
-                <td>
-                  <button
-                    className="resolve-btn"
-                    onClick={() => handleResolve(report.id)}
-                  >
-                    Mark as Resolved
-                  </button>
-                </td>
+            {activeReports.length === 0 ? (
+              <tr>
+                <td colSpan={5} style={{ textAlign: 'center', padding: '1rem', color: '#6b7280' }}>No assigned reports</td>
               </tr>
-            ))}
+            ) : (
+              activeReports.map((report) => {
+                return (
+                  <tr key={report.id}>
+                    <td>{new Date(report.created_at).toLocaleDateString()}</td>
+                    <td>{report.title}</td>
+                    <td>{extractBarangay(report)}</td>
+                    <td>{report.status}</td>
+                    <td>
+                      {(report.status === "Pending" || report.status === "Ongoing") ? (
+                        <button
+                          className="resolve-btn"
+                          onClick={() => handleResolve(report.id)}
+                        >
+                          {report.status === "Pending" ? "Mark as Ongoing" : "Mark as Resolved"}
+                        </button>
+                      ) : (
+                        <span style={{ color: '#10b981', fontWeight: 500 }}>Resolved</span>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })
+            )}
           </tbody>
         </table>
       </div>

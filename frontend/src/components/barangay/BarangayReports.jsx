@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
-import { FaEdit, FaTrashAlt, FaSearch, FaRedo, FaCheckCircle, FaTimesCircle, FaCheck, FaTimes, FaSyncAlt, FaClock, FaFileCsv, FaFilePdf, FaThLarge, FaList, FaArchive, FaFileAlt, FaHeart, FaRegHeart, FaFire, FaPlus, FaMinus, FaMapPin, FaChartLine, FaStar } from "react-icons/fa";
+import { FaEdit, FaTrashAlt, FaSearch, FaRedo, FaCheckCircle, FaTimesCircle, FaCheck, FaTimes, FaSyncAlt, FaClock, FaFileCsv, FaFilePdf, FaThLarge, FaList, FaArchive, FaFileAlt, FaHeart, FaRegHeart, FaFire, FaPlus, FaMinus, FaMapPin, FaChartLine, FaStar, FaUserPlus, FaUserCheck, FaUserEdit } from "react-icons/fa";
 import { API_CONFIG, getApiUrl } from "../../utils/apiConfig";
 import ModalPortal from "../shared/ModalPortal";
 import "./BarangayReports.css";
@@ -243,6 +243,14 @@ function BarangayReports({ token }) {
     // ⭐ NEW: Pending reports states
     const [pendingReports, setPendingReports] = useState([]);
     const [pendingExpanded, setPendingExpanded] = useState(false); // Collapsed by default
+
+    // ⭐ NEW: Responder assignment states
+    const [isAssignResponderModalOpen, setIsAssignResponderModalOpen] = useState(false);
+    const [selectedReportForResponder, setSelectedReportForResponder] = useState(null);
+    const [responders, setResponders] = useState([]);
+    const [selectedResponder, setSelectedResponder] = useState("");
+    const [loadingResponders, setLoadingResponders] = useState(false);
+    const [isAssigningResponder, setIsAssigningResponder] = useState(false);
 
     // --- REFS for Keyboard Navigation ---
     const filterContainerRef = useRef(null);
@@ -554,10 +562,118 @@ function BarangayReports({ token }) {
         setIsDeleteConfirmOpen(true);
     };
 
+    // ⭐ NEW: Responder assignment modal functions
+    const closeAssignResponderModal = useCallback(() => {
+        if (!isAssigningResponder) {
+            setIsAssignResponderModalOpen(false);
+            setSelectedReportForResponder(null);
+            setSelectedResponder("");
+            setResponders([]);
+        }
+    }, [isAssigningResponder]);
+
+    const openAssignResponderModal = async (report) => {
+        setSelectedReportForResponder(report);
+        setSelectedResponder("");
+        setLoadingResponders(true);
+        setIsAssignResponderModalOpen(true);
+
+        try {
+            // Fetch responders for this barangay (uses /api/users/responders endpoint)
+            const response = await fetch(getApiUrl(`/api/users/responders?barangay=${encodeURIComponent(report.barangay || report.address_barangay)}`), {
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json'
+                }
+            });
+
+            if (!response.ok) {
+                throw new Error('Failed to fetch responders');
+            }
+
+            const data = await response.json();
+            if (data.status === "success") {
+                setResponders(data.responders || []);
+            } else {
+                showNotification(`Failed to load responders: ${data.message}`, 'error');
+            }
+        } catch (error) {
+            console.error('Error fetching responders:', error);
+            showNotification(`Error fetching responders: ${error.message}`, 'error');
+        } finally {
+            setLoadingResponders(false);
+        }
+    };
+
+    const handleAssignResponder = async () => {
+        if (!selectedReportForResponder || !selectedResponder || !token) return;
+
+        setIsAssigningResponder(true);
+        try {
+            // Check if this is a reassignment (previous responder exists)
+            const previousResponderId = selectedReportForResponder.assigned_responder_id;
+            const isReassignment = previousResponderId && previousResponderId !== selectedResponder;
+
+            const response = await fetch(getApiUrl(`/api/reports/${selectedReportForResponder.id}/assign`), {
+                method: 'PUT',
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ 
+                    responder_id: selectedResponder,
+                    previous_responder_id: isReassignment ? previousResponderId : null
+                })
+            });
+
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.message || 'Failed to assign responder');
+            }
+
+            const data = await response.json();
+            if (data.status === "success") {
+                // Find the assigned responder's details
+                const assignedResponder = responders.find(r => r.id === selectedResponder);
+                const responderName = assignedResponder ? `${assignedResponder.firstname} ${assignedResponder.lastname}` : 'Responder';
+                
+                // Update reports locally instead of refetching (no loading spinner)
+                setReports(prevReports => prevReports.map(report => {
+                    if (report.id === selectedReportForResponder.id) {
+                        return {
+                            ...report,
+                            assigned_responder_id: selectedResponder,
+                            assigned_at: new Date().toISOString(),
+                            assigned_by: null, // We don't have the current user ID in frontend state
+                            assigned_responder: assignedResponder ? {
+                                id: assignedResponder.id,
+                                firstname: assignedResponder.firstname,
+                                lastname: assignedResponder.lastname,
+                                email: assignedResponder.email
+                            } : null
+                        };
+                    }
+                    return report;
+                }));
+                
+                showNotification(`✅ ${responderName} ${isReassignment ? 'reassigned' : 'assigned'} successfully`, 'success');
+                closeAssignResponderModal();
+            } else {
+                throw new Error(data.message || 'Failed to assign responder');
+            }
+        } catch (error) {
+            console.error('Error assigning responder:', error);
+            showNotification(`Failed to assign responder: ${error.message}`, 'error');
+        } finally {
+            setIsAssigningResponder(false);
+        }
+    };
+
     // Use the custom hook to handle focus trapping and ESC key for both modals
     const statusRef = useAriaModal(isStatusModalOpen, closeStatusModal);
     const deleteRef = useAriaModal(isDeleteConfirmOpen, closeDeleteConfirm);
     const reasonRef = useAriaModal(isDeleteReasonOpen, closeDeleteReason);
+    const responderRef = useAriaModal(isAssignResponderModalOpen, closeAssignResponderModal);
     // --------------------------------------------------
 
     // Fetch reports from API (kept original logic)
@@ -2428,6 +2544,15 @@ function BarangayReports({ token }) {
                                                     <span>Update</span>
                                                 </button>
                                                 <button 
+                                                    className={`barangay-action-btn ${report.assigned_responder_id ? 'barangay-reassign-btn' : 'barangay-assign-btn'}`}
+                                                    onClick={() => openAssignResponderModal(report)}
+                                                    aria-label={report.assigned_responder_id ? `Reassign responder for report: ${report.title}` : `Assign responder to report: ${report.title}`}
+                                                    title={report.assigned_responder_id ? 'Reassign Responder' : 'Assign Responder'}
+                                                >
+                                                    {report.assigned_responder_id ? <FaUserEdit aria-hidden="true" /> : <FaUserPlus aria-hidden="true" />}
+                                                    <span>{report.assigned_responder_id ? 'Reassign' : 'Assign'}</span>
+                                                </button>
+                                                <button 
                                                     className="barangay-action-btn barangay-delete-btn" 
                                                     onClick={() => openDeleteReason(report)}
                                                     aria-label={`Delete report: ${report.title}`}
@@ -2571,6 +2696,27 @@ function BarangayReports({ token }) {
                                         )}
                                         <span className="reaction-count">{report.reaction_count || 0}</span>
                                     </button>
+                                    
+                                    {/* Assigned Responder Info */}
+                                    {report.assigned_responder && (
+                                        <div style={{
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            gap: '6px',
+                                            fontSize: '0.75rem',
+                                            color: '#065f46',
+                                            backgroundColor: '#ecfdf5',
+                                            padding: '4px 8px',
+                                            borderRadius: '4px',
+                                            marginLeft: 'auto'
+                                        }}>
+                                            <FaUserCheck style={{ fontSize: '0.7rem' }} />
+                                            <span>
+                                                <strong>Assigned:</strong> {report.assigned_responder.firstname} {report.assigned_responder.lastname}
+                                                {report.assigned_responder.email && ` (${report.assigned_responder.email})`}
+                                            </span>
+                                        </div>
+                                    )}
                                 </div>
                             </div>
                         );
@@ -2703,6 +2849,13 @@ function BarangayReports({ token }) {
                                                     title="Update Status"
                                                 >
                                                     <FaEdit />
+                                                </button>
+                                                <button 
+                                                    className={`list-action-btn ${report.assigned_responder_id ? 'reassign' : 'assign'}`}
+                                                    onClick={() => openAssignResponderModal(report)}
+                                                    title={report.assigned_responder_id ? 'Reassign Responder' : 'Assign Responder'}
+                                                >
+                                                    {report.assigned_responder_id ? <FaUserEdit /> : <FaUserPlus />}
                                                 </button>
                                                 <button 
                                                     className="list-action-btn delete"
@@ -3045,6 +3198,224 @@ function BarangayReports({ token }) {
                     >
                         &times;
                     </button>
+                </div>
+                </ModalPortal>
+            )}
+
+            {/* ⭐ NEW: Assign Responder Modal */}
+            {isAssignResponderModalOpen && selectedReportForResponder && (
+                <ModalPortal>
+                <div 
+                    className="portal-modal-overlay"
+                    onClick={!isAssigningResponder ? closeAssignResponderModal : undefined}
+                    role="dialog"
+                    aria-modal="true"
+                    aria-labelledby="assign-responder-title"
+                    tabIndex="-1"
+                    ref={responderRef}
+                >
+                    <div className="portal-modal" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '480px', borderLeftColor: '#3b82f6' }}>
+                        <div className="portal-modal-header">
+                            <h3 id="assign-responder-title">
+                                👤 {selectedReportForResponder.assigned_responder_id ? 'Reassign Responder' : 'Assign Responder'}
+                            </h3>
+                            <button
+                                className="portal-modal-close"
+                                onClick={closeAssignResponderModal}
+                                disabled={isAssigningResponder}
+                                aria-label="Close modal"
+                                style={{
+                                    cursor: isAssigningResponder ? 'not-allowed' : 'pointer',
+                                    opacity: isAssigningResponder ? 0.5 : 1
+                                }}
+                            >
+                                ✕
+                            </button>
+                        </div>
+                        
+                        <div className="portal-modal-body">
+                            {/* Report Info */}
+                            <div style={{
+                                padding: '12px',
+                                backgroundColor: '#f0f9ff',
+                                borderRadius: '8px',
+                                marginBottom: '16px',
+                                border: '1px solid #bae6fd'
+                            }}>
+                                <p style={{ margin: '0 0 8px 0' }}>
+                                    <strong>Report:</strong> {selectedReportForResponder.title}
+                                </p>
+                                <p style={{ margin: '0 0 8px 0' }}>
+                                    <strong>Category:</strong> 
+                                    <span style={{
+                                        padding: '2px 8px',
+                                        backgroundColor: getPriorityStyle(selectedReportForResponder.category).bgColor,
+                                        color: getPriorityStyle(selectedReportForResponder.category).borderColor,
+                                        borderRadius: '4px',
+                                        marginLeft: '8px',
+                                        fontSize: '0.9em',
+                                        fontWeight: '600'
+                                    }}>
+                                        {selectedReportForResponder.category}
+                                    </span>
+                                </p>
+                                <p style={{ margin: '0 0 8px 0' }}>
+                                    <strong>Status:</strong> 
+                                    <span className={`barangay-status-badge barangay-status-${selectedReportForResponder.status.toLowerCase()}`} style={{ marginLeft: '8px' }}>
+                                        {selectedReportForResponder.status}
+                                    </span>
+                                </p>
+                                <p style={{ margin: 0, fontSize: '0.9em', color: '#666' }}>
+                                    📍 {selectedReportForResponder.addressStreet}, {selectedReportForResponder.barangay}
+                                </p>
+                                
+                                {/* Current Assignment Info */}
+                                {selectedReportForResponder.assigned_responder && (
+                                    <div style={{
+                                        marginTop: '12px',
+                                        padding: '8px 10px',
+                                        backgroundColor: '#fef3c7',
+                                        borderRadius: '6px',
+                                        border: '1px solid #fcd34d',
+                                        fontSize: '0.85em'
+                                    }}>
+                                        <p style={{ margin: 0, color: '#92400e' }}>
+                                            <strong>Currently Assigned:</strong><br/> {selectedReportForResponder.assigned_responder.firstname} {selectedReportForResponder.assigned_responder.lastname}
+                                            {selectedReportForResponder.assigned_responder.email && ` (${selectedReportForResponder.assigned_responder.email})`}
+                                        </p>
+                                    </div>
+                                )}
+                            </div>
+                            
+                            {/* Responder Selection */}
+                            <div style={{ marginBottom: '20px' }}>
+                                <label 
+                                    htmlFor="responder-select" 
+                                    style={{ 
+                                        display: 'block', 
+                                        marginBottom: '8px', 
+                                        fontWeight: '600',
+                                        color: '#374151'
+                                    }}
+                                >
+                                    {selectedReportForResponder.assigned_responder_id 
+                                        ? `Change Responder from ${selectedReportForResponder.barangay}:` 
+                                        : `Select Responder from ${selectedReportForResponder.barangay}:`}
+                                </label>
+                                
+                                {loadingResponders ? (
+                                    <div style={{ 
+                                        padding: '20px', 
+                                        textAlign: 'center', 
+                                        color: '#666',
+                                        backgroundColor: '#f9fafb',
+                                        borderRadius: '8px'
+                                    }}>
+                                        <FaSyncAlt className="spin" style={{ marginRight: '8px' }} />
+                                        Loading responders...
+                                    </div>
+                                ) : responders.length > 0 ? (
+                                    <select 
+                                        id="responder-select"
+                                        value={selectedResponder} 
+                                        onChange={(e) => setSelectedResponder(e.target.value)}
+                                        style={{ 
+                                            width: '100%', 
+                                            padding: '12px', 
+                                            borderRadius: '8px', 
+                                            border: '1px solid #d1d5db',
+                                            fontSize: '1em',
+                                            backgroundColor: '#fff'
+                                        }}
+                                    >
+                                        <option value="">-- Select a responder --</option>
+                                        {responders.map(responder => {
+                                            const isCurrentlyAssigned = selectedReportForResponder?.assigned_responder_id === responder.id;
+                                            const displayName = `${responder.firstname} ${responder.lastname}`;
+                                            return (
+                                                <option 
+                                                    key={responder.id} 
+                                                    value={responder.id}
+                                                    disabled={isCurrentlyAssigned}
+                                                    style={isCurrentlyAssigned ? { color: '#9ca3af', fontStyle: 'italic' } : {}}
+                                                >
+                                                    {isCurrentlyAssigned ? `${displayName} (Current)` : displayName}
+                                                </option>
+                                            );
+                                        })}
+                                    </select>
+                                ) : (
+                                    <div style={{
+                                        padding: '20px',
+                                        textAlign: 'center',
+                                        backgroundColor: '#fef2f2',
+                                        borderRadius: '8px',
+                                        border: '1px solid #fecaca',
+                                        color: '#991b1b'
+                                    }}>
+                                        <p style={{ margin: '0 0 8px 0', fontWeight: '600' }}>
+                                            No responders available
+                                        </p>
+                                        <p style={{ margin: 0, fontSize: '0.9em', color: '#b91c1c' }}>
+                                            There are no registered responders in {selectedReportForResponder.barangay}.
+                                        </p>
+                                    </div>
+                                )}
+                            </div>
+                            
+                            {/* Info Note */}
+                            <div style={{ 
+                                padding: '12px', 
+                                backgroundColor: '#ecfdf5', 
+                                borderRadius: '8px',
+                                borderLeft: '4px solid #10b981',
+                                fontSize: '0.9em' 
+                            }}>
+                                <p style={{ margin: 0, color: '#065f46' }}>
+                                    <strong>📧 Note:</strong> The assigned responder will receive a notification about this assignment.
+                                </p>
+                            </div>
+                        </div>
+                        
+                        {/* Action Buttons */}
+                        <div className="portal-modal-actions">
+                            <button 
+                                className="cancel-btn"
+                                onClick={closeAssignResponderModal}
+                                disabled={isAssigningResponder}
+                                style={{
+                                    opacity: isAssigningResponder ? 0.6 : 1,
+                                    cursor: isAssigningResponder ? 'not-allowed' : 'pointer'
+                                }}
+                            >
+                                Cancel
+                            </button>
+                            <button 
+                                className="confirm-btn"
+                                onClick={handleAssignResponder}
+                                disabled={!selectedResponder || isAssigningResponder || loadingResponders}
+                                style={{ 
+                                    backgroundColor: (!selectedResponder || isAssigningResponder || loadingResponders) ? '#93c5fd' : '#3b82f6',
+                                    cursor: (!selectedResponder || isAssigningResponder || loadingResponders) ? 'not-allowed' : 'pointer',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: '8px'
+                                }}
+                            >
+                                {isAssigningResponder ? (
+                                    <>
+                                        <FaSyncAlt className="spin" />
+                                        {selectedReportForResponder.assigned_responder_id ? 'Reassigning...' : 'Assigning...'}
+                                    </>
+                                ) : (
+                                    <>
+                                        {selectedReportForResponder.assigned_responder_id ? <FaUserEdit /> : <FaUserPlus />}
+                                        {selectedReportForResponder.assigned_responder_id ? 'Reassign' : 'Assign'}
+                                    </>
+                                )}
+                            </button>
+                        </div>
+                    </div>
                 </div>
                 </ModalPortal>
             )}

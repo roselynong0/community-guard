@@ -463,8 +463,13 @@ function RespondersReports({ token }) {
                         avatar_url: null
                     };
                     
+                    const fallbackPriority = getPriorityStyle(report.category);
                     return {
                         id: report.id,
+                                                // AI priority fields (if backend has run AI annotator - else derive from category mapping)
+                                                ai_priority: report.ai_priority || fallbackPriority.priority,
+                                                ai_priority_score: report.ai_priority_score || fallbackPriority.score,
+                                                ai_priority_label: report.ai_priority_label || fallbackPriority.label,
                         reporter: report.reporter || fallbackReporter,
                         user_id: report.user_id,
                         date: report.created_at,
@@ -753,7 +758,14 @@ function RespondersReports({ token }) {
     };
 
     const getReportPriority = (report) => {
-        return report.ai_priority || getPriorityStyle(report.category).priority;
+        if (report.ai_priority) {
+            const pri = String(report.ai_priority).toLowerCase().trim();
+            if (pri === 'critical') return 'Critical';
+            if (pri === 'high') return 'High';
+            if (pri === 'medium') return 'Medium';
+            if (pri === 'low') return 'Low';
+        }
+        return getPriorityStyle(report.category).priority || 'Low';
     };
 
     // Filtered reports with Smart Filter support
@@ -1114,6 +1126,7 @@ function RespondersReports({ token }) {
                 ) : filteredReports.length > 0 ? (
                     filteredReports.map((report, index) => {
                         const isExpanded = expandedPosts.includes(report.id);
+                        const priority = getReportPriority(report);
 
                         return (
                             <div
@@ -1177,6 +1190,10 @@ function RespondersReports({ token }) {
                                         <span className={`status-badge status-${report.status.toLowerCase()}`}>
                                             {getStatusIcon(report.status)}
                                             {report.status}
+                                        </span>
+                                        {/* Display AI Smart Filter priority badge */}
+                                        <span className={`priority-tag priority-${(priority || "low").toLowerCase()}`}>
+                                            {priority}
                                         </span>
                                         <button 
                                             className="icon-btn edit-btn" 

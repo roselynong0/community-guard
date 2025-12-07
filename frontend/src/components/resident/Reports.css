@@ -388,6 +388,29 @@
     justify-content: flex-end;
 }
 
+/* Priority tag - used across multiple list views */
+.priority-tag {
+    display: inline-block;
+    padding: 4px 10px;
+    border-radius: 6px;
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+}
+.priority-critical,
+.priority-high {
+    background: #fee2e2;
+    color: #dc2626;
+}
+.priority-medium {
+    background: #fef3c7;
+    color: #d97706;
+}
+.priority-low {
+    background: #dbeafe;
+    color: #2563eb;
+}
+
 /* Mobile: Two buttons side-by-side spanning container with tags */
 @media (max-width: 768px) {
     .report-header-actions {

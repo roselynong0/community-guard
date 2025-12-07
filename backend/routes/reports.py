@@ -18,7 +18,7 @@ reports_bp = Blueprint("reports", __name__)
 # Default reporter for anonymous/missing users
 DEFAULT_REPORTER = {"id": 0, "firstname": "Unknown", "lastname": "User", "avatar_url": None, "isverified": False, "verified": False}
 
-def fetch_reports(limit=10, sort="desc", user_only=False, barangay_filter=False, barangay_param=None, user_id=None, current_user_id=None):
+def fetch_reports(limit=10, sort="desc", user_only=False, barangay_filter=False, barangay_param=None, user_id=None, current_user_id=None, status_param=None):
     """
     Fetch reports with optimized batch loading of related data.
     Supports filtering by user, barangay, and sorting.
@@ -36,6 +36,10 @@ def fetch_reports(limit=10, sort="desc", user_only=False, barangay_filter=False,
         # Use retry mechanism for the main reports query
         def fetch_main_reports():
             query = supabase.table("reports").select("*").is_("deleted_at", "null")
+
+            # Optional status filter (e.g. 'Resolved')
+            if status_param:
+                query = query.eq("status", status_param)
 
             if user_only and user_id:
                 query = query.eq("user_id", user_id)
@@ -172,7 +176,7 @@ def fetch_reports(limit=10, sort="desc", user_only=False, barangay_filter=False,
         assigned_responders_data = {}
         if assigned_responder_ids:
             def fetch_assigned_responders():
-                return supabase.table("users").select("id, firstname, lastname, phone_number").in_("id", assigned_responder_ids).execute()
+                return supabase.table("users").select("id, firstname, lastname, email").in_("id", assigned_responder_ids).execute()
             
             try:
                 responders_resp = supabase_retry(fetch_assigned_responders)
@@ -317,6 +321,46 @@ def get_reports():
     except Exception as e:
         print(f"❌ Reports fetch failed: {str(e)}")
         return jsonify({"status": "error", "message": str(e), "reports": []}), 500
+
+
+@reports_bp.route("/reports/archived", methods=["GET"])
+@token_required
+def get_archived_reports():
+    """Get archived reports (Resolved) for user.
+
+    - Admin: returns all reports with status 'Resolved'
+    - Barangay Official or Responder: returns reports with status 'Resolved' in their address_barangay
+    """
+    try:
+        user_id = request.user_id
+        limit = int(request.args.get("limit", 100))
+        sort = request.args.get("sort", "desc").lower()
+
+        # Get current user's role
+        user_role_resp = supabase.table("users").select("role").eq("id", user_id).execute()
+        user_role_data = getattr(user_role_resp, "data", [])
+        user_role = user_role_data[0].get("role") if user_role_data else None
+
+        # Admin: return all Resolved reports
+        if user_role == "Admin":
+            reports_list = fetch_reports(limit=limit, sort=sort, current_user_id=user_id, status_param="Resolved")
+            return jsonify({"status": "success", "reports": reports_list}), 200
+
+        # For Barangay Official or Responder: fetch barangay from info table
+        info_resp = supabase.table("info").select("address_barangay").eq("user_id", user_id).execute()
+        info_data = getattr(info_resp, "data", [])
+        user_barangay = info_data[0].get("address_barangay") if info_data else None
+
+        if not user_barangay:
+            # No barangay set - return empty list
+            return jsonify({"status": "success", "reports": []}), 200
+
+        reports_list = fetch_reports(limit=limit, sort=sort, barangay_param=user_barangay, current_user_id=user_id, status_param="Resolved")
+        return jsonify({"status": "success", "reports": reports_list}), 200
+
+    except Exception as e:
+        print(f"❌ Archived reports fetch failed: {e}")
+        return jsonify({"status": "error", "message": str(e)}), 500
 
 
 @reports_bp.route("/reports", methods=["POST"])
@@ -753,38 +797,66 @@ def update_report(report_id):
 
 @reports_bp.route("/reports/<report_id>", methods=["PATCH"])
 @token_required
-def soft_delete_report(report_id):
-    """Soft delete a report (set deleted_at timestamp)"""
+def patch_report(report_id):
+    """
+    PATCH: Update report status (for assigned responder, barangay official, admin), or soft delete (for owner).
+    """
     try:
-        # Only allow the owner to delete
-        report_resp = supabase.table("reports").select("user_id, title").eq("id", report_id).execute()
+        user_id = request.user_id
+        data = request.get_json(force=True) if request.is_json else request.form
+
+        # Fetch the report
+        report_resp = supabase.table("reports").select("user_id, title, assigned_responder_id").eq("id", report_id).execute()
         report = getattr(report_resp, "data", [None])[0]
-        if not report or report["user_id"] != request.user_id:
-            return jsonify({"status": "error", "message": "Not authorized"}), 403
+        if not report:
+            return jsonify({"status": "error", "message": "Report not found"}), 404
 
-        # Soft delete by setting deleted_at
-        supabase.table("reports").update({"deleted_at": datetime.now(timezone.utc).isoformat()}).eq("id", report_id).execute()
+        # Get user role
+        user_role_resp = supabase.table("users").select("role").eq("id", user_id).execute()
+        user_role_data = getattr(user_role_resp, "data", [])
+        user_role = user_role_data[0].get("role") if user_role_data else None
 
-        # Create an admin notification for soft-deletion by owner
-        try:
-            # Resolve reporter name
-            actor_name = str(request.user_id)
+        # Allow status update if user is assigned responder, barangay official, or admin
+        allowed_status = (
+            user_role in ["Admin", "Barangay Official"] or
+            str(report.get("assigned_responder_id")) == str(user_id)
+        )
+
+        # Allow soft delete only for owner
+        allowed_delete = str(report["user_id"]) == str(user_id)
+
+        # Status update
+        if "status" in data:
+            if not allowed_status:
+                return jsonify({"status": "error", "message": "Forbidden"}), 403
+            new_status = data["status"]
+            supabase.table("reports").update({"status": new_status, "updated_at": datetime.now(timezone.utc).isoformat()}).eq("id", report_id).execute()
+            return jsonify({"status": "success", "message": f"Status updated to {new_status}"}), 200
+
+        # Soft delete
+        if "deleted_at" in data:
+            if not allowed_delete:
+                return jsonify({"status": "error", "message": "Not authorized"}), 403
+            supabase.table("reports").update({"deleted_at": datetime.now(timezone.utc).isoformat()}).eq("id", report_id).execute()
+            # Create an admin notification for soft-deletion by owner
             try:
-                aresp = supabase.table("users").select("firstname, lastname").eq("id", request.user_id).single().execute()
-                adata = getattr(aresp, "data", None) or {}
-                if adata:
-                    actor_name = f"{adata.get('firstname','').strip()} {adata.get('lastname','').strip()}".strip() or actor_name
-            except Exception:
-                pass
+                actor_name = str(request.user_id)
+                try:
+                    aresp = supabase.table("users").select("firstname, lastname").eq("id", request.user_id).single().execute()
+                    adata = getattr(aresp, "data", None) or {}
+                    if adata:
+                        actor_name = f"{adata.get('firstname','').strip()} {adata.get('lastname','').strip()}".strip() or actor_name
+                except Exception:
+                    pass
+                admin_title = f"Report soft-deleted"
+                report_title = report.get('title') or str(report_id)
+                admin_message = f"Report '{report_title}' was soft-deleted by {actor_name}. Please review if administrative action is required."
+                create_admin_notification(actor_id=request.user_id, user_id=request.user_id, report_id=report_id, title=admin_title, type_label="Report Soft Deleted", message=admin_message)
+            except Exception as e:
+                print(f"⚠️ Failed to create admin notification for soft-deleted report: {e}")
+            return jsonify({"status": "success", "message": "Report deleted"}), 200
 
-            admin_title = f"Report soft-deleted"
-            report_title = report.get('title') or str(report_id)
-            admin_message = f"Report '{report_title}' was soft-deleted by {actor_name}. Please review if administrative action is required."
-            create_admin_notification(actor_id=request.user_id, user_id=request.user_id, report_id=report_id, title=admin_title, type_label="Report Soft Deleted", message=admin_message)
-        except Exception as e:
-            print(f"⚠️ Failed to create admin notification for soft-deleted report: {e}")
-
-        return jsonify({"status": "success", "message": "Report deleted"}), 200
+        return jsonify({"status": "error", "message": "No valid PATCH operation"}), 400
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
 
@@ -1970,6 +2042,7 @@ def assign_responder(report_id):
     """
     Assign a responder to a report.
     Only barangay officials can assign responders.
+    Handles both new assignments and reassignments.
     """
     user_id = request.user_id
     try:
@@ -1983,16 +2056,21 @@ def assign_responder(report_id):
         
         data = request.get_json()
         responder_id = data.get("responder_id")
+        previous_responder_id = data.get("previous_responder_id")  # For reassignment tracking
         
         if not responder_id:
             return jsonify({"status": "error", "message": "Responder ID is required"}), 400
         
-        # Check if report exists
-        report_resp = supabase.table("reports").select("id, title, address_barangay").eq("id", report_id).execute()
+        # Check if report exists and get current assignment
+        report_resp = supabase.table("reports").select("id, title, address_barangay, assigned_responder_id").eq("id", report_id).execute()
         report = getattr(report_resp, "data", [None])[0]
         
         if not report:
             return jsonify({"status": "error", "message": "Report not found"}), 404
+        
+        # Get current assigned responder (if any) for reassignment notification
+        current_responder_id = report.get("assigned_responder_id")
+        is_reassignment = current_responder_id and current_responder_id != responder_id
         
         # Check if responder exists and is actually a responder
         responder_resp = supabase.table("users").select("id, role, firstname, lastname").eq("id", responder_id).execute()
@@ -2008,16 +2086,70 @@ def assign_responder(report_id):
             "assigned_by": user_id
         }).eq("id", report_id).execute()
         
-        print(f"✅ Report {report_id} assigned to responder {responder_id} by user {user_id}")
+        print(f"✅ Report {report_id} {'reassigned' if is_reassignment else 'assigned'} to responder {responder_id} by user {user_id}")
         
-        # Notify the responder about the assignment
-        from utils.notifications import create_notification
-        create_notification(
-            responder_id,
-            "🚨 New Report Assignment",
-            f'You have been assigned to respond to: "{report.get("title")}" in {report.get("address_barangay")}. Please respond immediately.',
-            "responder_assignment"  # Specific type for responder assignments
-        )
+        from utils.notifications import create_notification, create_admin_notification
+        
+        # Get assigner (barangay official) info for admin notification
+        assigner_resp = supabase.table("users").select("firstname, lastname").eq("id", user_id).execute()
+        assigner_data = getattr(assigner_resp, "data", [None])[0]
+        assigner_name = f"{assigner_data.get('firstname', '')} {assigner_data.get('lastname', '')}".strip() if assigner_data else "Barangay Official"
+        
+        # Get new responder name
+        new_responder_name = f"{responder.get('firstname', '')} {responder.get('lastname', '')}".strip()
+        
+        # If this is a reassignment, notify the previous responder that they've been removed
+        if is_reassignment and current_responder_id:
+            # Get previous responder name for admin notification
+            prev_responder_resp = supabase.table("users").select("firstname, lastname").eq("id", current_responder_id).execute()
+            prev_responder_data = getattr(prev_responder_resp, "data", [None])[0]
+            prev_responder_name = f"{prev_responder_data.get('firstname', '')} {prev_responder_data.get('lastname', '')}".strip() if prev_responder_data else "Previous Responder"
+            
+            create_notification(
+                current_responder_id,
+                "📋 Assignment Removed",
+                f'You have been unassigned from the report: "{report.get("title")}" in {report.get("address_barangay")}. This report has been reassigned to another responder.',
+                "assignment_removed"
+            )
+            print(f"📨 Notified previous responder {current_responder_id} about reassignment")
+            
+            # Create admin notification for reassignment
+            create_admin_notification(
+                actor_id=user_id,
+                user_id=responder_id,
+                report_id=report_id,
+                title="Responder Reassigned",
+                type_label="Responder Reassignment",
+                message=f'{assigner_name} reassigned the report "{report.get("title")}" from {prev_responder_name} to {new_responder_name} in {report.get("address_barangay")}.'
+            )
+            print(f"📋 Admin notification created for responder reassignment")
+        
+        # Notify the new responder about the assignment
+        if is_reassignment:
+            create_notification(
+                responder_id,
+                "🚨 Report Reassignment",
+                f'You have been assigned to respond to: "{report.get("title")}" in {report.get("address_barangay")}. This report was previously assigned to another responder. Please respond immediately.',
+                "responder_assignment"
+            )
+        else:
+            create_notification(
+                responder_id,
+                "🚨 New Report Assignment",
+                f'You have been assigned to respond to: "{report.get("title")}" in {report.get("address_barangay")}. Please respond immediately.',
+                "responder_assignment"
+            )
+            
+            # Create admin notification for new assignment
+            create_admin_notification(
+                actor_id=user_id,
+                user_id=responder_id,
+                report_id=report_id,
+                title="Responder Assigned",
+                type_label="Responder Assignment",
+                message=f'{assigner_name} assigned {new_responder_name} to respond to the report "{report.get("title")}" in {report.get("address_barangay")}.'
+            )
+            print(f"📋 Admin notification created for new responder assignment")
         
         return jsonify({"status": "success", "message": "Responder assigned successfully"}), 200
         
@@ -2093,8 +2225,8 @@ def get_responders():
             info_data = getattr(info_resp, "data", [None])[0]
             user_barangay = info_data.get("address_barangay") if info_data else None
         
-        # Query users with Responder role
-        query = supabase.table("users").select("id, firstname, lastname, phone_number, email").eq("role", "Responder")
+        # Query users with Responder role (phone is in info table, not users table)
+        query = supabase.table("users").select("id, firstname, lastname, email").eq("role", "Responder")
         responders_resp = query.execute()
         responders = getattr(responders_resp, "data", [])
         

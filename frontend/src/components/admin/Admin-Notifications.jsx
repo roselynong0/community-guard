@@ -20,6 +20,14 @@ const getFinalNotificationType = (n) => {
   const textContext = String(n.title || '') + ' ' + String(n.message || '') + ' ' + String(n.type || '');
   const normalizedText = textContext.trim().toLowerCase();
 
+  // Responder assignment/reassignment detection
+  if (normalizedText.includes('responder reassign') || normalizedText.includes('reassigned')) {
+    return 'responder_reassignment';
+  }
+  if (normalizedText.includes('responder assign') || (normalizedText.includes('assigned') && normalizedText.includes('responder'))) {
+    return 'responder_assignment';
+  }
+
   // Report deletion should be detected first
   if (normalizedText.includes('report deleted') || normalizedText.includes('report was deleted') || (normalizedText.includes('deleted') && normalizedText.includes('report'))) {
     return 'report_deleted';
@@ -60,6 +68,10 @@ const getNotificationIcon = (type) => {
       return <FaExclamationTriangle className="icon icon-report" />;
     case 'user':
       return <FaUser className="icon icon-security" />; // user icon for account actions
+    case 'responder_assignment':
+      return <FaUser className="icon icon-info" />; // user icon for responder assignment
+    case 'responder_reassignment':
+      return <FaSyncAlt className="icon icon-ongoing" />; // sync icon for reassignment
     case 'report':
       // new report posts use the exclamation triangle like the home dashboard
       return <FaExclamationTriangle className="icon icon-report" />;
@@ -120,10 +132,16 @@ const getBadgeClass = (input) => {
   // report deleted messages should show report-deleted badge
   if (msg.includes('report deleted') || msg.includes('report was deleted') || (msg.includes('deleted') && msg.includes('report'))) return 'report-deleted';
 
+  // Responder assignment badges
+  if (msg.includes('responder reassign') || msg.includes('reassigned')) return 'responder-reassignment';
+  if ((msg.includes('responder') && msg.includes('assign')) || t === 'responder_assignment' || t === 'responder assignment') return 'responder-assignment';
+
   if (t === 'account_alert') return 'report';
   if (t === 'success') return 'resolved';
   if (t === 'account_deleted' || t === 'user deleted' || t === 'user_deleted') return 'account-deleted';
   if (t === 'report_deleted') return 'report-deleted';
+  if (t === 'responder_reassignment' || t === 'responder reassignment') return 'responder-reassignment';
+  if (t === 'responder_assignment' || t === 'responder assignment') return 'responder-assignment';
   return t || 'info';
 };
 
@@ -157,6 +175,14 @@ const getBadgeLabel = (input) => {
     case 'resolved':
     case 'success':
       return 'Resolved';
+    case 'responder_assignment':
+    case 'responder assignment':
+    case 'responder-assignment':
+      return 'Assignment';
+    case 'responder_reassignment':
+    case 'responder reassignment':
+    case 'responder-reassignment':
+      return 'Reassignment';
     default:
       return (t || 'Info').toString();
   }
@@ -167,6 +193,15 @@ const getIconClassForNotification = (n) => {
   const t = String(n?.type || '').toLowerCase();
   const message = String(n?.message || '') + ' ' + String(n?.title || '');
   const msg = message.toLowerCase();
+  
+  // Responder assignment/reassignment colors
+  if (t === 'responder_reassignment' || t === 'responder reassignment' || msg.includes('responder reassign') || msg.includes('reassigned')) {
+    return 'icon-ongoing'; // orange for reassignment
+  }
+  if (t === 'responder_assignment' || t === 'responder assignment' || (msg.includes('responder') && msg.includes('assign'))) {
+    return 'icon-info'; // blue for assignment
+  }
+  
   if (t === 'report' || t === 'account_alert' || msg.includes('report') || msg.includes('new report') || msg.includes('updated to')) {
     return 'icon-report';
   }
@@ -296,6 +331,8 @@ export default function AdminNotifications({ session }) {
       const title = String(n.title || '').toLowerCase();
       const msg = String(n.message || '').toLowerCase();
       const t = String(n.type || '').toLowerCase();
+      // Exclude responder assignment notifications from report category
+      if (t.includes('responder') || title.includes('responder assign') || title.includes('responder reassign')) return false;
       if (!(title.includes('report') || msg.includes('report') || t === 'report')) return false;
     }
     if (categoryFilter === 'Account') {
@@ -305,9 +342,17 @@ export default function AdminNotifications({ session }) {
 
       // If the title explicitly mentions a report, prefer report classification
       if (titleLow.includes('report')) return false;
+      // Exclude responder assignments
+      if (typeLow.includes('responder') || titleLow.includes('responder')) return false;
 
       // Include when type is account_alert or title/message mention "account"
       if (!(typeLow === 'account_alert' || titleLow.includes('account') || msgLow.includes('account'))) return false;
+    }
+    if (categoryFilter === 'Responder') {
+      const titleLow = String(n.title || '').toLowerCase();
+      const typeLow = String(n.type || '').toLowerCase();
+      // Include responder assignment and reassignment notifications
+      if (!(typeLow.includes('responder') || titleLow.includes('responder assign') || titleLow.includes('responder reassign'))) return false;
     }
 
     return true;
@@ -336,6 +381,7 @@ export default function AdminNotifications({ session }) {
                 <option value="All">All</option>
                 <option value="Report">Report</option>
                 <option value="Account">Account</option>
+                <option value="Responder">Responder</option>
               </select>
             </label>
           </div>

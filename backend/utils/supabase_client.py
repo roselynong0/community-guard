@@ -5,6 +5,8 @@ Uses postgrest directly to avoid auth client compatibility issues
 import os
 import time
 import requests
+from requests.adapters import HTTPAdapter
+from urllib3.util.retry import Retry
 from types import SimpleNamespace
 from postgrest import SyncPostgrestClient
 from config import Config
@@ -34,31 +36,40 @@ try:
         def _get_client(self):
             """Lazy initialize the postgrest client"""
             if self._client is None:
-                self._client = SyncPostgrestClient(self.rest_url, headers=self.headers)
+                    # Create a shared requests Session with connection pooling and retries
+                    self._session = requests.Session()
+                    retry_strategy = Retry(
+                        total=2,
+                        backoff_factor=0.2,
+                        status_forcelist=[429, 500, 502, 503, 504],
+                        allowed_methods=["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"]
+                    )
+                    # Increase pool_maxsize to better handle concurrent requests
+                    adapter = HTTPAdapter(pool_connections=100, pool_maxsize=100, max_retries=retry_strategy)
+                    self._session.mount("https://", adapter)
+                    self._session.mount("http://", adapter)
+
+                    # Initialize postgrest client once. If SyncPostgrestClient accepts a session
+                    # parameter, pass our session to it; otherwise it will use its own HTTP logic.
+                    try:
+                        self._client = SyncPostgrestClient(self.rest_url, headers=self.headers)
+                    except Exception:
+                        # Fallback: still try to create client (some versions have different signatures)
+                        self._client = SyncPostgrestClient(self.rest_url, headers=self.headers)
+                    # Simple in-memory TTL cache to avoid repeating identical REST selects
+                    self._cache = {}
+                    self._cache_ttl = 60  # seconds
             return self._client
         
         def table(self, table_name):
-            """Access a table using postgrest directly with retry logic"""
-            max_retries = 3
-            for attempt in range(max_retries):
-                try:
-                    client = self._get_client()
-                    return client.from_(table_name)
-                except Exception as e:
-                    if attempt < max_retries - 1:
-                        # DNS or connection error - retry after delay
-                        wait_time = (attempt + 1) * 1
-                        print(f"⚠️  Connection attempt {attempt + 1} failed, retrying in {wait_time}s...")
-                        time.sleep(wait_time)
-                    else:
-                        # Final attempt failed
-                        error_msg = str(e)
-                        if "11001" in error_msg or "getaddrinfo" in error_msg:
-                            raise ConnectionError(
-                                f"Cannot connect to Supabase ({self._url}). "
-                                "Check your internet connection or firewall settings."
-                            ) from e
-                        raise
+            """Access a table using postgrest client. Leave retry behaviour to supabase_retry wrapper.
+
+            This method returns a postgrest `from_(table_name)` object which callers can
+            use to build and execute queries. Avoid doing heavy retry logic here to
+            prevent double-retries and long cumulative waits.
+            """
+            client = self._get_client()
+            return client.from_(table_name)
 
         def rpc(self, fn_name, params=None):
             """Call a Postgres function via Supabase REST RPC endpoint.
@@ -72,24 +83,88 @@ try:
                 client = self._get_client()
                 if hasattr(client, 'rpc'):
                     resp = client.rpc(fn_name, params)
-                    # postgrest client typically returns an object we can read
                     return resp
             except Exception:
-                # Fall through to direct HTTP call
+                # Fall through to direct HTTP call using our session
                 pass
 
             # Fallback: call REST RPC endpoint directly
             url = f"{self.rest_url}/rpc/{fn_name}"
             headers = self.headers.copy()
+            sess = getattr(self, '_session', requests)
             try:
-                r = requests.post(url, headers=headers, json=params, timeout=10)
+                r = sess.post(url, headers=headers, json=params, timeout=10)
                 r.raise_for_status()
                 try:
                     data = r.json()
                 except ValueError:
                     data = None
                 return SimpleNamespace(data=data, status_code=r.status_code, text=r.text)
-            except Exception as e:
+            except Exception:
+                raise
+        def rest_select(self, table, select='*', in_field=None, in_values=None, eq_field=None, eq_value=None, limit=None, order=None):
+            """Perform a REST v1 select using the shared requests session.
+
+            Uses PostgREST query syntax, e.g. `id=in.(a,b)` and `user_id=eq.123`.
+            Returns a SimpleNamespace with `.data` matching the postgrest response.
+            """
+            params = {}
+            if select:
+                params['select'] = select
+            # Build cache key for common batch selects
+            cache_key = None
+            if in_field and in_values:
+                joined = ','.join(map(str, in_values))
+                params[in_field] = f'in.({joined})'
+                cache_key = f"{table}:{select}:{in_field}:{joined}"
+            if eq_field and eq_value is not None:
+                params[eq_field] = f'eq.{eq_value}'
+                if cache_key is None:
+                    cache_key = f"{table}:{select}:{eq_field}:{eq_value}"
+                else:
+                    cache_key = f"{cache_key}|{eq_field}:{eq_value}"
+            if limit:
+                params['limit'] = str(limit)
+            if order:
+                params['order'] = order
+
+            # Check cache
+            if cache_key:
+                entry = getattr(self, '_cache', {}).get(cache_key)
+                if entry and (time.time() - entry['ts'] < getattr(self, '_cache_ttl', 60)):
+                    return SimpleNamespace(data=entry['data'], status_code=200, text='cached')
+            url = f"{self.rest_url}/{table}"
+            sess = getattr(self, '_session', requests)
+            results = []
+            try:
+                if in_field and in_values and len(in_values) > 50:
+                    chunk_size = 50
+                    for i in range(0, len(in_values), chunk_size):
+                        chunk = in_values[i:i+chunk_size]
+                        chunk_params = params.copy()
+                        joined_chunk = ','.join(map(str, chunk))
+                        chunk_params[in_field] = f'in.({joined_chunk})'
+                        r = sess.get(url, headers=self.headers, params=chunk_params, timeout=5)
+                        r.raise_for_status()
+                        try:
+                            data = r.json() or []
+                        except ValueError:
+                            data = []
+                        results.extend(data)
+                else:
+                    r = sess.get(url, headers=self.headers, params=params, timeout=5)
+                    r.raise_for_status()
+                    try:
+                        results = r.json() or []
+                    except ValueError:
+                        results = []
+                if cache_key:
+                    try:
+                        self._cache[cache_key] = {'ts': time.time(), 'data': results}
+                    except Exception:
+                        pass
+                return SimpleNamespace(data=results, status_code=200, text='ok')
+            except Exception:
                 raise
     
     supabase = SimpleSupabaseClient(Config.SUPABASE_URL, Config.SUPABASE_KEY)

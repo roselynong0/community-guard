@@ -292,6 +292,10 @@
 .notif-badge.account-deleted { background: rgba(244,0,20,0.06); color: #f40014; border: 1px solid rgba(244,0,20,0.08); }
 /* report deletion badge - red with trash icon */
 .notif-badge.report-deleted { background: rgba(244,0,20,0.06); color: #f40014; border: 1px solid rgba(244,0,20,0.08); }
+/* responder assignment badge - blue */
+.notif-badge.responder-assignment { background: rgba(52,152,219,0.08); color: #3498db; border: 1px solid rgba(52,152,219,0.12); }
+/* responder reassignment badge - orange */
+.notif-badge.responder-reassignment { background: rgba(230,126,34,0.08); color: #e67e22; border: 1px solid rgba(230,126,34,0.12); }
 
 .notif-message { margin: 6px 0 0 0; color: #333; }
 
@@ -689,6 +693,10 @@
 .notif-badge.report { background: rgba(45,45,115,0.06); color: #2d2d73; border: 1px solid rgba(45,45,115,0.08);} 
 /* account deletion badge - red */
 .notif-badge.account-deleted { background: rgba(244,0,20,0.06); color: #f40014; border: 1px solid rgba(244,0,20,0.08); }
+/* responder assignment badge - blue */
+.notif-badge.responder-assignment { background: rgba(52,152,219,0.08); color: #3498db; border: 1px solid rgba(52,152,219,0.12); }
+/* responder reassignment badge - orange */
+.notif-badge.responder-reassignment { background: rgba(230,126,34,0.08); color: #e67e22; border: 1px solid rgba(230,126,34,0.12); }
 
 .notif-message { margin: 6px 0 0 0; color: #333; }
 
