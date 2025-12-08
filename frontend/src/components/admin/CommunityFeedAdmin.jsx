@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback, useMemo, useRef } from "react"
 import "../resident/CommunityFeed.css";
 import "../resident/Notifications.css";
 import ModalPortal from "../shared/ModalPortal";
+import LoadingScreen from "../shared/LoadingScreen";
 import { 
   FaUsers, 
   FaTrash, 
@@ -480,7 +481,20 @@ const CommunityFeedAdmin = () => {
     return filtered;
   }, [posts, searchTerm, statusFilter, sortBy, sortOrder]);
 
-  return (
+  const loadingFeatures = [
+    {
+      title: "Community Feed Management",
+      description:
+        "Moderate and manage all community posts across the city.",
+    },
+    {
+      title: "Trending Analysis",
+      description:
+        "Identify trending topics and community concerns.",
+    },
+  ];
+
+  const content = (
     <div className="feed-container">
       {/* Notification */}
       {notification && (
@@ -741,6 +755,20 @@ const CommunityFeedAdmin = () => {
           </>
         )}
       </div>
+    </div>
+  );
+
+  return (
+    <LoadingScreen
+      variant="inline"
+      features={loadingFeatures}
+      title={loading ? "Loading Community Feed" : undefined}
+      subtitle={loading ? "Fetching all community posts" : undefined}
+      stage={loading ? "loading" : "exit"}
+      onExited={() => {}}
+      inlineOffset="25vh"
+    >
+      {content}
       
       {/* Delete Reason Modal */}
       {isDeleteReasonOpen && (
@@ -819,7 +847,7 @@ const CommunityFeedAdmin = () => {
           </div>
         </ModalPortal>
       )}
-    </div>
+    </LoadingScreen>
   );
 };
 

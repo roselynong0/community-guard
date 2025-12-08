@@ -321,10 +321,10 @@ function Maps({ session, userRole }) {
     fetchMapReports();
   }, [session, userRole]);
 
-  // Only count accepted reports in barangay counts (is_accepted !== false)
-  const acceptedReports = reports.filter(r => r.is_accepted !== false);
+  // Only count active (non-resolved) reports in barangay counts
+  const acceptedReports = reports.filter(r => r.status !== 'Resolved');
   
-  // Group reports by barangay (only accepted reports)
+  // Group reports by barangay (only active, non-resolved reports)
   const reportsByBarangay = acceptedReports.reduce((acc, r) => {
     if (!acc[r.address_barangay]) acc[r.address_barangay] = [];
     acc[r.address_barangay].push(r);
@@ -334,10 +334,9 @@ function Maps({ session, userRole }) {
   // Get all unique barangays for filter dropdown
   const allBarangays = Object.keys(reportsByBarangay).sort();
 
-  // Filter reports: only show active (non-resolved), accepted reports
+  // Filter reports by selected barangay and show only active (non-resolved) reports
   const filteredReports = acceptedReports
-    .filter(r => selectedBarangay === 'all' || r.address_barangay === selectedBarangay)
-    .filter(r => r.status !== 'Resolved'); // Only show active reports (Pending + Ongoing)
+    .filter(r => selectedBarangay === 'all' || r.address_barangay === selectedBarangay);
 
   // Group overlapping markers for display
   const groupedMarkers = groupOverlappingReports(filteredReports);

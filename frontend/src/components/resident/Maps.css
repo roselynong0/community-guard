@@ -27,7 +27,7 @@
   width: 100%;
   border-radius: 12px;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-  transition: box-shadow 0.3s ease;
+  transition: box-shadow 0.3s ease; 
 }
 
 .map-container:hover {
@@ -450,16 +450,18 @@ p {
 /* ============================================
    MOBILE RESPONSIVE (max-width: 768px)
    ============================================ */
-@media (max-width: 768px) {
+@media (max-width: 768px) { 
   .maps-page {
-    padding: 0;
+    padding: 10px 15px;
     height: 100%;
     background-color: #fff;
     border-radius: 0;
-    overflow: hidden;
+    overflow: visible;
     /* Override Layout's main-area padding on mobile */
-    margin: -10px -15px 0 -15px;
-    width: calc(100% + 30px);
+    margin: 0;
+    width: 100%;
+    position: relative;
+    margin-top: 2rem;
   }
 
   /* Hide header on mobile */
@@ -477,9 +479,9 @@ p {
     top: 0;
     left: 0;
     right: 0;
-    bottom: 164px; /* Leave space for stats panel (60px) + bottom nav (60px) */
+    bottom: 170px; /* Above bottom nav */
     height: auto;
-    z-index: 5; /* Above top-bar (z-index: 1-4) */
+    z-index: 1; /* Low z-index so stats panel appears above */
   }
 
   .map-container {
@@ -633,7 +635,7 @@ p {
     max-width: none;
     background: #fff;
     box-shadow: 0 -2px 8px rgba(0,0,0,0.1);
-    z-index: 6; /* Above map container */
+    z-index: 100; /* Well above map container */
   }
 
   .maps-stats-grid {

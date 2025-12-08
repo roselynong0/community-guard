@@ -1203,14 +1203,6 @@ function RespondersReports({ token }) {
                                         >
                                             <FaEdit aria-hidden="true" />
                                         </button>
-                                        <button 
-                                            className="icon-btn delete-btn" 
-                                            onClick={() => openDeleteReason(report)}
-                                            aria-label={`Delete report: ${report.title}`}
-                                            title="Delete Report"
-                                        >
-                                            <FaTrashAlt aria-hidden="true" />
-                                        </button>
                                     </div>
                                 </div>
 

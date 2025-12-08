@@ -3565,7 +3565,7 @@ button.delete-btn:hover {
     
     /* Fix reports container padding for bottom nav */
     .reports-container {
-        padding-bottom: 100px;
+        padding-bottom: 70px;
     }
     
     /* Make action buttons full width */
@@ -3623,7 +3623,7 @@ button.delete-btn:hover {
 @media (max-width: 480px) {
     .reports-container {
         padding: 12px;
-        padding-bottom: 110px;
+        padding-bottom: 40px;
     }
     
     /* Header adjustments */

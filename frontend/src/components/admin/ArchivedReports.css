@@ -143,10 +143,10 @@
 /* Top Controls - Single row with search and filters */
 .archived-top-controls {
     display: flex;
+    flex-wrap: wrap;
     gap: 12px;
     margin-bottom: 20px;
     align-items: stretch;
-    flex-wrap: nowrap;
 }
 
 .archived-search-container {
@@ -170,10 +170,13 @@
     box-sizing: border-box;
 }
 
+input.archived-search-input {
+    margin-bottom: 0;   
+}
+
 .archived-search-icon {
     position: absolute;
     right: 14px;
-    margin-top: -8px !important;
     top: 50%;
     transform: translateY(-50%);
     color: #64748b;

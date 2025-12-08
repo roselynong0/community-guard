@@ -11,6 +11,7 @@ import {
   FaArchive,
   FaComments,
   FaEllipsisV,
+  FaVideo,
 } from 'react-icons/fa';
 import { Outlet, NavLink, useNavigate } from 'react-router-dom';
 import { API_CONFIG, getApiUrl } from '../../utils/apiConfig';
@@ -33,6 +34,7 @@ export default function ResponderLayout({ session, setSession, setNotification }
   const [notificationCount, setNotificationCount] = useState(0);
   const [showChatBot, setShowChatBot] = useState(false);
   const [showMobileMenu, setShowMobileMenu] = useState(false);
+  const [showMobileNav, setShowMobileNav] = useState(false);
   const toastRef = useRef(null);
   const pollingIntervalRef = useRef(null);
 
@@ -226,6 +228,7 @@ export default function ResponderLayout({ session, setSession, setNotification }
                 <span className="notification-badge">{notificationCount}</span>
               )}
             </NavLink>
+            <NavLink to="/responder/cctv"><FaVideo /> Live CCTV Feeds</NavLink>
             <NavLink to="/responder/profile"><FaUser /> Profile</NavLink>
           </nav>
 
@@ -270,6 +273,13 @@ export default function ResponderLayout({ session, setSession, setNotification }
                 cursor: 'pointer',
                 color: '#11163e',
               }}
+            >
+              <FaBars />
+            </button>
+            <button
+              className="mobile-nav-toggle-top"
+              onClick={() => setShowMobileNav(!showMobileNav)}
+              aria-label="Toggle navigation"
             >
               <FaBars />
             </button>
@@ -327,6 +337,36 @@ export default function ResponderLayout({ session, setSession, setNotification }
             </div>
           )}
         </div>
+
+        {/* Mobile Navigation Dropdown */}
+        {showMobileNav && (
+          <div className="mobile-nav-dropdown-top">
+            <NavLink to="/responder/home" onClick={() => setShowMobileNav(false)}>
+              <FaHome /> Dashboard
+            </NavLink>
+            <NavLink to="/responder/maps" onClick={() => setShowMobileNav(false)}>
+              <FaMap /> Map
+            </NavLink>
+            <NavLink to="/responder/reports" onClick={() => setShowMobileNav(false)}>
+              <FaExclamationTriangle /> Reports
+            </NavLink>
+            <NavLink to="/responder/archived" onClick={() => setShowMobileNav(false)}>
+              <FaArchive /> Archived
+            </NavLink>
+            <NavLink to="/responder/notifications" onClick={() => setShowMobileNav(false)}>
+              <FaBell /> Notifications
+              {notificationCount > 0 && (
+                <span className="notification-badge">{notificationCount}</span>
+              )}
+            </NavLink>
+            <NavLink to="/responder/cctv" onClick={() => setShowMobileNav(false)}>
+              <FaVideo /> Live CCTV Feeds
+            </NavLink>
+            <NavLink to="/responder/profile" onClick={() => setShowMobileNav(false)}>
+              <FaUser /> Profile
+            </NavLink>
+          </div>
+        )}
 
         <Outlet />
       </main>

@@ -666,7 +666,6 @@
   flex-wrap: wrap;
   gap: 12px;
   align-items: center;
-  margin-bottom: 1.5rem;
   padding: 0;
 }
 
@@ -675,7 +674,7 @@
   min-width: 280px;
   position: relative;
   display: flex;
-  margin-top: 14px !important;
+  margin-top: 0 !important;
   align-items: center;
   height: 48px;
 }
@@ -692,6 +691,10 @@
   box-sizing: border-box;
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
   color: #1e293b;
+}
+
+input[type="text"].feed-search-input {
+  margin-bottom: 0;
 }
 
 .feed-search-input::placeholder {
@@ -715,7 +718,6 @@
 .feed-search-icon {
   position: absolute;
   right: 18px;
-  margin-top: -8px;
   top: 50%;
   transform: translateY(-50%);
   color: #64748b;
@@ -754,6 +756,7 @@
   font-weight: 500;
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
   box-sizing: border-box;
+  margin-bottom: 0
 }
 
 .feed-filter-select:focus {
@@ -1039,6 +1042,7 @@
   margin-top: 20px;
   display: grid;
   gap: 18px;
+  margin-bottom: 20px;
 }
 
 .post-card {
@@ -2023,7 +2027,6 @@
     flex-direction: column;
     align-items: stretch;
     gap: 1rem;
-    margin-bottom: 1.5rem;
   }
   
   .feed-search-container {
@@ -2040,7 +2043,7 @@
     min-width: auto;
     width: 100%;
   }
-  
+
   .feed-btn {
     width: 100%;
   }
@@ -2088,7 +2091,9 @@
   .feed-container {
     margin: 10px 0;
     padding: 10px;
-    padding-bottom: 110px;
+  }
+  .feed-list {
+    padding-bottom: 80px;
   }
   .post-card {
     padding: 14px;
@@ -2202,10 +2207,6 @@
 
 /* Pill row mobile - icon only with badges */
 @media (max-width: 768px) {
-  /* Fix feed container padding for bottom nav */
-  .feed-container {
-    padding-bottom: 100px;
-  }
   
   .feed-pill-row {
     gap: 8px;

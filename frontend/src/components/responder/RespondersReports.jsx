@@ -140,7 +140,7 @@ function RespondersReports({ token }) {
     const [loading, setLoading] = useState(true);
     const [search, setSearch] = useState("");
     const [category, setCategory] = useState("All");
-    const [barangay, setBarangay] = useState("All");
+    const [userBarangay, setUserBarangay] = useState(null);
     const [statusFilter, setStatusFilter] = useState("All"); 
     const [sort, setSort] = useState("latest");
     const [smartSort, setSmartSort] = useState("latest"); // When smart filter active
@@ -406,32 +406,25 @@ function RespondersReports({ token }) {
         setLoading(true);
         try {
             const sortParam = sort === "latest" ? "desc" : "asc";
-            // Use responder-specific endpoint that filters by barangay and excludes rejected reports
-            const responderEndpoint = getApiUrl(`/api/responder/reports?limit=50`);
-            let response = await fetch(responderEndpoint, {
+            // Use responder-specific endpoint that filters by responder's assigned barangay
+            const response = await fetch(getApiUrl(`/api/responder/reports?limit=50&sort=${sortParam}`), {
                 headers: { 
                     'Authorization': `Bearer ${token}`,
                     'Content-Type': 'application/json'
                 }
             });
 
-            // Fallback to regular reports endpoint if responder endpoint fails
             if (!response.ok) {
-                console.warn("Responder reports endpoint failed, falling back to regular reports");
-                response = await fetch(`${API_URL}/reports?limit=50&sort=${sortParam}`, {
-                    headers: { 
-                        'Authorization': `Bearer ${token}`,
-                        'Content-Type': 'application/json'
-                    }
-                });
-                if (!response.ok) {
-                    throw new Error('Failed to fetch reports');
-                }
+                throw new Error('Failed to fetch responder reports');
             }
 
             const data = await response.json();
             if (data.status === "success") {
-                // Use reports from responder endpoint or fallback
+                // Set the user's barangay from response
+                if (data.barangay) {
+                    setUserBarangay(data.barangay);
+                }
+                
                 const reports = Array.isArray(data.reports) ? data.reports : [];
                 
                 const transformedReports = reports.map(report => {
@@ -444,12 +437,7 @@ function RespondersReports({ token }) {
                         avatar_url: null
                     };
                     
-                    const fallbackPriority = getPriorityStyle(report.category);
                     return {
-                                                // AI priority fields (use backend ai priority if provided, otherwise derive from category)
-                                                ai_priority: report.ai_priority || fallbackPriority.priority,
-                                                ai_priority_score: report.ai_priority_score || fallbackPriority.score,
-                                                ai_priority_label: report.ai_priority_label || fallbackPriority.label,
                         id: report.id,
                         reporter: report.reporter || fallbackReporter,
                         user_id: report.user_id,
@@ -462,9 +450,29 @@ function RespondersReports({ token }) {
                         title: report.title || 'Untitled Report',
                         description: report.description || 'No description provided',
                         status: report.status || 'Pending',
-                        images: report.images?.map(img => img.url) || []
+                        is_approved: report.is_approved ?? false,
+                        is_rejected: report.is_rejected ?? false,
+                        rejection_reason: report.rejection_reason ?? null,
+                        images: report.images && Array.isArray(report.images) 
+                            ? report.images.map(img => typeof img === 'string' ? img : img.url).filter(Boolean)
+                            : [],
+                        reaction_count: report.reaction_count || 0,
+                        user_liked: report.user_liked ?? false,
+                        deleted_at: report.deleted_at || null
                     };
                 });
+                
+                // Debug: Log first 3 reports
+                console.log("📥 Responder fetched reports:", transformedReports.length, "reports");
+                console.log("📊 Responder report data sample:", transformedReports.slice(0, 3).map(r => ({
+                    id: r.id,
+                    title: r.title?.substring(0, 30),
+                    reporter: r.reporter,
+                    category: r.category,
+                    images: r.images,
+                    status: r.status
+                })));
+                
                 setReports(transformedReports);
             } else {
                 throw new Error(data.message || 'Failed to fetch reports');
@@ -732,9 +740,9 @@ function RespondersReports({ token }) {
     };
 
     // Filtered reports with Smart Filter support
+    // NOTE: Backend /api/responder/reports already filters to only assigned reports
     const filteredReports = reports
         .filter((r) => (category === "All" ? true : r.category === category))
-        .filter((r) => (barangay === "All" ? true : r.barangay === barangay))
         .filter((r) => (statusFilter === "All" ? true : r.status === statusFilter))
         .filter((r) => {
             // Priority filter only applies when Smart Filter is ON
@@ -773,13 +781,13 @@ function RespondersReports({ token }) {
 
     return (
         <div className="admin-container">
-            <div className="admin-header-row">
-                <h2>All Community Reports</h2>
+            <div className="barangay-reports-header">
+                <h2>Assigned Reports</h2>
             </div>
 
             {/* IMPROVEMENT: Added ref to the filter container for keyboard navigation */}
-            <div className="admin-top-controls" ref={filterContainerRef}>
-                <div className="admin-search-container">
+            <div className="barangay-top-controls" ref={filterContainerRef}>
+                <div className="barangay-search-container">
                     <label htmlFor="search-input" className="sr-only">Search reports by title or reporter name</label>
                     <input
                         id="search-input"
@@ -787,9 +795,9 @@ function RespondersReports({ token }) {
                         placeholder="Search reports..."
                         value={search}
                         onChange={(e) => setSearch(e.target.value)} 
-                        className="admin-search-input" 
+                        className="barangay-search-input" 
                     />
-                    <FaSearch className="admin-search-icon" aria-hidden="true" />
+                    <FaSearch className="barangay-search-icon" aria-hidden="true" />
                 </div>
                 
                 <label htmlFor="category-filter" className="sr-only">Filter by Category</label>
@@ -797,7 +805,7 @@ function RespondersReports({ token }) {
                     id="category-filter"
                     value={category} 
                     onChange={(e) => setCategory(e.target.value)}
-                    className="admin-filter-select"
+                    className="barangay-filter-select"
                     aria-label="Filter reports by category"
                 >
                     <option value="All">All Categories</option>
@@ -808,25 +816,12 @@ function RespondersReports({ token }) {
                     <option value="Others">Others</option>
                 </select>
                 
-                <label htmlFor="barangay-filter" className="sr-only">Filter by Barangay</label>
-                <select 
-                    id="barangay-filter"
-                    value={barangay} 
-                    onChange={(e) => setBarangay(e.target.value)}
-                    className="admin-filter-select"
-                    aria-label="Filter reports by barangay"
-                >
-                    {barangays.map((b) => (
-                        <option key={b} value={b === "All Barangay" ? "All" : b}>{b}</option>
-                    ))}
-                </select>
-                
                 <label htmlFor="status-filter" className="sr-only">Filter by Status</label>
                 <select 
                     id="status-filter"
                     value={statusFilter} 
                     onChange={(e) => setStatusFilter(e.target.value)}
-                    className="admin-filter-select"
+                    className="barangay-filter-select"
                     aria-label="Filter reports by status"
                 >
                     <option value="All">All Statuses</option>
@@ -843,7 +838,7 @@ function RespondersReports({ token }) {
                             id="priority-filter"
                             value={priorityFilter}
                             onChange={(e) => setPriorityFilter(e.target.value)}
-                            className="admin-filter-select"
+                            className="barangay-filter-select"
                             aria-label="Filter reports by priority"
                         >
                             <option value="All">All Priorities</option>
@@ -861,7 +856,7 @@ function RespondersReports({ token }) {
                         id="smart-sort-order"
                         value={smartSort}
                         onChange={(e) => setSmartSort(e.target.value)}
-                        className="admin-filter-select"
+                        className="barangay-filter-select"
                         aria-label="Smart sort reports by priority/date"
                     >
                         <option value="latest">Smart: Latest → Oldest</option>
@@ -872,7 +867,7 @@ function RespondersReports({ token }) {
                         id="sort-order"
                         value={sort} 
                         onChange={(e) => setSort(e.target.value)}
-                        className="admin-filter-select"
+                        className="barangay-filter-select"
                         aria-label="Sort reports by date"
                     >
                         <option value="latest">Latest → Oldest</option>
@@ -1064,8 +1059,8 @@ function RespondersReports({ token }) {
                 ) : reports.length === 0 ? (
                     <div className="no-reports" role="status">
                         <FaChartLine style={{ fontSize: '3rem', color: '#ccc', marginBottom: '1rem' }} />
-                        <p>No reports found.</p>
-                        <p className="muted">Assigned reports incidents will appear here.</p>
+                        <p>No assigned reports yet.</p>
+                        <p className="muted">You will see reports assigned to you here.</p>
                     </div>
                 ) : filteredReports.length > 0 ? (
                     filteredReports.map((report, index) => {
@@ -1215,7 +1210,7 @@ function RespondersReports({ token }) {
                 ) : (
                     <div className="no-reports" role="status">
                         <FaChartLine style={{ fontSize: '3rem', color: '#ccc', marginBottom: '1rem' }} />
-                        <p>No reports match your current filters.</p>
+                        <p>No assigned reports at the moment. Check back soon!</p>
                         <p className="muted">Try adjusting your search criteria.</p>
                         <button 
                             onClick={() => {

@@ -14,6 +14,7 @@ import {
   FaArchive,
   FaComments,
   FaEllipsisV,
+  FaUser,
 } from "react-icons/fa";
 import { Outlet, NavLink, useNavigate } from "react-router-dom";
 import Toast from "../shared/Toast";
@@ -35,6 +36,7 @@ function AdminLayout({ session, setSession, setNotification }) {
   const [notificationCount, setNotificationCount] = useState(0);
   const [showChatBot, setShowChatBot] = useState(false);
   const [showMobileMenu, setShowMobileMenu] = useState(false);
+  const [showMobileNav, setShowMobileNav] = useState(false); // Mobile hamburger navigation menu
   const toastRef = useRef(null);
   const pollingIntervalRef = useRef(null);
 
@@ -383,6 +385,14 @@ function AdminLayout({ session, setSession, setNotification }) {
             >
               <FaBars />
             </button>
+            <button 
+              className="mobile-nav-toggle-top" 
+              onClick={() => setShowMobileNav(!showMobileNav)}
+              aria-label="Toggle navigation menu"
+              title="Navigation menu"
+            >
+              <FaBars />
+            </button>
             <div className="date-time" style={{ fontWeight: 500 }}>
               <FaCalendarAlt style={{ marginRight: "0.4rem" }} />{" "}
               {formattedDateTime}
@@ -441,6 +451,33 @@ function AdminLayout({ session, setSession, setNotification }) {
         <Outlet />
       </main>
 
+      {/* Mobile Navigation Menu - Shows in top bar */}
+      {showMobileNav && (
+        <div className="mobile-nav-dropdown-top">
+          <NavLink to="/admin/users" onClick={() => setShowMobileNav(false)}>
+            <FaUsers /> Users
+          </NavLink>
+          <NavLink to="/admin/maps" onClick={() => setShowMobileNav(false)}>
+            <FaMap /> Maps
+          </NavLink>
+          <NavLink to="/admin/reports" onClick={() => setShowMobileNav(false)}>
+            <FaChartLine /> Reports
+          </NavLink>
+          <NavLink to="/admin/archived" onClick={() => setShowMobileNav(false)}>
+            <FaArchive /> Archived
+          </NavLink>
+          <NavLink to="/admin/communityfeedadmin" onClick={() => setShowMobileNav(false)}>
+            <FaComment /> Community Feed
+          </NavLink>
+          <NavLink to="/admin/notifications" onClick={() => setShowMobileNav(false)}>
+            <FaBell /> Notifications
+            {notificationCount > 0 && (
+              <span className="notification-badge">{notificationCount}</span>
+            )}
+          </NavLink>
+        </div>
+      )}
+
       {/* Bottom nav (mobile) */}
       <nav className="bottom-nav">
             <NavLink to="/admin/users">
@@ -452,7 +489,7 @@ function AdminLayout({ session, setSession, setNotification }) {
             <NavLink to="/admin/reports">
               <FaChartLine />
             </NavLink>
-            <NavLink to="/admin/community-feed">
+            <NavLink to="/admin/communityfeedadmin">
               <FaComment />
             </NavLink>
             <NavLink to="/admin/notifications">

@@ -39,6 +39,7 @@ function BarangayLayout({ session, setSession, setNotification }) {
   const [notificationCount, setNotificationCount] = useState(0);
   const [showChatBot, setShowChatBot] = useState(false);
   const [showMobileMenu, setShowMobileMenu] = useState(false);
+  const [showMobileNav, setShowMobileNav] = useState(false); // Mobile hamburger navigation menu
   const [isPremiumUser, setIsPremiumUser] = useState(false); // Track premium status from user profile
   const toastRef = useRef(null);
   const pollingIntervalRef = useRef(null);
@@ -352,6 +353,14 @@ function BarangayLayout({ session, setSession, setNotification }) {
             >
               <FaBars />
             </button>
+            <button 
+              className="mobile-nav-toggle-top" 
+              onClick={() => setShowMobileNav(!showMobileNav)}
+              aria-label="Toggle navigation menu"
+              title="Navigation menu"
+            >
+              <FaBars />
+            </button>
             <div className="date-time" style={{ fontWeight: 500 }}>
               <FaCalendarAlt style={{ marginRight: "0.4rem" }} />{" "}
               {formattedDateTime}
@@ -408,6 +417,45 @@ function BarangayLayout({ session, setSession, setNotification }) {
 
         <Outlet />
       </main>
+
+      {/* Mobile Navigation Menu - Shows in top bar */}
+      {showMobileNav && (
+        <div className="mobile-nav-dropdown-top">
+          <NavLink to="/barangay/dashboard" onClick={() => setShowMobileNav(false)}>
+            <FaHome /> Dashboard
+          </NavLink>
+          <NavLink to="/barangay/maps" onClick={() => setShowMobileNav(false)}>
+            <FaMap /> Maps
+          </NavLink>
+          <NavLink to="/barangay/reports" onClick={() => setShowMobileNav(false)}>
+            <FaChartLine /> Reports
+          </NavLink>
+          <NavLink to="/barangay/archived" onClick={() => setShowMobileNav(false)}>
+            <FaArchive /> Archived
+          </NavLink>
+          <NavLink to="/barangay/assign-responders" onClick={() => setShowMobileNav(false)}>
+            <FaUsers /> Assign Responders
+          </NavLink>
+          <NavLink to="/barangay/cctv" onClick={() => setShowMobileNav(false)}>
+            <FaVideo /> Live CCTV Feeds
+          </NavLink>
+          <NavLink to="/barangay/community-feed" onClick={() => setShowMobileNav(false)}>
+            <FaUserFriends /> Community Feed
+          </NavLink>
+          <NavLink to="/barangay/notifications" onClick={() => setShowMobileNav(false)}>
+            <FaBell /> Notifications
+            {notificationCount > 0 && (
+              <span className="notification-badge">{notificationCount}</span>
+            )}
+          </NavLink>
+          <NavLink to="/barangay/premium" onClick={() => setShowMobileNav(false)}>
+            <FaCrown style={{ color: '#f39c12' }} /> Premium
+          </NavLink>
+          <NavLink to="/barangay/profile" onClick={() => setShowMobileNav(false)}>
+            <FaUsers /> Profile
+          </NavLink>
+        </div>
+      )}
 
       {/* Bottom nav (mobile) */}
       <nav className="bottom-nav">

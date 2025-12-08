@@ -301,8 +301,11 @@ function AdminMaps({ session }) {
     handleCloseHotspotModal();
   };
 
-  // Group reports by barangay
-  const reportsByBarangay = reports.reduce((acc, r) => {
+  // Only count active (non-resolved) reports in barangay counts
+  const activeReports = reports.filter(r => r.status !== 'Resolved');
+  
+  // Group reports by barangay (only active, non-resolved reports)
+  const reportsByBarangay = activeReports.reduce((acc, r) => {
     if (!acc[r.address_barangay]) acc[r.address_barangay] = [];
     acc[r.address_barangay].push(r);
     return acc;
@@ -311,10 +314,10 @@ function AdminMaps({ session }) {
   // Get all unique barangays
   const allBarangays = Object.keys(reportsByBarangay).sort();
 
-  // Filter reports by selected barangay
+  // Filter reports by selected barangay (only active reports)
   const filteredReports = selectedBarangay === 'all'
-    ? reports
-    : reports.filter(r => r.address_barangay === selectedBarangay);
+    ? activeReports
+    : activeReports.filter(r => r.address_barangay === selectedBarangay);
 
   // Filter hotspots by selected barangay if needed
   const filteredHotspots = selectedBarangay === 'all'
@@ -519,7 +522,7 @@ function AdminMaps({ session }) {
                     fontWeight: '500'
                   }}
                 >
-                  <option value="all">All Barangays ({reports.length})</option>
+                  <option value="all">All Barangays ({activeReports.length})</option>
                   {allBarangays.map(barangay => (
                     <option key={barangay} value={barangay}>
                       {barangay} ({reportsByBarangay[barangay].length})
@@ -601,7 +604,7 @@ function AdminMaps({ session }) {
             <div className="maps-stats-grid">
               <div className="maps-stat-item stat-reports">
                 <span className="stat-icon">📋</span>
-                <span className="stat-value">{selectedBarangay === 'all' ? reports.length : filteredReports.length}</span>
+                <span className="stat-value">{filteredReports.length}</span>
                 <span className="stat-label">Reports</span>
               </div>
               <div className="maps-stat-item stat-hotspots">

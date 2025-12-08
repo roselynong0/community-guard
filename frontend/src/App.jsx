@@ -464,7 +464,7 @@ function App() {
         >
           <Route path="/responder/home" element={<ResponderHome token={session?.token} session={session} />} />
           <Route path="/responder/maps" element={<Maps session={session} userRole="Responder" />} />
-          <Route path="/responder/reports" element={<AdminReports token={session?.token} />} />
+          <Route path="/responder/reports" element={<RespondersReports token={session?.token} />} />
           <Route path="/responder/archived" element={<ArchivedReports session={session} />} />
           <Route path="/responder/notifications" element={<Notifications token={session?.token} />} />
           <Route path="/responder/community-feed" element={<CommunityFeedResponder token={session?.token} session={session} />} />

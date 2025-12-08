@@ -119,6 +119,7 @@
 
 .stat-content {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 1.25rem;
   width: 100%;
@@ -255,19 +256,31 @@
 .reports-chart .chart-container {
   flex: 1;
   display: flex;
-  flex-direction: column; /* stack chart and legend */
-  align-items: stretch;
+  /* FIX 1: Change to row direction to enable side-by-side layout */
+  flex-direction: row; 
+  /* FIX 2: Allow items to wrap onto the next line when space is limited */
+  flex-wrap: wrap; 
+  
+  /* Retain/Update Sizing and Alignment */
+  align-items: center; /* Align items vertically in the container */
+  justify-content: space-around; /* Center items and add spacing */
   min-height: 300px;
-  max-height: 520px;
-  gap: 12px;
+  max-height: 520px; /* Optional, but safe to keep */
+  gap: 20px;
 }
 
 /* Chart wrapper and center label for donut charts */
 .chart-wrapper {
   position: relative;
   width: 100%;
-  /* fixed visual area for the chart so legend won't overflow */
-  height: 320px;
+  
+  /* FIX 3: Add flexible sizing properties */
+  /* Grow: 1, Shrink: 1, Base Width: 300px */
+  flex: 1 1 300px;
+  max-width: 400px; /* Max width for chart (optional, helps aesthetic) */
+  
+  /* fixed visual area for the chart (Keep this for the chart content) */
+  height: 320px; 
   display: flex;
   align-items: center;
   justify-content: center;
@@ -312,13 +325,9 @@
 
 /* Category breakdown list below the chart */
 .custom-legend {
+  display: flex;
+  flex-wrap: wrap;
   padding: 10px;
-  border-top: 1px dashed rgba(17,22,62,0.04);
-  display: grid;
-  /* 2 columns x up to 3 rows compact layout */
-  grid-template-columns: repeat(2, 1fr);
-  grid-auto-rows: minmax(40px, auto);
-  gap: 10px 14px;
   align-items: center;
 }
 .legend-item {
@@ -543,6 +552,6 @@ h3 {
 @media (max-width: 510px) {
   .dashboard {
     padding: 0;
-    padding-bottom: 72px; /* reserve space for mobile bottom nav */
+    padding-bottom: 42px; /* reserve space for mobile bottom nav */
   }
-}
+} 

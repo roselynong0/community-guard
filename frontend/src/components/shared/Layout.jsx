@@ -41,6 +41,7 @@ function Layout({ session, setSession, setNotification }) {
   const [showVerifyModal, setShowVerifyModal] = useState(false);
   const [verifyUserData, setVerifyUserData] = useState(null);
   const [showMobileMenu, setShowMobileMenu] = useState(false); // Mobile 3-dot menu
+  const [showMobileNav, setShowMobileNav] = useState(false); // Mobile hamburger navigation menu
 
   const navigate = useNavigate();
 
@@ -357,6 +358,14 @@ function Layout({ session, setSession, setNotification }) {
             <button className="menu-btn" onClick={() => setSidebarOpen(!sidebarOpen)}>
               <FaBars />
             </button>
+            <button 
+              className="mobile-nav-toggle-top" 
+              onClick={() => setShowMobileNav(!showMobileNav)}
+              aria-label="Toggle navigation menu"
+              title="Navigation menu"
+            >
+              <FaBars />
+            </button>
             <div className="date-time" style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
               <FaCalendarAlt />
               {formattedDateTime}
@@ -399,38 +408,45 @@ function Layout({ session, setSession, setNotification }) {
         <Outlet />
       </main>
 
-      {/* Bottom nav (mobile) */}
-      <nav className="bottom-nav">
-        <NavLink to="/home">
-          <FaHome />
-        </NavLink>
-        <NavLink to="/maps">
-          <FaMap />
-        </NavLink>
-        <NavLink to="/reports">
-          <FaChartLine />
-        </NavLink>
-        <NavLink to="/community-feed">
-          <FaUserFriends />
-        </NavLink>
-        <NavLink to="/notifications">
-          <FaBell />
-          {notificationCount > 0 && (
-            <span className="notification-badge">{notificationCount}</span>
-          )}
-        </NavLink>
-        <NavLink
-          to={user ? "/profile" : "#"}
-          onClick={(e) => {
-            if (!user) {
-              e.preventDefault();
-              setShowAuthModal(true);
-            }
-          }}
-        >
-          <FaUser />
-        </NavLink>
-      </nav>
+      {/* Mobile Navigation Menu - Shows in top bar */}
+      {showMobileNav && (
+        <div className="mobile-nav-dropdown-top">
+          <NavLink to="/home" onClick={() => setShowMobileNav(false)}>
+            <FaHome /> Home
+          </NavLink>
+          <NavLink to="/maps" onClick={() => setShowMobileNav(false)}>
+            <FaMap /> Maps
+          </NavLink>
+          <NavLink to="/reports" onClick={() => setShowMobileNav(false)}>
+            <FaChartLine /> Reports
+          </NavLink>
+          <NavLink to="/community-feed" onClick={() => setShowMobileNav(false)}>
+            <FaUserFriends /> Community Feed
+          </NavLink>
+          <NavLink to="/safety-tips" onClick={() => setShowMobileNav(false)}>
+            <FaLightbulb /> Safety Tips
+          </NavLink>
+          <NavLink to="/notifications" onClick={() => setShowMobileNav(false)}>
+            <FaBell /> Notifications
+            {notificationCount > 0 && (
+              <span className="notification-badge">{notificationCount}</span>
+            )}
+          </NavLink>
+          <NavLink
+            to={user ? "/profile" : "#"}
+            onClick={(e) => {
+              if (!user) {
+                e.preventDefault();
+                setShowAuthModal(true);
+              } else {
+                setShowMobileNav(false);
+              }
+            }}
+          >
+            <FaUser /> Profile
+          </NavLink>
+        </div>
+      )}
 
       {/* Desktop: Floating Chat Button - Always visible when chat is closed */}
       {session?.token && !showChatBot && (

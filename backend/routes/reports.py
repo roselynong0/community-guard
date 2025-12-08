@@ -1163,8 +1163,9 @@ def get_responder_reports():
         print(f"📍 Fetching responder reports ASSIGNED to user {user_id}, barangay: {user_barangay}")
         
         # Build query - filter by assigned_responder_id = current user (only assigned reports)
+        # Select all fields to include reporter data, images, and other necessary fields
         query = supabase.table("reports").select(
-            "id, title, category, status, address_barangay, address_street, latitude, longitude, created_at, updated_at, user_id, assigned_responder_id, assigned_at"
+            "*"
         ).is_("deleted_at", "null").eq("is_rejected", False).eq("is_approved", True).eq("assigned_responder_id", user_id)
         
         query = query.order("created_at", desc=True).limit(limit)
@@ -1172,6 +1173,86 @@ def get_responder_reports():
         
         reports_list = getattr(response, "data", []) or []
         print(f"✅ Responder fetched {len(reports_list)} ASSIGNED reports")
+        
+        # Batch fetch all reporter data for better performance
+        user_ids = list(set([report.get("user_id") for report in reports_list if report.get("user_id")]))
+        
+        users_data = {}
+        info_data = {}
+        
+        if user_ids:
+            try:
+                # Fetch all users in one query
+                users_resp = supabase.table("users").select("id, firstname, lastname, avatar_url, email, isverified").in_("id", user_ids).execute()
+                users_list = getattr(users_resp, "data", []) or []
+                users_data = {user["id"]: user for user in users_list}
+                
+                # Fetch all info data in one query
+                info_resp = supabase.table("info").select("user_id, verified").in_("user_id", user_ids).execute()
+                info_list = getattr(info_resp, "data", []) or []
+                info_data = {info["user_id"]: info for info in info_list}
+            except Exception as e:
+                print(f"⚠️ Failed to fetch user data: {e}")
+        
+        # Batch fetch all images for all reports in one query
+        report_ids = [report.get("id") for report in reports_list if report.get("id")]
+        images_data = {}
+        
+        if report_ids:
+            try:
+                images_resp = supabase.table("report_images").select("report_id, image_url").in_("report_id", report_ids).execute()
+                images_list = getattr(images_resp, "data", []) or []
+                
+                # Group images by report_id
+                for img in images_list:
+                    report_id = img["report_id"]
+                    if report_id not in images_data:
+                        images_data[report_id] = []
+                    images_data[report_id].append({"url": img["image_url"]})
+                    
+                print(f"📸 Successfully loaded {len(images_list)} images for {len(report_ids)} reports")
+            except Exception as e:
+                print(f"⚠️ Failed to fetch images: {e}")
+        
+        # Enrich reports with reporter and image data
+        enriched_reports = []
+        for report in reports_list:
+            report_user_id = report.get("user_id")
+            reporter = users_data.get(report_user_id) if report_user_id else None
+            reporter_info = info_data.get(report_user_id) if report_user_id else None
+            
+            # Build reporter object
+            if reporter:
+                reporter_obj = {
+                    "id": reporter.get("id"),
+                    "firstname": reporter.get("firstname", "Unknown"),
+                    "lastname": reporter.get("lastname", "User"),
+                    "avatar_url": reporter.get("avatar_url"),
+                    "email": reporter.get("email"),
+                    "verified": reporter_info.get("verified", False) if reporter_info else False,
+                    "isverified": reporter.get("isverified", False)
+                }
+            else:
+                reporter_obj = {
+                    "id": 0,
+                    "firstname": "Unknown",
+                    "lastname": "User",
+                    "avatar_url": None,
+                    "email": None,
+                    "verified": False,
+                    "isverified": False
+                }
+            
+            # Get images from batch-fetched data
+            images = images_data.get(report.get("id"), [])
+            
+            # Build enriched report
+            enriched_report = dict(report)
+            enriched_report["reporter"] = reporter_obj
+            enriched_report["images"] = images
+            enriched_reports.append(enriched_report)
+        
+        reports_list = enriched_reports
         
         # Calculate stats from filtered reports
         pending = sum(1 for r in reports_list if (r.get("status") or "").lower() == "pending")

@@ -98,6 +98,7 @@ letter-spacing: 0.3px;
     flex-direction: column;
     gap: 20px;
     padding: 10px;
+    padding-bottom: 40px;
 }
 
 .profile-header-card {
@@ -1031,7 +1032,7 @@ label {
    ======================================== */
 @media (max-width: 768px) {
     .profile-page {
-        padding-bottom: 100px; /* Reserve space for mobile bottom nav */
+        padding-bottom: 30px; /* Reserve space for mobile bottom nav */
     }
     
     /* Align delete button beside change photo */
@@ -1063,7 +1064,7 @@ label {
 @media (max-width: 480px) {
     .profile-page {
         padding: 12px;
-        padding-bottom: 110px;
+        padding-bottom: 30px;
     }
     
     .profile-header-actions {

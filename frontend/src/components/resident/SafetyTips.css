@@ -1,5 +1,6 @@
 .safety-container {
   padding: 0 2rem;
+  padding-bottom: 30px;
 }
 
 /* Animation classes for content building in background */
@@ -163,5 +164,6 @@
 @media (max-width: 768px) {
   .safety-container {
     padding: 0 1rem;
+    padding-bottom: 20px;
   }
 }

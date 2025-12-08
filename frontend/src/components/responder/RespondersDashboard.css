@@ -143,6 +143,11 @@ button:hover {
   }
 }
 
+.two-column {
+  display: grid;
+  gap: 1.5rem;
+}
+
 .section-card {
   overflow-x: auto; 
 }

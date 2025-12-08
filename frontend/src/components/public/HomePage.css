@@ -1040,6 +1040,10 @@
         opacity: 0;
         pointer-events: none;
     }
+    
+    .nav-links.open .nav-divider {
+        display: none;
+    }
 }
 
 @media (max-width: 600px) {

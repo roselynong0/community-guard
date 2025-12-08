@@ -72,6 +72,7 @@
 
 .btn.icon-btn {
     min-width: 48px;
+    border-radius: 10px;
 }
 
 .btn.mark-all {
@@ -416,6 +417,18 @@
         margin: 0;
     }
 
+    .notif-header {
+        flex-wrap: wrap;
+        gap: 8px;
+    }
+
+    .notif-right {
+        width: 100%;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+
     .btn.icon-btn .btn-text {
         display: none; 
     }
@@ -428,6 +441,7 @@
         flex-grow: 1;
         width: 100%;
         order: -1; 
+        justify-content: center;
     }
 
     .notification-item {
@@ -824,7 +838,6 @@
 
     .notifications-container {
         margin: 0;
-        padding-bottom: 100px; /* Reserve space for mobile bottom nav */
     }
 
     .btn.icon-btn .btn-text {
@@ -846,7 +859,7 @@
         flex-direction: column;
         align-items: stretch;
         gap: 0;
-        padding: 0;
+        padding: 1rem;
         overflow: hidden;
     }
     
@@ -915,7 +928,6 @@
 @media (max-width: 480px) {
     .notifications-container {
         padding: 12px;
-        padding-bottom: 110px;
     }
     
     .notif-header {
