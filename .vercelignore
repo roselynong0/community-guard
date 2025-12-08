@@ -1,0 +1,10 @@
+# Ignore backend folder - it's deployed on Render, not Vercel
+backend/
+.env.example
+.git
+.gitignore
+runtime.txt
+Dockerfile
+start.sh
+Procfile
+*.md

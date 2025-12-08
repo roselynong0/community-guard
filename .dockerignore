@@ -1,0 +1,24 @@
+# Docker ignore file — keeps build context small and omits local dev scripts
+# Ignore PowerShell and shell scripts (not needed in production Docker image)
+**/*.ps1
+**/*.sh
+
+# Node modules and local build artifacts
+node_modules
+frontend/node_modules
+dist
+frontend/dist
+
+# Local env and logs
+.env
+.env.*
+*.log
+
+# Git and editor files
+.git
+.gitignore
+.vscode
+/.vercel
+
+# Database/large local files
+backend/chroma_db/chroma.sqlite3

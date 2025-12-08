@@ -1,0 +1,46 @@
+# Flask and Core Dependencies
+Flask==3.0.3
+Flask-CORS==4.0.0
+Flask-Caching==2.1.0
+Flask-Compress==1.15
+
+# Database - Direct PostgreSQL client (bypassing supabase auth issues)
+postgrest>=0.10.0,<1.0.0
+httpx>=0.23.0,<0.24.0
+
+# Authentication & Security
+bcrypt==4.1.3
+PyJWT==2.10.1
+
+# Email
+mailjet-rest==1.3.4
+
+# Image Processing (pre-built wheels for Python 3.11)
+Pillow>=10.0.0,<11.0.0
+
+# Utilities
+python-dotenv==1.0.1
+werkzeug==3.0.1
+python-dateutil==2.8.2
+psycopg2-binary==2.9.10
+
+# Production
+gunicorn>=23.0.0,<24.0.0
+
+# AI / ML (Python 3.11 optimized - use latest stable with wheel support)
+# Use flexible versions to allow pip to find compatible wheels
+numpy>=1.24.0,<2.0.0
+scikit-learn>=1.4.0,<1.5.0
+pandas>=2.0.0,<2.2.0
+matplotlib>=3.8.0,<3.9.0
+
+# LLM & RAG Integration
+# langchain==0.2.0
+# langchain-community==0.2.0
+# langchain-ollama==0.1.2
+# chromadb==0.4.22
+
+# HTTP Client (required by multiple services)
+requests>=2.31.0,<2.32.0
+
+# Build timestamp: 2025-11-18 (Docker/Render optimization for Python 3.11.6)

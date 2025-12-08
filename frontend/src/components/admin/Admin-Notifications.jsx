@@ -1,0 +1,490 @@
+import React, { useEffect, useMemo, useState, useCallback } from 'react';
+import { API_CONFIG, getApiUrl } from "../../utils/apiConfig";
+import '../resident/Notifications.css';
+import LoadingScreen from '../shared/LoadingScreen';
+import {
+  FaInfoCircle,
+  FaCheckCircle,
+  FaSyncAlt,
+  FaClock,
+  FaTrashAlt,
+  FaUser,
+  FaCommentDots,
+  FaBell,
+  FaCheck,
+  FaCheckDouble,
+  FaExclamationTriangle,
+} from 'react-icons/fa';
+
+const getFinalNotificationType = (n) => {
+  const textContext = String(n.title || '') + ' ' + String(n.message || '') + ' ' + String(n.type || '');
+  const normalizedText = textContext.trim().toLowerCase();
+
+  // Responder assignment/reassignment detection
+  if (normalizedText.includes('responder reassign') || normalizedText.includes('reassigned')) {
+    return 'responder_reassignment';
+  }
+  if (normalizedText.includes('responder assign') || (normalizedText.includes('assigned') && normalizedText.includes('responder'))) {
+    return 'responder_assignment';
+  }
+
+  // Report deletion should be detected first
+  if (normalizedText.includes('report deleted') || normalizedText.includes('report was deleted') || (normalizedText.includes('deleted') && normalizedText.includes('report'))) {
+    return 'report_deleted';
+  }
+  if (normalizedText.includes('resolved') || normalizedText.includes('complete') || normalizedText.includes('success')) {
+    return 'resolved';
+  }
+  if (normalizedText.includes('verify') || normalizedText.includes('verification') || normalizedText.includes('account')) {
+    return 'account_alert';
+  }
+  if (normalizedText.includes('pending') || normalizedText.includes('submitted') || normalizedText.includes('waiting')) {
+    return 'pending';
+  }
+  if (normalizedText.includes('ongoing') || normalizedText.includes('in-progress')) {
+    return 'ongoing';
+  }
+  // Account deletion / user removed
+  if (normalizedText.includes('user deleted') || normalizedText.includes('account deleted') || (normalizedText.includes('deleted') && normalizedText.includes('user'))) {
+    return 'account_deleted';
+  }
+  // Report related keywords
+  if (normalizedText.includes('report') || normalizedText.includes('status')) {
+    return 'report';
+  }
+  const genericType = String(n.type || 'info').trim().toLowerCase();
+  if (genericType !== 'status update') return genericType;
+  return 'info';
+};
+
+const getNotificationIcon = (type) => {
+  const t = (type || 'info').toLowerCase();
+  switch (t) {
+    case 'resolved':
+    case 'success':
+      return <FaCheckCircle className="icon icon-success" />;
+    case 'account_alert':
+      // treat account_alert like a new report visually (exclamation icon)
+      return <FaExclamationTriangle className="icon icon-report" />;
+    case 'user':
+      return <FaUser className="icon icon-security" />; // user icon for account actions
+    case 'responder_assignment':
+      return <FaUser className="icon icon-info" />; // user icon for responder assignment
+    case 'responder_reassignment':
+      return <FaSyncAlt className="icon icon-ongoing" />; // sync icon for reassignment
+    case 'report':
+      // new report posts use the exclamation triangle like the home dashboard
+      return <FaExclamationTriangle className="icon icon-report" />;
+    case 'report_deleted':
+      // red trash icon for deleted reports
+      return <FaTrashAlt className="icon icon-delete" />;
+    case 'warning':
+    case 'ongoing':
+      // ongoing status uses the sync/refresh icon (matching Home)
+      return <FaSyncAlt className="icon icon-ongoing" />;
+    case 'pending':
+      return <FaClock className="icon icon-pending" />;
+    case 'deleted':
+    case 'report deleted':
+      return <FaTrashAlt className="icon icon-warning" />;
+    case 'account_deleted':
+      // red trash icon for account deletions
+      return <FaTrashAlt className="icon icon-delete" />;
+    default:
+      return <FaInfoCircle className="icon icon-info" />;
+  }
+};
+
+
+// main icon shown at the left of each notification item
+// per request: keep the exclamation triangle in front of report posts
+const getMainIcon = (n) => {
+  // if the notification relates to a report or is an account_alert, show the exclamation triangle
+  const t = String(n?.type || '').toLowerCase();
+  const message = String(n?.message || '') + ' ' + String(n?.title || '');
+  const msg = message.toLowerCase();
+  if (t === 'report' || t === 'account_alert' || msg.includes('report') || msg.includes("updated to") || msg.includes('new report')) {
+    return <FaExclamationTriangle className="icon icon-report" />;
+  }
+  // fallback to the type-based icon
+  return getNotificationIcon(t || 'info');
+};
+
+// badge helpers accept either a type string or the full notification object
+const getBadgeClass = (input) => {
+  let t = '';
+  let message = '';
+  if (typeof input === 'string') {
+    t = input.toLowerCase();
+  } else if (input && typeof input === 'object') {
+    t = String(input.type || '').toLowerCase();
+    message = String(input.message || '') + ' ' + String(input.title || '');
+  }
+
+  // If message explicitly mentions status, prefer that
+  const msg = message.toLowerCase();
+  if (msg.includes('ongoing') || msg.includes('in-progress') || msg.includes('ongoing')) return 'ongoing';
+  if (msg.includes('pending') || msg.includes('submitted') || msg.includes('waiting')) return 'pending';
+
+  // account / user deleted messages should show account-deleted badge
+  if (msg.includes('user deleted') || msg.includes('account deleted') || (msg.includes('deleted') && msg.includes('user'))) return 'account-deleted';
+
+  // report deleted messages should show report-deleted badge
+  if (msg.includes('report deleted') || msg.includes('report was deleted') || (msg.includes('deleted') && msg.includes('report'))) return 'report-deleted';
+
+  // Responder assignment badges
+  if (msg.includes('responder reassign') || msg.includes('reassigned')) return 'responder-reassignment';
+  if ((msg.includes('responder') && msg.includes('assign')) || t === 'responder_assignment' || t === 'responder assignment') return 'responder-assignment';
+
+  if (t === 'account_alert') return 'report';
+  if (t === 'success') return 'resolved';
+  if (t === 'account_deleted' || t === 'user deleted' || t === 'user_deleted') return 'account-deleted';
+  if (t === 'report_deleted') return 'report-deleted';
+  if (t === 'responder_reassignment' || t === 'responder reassignment') return 'responder-reassignment';
+  if (t === 'responder_assignment' || t === 'responder assignment') return 'responder-assignment';
+  return t || 'info';
+};
+
+const getBadgeLabel = (input) => {
+  let t = '';
+  let message = '';
+  if (typeof input === 'string') {
+    t = input.toLowerCase();
+  } else if (input && typeof input === 'object') {
+    t = String(input.type || '').toLowerCase();
+    message = String(input.message || '') + ' ' + String(input.title || '');
+  }
+
+  const msg = message.toLowerCase();
+  if (msg.includes('ongoing') || msg.includes('in-progress')) return 'Ongoing';
+  if (msg.includes('pending') || msg.includes('submitted') || msg.includes('waiting')) return 'Pending';
+
+  switch (t) {
+    case 'account_alert':
+      return 'Report Alert';
+    case 'account_deleted':
+      return 'Account Deleted';
+    case 'report_deleted':
+      return 'Report Deleted';
+    case 'report':
+      return 'Report';
+    case 'pending':
+      return 'Pending';
+    case 'ongoing':
+      return 'Ongoing';
+    case 'resolved':
+    case 'success':
+      return 'Resolved';
+    case 'responder_assignment':
+    case 'responder assignment':
+    case 'responder-assignment':
+      return 'Assignment';
+    case 'responder_reassignment':
+    case 'responder reassignment':
+    case 'responder-reassignment':
+      return 'Reassignment';
+    default:
+      return (t || 'Info').toString();
+  }
+};
+
+// return an icon color class for the main/left icon; used to color the recipient avatar to match
+const getIconClassForNotification = (n) => {
+  const t = String(n?.type || '').toLowerCase();
+  const message = String(n?.message || '') + ' ' + String(n?.title || '');
+  const msg = message.toLowerCase();
+  
+  // Responder assignment/reassignment colors
+  if (t === 'responder_reassignment' || t === 'responder reassignment' || msg.includes('responder reassign') || msg.includes('reassigned')) {
+    return 'icon-ongoing'; // orange for reassignment
+  }
+  if (t === 'responder_assignment' || t === 'responder assignment' || (msg.includes('responder') && msg.includes('assign'))) {
+    return 'icon-info'; // blue for assignment
+  }
+  
+  if (t === 'report' || t === 'account_alert' || msg.includes('report') || msg.includes('new report') || msg.includes('updated to')) {
+    return 'icon-report';
+  }
+  // account deletion -> red trash color
+  if (t === 'account_deleted' || t === 'user deleted' || t === 'user_deleted' || msg.includes('user deleted') || msg.includes('account deleted')) return 'icon-delete';
+  if (msg.includes('ongoing') || msg.includes('in-progress') || t === 'ongoing') return 'icon-ongoing';
+  if (msg.includes('pending') || msg.includes('submitted') || t === 'pending') return 'icon-pending';
+  if (t === 'resolved' || t === 'success') return 'icon-success';
+  if (t === 'user') return 'icon-security';
+  return 'icon-info';
+};
+
+export default function AdminNotifications({ session }) {
+  const token = session?.token || '';
+  const headers = useMemo(() => ({
+    'Content-Type': 'application/json',
+    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+  }), [token]);
+
+  const [notifications, setNotifications] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [overlayExited, setOverlayExited] = useState(false);
+  const [error, setError] = useState('');
+  const [statusFilter, setStatusFilter] = useState('All'); // All | Unread | Read
+  const [categoryFilter, setCategoryFilter] = useState('All'); // All | Report | Account
+
+  // Loading features for inline loading screen
+  const loadingFeatures = [
+    { title: "Admin Notifications", description: "Loading system and user notifications." },
+    { title: "Alerts & Updates", description: "Fetching reports and account activities." },
+  ];
+
+  const fetchNotifications = useCallback(async () => {
+    setLoading(true);
+    setError('');
+    try {
+      const res = await fetch(getApiUrl('/api/admin/admin_notifications'), { headers });
+      if (!res.ok) throw new Error(`Failed to fetch (${res.status})`);
+      const data = await res.json();
+      // Only admin-focused notifications (admin_notifications endpoint)
+      const adminNotifs = (data.admin_notifications || []).map((n) => {
+        const finalType = getFinalNotificationType(n);
+        return {
+          id: `admin-${n.id}`,
+          raw_id: n.id,
+          title: n.title || n.type || 'Admin Notification',
+          message: n.message || '',
+          type: finalType,
+          created_at: n.created_at || new Date().toISOString(),
+          is_read: Boolean(n.is_read),
+          recipient: n.recipient || null,
+          actor: n.actor || null,
+          source: 'admin'
+        };
+      });
+
+      setNotifications(adminNotifs);
+    } catch (e) {
+      setError(e.message || 'Failed to load notifications');
+    } finally {
+      setLoading(false);
+    }
+  }, [headers]);
+
+  useEffect(() => { fetchNotifications(); }, [fetchNotifications]);
+
+  const markAdminRead = async (rawId) => {
+    try {
+      // optimistic update
+      setNotifications(prev => prev.map(n => (n.raw_id === rawId ? { ...n, is_read: true } : n)));
+      const res = await fetch(getApiUrl(`/api/admin/admin_notifications/${rawId}/read`), { method: 'POST', headers });
+      if (!res.ok) throw new Error(`Failed to mark read (${res.status})`);
+      const data = await res.json();
+      if (data?.notification) {
+        setNotifications(prev => prev.map(n => (n.raw_id === rawId ? { ...n, is_read: Boolean(data.notification.is_read) } : n)));
+      }
+    } catch (e) {
+      // revert optimistic change on failure
+      setNotifications(prev => prev.map(n => (n.raw_id === rawId ? { ...n, is_read: false } : n)));
+      setError(e.message || 'Failed to mark admin notification read');
+    }
+  };
+
+  const unreadCount = notifications.filter(n => !n.is_read).length;
+
+  const markAllAdminRead = async () => {
+    if (unreadCount === 0) return;
+    try {
+      // optimistic
+      setNotifications(prev => prev.map(n => ({ ...n, is_read: true })));
+      const res = await fetch(getApiUrl('/api/admin/admin_notifications/read_all'), { method: 'POST', headers });
+      if (!res.ok) throw new Error(`Failed to mark all read (${res.status})`);
+      const data = await res.json();
+      if (data?.status !== 'success' && !data?.updated_count) {
+        // fallback to refetch if server didn't acknowledge
+        throw new Error(data?.message || 'Unexpected response');
+      }
+      // otherwise we assume success; if server returns notifications we could reconcile
+    } catch (e) {
+      setError(e.message || 'Failed to mark all admin notifications as read');
+      // refresh to restore authoritative state
+      fetchNotifications();
+    }
+  };
+
+  const deleteAdminNotification = async (rawId) => {
+    try {
+      // optimistic remove
+      setNotifications(prev => prev.filter(n => n.raw_id !== rawId));
+      const res = await fetch(getApiUrl(`/api/admin/admin_notifications/${rawId}`), { method: 'DELETE', headers });
+      if (!res.ok) throw new Error(`Failed to delete (${res.status})`);
+      // Optionally validate response
+    } catch (e) {
+      setError(e.message || 'Failed to delete admin notification');
+      fetchNotifications(); // refresh to restore state
+    }
+  };
+
+  const filtered = notifications.filter(n => {
+    // status filter
+    if (statusFilter === 'Unread' && n.is_read) return false;
+    if (statusFilter === 'Read' && !n.is_read) return false;
+
+    // category filter
+    if (categoryFilter === 'Report') {
+      // include notifications that reference a report in the title/message or have type 'report'
+      const title = String(n.title || '').toLowerCase();
+      const msg = String(n.message || '').toLowerCase();
+      const t = String(n.type || '').toLowerCase();
+      // Exclude responder assignment notifications from report category
+      if (t.includes('responder') || title.includes('responder assign') || title.includes('responder reassign')) return false;
+      if (!(title.includes('report') || msg.includes('report') || t === 'report')) return false;
+    }
+    if (categoryFilter === 'Account') {
+      const titleLow = String(n.title || '').toLowerCase();
+      const msgLow = String(n.message || '').toLowerCase();
+      const typeLow = String(n.type || '').toLowerCase();
+
+      // If the title explicitly mentions a report, prefer report classification
+      if (titleLow.includes('report')) return false;
+      // Exclude responder assignments
+      if (typeLow.includes('responder') || titleLow.includes('responder')) return false;
+
+      // Include when type is account_alert or title/message mention "account"
+      if (!(typeLow === 'account_alert' || titleLow.includes('account') || msgLow.includes('account'))) return false;
+    }
+    if (categoryFilter === 'Responder') {
+      const titleLow = String(n.title || '').toLowerCase();
+      const typeLow = String(n.type || '').toLowerCase();
+      // Include responder assignment and reassignment notifications
+      if (!(typeLow.includes('responder') || titleLow.includes('responder assign') || titleLow.includes('responder reassign'))) return false;
+    }
+
+    return true;
+  });
+
+  // compute unread count inline when rendering to avoid unused-variable lint warnings
+
+  const content = (
+    <div className={`notifications-container ${overlayExited ? 'overlay-exited' : ''}`}>
+      <div className="notifications-header">
+        <div className="left"><h2><FaBell /> Admin Notifications</h2></div>
+        <div className="right">
+          <div className="filter-controls">
+            <label className="filter-label">
+              <span className="filter-label-text">Status</span>
+              <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className="filter-select">
+                <option value="All">All</option>
+                <option value="Unread">Unread ({notifications.filter(n => !n.is_read).length})</option>
+                <option value="Read">Read</option>
+              </select>
+            </label>
+
+            <label className="filter-label">
+              <span className="filter-label-text">Category</span>
+              <select value={categoryFilter} onChange={(e) => setCategoryFilter(e.target.value)} className="filter-select">
+                <option value="All">All</option>
+                <option value="Report">Report</option>
+                <option value="Account">Account</option>
+                <option value="Responder">Responder</option>
+              </select>
+            </label>
+          </div>
+          <button className="btn icon-btn mark-all" onClick={markAllAdminRead} disabled={loading || unreadCount === 0} title="Mark all as read">
+            <FaCheckDouble className="icon" />
+            <span className="btn-text">Mark All Read</span>
+          </button>
+          <button className="btn icon-btn refresh" onClick={fetchNotifications} disabled={loading}>Refresh</button>
+        </div>
+      </div>
+
+      {error && <div className="notice error">{error}</div>}
+
+      {filtered.length === 0 ? (
+        <div className="no-notifications">No notifications.</div>
+      ) : (
+        <ul className="notifications-list">
+          {filtered.map(n => (
+            <li key={n.id} className={`notification-item ${n.is_read ? 'read' : 'unread'}`}>
+              <div className={`notif-icon-container ${getIconClassForNotification(n)}`}>{getMainIcon(n)}</div>
+              <div className="notif-details">
+                <div className="notif-header">
+                  <p className="notif-title"><strong>{n.title}</strong></p>
+
+                  <div className="notif-right">
+                    <small className="notif-time">
+                      {new Date(n.created_at).toLocaleString()}
+                    </small>
+
+                    <div
+                      className={`notif-badge ${getBadgeClass(n)}`}
+                      title={`Status: ${getBadgeLabel(n)}`}
+                      aria-hidden
+                    >
+                      <span className="badge-icon small-icon">
+                        {getNotificationIcon(getBadgeClass(n))}
+                      </span>
+                      <span className="badge-text">{getBadgeLabel(n)}</span>
+                    </div>
+                  </div>
+                </div>
+
+
+                {/* Human-friendly message on the next line - preserve newlines with white-space: pre-wrap */}
+                <div className="notif-row">
+                  <p className="notif-message">
+                    {n.message}
+                  </p>
+
+                  <div className="notification-actions">
+                    {!n.is_read && (
+                      <button
+                        className="btn-action mark-read-btn"
+                        onClick={() => markAdminRead(n.raw_id)}
+                        title="Mark as read"
+                      >
+                        <FaCheck />
+                      </button>
+                    )}
+                    <button
+                      className="btn-action delete-notif-btn"
+                      onClick={() => deleteAdminNotification(n.raw_id)}
+                      title="Delete notification"
+                    >
+                      <FaTrashAlt />
+                    </button>
+                  </div>
+                </div>
+
+
+                {n.recipient ? (
+                  <div className="notif-to">
+                    <span className="recipient-icon small-icon">
+                      <FaUser className={`icon ${getIconClassForNotification(n)}`} />
+                    </span>
+                    <span>To: {n.recipient.firstname} {n.recipient.lastname} ({n.recipient.role || 'Resident'}) &lt;{n.recipient.email}&gt;</span>
+                  </div>
+                ) : null}
+
+                {n.actor ? (
+                  <div className="notif-actor">By: {n.actor.firstname || ''} {n.actor.lastname || ''} ({n.actor.role || 'Resident'})</div>
+                ) : null}
+              </div>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+
+  return (
+    <LoadingScreen
+      variant="inline"
+      features={loadingFeatures}
+      title={loading ? "Notifications" : undefined}
+      subtitle={loading ? "Loading admin notifications" : undefined}
+      stage={loading ? "loading" : "exit"}
+      onExited={() => setOverlayExited(true)}
+      inlineOffset="20vh"
+      successDuration={700}
+      successTitle="Notifications Loaded!"
+    >
+      {content}
+    </LoadingScreen>
+  );
+}

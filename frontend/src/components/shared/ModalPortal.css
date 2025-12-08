@@ -1,0 +1,571 @@
+/* ========================================
+   MODAL PORTAL - Global Modal Styles
+   ========================================
+   These styles apply to modals rendered via ModalPortal
+   to ensure they display above all content with proper
+   backdrop blur covering the entire viewport.
+   ======================================== */
+
+/* Portal container - always on top */
+#modal-portal-root {
+  position: fixed !important;
+  top: 0 !important;
+  left: 0 !important;
+  width: 100vw !important;
+  height: 100vh !important;
+  z-index: 99999 !important;
+  pointer-events: none;
+}
+
+#modal-portal-root > div {
+  pointer-events: auto;
+}
+
+/* ========================================
+   LEGACY MODAL SUPPORT IN PORTAL
+   ========================================
+   These styles also apply to .modal-overlay and .modal
+   when rendered inside the portal, for backwards compatibility
+   ======================================== */
+#modal-portal-root .modal-overlay,
+#modal-portal-root .admin-modal-overlay {
+  position: fixed !important;
+  top: 0 !important;
+  left: 0 !important;
+  right: 0 !important;
+  bottom: 0 !important;
+  width: 100vw !important;
+  height: 100vh !important;
+  background: rgba(0, 0, 0, 0.65) !important;
+  -webkit-backdrop-filter: blur(8px) !important;
+  backdrop-filter: blur(8px) !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  z-index: 99999 !important;
+  animation: portalFadeIn 0.2s ease-out;
+  overflow: hidden !important;
+}
+
+#modal-portal-root .modal,
+#modal-portal-root .admin-modal {
+  background: #ffffff !important;
+  padding: 1.6rem !important;
+  border-radius: 12px !important;
+  width: 90% !important;
+  max-width: 520px !important;
+  max-height: 90vh !important;
+  overflow-y: auto !important;
+  text-align: left !important;
+  box-shadow: 0 25px 80px rgba(0, 0, 0, 0.25), 0 10px 30px rgba(0, 0, 0, 0.15) !important;
+  border: 1px solid rgba(17, 22, 62, 0.08) !important;
+  animation: portalSlideUp 0.3s ease-out !important;
+  position: relative !important;
+  box-sizing: border-box !important;
+  border-left: 6px solid rgba(241, 212, 41, 0.95) !important;
+}
+
+#modal-portal-root .modal-actions,
+#modal-portal-root .admin-modal-actions {
+  display: flex !important;
+  justify-content: flex-end !important;
+  gap: 0.75rem !important;
+  margin-top: 1.5rem !important;
+  padding-top: 1rem !important;
+  border-top: 1px solid rgba(17, 22, 62, 0.08) !important;
+}
+
+/* Fullscreen modal support (for image previews) */
+#modal-portal-root .fullscreen-modal {
+  position: fixed !important;
+  top: 0 !important;
+  left: 0 !important;
+  right: 0 !important;
+  bottom: 0 !important;
+  width: 100vw !important;
+  height: 100vh !important;
+  background: rgba(0, 0, 0, 0.9) !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  z-index: 99999 !important;
+  animation: portalFadeIn 0.2s ease-out;
+  cursor: pointer;
+}
+
+#modal-portal-root .fullscreen-image {
+  max-width: 95vw !important;
+  max-height: 95vh !important;
+  object-fit: contain !important;
+}
+
+#modal-portal-root .close-fullscreen-btn {
+  position: fixed !important;
+  top: 20px !important;
+  right: 20px !important;
+  background: rgba(255, 255, 255, 0.9) !important;
+  border: none !important;
+  font-size: 2rem !important;
+  cursor: pointer !important;
+  width: 50px !important;
+  height: 50px !important;
+  border-radius: 50% !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  z-index: 100000 !important;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3) !important;
+  transition: transform 0.2s ease, background-color 0.2s ease !important;
+}
+
+#modal-portal-root .close-fullscreen-btn:hover {
+  transform: scale(1.1) !important;
+  background: #ffffff !important;
+}
+
+/* Global modal overlay - used when inside portal */
+.portal-modal-overlay {
+  position: fixed !important;
+  top: 0 !important;
+  left: 0 !important;
+  right: 0 !important;
+  bottom: 0 !important;
+  width: 100vw !important;
+  height: 100vh !important;
+  background: rgba(0, 0, 0, 0.65) !important;
+  -webkit-backdrop-filter: blur(8px) !important;
+  backdrop-filter: blur(8px) !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  z-index: 99999 !important;
+  animation: portalFadeIn 0.2s ease-out;
+  overflow: hidden !important;
+}
+
+/* Ensure modal content doesn't inherit pointer-events: none */
+.portal-modal-overlay * {
+  pointer-events: auto;
+}
+
+/* Portal modal box styling */
+.portal-modal {
+  background: #ffffff;
+  padding: 1.6rem;
+  border-radius: 12px;
+  width: 90%;
+  max-width: 520px;
+  max-height: 90vh;
+  overflow-y: auto;
+  text-align: left;
+  box-shadow: 0 25px 80px rgba(0, 0, 0, 0.25), 0 10px 30px rgba(0, 0, 0, 0.15);
+  border: 1px solid rgba(17, 22, 62, 0.08);
+  animation: portalSlideUp 0.3s ease-out;
+  position: relative;
+  box-sizing: border-box;
+  border-left: 6px solid rgba(241, 212, 41, 0.95);
+}
+
+/* Wider modal variant */
+.portal-modal.wide {
+  max-width: 680px;
+}
+
+/* Large modal variant */
+.portal-modal.large {
+  max-width: 800px;
+  width: 95%;
+}
+
+/* Modal header */
+.portal-modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1rem;
+  padding-bottom: 0.8rem;
+  border-bottom: 1px solid rgba(17, 22, 62, 0.08);
+}
+
+.portal-modal-header h3 {
+  margin: 0;
+  color: #11163e;
+  font-size: 1.25rem;
+  font-weight: 600;
+}
+
+.portal-modal-close {
+  background: none;
+  border: none;
+  font-size: 1.5rem;
+  cursor: pointer;
+  color: #666;
+  padding: 0.25rem;
+  line-height: 1;
+  transition: color 0.2s ease, transform 0.2s ease;
+}
+
+.portal-modal-close:hover {
+  color: #11163e;
+  transform: scale(1.1);
+}
+
+/* Modal body */
+.portal-modal-body {
+  color: #333;
+  line-height: 1.6;
+}
+
+/* Modal footer / actions */
+.portal-modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.75rem;
+  margin-top: 1.5rem;
+  padding-top: 1rem;
+  border-top: 1px solid rgba(17, 22, 62, 0.08);
+}
+
+.portal-modal-actions button {
+  padding: 0.6rem 1.2rem;
+  border-radius: 8px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.portal-modal-actions .cancel-btn {
+  background: #f2f4f8;
+  border: 1px solid rgba(17, 22, 62, 0.1);
+  color: #11163e;
+}
+
+.portal-modal-actions .cancel-btn:hover {
+  background: #e9ecef;
+}
+
+.portal-modal-actions .confirm-btn {
+  background: linear-gradient(135deg, #11163e, #1a1f4e);
+  border: none;
+  color: #ffffff;
+}
+
+.portal-modal-actions .confirm-btn:hover {
+  background: linear-gradient(135deg, #1a1f4e, #252b5e);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(17, 22, 62, 0.2);
+}
+
+.portal-modal-actions .danger-btn {
+  background: linear-gradient(135deg, #dc3545, #c82333);
+  border: none;
+  color: #ffffff;
+}
+
+.portal-modal-actions .danger-btn:hover {
+  background: linear-gradient(135deg, #c82333, #bd2130);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(220, 53, 69, 0.3);
+}
+
+/* Animations */
+@keyframes portalFadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes portalSlideUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+/* Exit animation class */
+.portal-modal-overlay.exiting {
+  animation: portalFadeOut 0.2s ease-out forwards;
+}
+
+.portal-modal-overlay.exiting .portal-modal {
+  animation: portalSlideDown 0.2s ease-out forwards;
+}
+
+@keyframes portalFadeOut {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+
+@keyframes portalSlideDown {
+  from {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: translateY(20px) scale(0.98);
+  }
+}
+
+/* Logout confirm modal specific */
+.portal-modal.logout-confirm {
+  max-width: 420px;
+  text-align: center;
+  padding: 1.4rem;
+}
+
+.portal-modal.logout-confirm .portal-modal-actions {
+  justify-content: center;
+}
+
+/* Delete confirm modal */
+.portal-modal.delete-confirm {
+  max-width: 450px;
+  border-left-color: #dc3545;
+}
+
+/* Status update modal */
+.portal-modal.status-update {
+  max-width: 480px;
+}
+
+/* Form elements inside portal modal */
+.portal-modal input,
+.portal-modal select,
+.portal-modal textarea {
+  width: 100%;
+  padding: 0.75rem;
+  border: 1px solid rgba(17, 22, 62, 0.15);
+  border-radius: 8px;
+  font-size: 0.95rem;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+  box-sizing: border-box;
+}
+
+.portal-modal input:focus,
+.portal-modal select:focus,
+.portal-modal textarea:focus {
+  outline: none;
+  border-color: #11163e;
+  box-shadow: 0 0 0 3px rgba(17, 22, 62, 0.1);
+}
+
+.portal-modal label {
+  display: block;
+  margin-bottom: 0.5rem;
+  font-weight: 500;
+  color: #11163e;
+}
+
+.portal-modal .form-group {
+  margin-bottom: 1rem;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  .portal-modal {
+    width: 95%;
+    max-width: none;
+    margin: 1rem;
+    max-height: 85vh;
+  }
+  
+  .portal-modal-actions {
+    flex-direction: row;
+    gap: 10px;
+  }
+  
+  .portal-modal-actions button {
+    flex: 1;
+    min-width: 0;
+  }
+}
+
+/* Image preview modal */
+.portal-modal.image-preview {
+  max-width: 90vw;
+  max-height: 90vh;
+  padding: 0.5rem;
+  background: rgba(0, 0, 0, 0.9);
+  border: none;
+  border-left: none;
+}
+
+.portal-modal.image-preview img {
+  max-width: 100%;
+  max-height: 85vh;
+  object-fit: contain;
+}
+
+/* Rejection reason modal */
+.portal-modal.rejection-reason {
+  max-width: 480px;
+  border-left-color: #f39c12;
+}
+
+/* Verification modal */
+.portal-modal.verification {
+  max-width: 550px;
+  border-left-color: #28a745;
+}
+
+/* User creation modal */
+.portal-modal.create-user {
+  max-width: 600px;
+}
+
+/* ========================================
+   ENHANCED CLOSE BUTTON STYLES
+   ======================================== */
+
+/* Close button for fullscreen modals */
+.close-fullscreen-btn {
+  position: fixed !important;
+  top: 20px !important;
+  right: 20px !important;
+  background: rgba(255, 255, 255, 0.95) !important;
+  border: none !important;
+  font-size: 1.5rem !important;
+  cursor: pointer !important;
+  width: 48px !important;
+  height: 48px !important;
+  border-radius: 50% !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  z-index: 100000 !important;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3) !important;
+  transition: all 0.2s ease !important;
+  color: #333 !important;
+}
+
+.close-fullscreen-btn:hover {
+  transform: scale(1.1) !important;
+  background: #ffffff !important;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.35) !important;
+}
+
+.close-fullscreen-btn:active {
+  transform: scale(0.95) !important;
+}
+
+/* Enhanced portal modal close button */
+.portal-modal-close {
+  background: rgba(17, 22, 62, 0.05);
+  border: none;
+  font-size: 1.2rem;
+  cursor: pointer;
+  color: #666;
+  padding: 0.5rem;
+  line-height: 1;
+  transition: all 0.2s ease;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+}
+
+.portal-modal-close:hover {
+  background: rgba(17, 22, 62, 0.1);
+  color: #11163e;
+  box-shadow: 0 2px 8px rgba(17, 22, 62, 0.15);
+}
+
+.portal-modal-close:active {
+  box-shadow: 0 1px 4px rgba(17, 22, 62, 0.1);
+}
+
+/* Fullscreen modal styles */
+.fullscreen-modal {
+  position: fixed !important;
+  top: 0 !important;
+  left: 0 !important;
+  right: 0 !important;
+  bottom: 0 !important;
+  width: 100vw !important;
+  height: 100vh !important;
+  background: rgba(0, 0, 0, 0.95) !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  z-index: 99999 !important;
+  cursor: pointer;
+  animation: portalFadeIn 0.3s ease-out;
+}
+
+.fullscreen-image {
+  max-width: 95vw !important;
+  max-height: 95vh !important;
+  object-fit: contain !important;
+  border-radius: 4px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+}
+
+/* Form fields inside portal modals */
+.portal-modal .address-fields {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.portal-modal .address-fields label {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #555;
+  margin-top: 0.5rem;
+}
+
+.portal-modal .address-fields input,
+.portal-modal .address-fields select,
+.portal-modal .address-fields textarea {
+  width: 100%;
+  padding: 0.75rem;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  font-size: 0.95rem;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.portal-modal .address-fields input:focus,
+.portal-modal .address-fields select:focus,
+.portal-modal .address-fields textarea:focus {
+  outline: none;
+  border-color: #2d3b8f;
+  box-shadow: 0 0 0 3px rgba(45, 59, 143, 0.1);
+}
+
+.portal-modal .address-fields .readonly-field {
+  background-color: #f5f5f5;
+  cursor: not-allowed;
+  color: #888;
+}
+
+.portal-modal textarea {
+  width: 100%;
+  padding: 0.75rem;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  font-size: 0.95rem;
+  min-height: 100px;
+  resize: vertical;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.portal-modal textarea:focus {
+  outline: none;
+  border-color: #2d3b8f;
+  box-shadow: 0 0 0 3px rgba(45, 59, 143, 0.1);
+}

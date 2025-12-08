@@ -1,0 +1,1087 @@
+.home-container {
+  display: flex;
+  height: 100vh;
+  width: 100vw;
+  font-family: "Segoe UI", sans-serif;
+  background: #f2f2f2;
+  color: var(--primary, #11163e);
+}
+
+/* Design tokens */
+:root {
+  --primary: #11163e; /* deep blue */
+  --accent: #f1d429;  /* yellow */
+  --muted: #f2f4f8;
+  --surface: #ffffff;
+  --glass: rgba(255,255,255,0.6);
+  --radius: 10px;
+}
+
+.sidebar {
+  width: 240px;
+  height: 100vh;
+  position: sticky;
+  top: 0;
+  background: var(--primary);
+  color: white;
+  display: flex;
+  flex-direction: column;
+  padding: 1.25rem;
+  overflow-y: auto;
+  overflow-x: hidden;
+  box-shadow: 0 6px 28px rgba(17,22,62,0.18);
+}
+
+/* Custom scrollbar styles for sidebar */
+.sidebar::-webkit-scrollbar {
+  width: 6px;
+}
+
+.sidebar::-webkit-scrollbar-thumb {
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.2), rgba(255, 255, 255, 0.1));
+  border-radius: 3px;
+  transition: background 0.2s ease;
+}
+
+.sidebar::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.3), rgba(255, 255, 255, 0.2));
+}
+
+.sidebar::-webkit-scrollbar-track {
+  background: rgba(0, 0, 0, 0.1);
+  border-radius: 3px;
+}
+
+.sidebar::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+@supports (scrollbar-width: thin) {
+  .sidebar {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(255, 255, 255, 0.2) rgba(0, 0, 0, 0.1);
+  }
+}
+
+.logo {
+  text-align: center;
+}
+.logo-img {
+  height: 80px;
+  width: auto;
+  display: inline-block;
+  margin-bottom: 8px;
+}
+
+.mobile-logo img {
+  height: 30px;
+  width: auto;
+}
+.logo-placeholder {
+  background: white;
+  border-radius: 10px;
+  font-size: 2rem;
+  margin-bottom: 0.5rem;
+}
+.sidebar h2 {
+  padding-bottom: 14px;
+  font-size: 1.05rem;
+  font-family: Georgia, 'Times New Roman', Times, serif;
+  color: var(--accent);
+  letter-spacing: 0.2px;
+}
+.sidebar nav {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+.sidebar nav a {
+  display: flex;
+  align-items: center;
+  gap: 0.8rem;
+  padding: 0.8rem;
+  color: rgba(255,255,255,0.92);
+  font-size: 1rem;
+  text-decoration: none;
+  border-radius: 8px;
+  transition: background 180ms ease, transform 180ms ease;
+  position: relative;
+}
+.sidebar nav a:hover {
+  background: rgba(241,212,41,0.06);
+  color: var(--accent);
+  transform: translateX(2px);
+}
+.sidebar nav a.active {
+  background: linear-gradient(90deg, rgba(241,212,41,0.08), rgba(241,212,41,0.03));
+  color: var(--accent);
+  font-weight: 700;
+  box-shadow: inset 4px 0 0 0 rgba(241,212,41,0.18);
+}
+
+/* Premium nav link styling */
+.sidebar nav a.premium-nav-link {
+  background: linear-gradient(135deg, rgba(243, 156, 18, 0.15) 0%, rgba(230, 126, 34, 0.1) 100%);
+  color: #f39c12;
+  border: 1px solid rgba(243, 156, 18, 0.25);
+  position: relative;
+  overflow: hidden;
+}
+
+.sidebar nav a.premium-nav-link::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 50%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.15), transparent);
+  animation: premiumShimmer 3s ease-in-out infinite;
+}
+
+@keyframes premiumShimmer {
+  0% { left: -100%; }
+  100% { left: 200%; }
+}
+
+.sidebar nav a.premium-nav-link:hover {
+  background: linear-gradient(135deg, rgba(243, 156, 18, 0.25) 0%, rgba(230, 126, 34, 0.18) 100%);
+  color: #f1c40f;
+  transform: translateX(2px);
+}
+
+.sidebar nav a.premium-nav-link.active {
+  background: linear-gradient(135deg, rgba(243, 156, 18, 0.3) 0%, rgba(230, 126, 34, 0.2) 100%);
+  color: #f1c40f;
+  font-weight: 700;
+  box-shadow: inset 4px 0 0 0 rgba(243, 156, 18, 0.5);
+}
+
+/* Notification badge for nav items */
+.notification-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 6px;
+  margin-left: auto;
+  background: var(--accent);
+  color: var(--primary);
+  border-radius: 10px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  flex-shrink: 0;
+  box-shadow: 0 2px 6px rgba(17,22,62,0.12);
+}
+.logout-btn {
+  /* Primary logout button used across layouts. Updated to match admin styling */
+  background: none;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  padding: 0.8rem;
+  color: white;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  border-radius: 8px;
+  font-size: 1rem;
+  font-weight: 500;
+  transition: all 0.3s ease;
+  margin-top: 1rem;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.logout-btn:hover,
+.logout-btn:focus {
+  /* Themed hover/focus: yellow surface with deep blue text */
+  background: linear-gradient(135deg, var(--accent), #f3c243);
+  color: var(--primary);
+  transform: translateY(-1px);
+  box-shadow: 0 6px 20px rgba(17,22,62,0.18);
+  outline: none;
+}
+
+.logout-btn:active {
+  transform: translateY(0);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.1);
+}
+
+/* Admin-style logout button (shared) */
+.admin-logout-btn {
+  background: none !important;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  padding: 0.8rem;
+  color: white;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  border-radius: 8px;
+  transition: all 0.3s ease;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.admin-logout-btn:hover,
+.admin-logout-btn:focus {
+  background: linear-gradient(135deg, #d9534f, #c9302c);
+  color: #fff;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 16px rgba(217, 83, 79, 0.3);
+  outline: none;
+}
+
+.logout-btn:active {
+  transform: translateY(0);
+  box-shadow: 0 1px 4px rgba(241, 212, 41, 0.2);
+}
+
+.main-area {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  padding: 1rem 2rem;
+  position: relative;
+  padding-bottom: 1rem; 
+  overflow-y: auto;
+  overflow-x: hidden;
+  scroll-behavior: smooth;
+}
+
+/* Custom scrollbar styles for main content area */
+.main-area::-webkit-scrollbar {
+  width: 8px;
+}
+
+.main-area::-webkit-scrollbar-thumb {
+  background: linear-gradient(135deg, #11163e, #0d0f2a);
+  border-radius: 4px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  transition: background 0.2s ease;
+}
+
+.main-area::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(135deg, #0d0f2a, #090b1f);
+}
+
+.main-area::-webkit-scrollbar-track {
+  background: linear-gradient(to bottom, #f8f9fa, #e9ecef);
+  border-radius: 4px;
+  margin: 4px 0;
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.05);
+}
+
+.main-area::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+/* Firefox scrollbar fallback with better support detection */
+@supports (scrollbar-width: thin) {
+  .main-area {
+    scrollbar-width: thin;
+    scrollbar-color: #11163e #f8f9fa;
+  }
+}
+
+.top-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.6rem 1rem;
+}
+
+.mobile-logo {
+  display: none; 
+  font-size: 1.1rem;
+  font-weight: bold;
+  color: #11163e;
+}
+.top-left {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.date-time {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.9rem;
+  color: var(--primary);
+}
+.top-right {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+.top-user-profile {
+  color: #11163e;
+  font-family: "Poppins", sans-serif;
+}
+
+.top-bar .user img {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 2px solid var(--primary);
+}
+
+.top-bar .user span {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #11163e;
+}
+
+.top-user-profile h2 {
+  margin-bottom: 5px;
+  font-size: 1.5rem;
+}
+
+.top-user-profile p {
+  margin: 2px 0;
+  font-size: 1rem;
+}
+.menu-btn {
+  background: none;
+  color: #11163e;
+  border: none;
+  height: 46px;
+  width: auto;
+  padding: 0.6rem 0.8rem;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 1.2rem;
+}
+.menu-btn:hover {
+  background: #b9b9ba9a;
+}
+
+.bottom-nav {
+  display: none;
+}
+.bottom-nav a {
+  background: none;
+  border: none;
+  color: white;
+  font-size: 1.3rem;
+  text-decoration: none;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.bottom-nav a.active {
+  color: #f1d429; 
+}
+
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.65);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  /* Ensure modals are above any dashboard content, loading overlays, and notifications */
+  /* normalized z-index: higher than loading overlays but kept small and consistent (<=50) */
+  z-index: 3;
+  -webkit-backdrop-filter: blur(3px);
+  backdrop-filter: blur(3px);
+  animation: fadeIn 0.2s ease-out;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* Modal box */
+.modal {
+  background: var(--surface);
+  padding: 1.6rem;
+  border-radius: var(--radius);
+  width: 90%;
+  max-width: 520px;
+  text-align: left;
+  box-shadow: 0 12px 48px rgba(17,22,62,0.12);
+  border: 1px solid rgba(17,22,62,0.06);
+  animation: slideUp 0.3s ease-out;
+  position: relative;
+  /* Responsive: cap modal height and allow internal scrolling on very small screens */
+  max-height: 92vh;
+  overflow-y: auto;
+  box-sizing: border-box;
+  border-left: 6px solid rgba(241,212,41,0.95);
+}
+
+/* Logout-confirm modal specific styles */
+.modal.logout-confirm {
+  max-width: 420px;
+  text-align: center;
+  padding: 1.4rem;
+  border-left-color: rgba(241,212,41,0.95);
+}
+
+.modal.logout-confirm .modal-actions {
+  justify-content: center;
+  gap: 0.75rem;
+  padding-top: 0.6rem;
+}
+
+.modal.logout-confirm .confirm-btn {
+  /* Primary (safe) action in theme blue: use inline-flex so icon + text fit */
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.6rem;
+  padding: 0.9rem 1.2rem;
+  white-space: nowrap;
+  border-radius: 8px;
+  background: linear-gradient(135deg, #0d3b91, #0a2e73);
+  color: white;
+  border: 1px solid rgba(0,0,0,0.08);
+  box-shadow: 0 8px 24px rgba(9,34,86,0.12);
+  min-width: 120px;
+  font-weight: 600;
+}
+
+.modal.logout-confirm .confirm-btn:hover {
+  background: linear-gradient(135deg, #0a2e73, #082456);
+  transform: translateY(-2px);
+  box-shadow: 0 10px 30px rgba(9,34,86,0.14);
+}
+
+.modal.logout-confirm .cancel-btn {
+  /* Mirror sizing/layout of confirm so the two buttons are visually consistent */
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.6rem;
+  padding: 0.9rem 1.2rem;
+  white-space: nowrap;
+  min-width: 120px;
+  background: #f8f9fb;
+  color: #495057;
+  border: 1px solid #e6e9ef;
+}
+
+@media (max-width: 520px) {
+  .modal.logout-confirm { max-width: 94%; }
+  .modal.logout-confirm .modal-actions { flex-direction: column-reverse; gap: 10px; }
+  .modal.logout-confirm .confirm-btn, .modal.logout-confirm .cancel-btn { width: 100%; max-width: none; }
+}
+
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px) scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.modal h3 {
+  margin-bottom: 0.5rem;
+  color: var(--primary);
+}
+
+.modal p {
+  margin: 1rem 0 1.2rem 0;
+  color: #55606d;
+  font-size: 0.98rem;
+  line-height: 1.5;
+}
+
+.modal-actions {
+  display: flex;
+  justify-content: space-between;
+  gap: 1.2rem;
+  width: 100%;
+  padding: 0 1rem;
+  box-sizing: border-box;
+  /* allow actions to wrap when space is constrained */
+  flex-wrap: wrap;
+}
+
+.cancel-btn, .confirm-btn {
+  padding: 0.9rem 2rem;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 1rem;
+  font-weight: 500;
+  flex: 1;
+  max-width: 200px;
+  min-height: 48px;
+  transition: all 0.2s ease;
+  position: relative;
+  overflow: hidden;
+}
+
+.cancel-btn {
+  background: #f8f9fa;
+  color: #495057;
+  border: 1px solid #dee2e6;
+}
+
+.cancel-btn:hover {
+  background: #e9ecef;
+  border-color: #adb5bd;
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.confirm-btn {
+  background: linear-gradient(135deg, #d9534f, #c9302c);
+  color: white;
+  border: 1px solid transparent;
+}
+
+.confirm-btn:hover {
+  background: linear-gradient(135deg, #c9302c, #b52b27);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 16px rgba(217, 83, 79, 0.3);
+}
+
+.confirm-btn:active {
+  transform: translateY(0);
+  box-shadow: 0 2px 8px rgba(217, 83, 79, 0.3);
+}
+
+.mobile-logout-btn {
+  display: none;
+  position: fixed;
+  bottom: 4.1rem;
+  right: 1.5rem;
+  z-index: 3;
+  background: linear-gradient(135deg, #11163e, #0d0f2a);
+  color: #fff;
+  border-radius: 50%;
+  width: 52px;
+  height: 52px;
+  box-shadow: 0 4px 15px rgba(17, 22, 62, 0.4);
+  font-size: 1.3rem;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  opacity: 0.9;
+  transition: all 0.3s ease;
+  border: 2px solid rgba(255,255,255,0.2);
+  animation: pulse 2s infinite;
+}
+
+.mobile-logout-btn:hover,
+.mobile-logout-btn:active {
+  opacity: 1;
+  background: linear-gradient(135deg, #d9534f, #c9302c);
+  color: #fff;
+  box-shadow: 0 6px 20px rgba(217,83,79,0.6);
+  transform: scale(1.05);
+}
+
+/* Professional Chat Button */
+.chat-button {
+  position: fixed;
+  bottom: 1.5rem;
+  right: 1.5rem;
+  z-index: 3;
+  background: linear-gradient(135deg, #007bff, #0056b3);
+  color: #fff;
+  border-radius: 50%;
+  width: 56px;
+  height: 56px;
+  box-shadow: 0 4px 20px rgba(0, 123, 255, 0.4);
+  font-size: 1.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  border: none;
+  transition: all 0.3s ease;
+  animation: float 3s ease-in-out infinite;
+}
+
+.chat-button:hover {
+  background: linear-gradient(135deg, #0056b3, #003d82);
+  box-shadow: 0 6px 25px rgba(0, 123, 255, 0.6);
+  transform: scale(1.1);
+}
+
+.chat-button:active {
+  transform: scale(0.95);
+}
+
+@keyframes float {
+  0%, 100% {
+    transform: translateY(0px);
+  }
+  50% {
+    transform: translateY(-10px);
+  }
+}
+
+@keyframes pulse {
+  0% {
+    box-shadow: 0 4px 15px rgba(17, 22, 62, 0.4), 0 0 0 0 rgba(17, 22, 62, 0.4);
+  }
+  70% {
+    box-shadow: 0 4px 15px rgba(17, 22, 62, 0.4), 0 0 0 10px rgba(17, 22, 62, 0);
+  }
+  100% {
+    box-shadow: 0 4px 15px rgba(17, 22, 62, 0.4), 0 0 0 0 rgba(17, 22, 62, 0);
+  }
+}
+/* Admin mobile logout bubble */
+.mobile-logout-bubble {
+  display: none;
+  position: fixed;
+  bottom: 4.1rem;
+  right: 1.5rem;
+  z-index: 3;
+  background: linear-gradient(135deg, #11163e, #0d0f2a);
+  color: #fff;
+  border-radius: 50%;
+  width: 48px;
+  height: 48px;
+  box-shadow: 0 4px 15px rgba(17, 22, 62, 0.4);
+  font-size: 1.3rem;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  opacity: 0.9;
+  transition: all 0.3s ease;
+  border: 2px solid rgba(255,255,255,0.2);
+  animation: pulse 2s infinite;
+}
+
+.mobile-logout-bubble:hover,
+.mobile-logout-bubble:active {
+  opacity: 1;
+  background: linear-gradient(135deg, #d9534f, #c9302c);
+  color: #fff;
+  box-shadow: 0 6px 20px rgba(217,83,79,0.6);
+  transform: scale(1.05);
+}
+
+@keyframes pulse {
+  0% {
+    box-shadow: 0 4px 15px rgba(217,83,79,0.4), 0 0 0 0 rgba(217,83,79,0.4);
+  }
+  70% {
+    box-shadow: 0 4px 15px rgba(217,83,79,0.4), 0 0 0 10px rgba(217,83,79,0);
+  }
+  100% {
+    box-shadow: 0 4px 15px rgba(217,83,79,0.4), 0 0 0 0 rgba(217,83,79,0);
+  }
+}
+
+@media (max-width: 768px) {
+  .mobile-logout-btn {
+    display: flex;
+  }
+  
+  .mobile-logout-bubble {
+    display: flex;
+  }
+}
+
+/* ========================================
+   FLOATING CHAT BUTTON
+   ======================================== */
+.floating-chat-btn {
+  position: fixed;
+  bottom: 20px;
+  right: 20px;
+  z-index: 998;
+  background: linear-gradient(135deg, #f4b761, #e8a543);
+  color: #11163e;
+  border: none;
+  border-radius: 50%;
+  width: 60px;
+  height: 60px;
+  box-shadow: 0 4px 20px rgba(244, 183, 97, 0.5);
+  font-size: 1.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  animation: chatPulse 2s infinite;
+}
+
+.floating-chat-btn:hover {
+  transform: scale(1.1);
+  box-shadow: 0 6px 30px rgba(244, 183, 97, 0.7);
+  background: linear-gradient(135deg, #e8a543, #d99836);
+}
+
+.floating-chat-btn:active {
+  transform: scale(1.05);
+}
+
+@keyframes chatPulse {
+  0% {
+    box-shadow: 0 4px 20px rgba(244, 183, 97, 0.5), 0 0 0 0 rgba(244, 183, 97, 0.4);
+  }
+  70% {
+    box-shadow: 0 4px 20px rgba(244, 183, 97, 0.5), 0 0 0 15px rgba(244, 183, 97, 0);
+  }
+  100% {
+    box-shadow: 0 4px 20px rgba(244, 183, 97, 0.5), 0 0 0 0 rgba(244, 183, 97, 0);
+  }
+}
+
+/* Adjust for mobile logout bubble */
+@media (max-width: 768px) {
+  .floating-chat-btn {
+    bottom: 80px;
+    right: 15px;
+    width: 50px;
+    height: 50px;
+    font-size: 1.25rem;
+  }
+}
+
+/* ========================================
+   MOBILE ACTION MENU (3-dot dropdown)
+   ======================================== */
+.mobile-action-menu {
+  display: none;
+  position: fixed;
+  bottom: 4.5rem;
+  right: 1rem;
+  z-index: 999;
+}
+
+.mobile-action-trigger {
+  background: linear-gradient(135deg, #11163e, #1a1f4e);
+  color: #fff;
+  border: none;
+  border-radius: 50%;
+  width: 48px;
+  height: 48px;
+  box-shadow: 0 4px 15px rgba(17, 22, 62, 0.5);
+  font-size: 1.2rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  border: 2px solid rgba(255, 255, 255, 0.15);
+}
+
+.mobile-action-trigger:hover,
+.mobile-action-trigger:active {
+  background: linear-gradient(135deg, #1a1f4e, #252b5c);
+  transform: scale(1.05);
+  box-shadow: 0 6px 20px rgba(17, 22, 62, 0.6);
+}
+
+.mobile-action-dropdown {
+  position: absolute;
+  bottom: 56px;
+  right: 0;
+  background: #fff;
+  border-radius: 12px;
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.2);
+  overflow: hidden;
+  min-width: 180px;
+  animation: dropdownSlideUp 0.2s ease-out;
+}
+
+@keyframes dropdownSlideUp {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.mobile-action-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 14px 16px;
+  border: none;
+  background: transparent;
+  color: #11163e;
+  font-size: 0.95rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.mobile-action-item:hover {
+  background: #f5f6fa;
+}
+
+.mobile-action-item:first-child {
+  border-bottom: 1px solid #eee;
+}
+
+.mobile-action-item svg {
+  font-size: 1.1rem;
+  color: #f4b761;
+}
+
+.mobile-action-item.logout-item svg {
+  color: #d9534f;
+}
+
+@media (max-width: 768px) {
+  .mobile-action-menu {
+    display: block;
+  }
+  
+  /* Hide the old separate buttons */
+  .floating-chat-btn,
+  .mobile-logout-btn {
+    display: none !important;
+  }
+}
+
+/* Desktop: show floating chat button */
+.desktop-only {
+  display: flex;
+}
+
+@media (max-width: 768px) {
+  .desktop-only {
+    display: none !important;
+  }
+}
+
+/* ========================================
+   VERIFICATION HINT FOR DISABLED BUTTONS
+   ======================================== */
+.verification-hint {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  font-size: 0.75rem;
+  color: #f97316;
+  font-weight: 500;
+  padding: 0.25rem 0.5rem;
+  background: rgba(249, 115, 22, 0.1);
+  border-radius: 4px;
+  margin-left: 0.5rem;
+}
+
+.add-btn.disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  background: #9ca3af;
+}
+
+.add-btn.disabled:hover {
+  background: #9ca3af;
+  transform: none;
+}
+
+@media (max-width: 768px) {
+  .sidebar {
+    display: none;
+  }
+  /* Keep the logo compact on small screens */
+  .logo-img {
+    height: 48px;
+  }
+  .top-bar {
+    padding: 0 0 10px;
+  }
+  .top-bar .user img {
+    width: 30px;
+    height: 30px;
+  }
+  .top-bar .user span {
+    font-size: 0.7rem;
+  }
+  .bottom-nav {
+    display: flex;
+    justify-content: space-around;
+    background: #11163e;
+    padding: 0.8rem 0;
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    width: 100%;
+    z-index: 4;
+  }
+  .main-area {
+    padding-bottom: 4rem; 
+  }
+  .menu-btn {
+    display: none;
+  }
+  .mobile-logo {
+    display: flex;
+  }
+  .date-time {
+    font-size: 0.75rem;
+  }
+  .modal {
+    width: 95%;
+    max-width: 380px;
+    padding: 1.5rem;
+  }
+  
+  .modal-actions {
+    flex-direction: row;
+    gap: 0.8rem;
+    padding: 0;
+    width: 100%;
+  }
+  
+  .cancel-btn, .confirm-btn {
+    padding: 0.8rem 1rem;
+    font-size: 0.9rem;
+    flex: 1;
+    max-width: none;
+    min-height: 44px;
+    border-radius: 8px;
+  }
+}
+
+/* ChatBot Toast Notification */
+.chatbot-toast-notification {
+  position: fixed;
+  bottom: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: linear-gradient(135deg, #f4b761 0%, #f39c12 100%);
+  color: white;
+  padding: 16px 20px;
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  z-index: 3;
+  max-width: 400px;
+  animation: slideInUp 0.3s ease-out;
+}
+
+@keyframes slideInUp {
+  from {
+    opacity: 0;
+    transform: translate(-50%, 20px);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, 0);
+  }
+}
+
+.chatbot-toast-content {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.chatbot-toast-content p {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 500;
+  text-align: center;
+}
+
+.chatbot-toast-actions {
+  display: flex;
+  gap: 10px;
+  justify-content: center;
+}
+
+.chatbot-toast-yes,
+.chatbot-toast-no {
+  padding: 8px 16px;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 600;
+  transition: all 0.2s ease;
+}
+
+.chatbot-toast-yes {
+  background: white;
+  color: #f39c12;
+}
+
+.chatbot-toast-yes:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+}
+
+.chatbot-toast-no {
+  background: rgba(255, 255, 255, 0.2);
+  color: white;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+}
+
+.chatbot-toast-no:hover {
+  background: rgba(255, 255, 255, 0.3);
+}
+
+@media (max-width: 480px) {
+  .chatbot-toast-notification {
+    left: 10px;
+    right: 10px;
+    bottom: 70px;
+    transform: none;
+    max-width: none;
+  }
+
+  .chatbot-toast-content p {
+    font-size: 13px;
+  }
+
+  .chatbot-toast-actions {
+    gap: 8px;
+  }
+
+  .chatbot-toast-yes,
+  .chatbot-toast-no {
+    padding: 10px 14px;
+    font-size: 12px;
+    flex: 1;
+  }
+}
+
+/* Additional small-screen modal improvements */
+@media (max-width: 520px) {
+  .modal {
+    width: calc(100% - 32px);
+    padding: 1rem;
+    border-radius: 10px;
+    max-height: 86vh;
+  }
+
+  .modal-actions {
+    flex-direction: column-reverse;
+    gap: 10px;
+    padding: 0 0.5rem;
+    align-items: stretch;
+  }
+
+  .modal-actions .cancel-btn,
+  .modal-actions .confirm-btn {
+    width: 100%;
+    max-width: none;
+    flex: none;
+    min-height: 44px;
+  }
+}

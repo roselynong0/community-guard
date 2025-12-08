@@ -1,0 +1,148 @@
+/* Notifications.css (top-right) */
+.notif {
+    position: fixed !important;
+    top: 50px !important;
+    right: 20px !important;
+    left: unset !important;
+    bottom: unset !important;
+    max-width: 300px !important;
+    width: auto;
+    height: auto !important;
+    min-height: unset !important;
+    max-height: fit-content !important;
+    padding: 14px 20px !important;
+    border-radius: 8px;
+    color: #fff;
+    font-weight: bold;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.25);
+    z-index: 100000 !important;
+    animation: slideFadeIn 0.3s ease-in-out;
+    display: inline-block;
+}
+
+/* Ensure notifications in portal stay top-right */
+#modal-portal-root .notif {
+    position: fixed !important;
+    top: 50px !important;
+    right: 20px !important;
+    left: unset !important;
+    bottom: unset !important;
+    z-index: 100001 !important;
+}
+
+/* Notification styles by type */
+.notif-success {
+    background: linear-gradient(135deg, #28a745, #2ecc71);
+}
+
+.notif-error {
+    background: linear-gradient(135deg, #dc3545, #e74c3c);
+}
+
+.notif-caution {
+    background: linear-gradient(135deg, #eab003, #ea940a);
+    /* background: #eb950b; */
+    color: #3c3c3c; /* Dark text for yellow background */
+}
+
+/* Info notification - blue theme for informational messages */
+.notif-info {
+    background: linear-gradient(135deg, #3498db, #2980b9);
+    color: #fff;
+}
+
+/* Premium notification - golden/yellowish theme */
+.notif-premium {
+    background: linear-gradient(135deg, #f39c12 0%, #e67e22 50%, #f1c40f 100%);
+    color: #1a1a2e;
+    border: 2px solid #ffeeba;
+    box-shadow: 0 4px 20px rgba(243, 156, 18, 0.4), 0 0 30px rgba(241, 196, 15, 0.2);
+    position: relative;
+    overflow: hidden;
+}
+
+.notif-premium::before {
+    content: '✨';
+    position: absolute;
+    left: -5px;
+    top: 50%;
+    transform: translateY(-50%);
+    font-size: 1.2em;
+    animation: premiumSparkle 2s ease-in-out infinite;
+}
+
+.notif-premium::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -100%;
+    width: 50%;
+    height: 100%;
+    background: linear-gradient(90deg, transparent, rgba(255,255,255,0.3), transparent);
+    animation: premiumShine 3s ease-in-out infinite;
+}
+
+@keyframes premiumSparkle {
+    0%, 100% { opacity: 1; transform: translateY(-50%) scale(1); }
+    50% { opacity: 0.7; transform: translateY(-50%) scale(1.2); }
+}
+
+@keyframes premiumShine {
+    0% { left: -100%; }
+    100% { left: 200%; }
+}
+
+/* Inline field errors */
+.error {
+  color: red;
+  font-size: 0.8rem;
+  margin-top:-8px;
+  margin-bottom: 0.5rem;
+}
+
+/* Live password validation */
+.password-rules {
+  margin-top: -8px;
+  margin-bottom: 12px;
+}
+
+.password-rules p {
+  font-size: 0.8rem;
+  color: red;
+  margin: 0.1rem 0;
+}
+
+.password-rules p.valid {
+  color: green;
+}
+
+/* Required field styling */
+input:required:invalid,
+textarea:required:invalid,
+select:required:invalid {
+    border-left: 3px solid #dc3545;
+}
+
+input:required:valid,
+textarea:required:valid,
+select:required:valid {
+    border-left: 3px solid #28a745;
+}
+
+/* Required asterisk styling */
+label span[style*="color: red"] {
+    font-weight: bold;
+    margin-left: 2px;
+}
+
+/* Slide and fade animation */
+@keyframes slideFadeIn {
+    0% {
+        opacity: 0;
+        transform: translateX(50px);
+    }
+    100% {
+        opacity: 1;
+        transform: translateX(0);
+    }
+}

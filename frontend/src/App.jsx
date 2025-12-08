@@ -1,0 +1,602 @@
+import { HashRouter as Router, Routes, Route, Navigate, useLocation } from "react-router-dom";
+import { useState, useEffect } from "react";
+import { fetchSession } from "./utils/session";
+
+// Auth components
+import RegistrationForm from "./components/auth/RegistrationForm";
+import ForgotPassword from "./components/auth/ForgotPassword";
+import ResetPassword from "./components/auth/ResetPassword";
+import ResidentLogin from "./components/auth/ResidentLogin";
+import VerificationForm from "./components/auth/VerificationForm";
+
+// Admin components
+import AdminLogin from "./components/admin/AdminLogin";
+import AdminLayout from "./components/admin/Admin-Layout";
+import AdminReports from "./components/admin/Admin-Reports";
+import AdminUsers from "./components/admin/Admin-Users";
+import AdminNotifications from "./components/admin/Admin-Notifications";
+import AdminMaps from "./components/admin/Admin-Maps";
+import AdminDashboard from "./components/admin/Admin-Dashboard";
+import ArchivedReports from "./components/admin/ArchivedReports";
+import AssignResponders from "./components/admin/AssignResponders";
+import CommunityFeedAdmin from "./components/admin/CommunityFeedAdmin";
+
+// Barangay components
+import BarangayLogin from "./components/barangay/BarangayLogin";
+import BarangayLayout from "./components/barangay/BarangayLayout";
+import BarangayDashboard from "./components/barangay/BarangayDashboard";
+import BarangayReports from "./components/barangay/BarangayReports";
+import BarangayNotifications from "./components/barangay/BarangayNotifications";
+import CommunityFeedBarangay from "./components/barangay/CommunityFeedBarangay";
+import CCTVViewer from "./components/barangay/CCTVViewer";
+import Premium from "./components/barangay/Premium";
+
+// Responder components
+import ResponderLogin from "./components/responder/ResponderLogin";
+import ResponderLayout from "./components/responder/ResponderLayout";
+import ResponderHome from "./components/responder/ResponderHome";
+import RespondersLayout from "./components/responder/RespondersLayout";
+import RespondersDashboard from "./components/responder/RespondersDashboard";
+import RespondersReports from "./components/responder/RespondersReports"; 
+import RespondersNotifications from "./components/responder/RespondersNotifications";
+import CommunityFeedResponder from "./components/responder/CommunityFeedResponder";
+
+// Resident components
+import Home from "./components/resident/Home";
+import Reports from "./components/resident/Reports";
+import Profile from "./components/resident/Profile";
+import Notifications from "./components/resident/Notifications";
+import Maps from "./components/resident/Maps";
+import SafetyTips from "./components/resident/SafetyTips";
+import CommunityFeed from "./components/resident/CommunityFeed";
+
+// Public components
+import HomePage from "./components/public/HomePage";
+import SuccessRedirect from "./components/public/SuccessRedirect";
+
+// Shared components
+import Layout from "./components/shared/Layout";
+import LoadingScreen from "./components/shared/LoadingScreen";
+import CommunityMetrics from "./components/shared/CommunityMetrics";
+
+// Global styles for modal portal (must be imported at app level for z-index to work)
+import "./components/shared/ModalPortal.css";
+
+
+// ---------------- LOGIN WRAPPER ----------------
+function LoginWrapper({ session, setSession, setNotification }) {
+  const location = useLocation();
+  const params = new URLSearchParams(location.search);
+  const forceLogin = params.get("force");
+  const role = (params.get("role") || "resident").toLowerCase();
+
+  if (session && !forceLogin) return <Navigate to="/home" replace />;
+
+  // Route to the appropriate role-specific login component based on ?role=
+  if (role === "admin") return <AdminLogin setSession={setSession} setNotification={setNotification} />;
+  if (role === "barangay") return <BarangayLogin setSession={setSession} setNotification={setNotification} />;
+  if (role === "responder") return <ResponderLogin setSession={setSession} setNotification={setNotification} />;
+  // default to resident
+  return <ResidentLogin setSession={setSession} setNotification={setNotification} />;
+}
+
+// ---------------- APP COMPONENT ----------------
+function App() {
+  const [session, setSession] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [showSuccess, setShowSuccess] = useState(false);
+  const [loaderStage, setLoaderStage] = useState('loading'); // 'loading' | 'exit' | 'success' | 'done'
+  const [notification, setNotification] = useState({ message: "", type: "" });
+
+  // 🔹 Fetch session on mount with retry logic for Vercel cold starts
+  useEffect(() => {
+    let cancelled = false;
+    let successTimeout = null;
+
+    const completeLoading = (reason = 'default') => {
+      if (cancelled) {
+        return;
+      }
+      console.log(`🎉 Showing success screen [${reason}]`);
+      setShowSuccess(true);
+      setLoaderStage('success');
+      successTimeout = setTimeout(() => {
+        if (cancelled) {
+          return;
+        }
+        console.log(`✅ Completed loading [${reason}]`);
+        setShowSuccess(false);
+        setLoaderStage('done');
+        setLoading(false);
+      }, 2000);
+    };
+
+    const initSession = async () => {
+      const startTime = Date.now();
+      const token = localStorage.getItem("token");
+      
+      if (!token) {
+        // No token stored, but still show loading for minimum time
+        const elapsed = Date.now() - startTime;
+        const minLoadTime = 1500; // Minimum 1.5s to show loading
+        
+        if (elapsed < minLoadTime) {
+          await new Promise(resolve => setTimeout(resolve, minLoadTime - elapsed));
+        }
+
+        // Ensure the success overlay is mounted before playing loader exit
+        setShowSuccess(true);
+        setLoaderStage('exit');
+        completeLoading('no-token');
+        return;
+      }
+      
+      let currentSession = null;
+      let retries = 3;
+      
+      while (retries > 0 && !currentSession) {
+        currentSession = await fetchSession();
+        if (!currentSession && retries > 1) {
+          // Wait before retrying (helps with backend cold starts)
+          await new Promise(resolve => setTimeout(resolve, 1500));
+          retries--;
+        } else {
+          break;
+        }
+      }
+      
+      if (!currentSession) {
+        // Only clear token if we're certain it's invalid (not just network issues)
+        const storedSession = localStorage.getItem("session");
+        if (!storedSession) {
+          console.log("🔐 No valid session - clearing token");
+          localStorage.removeItem("token");
+        } else {
+          console.log("⚠️ Backend unavailable but cached session exists - keeping user logged in");
+        }
+        setSession(null);
+      } else {
+        setSession(currentSession);
+      }
+      
+      // Ensure minimum loading time for better UX
+      const elapsed = Date.now() - startTime;
+      const minLoadTime = 2500; // Minimum 2.5s total loading time
+      
+      if (elapsed < minLoadTime) {
+        await new Promise(resolve => setTimeout(resolve, minLoadTime - elapsed));
+      }
+      
+      // Start staged transition: mount success overlay first, then play loading exit
+      setShowSuccess(true);
+      setLoaderStage('exit');
+      completeLoading('session-loaded');
+    };
+    initSession();
+
+    return () => {
+      cancelled = true;
+      if (successTimeout) {
+        clearTimeout(successTimeout);
+      }
+    };
+  }, []);
+
+  // 🔹 Auto-hide notifications
+  useEffect(() => {
+    if (notification.message) {
+      const timer = setTimeout(() => setNotification({ message: "", type: "" }), 4000);
+      return () => clearTimeout(timer);
+    }
+  }, [notification]);
+
+  // Show loader stages until done: loading -> exit -> success -> done
+  if (loaderStage !== 'done') {
+    console.log('📊 Loader state:', { loaderStage, showSuccess, loading });
+    
+    if (showSuccess) {
+      console.log('🎉 RENDERING SUCCESS SCREEN');
+      return <SuccessRedirect message="Success! Loading your workspace..." />;
+    }
+    
+    console.log('⏳ RENDERING LOADING SCREEN');
+    return (
+      <LoadingScreen
+        title="Starting Community Guard"
+        subtitle="Initializing services and loading your session..."
+        cycleMs={3000}
+        stage={loaderStage}
+        features={[
+          { title: "Connecting", description: "Contacting backend services." },
+          { title: "Preparing UI", description: "Loading interface and user preferences." },
+        ]}
+      />
+    );
+  }
+
+  return (
+    <Router>
+      {/* 🔹 Global notification banner */}
+      {notification.message && (
+        <div className={`notif notif-${notification.type}`}>
+          {notification.message}
+        </div>
+      )}
+
+      <Routes>
+        {/* --- PUBLIC ROUTES --- */}
+        <Route
+          path="/"
+          element={
+            session ? (
+              <Navigate
+                to={
+                  session.user?.role === "Admin" ? "/admin/users" :
+                  session.user?.role === "Barangay Official" ? "/barangay/dashboard" :
+                  session.user?.role === "Responder" ? "/responder/home" :
+                  "/home"
+                }
+                replace
+              />
+            ) : (
+              <HomePage />
+            )
+          }
+        />
+
+        <Route
+          path="/login"
+          element={
+            session
+              ? (
+                <Navigate
+                  to={
+                    session.user?.role === "Admin" ? "/admin/users" :
+                    session.user?.role === "Barangay Official" ? "/barangay/dashboard" :
+                    session.user?.role === "Responder" ? "/responder/home" :
+                    "/home"
+                  }
+                  replace
+                />
+              )
+              : (
+                <LoginWrapper
+                  session={session}
+                  setSession={setSession}
+                  setNotification={setNotification}
+                />
+              )
+          }
+        />
+
+        <Route path="/homepage" element={<HomePage />} />
+        <Route path="/register" element={<RegistrationForm />} />
+        <Route path="/verify" element={<VerificationForm />} />
+        <Route path="/verify-email" element={<VerificationForm />} />
+        <Route path="/forgot-password" element={<ForgotPassword />} />
+        <Route path="/reset-password" element={<ResetPassword />} />
+
+        {/* --- RESIDENT PROTECTED ROUTES (Residents only) --- */}
+        <Route
+          element={
+            session && session.user?.role === "Resident" ? (
+              <Layout
+                session={session}
+                setSession={setSession}
+                setNotification={setNotification}
+              />
+            ) : session && session.user?.role === "Admin" ? (
+              <Navigate to="/admin/users" replace />
+            ) : session && session.user?.role === "Barangay Official" ? (
+              <Navigate to="/barangay/dashboard" replace />
+            ) : session && session.user?.role === "Responder" ? (
+              <Navigate to="/responder/home" replace />
+            ) : (
+              <Navigate to="/login?role=resident" replace />
+            )
+          }
+        >
+          <Route
+            path="/home"
+            element={
+              session?.user?.role === "Resident" ? (
+                <Home token={session?.token} session={session} />
+              ) : session?.user?.role === "Admin" ? (
+                <Navigate to="/admin/users" replace />
+              ) : session?.user?.role === "Barangay Official" ? (
+                <Navigate to="/barangay/dashboard" replace />
+              ) : session?.user?.role === "Responder" ? (
+                <Navigate to="/responder/home" replace />
+              ) : (
+                <Navigate to="/login?role=resident" replace />
+              )
+            }
+          />
+          <Route
+            path="/maps"
+            element={
+              session?.user?.role === "Resident" ? (
+                <Maps session={session} userRole="Resident" />
+              ) : session?.user?.role === "Admin" ? (
+                <Navigate to="/admin/maps" replace />
+              ) : session?.user?.role === "Barangay Official" ? (
+                <Navigate to="/barangay/dashboard" replace />
+              ) : session?.user?.role === "Responder" ? (
+                <Navigate to="/responder/maps" replace />
+              ) : (
+                <Navigate to="/login?role=resident" replace />
+              )
+            }
+          />
+          <Route
+            path="/reports"
+            element={
+              session?.user?.role === "Resident" ? (
+                <Reports session={session} />
+              ) : session?.user?.role === "Admin" ? (
+                <Navigate to="/admin/reports" replace />
+              ) : session?.user?.role === "Barangay Official" ? (
+                <Navigate to="/barangay/dashboard" replace />
+              ) : session?.user?.role === "Responder" ? (
+                <Navigate to="/responder/reports" replace />
+              ) : (
+                <Navigate to="/login?role=resident" replace />
+              )
+            }
+          />
+          <Route
+            path="/archived"
+            element={
+              session?.user?.role === "Resident" ? (
+                <ArchivedReports session={session} />
+              ) : session?.user?.role === "Admin" ? (
+                <Navigate to="/admin/reports" replace />
+              ) : session?.user?.role === "Barangay Official" ? (
+                <Navigate to="/barangay/dashboard" replace />
+              ) : session?.user?.role === "Responder" ? (
+                <Navigate to="/responder/reports" replace />
+              ) : (
+                <Navigate to="/login?role=resident" replace />
+              )
+            }
+          />
+          <Route
+            path="/notifications"
+            element={
+              session?.user?.role === "Resident" ? (
+                <Notifications token={session?.token} />
+              ) : session?.user?.role === "Admin" ? (
+                <Navigate to="/admin/notifications" replace />
+              ) : session?.user?.role === "Barangay Official" ? (
+                <Navigate to="/barangay/dashboard" replace />
+              ) : session?.user?.role === "Responder" ? (
+                <Navigate to="/responder/notifications" replace />
+              ) : (
+                <Navigate to="/login?role=resident" replace />
+              )
+            }
+          />
+          <Route
+            path="/safety-tips"
+            element={
+              session?.user?.role === "Resident" ? (
+                <SafetyTips />
+              ) : session?.user?.role === "Admin" ? (
+                <Navigate to="/admin/users" replace />
+              ) : session?.user?.role === "Barangay Official" ? (
+                <Navigate to="/barangay/home" replace />
+              ) : session?.user?.role === "Responder" ? (
+                <Navigate to="/responder/home" replace />
+              ) : (
+                <Navigate to="/login?role=resident" replace />
+              )
+            }
+          />
+          <Route
+            path="/community-feed"
+            element={
+              session?.user?.role === "Resident" ? (
+                <CommunityFeed />
+              ) : session?.user?.role === "Admin" ? (
+                <Navigate to="/admin/users" replace />
+              ) : session?.user?.role === "Barangay Official" ? (
+                <Navigate to="/barangay/community-feed" replace />
+              ) : session?.user?.role === "Responder" ? (
+                <Navigate to="/responder/community-feed" replace />
+              ) : (
+                <Navigate to="/login?role=resident" replace />
+              )
+            }
+          />
+          <Route
+            path="/profile"
+            element={
+              session?.user?.role === "Resident" ? (
+                <Profile token={session?.token} />
+              ) : session?.user?.role === "Admin" ? (
+                <Navigate to="/admin/profile" replace />
+              ) : session?.user?.role === "Barangay Official" ? (
+                <Navigate to="/barangay/dashboard" replace />
+              ) : session?.user?.role === "Responder" ? (
+                <Navigate to="/responder/profile" replace />
+              ) : (
+                <Navigate to="/login?role=resident" replace />
+              )
+            }
+          />
+        </Route>
+
+        {/* --- BARANGAY PROTECTED ROUTES --- */}
+        <Route
+          element={
+            session && session.user?.role === "Barangay Official" ? (
+              <BarangayLayout session={session} setSession={setSession} setNotification={setNotification} />
+            ) : session ? (
+              <Navigate to="/home" replace />
+            ) : (
+              <Navigate to="/login?role=barangay" replace />
+            )
+          }
+        >
+          <Route path="/barangay/dashboard" element={<BarangayDashboard token={session?.token} />} />
+          <Route path="/barangay/maps" element={<Maps session={session} userRole="Barangay Official" />} />
+          <Route path="/barangay/reports" element={<BarangayReports token={session?.token} />} />
+          <Route path="/barangay/assign-responders" element={<AssignResponders token={session?.token} />} />
+          <Route path="/barangay/cctv" element={<CCTVViewer />} />
+          <Route path="/barangay/archived" element={<ArchivedReports session={session} />} />
+          <Route path="/barangay/notifications" element={<Notifications token={session?.token} />} />
+          <Route path="/barangay/community-feed" element={<CommunityFeedBarangay token={session?.token} session={session} />} />
+          <Route path="/barangay/profile" element={<Profile token={session?.token} />} />
+          <Route path="/barangay/premium" element={<Premium token={session?.token} />} />
+        </Route>
+
+        {/* --- RESPONDER PROTECTED ROUTES --- */}
+        <Route
+          element={
+            session && session.user?.role === "Responder" ? (
+              <ResponderLayout session={session} setSession={setSession} setNotification={setNotification} />
+            ) : session ? (
+              <Navigate to="/home" replace />
+            ) : (
+              <Navigate to="/login?role=responder" replace />
+            )
+          }
+        >
+          <Route path="/responder/home" element={<ResponderHome token={session?.token} session={session} />} />
+          <Route path="/responder/maps" element={<Maps session={session} userRole="Responder" />} />
+          <Route path="/responder/reports" element={<AdminReports token={session?.token} />} />
+          <Route path="/responder/archived" element={<ArchivedReports session={session} />} />
+          <Route path="/responder/notifications" element={<Notifications token={session?.token} />} />
+          <Route path="/responder/community-feed" element={<CommunityFeedResponder token={session?.token} session={session} />} />
+          <Route path="/responder/profile" element={<Profile token={session?.token} />} />
+          <Route path="/responder/cctv" element={<CCTVViewer />} />
+        </Route>
+
+        {/* --- ADMIN PROTECTED ROUTES --- */}
+        <Route
+          element={
+            session && session.user?.role === "Admin" ? (
+              <AdminLayout
+                session={session}
+                setSession={setSession}
+                setNotification={setNotification}
+              />
+            ) : session ? (
+              <Navigate to="/home" replace />
+            ) : (
+              <Navigate to="/login?role=admin" replace />
+            )
+          }
+        >
+          <Route
+            path="/admin/dashboard"
+            element={
+              session?.user?.role !== "Admin" ? (
+                <Navigate to="/home" replace />
+              ) : (
+                <AdminDashboard token={session?.token} />
+              )
+            }
+          />
+          <Route
+            path="/admin/maps"
+            element={
+              session?.user?.role !== "Admin" ? (
+                <Navigate to="/home" replace />
+              ) : (
+                <AdminMaps session={session} />
+              )
+            }
+          />
+          <Route
+            path="/admin/reports"
+            element={
+              session?.user?.role !== "Admin" ? (
+                <Navigate to="/home" replace />
+              ) : (
+                <AdminReports token={session?.token} />
+              )
+            }
+          />
+          <Route
+            path="/admin/archived"
+            element={
+              session?.user?.role !== "Admin" ? (
+                <Navigate to="/home" replace />
+              ) : (
+                <ArchivedReports session={session} />
+              )
+            }
+          />
+          <Route
+            path="/admin/communityfeedadmin"
+            element={
+              session?.user?.role !== "Admin" ? (
+                <Navigate to="/home" replace />
+              ) : (
+                <CommunityFeedAdmin />
+              )
+            }
+          />
+          <Route
+            path="/admin/users"
+            element={
+              session?.user?.role !== "Admin" ? (
+                <Navigate to="/home" replace />
+              ) : (
+                <AdminUsers token={session?.token} />
+              )
+            }
+          />
+          <Route
+            path="/admin/community-metrics"
+            element={
+              session?.user?.role !== "Admin" ? (
+                <Navigate to="/home" replace />
+              ) : (
+                <CommunityMetrics session={session} setNotification={setNotification} />
+              )
+            }
+          />
+          <Route
+            path="/admin/notifications"
+            element={
+              session?.user?.role !== "Admin" ? (
+                <Navigate to="/notifications" replace />
+              ) : (
+                <AdminNotifications session={session} />
+              )
+            }
+          />
+          <Route
+            path="/admin/profile"
+            element={
+              session?.user?.role !== "Admin" ? (
+                <Navigate to="/profile" replace />
+              ) : (
+                <Profile token={session?.token} />
+              )
+            }
+          />
+        </Route>
+
+        {/* --- FALLBACK --- */}
+        <Route
+          path="*"
+          element={
+            session ? (
+              <Navigate
+                to={session.user?.role === "Admin" ? "/admin/users" : "/home"}
+                replace
+              />
+              ) : (
+              <Navigate to="/" replace />
+            )
+          }
+        />
+      </Routes>
+    </Router>
+  );
+}
+
+export default App;

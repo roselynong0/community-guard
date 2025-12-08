@@ -1,0 +1,124 @@
+/* Consolidated and improved Notifications.css with Reports-style buttons */
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateX(30px);
+    }
+    to {
+        opacity: 1;
+        transform: translateX(0);
+    }
+}
+
+@keyframes spin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+}
+
+.notifications-container { 
+    padding: 20px;
+    background-color: #f7f7f7;
+    border-radius: 12px;
+    margin: 20px;
+}
+
+.notifications-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding-bottom: 15px;
+    border-bottom: 1px solid #e2e8f0;
+    margin-bottom: 20px;
+    flex-wrap: wrap; 
+}
+
+.notifications-header .left h2 {
+    color: #2d2d73; 
+    margin: 0;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.notifications-header .right {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+    flex-wrap: wrap;
+}
+
+.badge {
+    background-color: #e5231d; 
+    color: white;
+    padding: 4px 10px;
+    border-radius: 12px;
+    font-size: 13px;
+    font-weight: 600;
+}
+
+/* ========================================
+   NOTIFICATION ACTION BUTTONS (Reports-style)
+   ======================================== */
+.btn {
+    padding: 0 20px;
+    height: 48px;
+    border-radius: 10px;
+    cursor: pointer;
+    font-size: 14px;
+    font-weight: 600;
+    transition: all 0.3s ease;
+    border: none;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    white-space: nowrap;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+}
+
+.btn.icon-btn {
+    min-width: 48px;
+}
+
+.btn.mark-all {
+    background-color: #2d2d73;
+    color: white;
+}
+
+.btn.mark-all:hover:not(:disabled) {
+    background-color: #3d3d93;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 8px rgba(45, 45, 115, 0.2);
+}
+
+.btn.refresh {
+    background: #fff;
+    border: 2px solid #e2e8f0;
+    color: #64748b;
+}
+
+.btn.refresh:hover:not(:disabled) {
+    border-color: #3b82f6;
+    color: #3b82f6;
+    background: #f8fafc;
+    transform: translateY(-1px);
+}
+
+.btn.refresh:focus {
+    outline: none;
+    border-color: #3b82f6;
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
+.btn:disabled {
+    background-color: #e2e8f0;
+    color: #94a3b8;
+    cursor: not-allowed;
+    transform: none;
+    box-shadow: none;
+}
+
+.btn .icon {
+    font-size: 16px;
+}

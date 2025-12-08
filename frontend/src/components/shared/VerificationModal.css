@@ -1,0 +1,10 @@
+.verify-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.45);display:flex;align-items:center;justify-content:center;z-index:10001}
+.verify-modal{width:520px;max-width:95%;background:var(--card-bg,#fff);border-radius:12px;box-shadow:0 12px 40px rgba(0,0,0,0.35);padding:18px}
+.verify-header h3{margin:0 0 6px;font-size:1.05rem}
+.verify-body{display:flex;flex-direction:column;gap:12px}
+.verify-info .row{padding:6px 0;border-bottom:1px dashed rgba(0,0,0,0.04)}
+.verify-actions{display:flex;gap:10px;justify-content:flex-end}
+.verify-actions .primary{background:var(--primary,#1976d2);color:#fff;padding:8px 12px;border-radius:8px;border:0}
+.verify-actions button{padding:8px 10px;border-radius:8px;border:1px solid rgba(0,0,0,0.06);background:#fff}
+.verify-actions .ghost{background:transparent;border:0;color:rgba(0,0,0,0.6)}
+@media(max-width:600px){.verify-modal{width:95%}}

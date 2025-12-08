@@ -1,0 +1,200 @@
+:root {
+  font-family: system-ui, Avenir, Helvetica, Arial, sans-serif;
+  line-height: 1.5;
+  font-weight: 400;
+
+  color-scheme: light dark;
+  color: rgba(255, 255, 255, 0.87);
+  background-color: #242424;
+
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+
+  /* ============================================
+     DESIGN SYSTEM - Color Tokens
+     ============================================ */
+  
+  /* Primary Colors */
+  --color-primary: #2d3b8f;
+  --color-primary-dark: #2d2d73;
+  --color-primary-light: #3b82f6;
+  --color-primary-rgb: 45, 59, 143;
+  
+  /* Accent Colors */
+  --color-accent: #f1d429;
+  --color-accent-gold: #f39c12;
+  --color-accent-amber: #f59e0b;
+  --color-accent-cyan: #5aecff;
+  
+  /* Status Colors */
+  --color-success: #10b981;
+  --color-success-dark: #16a34a;
+  --color-success-light: #22c55e;
+  --color-success-bg: #f0fdf4;
+  
+  --color-danger: #ef4444;
+  --color-danger-dark: #dc2626;
+  --color-danger-light: #c62828;
+  --color-danger-bg: #fef2f2;
+  
+  --color-warning: #f39c12;
+  --color-warning-dark: #d97706;
+  --color-warning-bg: #fff9e6;
+  
+  --color-info: #2563eb;
+  --color-info-light: #3b82f6;
+  --color-info-bg: #f0f8ff;
+  
+  /* Neutral Colors - Text */
+  --color-text-primary: #1e293b;
+  --color-text-secondary: #334155;
+  --color-text-muted: #64748b;
+  --color-text-light: #666666;
+  --color-text-lighter: #888888;
+  --color-text-disabled: #9ca3af;
+  --color-text-dark: #333333;
+  --color-text-darkest: #111111;
+  
+  /* Neutral Colors - Backgrounds */
+  --color-bg-white: #ffffff;
+  --color-bg-light: #f8fafc;
+  --color-bg-muted: #f3f4f6;
+  --color-bg-hover: #f1f5f9;
+  --color-bg-disabled: #e5e7eb;
+  
+  /* Neutral Colors - Borders */
+  --color-border-light: #e2e8f0;
+  --color-border-default: #d1d5db;
+  --color-border-dark: #9ca3af;
+  --color-border-subtle: #eee;
+  
+  /* Role-specific Colors */
+  --color-role-resident: #5aecff;
+  --color-role-barangay: #8b5cf6;
+  --color-role-responder: #2563eb;
+  --color-role-admin: #ef4444;
+  
+  /* Chart/Map Colors */
+  --color-hotspot: #ef4444;
+  --color-safezone: #22c55e;
+  --color-chart-blue: #3b82f6;
+  --color-chart-purple: #a855f7;
+  --color-chart-orange: #f97316;
+  --color-chart-yellow: #eab308;
+  
+  /* Component Sizing */
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 8px;
+  --radius-xl: 12px;
+  --radius-full: 9999px;
+  
+  /* Shadows */
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.05);
+  --shadow-md: 0 4px 6px rgba(0, 0, 0, 0.1);
+  --shadow-lg: 0 10px 15px rgba(0, 0, 0, 0.1);
+}
+
+a {
+  font-weight: 500;
+  color: #646cff;
+  text-decoration: inherit;
+}
+a:hover {
+  color: #535bf2;
+}
+
+body {
+  margin: 0;
+  display: flex;
+  min-width: 320px;
+  min-height: 100vh;
+  overflow-x: hidden;
+  scroll-behavior: smooth;
+}
+
+/* Global scrollbar styles */
+html::-webkit-scrollbar,
+body::-webkit-scrollbar,
+#root::-webkit-scrollbar {
+  width: 8px;
+}
+
+html::-webkit-scrollbar-thumb,
+body::-webkit-scrollbar-thumb,
+#root::-webkit-scrollbar-thumb {
+  background: linear-gradient(135deg, #11163e, #0d0f2a);
+  border-radius: 4px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  transition: background 0.2s ease;
+}
+
+html::-webkit-scrollbar-thumb:hover,
+body::-webkit-scrollbar-thumb:hover,
+#root::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(135deg, #0d0f2a, #090b1f);
+}
+
+html::-webkit-scrollbar-track,
+body::-webkit-scrollbar-track,
+#root::-webkit-scrollbar-track {
+  background: linear-gradient(to bottom, #f8f9fa, #e9ecef);
+  border-radius: 4px;
+  margin: 4px 0;
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.05);
+}
+
+html::-webkit-scrollbar-corner,
+body::-webkit-scrollbar-corner,
+#root::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+/* Firefox scrollbar fallback with better support detection */
+@supports (scrollbar-width: thin) {
+  html,
+  body,
+  #root {
+    scrollbar-width: thin;
+    scrollbar-color: #11163e #f8f9fa;
+  }
+}
+
+h1 {
+  font-size: 3.2em;
+  line-height: 1.1;
+}
+
+button {
+  border-radius: 8px;
+  border: 1px solid transparent;
+  padding: 0.6em 1.2em;
+  font-size: 1em;
+  font-weight: 500;
+  font-family: inherit;
+  background-color: #1a1a1a;
+  cursor: pointer;
+  transition: border-color 0.25s;
+}
+button:hover {
+  border-color: #646cff;
+}
+button:focus,
+button:focus-visible {
+  outline: 4px auto -webkit-focus-ring-color;
+}
+
+@media (prefers-color-scheme: light) {
+  :root {
+    color: #213547;
+    background-color: #ffffff;
+  }
+  a:hover {
+    color: #747bff;
+  }
+  button {
+    background-color: #f9f9f9;
+  }
+}

@@ -1,0 +1,1369 @@
+/* Full page layout */
+.landing-container {
+    width: 100vw;
+    min-height: 100vh;
+    overflow-x: hidden;
+    font-family: 'Segoe UI', sans-serif;
+    background: linear-gradient(135deg, #040e26 0%, #082c5a 40%, #0d3c6f 100%);
+    color: #fff;
+}
+
+:root {
+    --nav-bg: #1d256a;
+    --navbar-height: 64px;
+    --primary-blue: #0b63d1;
+    --primary-blue-rgb: 11,99,209;
+    --card-bg: #ffffff;
+    --accent-gold: #f1d429;
+    --light-bg: #f6f8fc;
+    --dark-section-bg: #071737;
+    --gradient-bg: linear-gradient(135deg, #040d25 0%, #092c5d 45%, #0f3e73 100%);
+    --card-radius: 18px;
+    --faq-card-radius: 10px;
+    --faq-padding: 16px;
+    --faq-item-padding: 8px;
+    --faq-question-padding: 12px 10px;
+    --card-shadow: 0 22px 45px rgba(7, 22, 54, 0.14);
+    --text-dark: #0c2348;
+    --text-muted: #5a7096;
+    --text-light-muted: #c1d7ff;
+    --border-soft: rgba(12, 45, 105, 0.12);
+    /* Use this to control the hover buffer color; set to transparent to hide it visually, or to --dark-section-bg to match the section below */
+    --nav-hover-gap-bg: transparent;
+    --nav-focus-bg: rgba(255,255,255,0.06);
+    --nav-focus-ring: rgba(var(--primary-blue-rgb), 0.18);
+    --selection-bg: var(--accent-gold);
+    --selection-color: #071737;
+}
+
+* {
+    box-sizing: border-box;
+}
+
+.landing-container {
+    width: 100vw;
+    min-height: 100vh;
+    overflow-x: hidden;
+    font-family: "Segoe UI", sans-serif;
+    background: var(--gradient-bg);
+    color: #f5f7ff;
+}
+
+.navbar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    z-index: 20;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px 24px;
+    background-color: var(--nav-bg);
+    -webkit-backdrop-filter: blur(8px);
+    backdrop-filter: blur(8px);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.nav-left {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.nav-logo-img {
+    width: 40px;
+    height: 40px;
+    object-fit: contain;
+}
+
+.nav-logo-text {
+    font-size: 1.1rem;
+    font-weight: 700;
+    color: #ffffff;
+    font-family: "Georgia", "Times New Roman", Times, serif;
+}
+
+.nav-links {
+    display: flex;
+    align-items: center;
+    list-style: none;
+    gap: 24px;
+    margin: 0 20px 0 0;
+    padding-left: 0;
+    position: relative;
+}
+
+.nav-links a {
+    color: #f5f7ff;
+    text-decoration: none;
+    font-size: 1rem;
+    transition: color 0.2s ease, background-color 0.18s ease, transform 0.12s ease;
+    -webkit-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
+    user-select: none;
+    -webkit-tap-highlight-color: transparent;
+    display: inline-flex;
+    align-items: center;
+    padding: 8px 12px; /* slightly larger click/tap area */
+    margin: 0 6px; /* horizontal breathing room between items */
+    border-radius: 8px;
+    line-height: 1.05;
+    min-height: 40px; /* vertical tap target */
+}
+
+.nav-links a:hover {
+    color: var(--accent-gold);
+}
+
+.nav-item {
+    position: relative;
+}
+
+.dropdown-toggle {
+    background: none;
+    border: none;
+    color: #f5f7ff;
+    font-size: 1rem;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    cursor: pointer;
+    padding: 8px 12px;
+    -webkit-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
+    user-select: none;
+    -webkit-tap-highlight-color: transparent;
+}
+
+.dropdown-toggle svg {
+    font-size: 0.75rem;
+    transition: transform 0.2s ease;
+}
+
+.dropdown.open .dropdown-toggle svg {
+    transform: rotate(180deg);
+}
+
+.dropdown-menu {
+    position: absolute;
+    top: 48px;
+    left: 0;
+    min-width: 220px;
+    padding: 16px;
+    border-radius: 14px;
+    background-color: #0b1632;
+    box-shadow: 0 18px 45px rgba(3, 11, 30, 0.45);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    opacity: 0;
+    transform: translateY(6px);
+    visibility: hidden;
+    transition: opacity 180ms ease, transform 180ms ease, visibility 180ms;
+    pointer-events: none;
+    z-index: 30;
+}
+
+.dropdown.open .dropdown-menu,
+.dropdown-menu:hover,
+.nav-links.open .dropdown-menu {
+    opacity: 1;
+    transform: translateY(0);
+    visibility: visible;
+    pointer-events: auto;
+}
+
+.dropdown-menu a {
+    color: #d9e6ff;
+    font-size: 0.95rem;
+    padding: 10px 12px; /* slightly larger target for dropdown menu items */
+    border-radius: 8px;
+    transition: background-color 0.2s ease, color 0.2s ease;
+    -webkit-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
+    user-select: none;
+    -webkit-tap-highlight-color: transparent;
+}
+
+/* Keyboard focus ring for accessibility (no black blocks) */
+.nav-links a:focus-visible,
+.dropdown-toggle:focus-visible,
+.dropdown-menu a:focus-visible,
+.nav-links a:focus,
+.dropdown-toggle:focus,
+.dropdown-menu a:focus {
+    outline: none;
+    box-shadow: 0 0 0 4px var(--nav-focus-ring);
+    background-color: var(--nav-focus-bg);
+    border-radius: 6px;
+}
+
+/* Global selection color - improves default highlighted text */
+::selection {
+    background: var(--selection-bg);
+    color: var(--selection-color);
+}
+::-moz-selection { /* Firefox */
+    background: var(--selection-bg);
+    color: var(--selection-color);
+}
+
+.dropdown-menu a:hover {
+    background-color: rgba(var(--primary-blue-rgb), 0.25);
+    color: var(--accent-gold);
+}
+
+.external-icon {
+    font-size: 0.75rem;
+    margin-left: 6px;
+}
+
+.nav-divider {
+    width: 1px;
+    height: 28px;
+    background-color: rgba(255, 255, 255, 0.16);
+    margin: 0 10px; /* provide spacing from nav items */
+}
+
+.nav-auth a {
+    color: #9ecaff;
+    font-weight: 500;
+    padding: 6px 8px;
+}
+
+.signup-btn {
+    display: inline-block;
+    text-decoration: none;
+    background-color: var(--accent-gold);
+    color: #071737 !important;
+    border-radius: 8px;
+    padding: 6px 20px;
+    font-weight: 700;
+    transition: transform 0.2s ease, background-color 0.2s ease;
+}
+
+.signup-btn:hover {
+    background-color: #ffe05a;
+    transform: translateY(-1px);
+}
+
+.menu-toggle {
+    display: none;
+    background: none;
+    border: none;
+    color: #2bc2ff;
+    font-size: 1.6rem;
+    cursor: pointer;
+    margin-right: 12px;
+    z-index: 21;
+    -webkit-tap-highlight-color: transparent;
+    -webkit-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
+    user-select: none;
+}
+
+.nav-links.open {
+    display: flex;
+    flex-direction: column;
+    /* full-screen mobile overlay when opened, but start below navbar so nav remains visible */
+    position: fixed;
+    top: var(--navbar-height);
+    left: 0;
+    width: 100%;
+    height: calc(100vh - var(--navbar-height));
+    background: rgba(4, 13, 35, 0.96);
+    padding-top: 20px;
+    align-items: center;
+    /* keep overlay just under navbar so navbar stays visible */
+    z-index: 15;
+    overflow-y: auto;
+    /* Use standard, cross-browser properties instead of vendor-prefixed rule */
+    scroll-behavior: smooth; /* smoother scrolling for anchor jumps */
+    overscroll-behavior: contain; /* prevent scroll chaining / bounce */
+    touch-action: pan-y; /* improve touch performance and maintain vertical scroll */
+    transition: opacity 180ms ease, transform 200ms ease;
+}
+
+.nav-links.open li {
+    width: 100%;
+    padding: 18px 0; /* larger tap targets */
+    text-align: center;
+}
+
+.nav-links.open a {
+    display: block;
+    width: 94%;
+    margin: 0 auto;
+    padding: 14px 18px; /* bigger click area on mobile */
+    border-radius: 10px;
+}
+
+/* Subtle hover style that keeps a polished look */
+.nav-links a:hover,
+.dropdown-toggle:hover {
+    background-color: rgba(255,255,255,0.03);
+    transform: translateY(-1px);
+}
+
+/* Slightly increase spacing between top-level nav items to improve readability */
+.nav-links {
+    gap: 24px;
+}
+
+.nav-links.open .dropdown-menu {
+    position: static;
+    width: 90%;
+    margin: 8px auto 0;
+    box-shadow: none;
+    border-radius: 12px;
+    background-color: rgba(12, 32, 70, 0.88);
+}
+
+.nav-links.open .dropdown-menu a {
+    text-align: left;
+}
+
+.hero-section {
+    min-height: 90vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 140px 8% 100px;
+}
+
+.hero-content {
+    max-width: 960px;
+}
+
+.headline-badges {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-bottom: 18px;
+}
+
+.headline-badges span {
+    background-color: rgba(13, 102, 210, 0.25);
+    border: 1px solid rgba(158, 202, 255, 0.35);
+    color: #dedede;
+    padding: 6px 12px;
+    border-radius: 999px;
+    font-size: 0.85rem;
+    letter-spacing: 0.03em;
+}
+
+.hero-content h1 {
+    font-size: 3.4rem;
+    line-height: 1.2;
+    margin-bottom: 20px;
+    font-family: "Georgia", "Times New Roman", Times, serif;
+}
+
+.hero-content p {
+    font-size: 1.15rem;
+    color: #fff01f;
+    margin-bottom: 32px;
+    max-width: 680px;
+}
+
+.hero-actions {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 14px;
+    margin-bottom: 42px;
+}
+
+.get-started-btn {
+    background-color: #ffffff;
+    color: #0a1f42;
+    padding: 10px 26px;
+    font-size: 1rem;
+    font-weight: 600;
+    border-radius: 8px;
+    text-decoration: none;
+    transition: background-color 0.2s ease, transform 0.2s ease;
+}
+
+.get-started-btn:hover {
+    background-color: #f1f5ff;
+    transform: translateY(-1px);
+}
+
+.secondary-btn {
+    display: inline-block;
+    color: #9ecaff;
+    font-weight: 500;
+    border-bottom: 1px solid transparent;
+    padding-bottom: 2px;
+}
+
+.secondary-btn:hover {
+    border-color: #9ecaff;
+}
+
+.landing-container .stat-grid {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 20px;
+    max-width: 1040px;
+    margin: 0 auto;
+    justify-items: center;
+}
+
+.landing-container .stat-card {
+    background-color: #ffffff;
+    border: 1px solid var(--border-soft);
+    border-radius: 16px;
+    padding: 26px 28px;
+    transition: transform 0.25s ease, box-shadow 0.25s ease, border-color 0.25s ease;
+    overflow: hidden;
+    min-height: 190px;
+    width: 100%;
+    max-width: 260px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    gap: 10px;
+    box-shadow: var(--card-shadow);
+}
+
+.landing-container .stat-card:hover {
+    background-color: #ffffff;
+    border: 1px solid var(--border-soft);
+    box-shadow: 0 28px 55px rgba(8, 30, 70, 0.18);
+    transform: translateY(-6px);
+}
+
+.landing-container .stat-card strong {
+    display: block;
+    font-size: 2.2rem;
+    color: var(--accent-gold);
+    margin-bottom: 8px;
+    word-wrap: break-word;
+    line-height: 1.2;
+}
+
+.landing-container .stat-card span {
+    display: block;
+    font-weight: 700;
+    margin-bottom: 10px;
+    color: var(--text-dark);
+    word-wrap: break-word;
+    font-size: 1.05rem;
+    line-height: 1.3;
+}
+
+.landing-container .stat-card p {
+    font-size: 0.9rem;
+    color: #2d2d2d;
+    word-wrap: break-word;
+    overflow-wrap: break-word;
+    line-height: 1.5;
+    margin: 0;
+}
+
+.section {
+    padding: 110px 8%;
+}
+
+.section.light {
+    background-color: var(--light-bg);
+    color: var(--text-dark);
+}
+
+.section.dark {
+    background-color: var(--dark-section-bg);
+    color: #e9f1ff;
+}
+
+.section-heading {
+    max-width: 900px;
+    margin: 0 auto 52px;
+    text-align: center;
+    color: #fff01f;
+}
+
+.section-heading h2 {
+    font-size: 2.6rem;
+    margin-bottom: 16px;
+    font-family: "Georgia", "Times New Roman", Times, serif;
+}
+
+.section-desc {
+    font-size: 1.05rem;
+    line-height: 1.7;
+    color: var(--text-muted);
+}
+
+.section.dark .section-desc {
+    color: #dde7ff;
+}
+
+.section.dark .section-heading h2 {
+    color: var(--accent-gold);
+}
+
+#capabilities .section-heading h2 {
+    color: var(--accent-gold);
+}
+
+#workflow .section-heading h2 {
+    color: #8ed4ff;
+}
+
+.feature-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 26px;
+}
+
+.feature-card {
+    background-color: #ffffff;
+    color: var(--text-dark);
+    padding: 26px;
+    border-radius: var(--card-radius);
+    border: 1px solid var(--border-soft);
+    box-shadow: var(--card-shadow);
+    transition: transform 0.25s ease, box-shadow 0.25s ease;
+}
+
+.feature-card:hover {
+    transform: translateY(-6px);
+    box-shadow: 0 28px 55px rgba(8, 30, 70, 0.18);
+}
+
+.feature-icon {
+    font-size: 2rem;
+    color: var(--primary-blue);
+    margin-bottom: 16px;
+}
+
+.feature-card p {
+    color: #36557d;
+    line-height: 1.6;
+}
+
+.capability-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 26px;
+}
+
+.capability-card {
+    background-color: rgba(10, 26, 58, 0.82);
+    border-radius: var(--card-radius);
+    border: 1px solid rgba(126, 202, 255, 0.24);
+    padding: 26px;
+    box-shadow: 0 20px 48px rgba(4, 16, 38, 0.4);
+}
+
+.capability-icon {
+    font-size: 2.2rem;
+    color: #8ed4ff;
+    margin-bottom: 14px;
+}
+
+.capability-card h3 {
+    color: var(--accent-gold);
+}
+
+.capability-card p {
+    color: #d5e7ff;
+    line-height: 1.6;
+}
+
+.card-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 24px;
+}
+
+.role-card {
+    background-color: #ffffff;
+    border-radius: var(--card-radius);
+    padding: 26px;
+    box-shadow: var(--card-shadow);
+    border: 1px solid var(--border-soft);
+}
+
+.role-icon {
+    font-size: 2.2rem;
+    color: var(--primary-blue);
+    margin-bottom: 14px;
+}
+
+.role-card ul {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: grid;
+    gap: 10px;
+}
+
+.role-card li {
+    color: #305079;
+    font-size: 0.96rem;
+    line-height: 1.6;
+}
+
+.process {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    gap: 22px;
+}
+
+.process-step {
+    display: flex;
+    gap: 16px;
+    align-items: flex-start;
+    background-color: rgba(11, 33, 78, 0.82);
+    border-radius: var(--card-radius);
+    border: 1px solid rgba(134, 198, 255, 0.2);
+    padding: 24px;
+    color: #eaf2ff;
+}
+
+.step-index {
+    font-weight: 700;
+    color: var(--accent-gold);
+    font-size: 1.1rem;
+}
+
+.process-step h3 {
+    color: #f8fbff;
+}
+
+.process-step p {
+    color: #dbe8ff;
+}
+
+.process-note {
+    margin-top: 40px;
+    display: flex;
+    gap: 12px;
+    align-items: center;
+    color: #f2f7ff;
+    font-size: 0.95rem;
+}
+
+.process-note p {
+    color: #f6f9ff;
+}
+
+.card-grid.tech {
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+}
+
+.tech-card {
+    background-color: #ffffff;
+    color: var(--text-dark);
+    border-radius: var(--card-radius);
+    padding: 26px;
+    box-shadow: var(--card-shadow);
+    border: 1px solid var(--border-soft);
+}
+
+.tech-icon {
+    font-size: 2.1rem;
+    color: var(--primary-blue);
+    margin-bottom: 12px;
+}
+
+.deployment-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    gap: 26px;
+}
+
+.deployment-card {
+    background-color: rgba(9, 25, 56, 0.82);
+    border-radius: var(--card-radius);
+    border: 1px solid rgba(126, 201, 255, 0.24);
+    padding: 26px;
+    color: #f0f7ff;
+}
+
+.deployment-icon {
+    font-size: 2rem;
+    color: #8cd0ff;
+    margin-bottom: 14px;
+}
+
+.deployment-card h3 {
+    color: var(--accent-gold);
+}
+
+.deployment-card p {
+    color: #f6fbff;
+}
+
+.integration-banner {
+    display: flex;
+    gap: 14px;
+    align-items: center;
+    justify-content: center;
+    font-size: 1rem;
+    padding: 20px 24px;
+    border: 1px solid rgba(150, 204, 255, 0.32);
+    border-radius: 16px;
+    background-color: rgba(12, 36, 80, 0.6);
+}
+
+.integration-banner span {
+    color: #d4e5ff;
+}
+
+.faq-grid {
+    display: grid;
+    /* Default: rows stacked vertically, content constrained to a centered column for a more compact, professional look */
+    grid-template-columns: 1fr;
+    gap: 14px;
+    max-width: 720px; /* more compact width */
+    margin: 0 auto;
+    padding: 0 8px; /* slightly reduced side padding */
+    border-radius: var(--faq-card-radius); /* rounded corners for container */
+}
+
+.faq-category { max-width: 980px; margin: 0 auto; }
+
+.faq-card {
+    background-color: var(--card-bg);
+    color: var(--text-dark);
+    border-radius: var(--faq-card-radius);
+    padding: var(--faq-padding);
+    box-shadow: var(--card-shadow);
+    border: 1px solid var(--border-soft);
+}
+
+.faq-icon {
+    font-size: 1.9rem;
+    color: var(--primary-blue);
+    margin-bottom: 12px;
+}
+
+.team-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    gap: 24px;
+}
+
+.team-card {
+    background-color: rgba(9, 26, 58, 0.82);
+    border-radius: var(--card-radius);
+    padding: 26px;
+    border: 1px solid rgba(134, 200, 255, 0.28);
+    color: #dbe9ff;
+}
+
+.team-card h3 {
+    margin-bottom: 12px;
+    color: var(--accent-gold);
+}
+
+.team-card p {
+    color: #f4f8ff;
+}
+
+.footer {
+    background-color: #050f23;
+    padding: 70px 8% 40px;
+    color: #cbd8f1;
+}
+
+.footer-top {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    gap: 40px;
+    margin-bottom: 30px;
+}
+
+.footer-column h3 {
+    color: var(--accent-gold);
+    margin-bottom: 15px;
+}
+
+.footer-column a {
+    color: #e4ecff;
+    text-decoration: none;
+    transition: color 0.2s ease;
+}
+
+.footer-column a:hover {
+    color: #2dc4ff;
+}
+
+.footer-column ul {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    line-height: 1.8;
+}
+
+.footer-column p {
+    color: #b9c9e8;
+    margin: 4px 0;
+}
+
+.footer-bottom {
+    text-align: center;
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
+    padding-top: 18px;
+    font-size: 0.9rem;
+    color: var(--accent-gold);
+}
+
+.footer-bottom p {
+    margin: 0;
+}
+
+.reveal {
+    opacity: 0;
+    transform: translateY(18px);
+    transition: opacity 560ms cubic-bezier(.2,.9,.2,1), transform 560ms cubic-bezier(.2,.9,.2,1);
+    will-change: opacity, transform;
+}
+
+.reveal.is-visible {
+    opacity: 1;
+    transform: translateY(0);
+}
+
+.hero-section.reveal {
+    transform: translateY(8px);
+}
+.hero-section.reveal.is-visible {
+    transition-duration: 420ms;
+}
+
+.feature-card.reveal,
+.capability-card.reveal,
+.process-step.reveal,
+.deployment-card.reveal {
+    transition-duration: 420ms;
+}
+
+@media (max-width: 1024px) {
+    .feature-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+
+    .landing-container .stat-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+}
+
+@media (max-width: 768px) {
+    .menu-toggle {
+        display: block;
+    }
+
+    .nav-links {
+        display: none;
+    }
+
+    .navbar {
+        padding: 12px 16px;
+    }
+
+    .hero-section {
+        padding: 120px 24px 90px;
+        text-align: center;
+    }
+
+    .hero-content p,
+    .landing-container .stat-card p {
+        text-align: center;
+    }
+
+    .hero-actions {
+        justify-content: center;
+    }
+
+    .secondary-btn {
+        margin-left: 0;
+    }
+
+    .footer-top {
+        grid-template-columns: 1fr;
+    }
+}
+
+/* Mobile: hide dropdown panels inside the overlay by default; they open only when the user taps the dropdown toggle (li will get .open) */
+@media (max-width: 768px) {
+    .nav-links.open .dropdown-menu {
+        display: none;
+        opacity: 0;
+        transform: none;
+        visibility: hidden;
+        pointer-events: none;
+    }
+
+    .nav-item.open .dropdown-menu {
+        display: block;
+        opacity: 1;
+        visibility: visible;
+        pointer-events: auto;
+    }
+
+    /* Lock body scroll when menu is open via JS class `no-scroll` */
+    body.no-scroll {
+        overflow: hidden;
+    }
+}
+
+/* Mobile: make dropdown links fill the overlay width and match nav item sizing
+   Apply to both the dropdown-menu inside the overlay and the login menu. */
+@media (max-width: 768px) {
+    .nav-links.open .dropdown-menu a,
+    .nav-links.open .dropdown-menu a:link,
+    .nav-links.open .dropdown-menu a:visited,
+    .login-dropdown-menu a {
+        display: block !important;
+        width: 94%;
+        margin: 0 auto;
+        padding: 14px 18px;
+        border-radius: 10px;
+        text-align: center;
+        box-sizing: border-box;
+    }
+
+    .nav-links.open li,
+    .login-dropdown-menu li {
+        width: 100%;
+        padding: 0 0 12px 0;
+        list-style: none;
+    }
+
+    /* Ensure the login dropdown list looks consistent inside the mobile overlay */
+    .login-dropdown-menu {
+        width: 100%;
+        display: block;
+        padding: 8px 0 18px;
+        background: transparent;
+    }
+}
+
+/* Center dropdown toggles and make login menu container dark with white text inside mobile overlay */
+@media (max-width: 768px) {
+    /* Make the dropdown toggle buttons center and match overlay width */
+    .nav-links.open .dropdown-toggle {
+        width: 94%;
+        margin: 0 auto;
+        justify-content: center;
+        display: flex;
+        text-align: center;
+        padding: 14px 18px;
+    
+    /* Make the hover-gap pseudo-element very thin on mobile and keep it non-interactive.
+       Also convert the desktop vertical divider into a subtle horizontal rule between
+       menu items for clearer separation without heavy color blocks. */
+    .nav-links.has-dropdown:after {
+        content: "";
+        position: absolute;
+        left: 6%;
+        right: 6%;
+        top: 100%;
+        height: 1px; /* thin line */
+        background: rgba(255,255,255,0.06);
+        pointer-events: none;
+        opacity: 1;
+        visibility: visible;
+        z-index: 10;
+        transition: opacity 120ms ease, visibility 120ms ease;
+    }
+        border-radius: 10px;
+    }
+
+    /* Ensure the dropdown panel matches the centered width and centers its links */
+    .nav-links.open .dropdown-menu {
+        width: 94%;
+        margin: 8px auto 0;
+        text-align: center;
+        background-color: rgba(12, 32, 70, 0.88);
+        box-shadow: none;
+        border-radius: 12px;
+        display: none; /* remain hidden until parent li has .open */
+    }
+
+    .nav-item.open .dropdown-menu {
+        display: block;
+    }
+
+    .nav-links.open .dropdown-menu a {
+        display: block;
+        width: 100%;
+        margin: 6px 0;
+        padding: 12px 14px;
+        text-align: center;
+        color: #ffffff;
+    }
+
+    /* Make login dropdown look and behave like other dropdowns in the overlay: dark container with white text */
+    .nav-links.open .login-dropdown-menu {
+        position: static;
+        width: 94%;
+        margin: 8px auto 0;
+        background: rgba(12, 32, 70, 0.92);
+        border-radius: 12px;
+        box-shadow: none;
+        padding: 8px 0 14px;
+        display: none; /* show when parent has .open */
+    }
+
+    .nav-auth.open .login-dropdown-menu,
+    .nav-item.open .login-dropdown-menu,
+    .login-dropdown.open .login-dropdown-menu {
+        display: block;
+    }
+
+    .nav-links.open .login-dropdown-menu a {
+        color: #ffffff;
+        padding: 12px 16px;
+        display: block;
+        width: 100%;
+        text-align: center;
+    }
+}
+
+/* Disable hover gap pseudo-element on small screens (mobile) to avoid interfering with touch interactions */
+@media (max-width: 768px) {
+    .nav-links.has-dropdown:after {
+        display: none;
+        opacity: 0;
+        pointer-events: none;
+    }
+}
+
+@media (max-width: 600px) {
+    .feature-grid,
+    .capability-grid,
+    .card-grid,
+    .deployment-grid,
+    .faq-grid,
+    .team-grid,
+    .process,
+    .landing-container .stat-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .section {
+        padding: 80px 20px;
+    }
+
+    .section-heading h2 {
+        font-size: 2.1rem;
+    }
+
+    .process-step {
+        flex-direction: column;
+    }
+}
+
+@media (max-width: 480px) {
+    .hero-section {
+        padding: 110px 18px 70px;
+    }
+
+    .hero-content h1 {
+        font-size: 2rem;
+    }
+
+    .hero-content p {
+        font-size: 1rem;
+        margin-bottom: 26px;
+    }
+
+    .headline-badges {
+        gap: 6px;
+    }
+
+    .headline-badges span {
+        font-size: 0.75rem;
+        padding: 6px 10px;
+    }
+
+    .hero-actions {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 10px;
+    }
+
+    .get-started-btn,
+    .secondary-btn {
+        text-align: center;
+        width: 100%;
+    }
+
+    .landing-container .stat-grid {
+        gap: 16px;
+    }
+
+    .landing-container .stat-card {
+        padding: 16px;
+    }
+
+    .feature-card,
+    .capability-card,
+    .deployment-card,
+    .team-card,
+    .process-step {
+        padding: 20px;
+    }
+
+    .section {
+        padding: 70px 16px;
+    }
+
+    .section-heading h2 {
+        font-size: 1.9rem;
+    }
+
+    .section-desc {
+        font-size: 0.98rem;
+    }
+
+    .process-note {
+        flex-direction: column;
+        text-align: center;
+    }
+
+    .integration-banner {
+        flex-direction: column;
+        text-align: center;
+    }
+
+    .footer {
+        padding: 60px 16px 30px;
+    }
+}
+.dropdown-toggle.pinned {
+    background-color: rgba(255,255,255,0.06);
+    border-radius: 8px;
+    
+}
+
+.nav-links.has-dropdown:after {
+    content: "";
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: 100%;
+    height: 22px;
+    pointer-events: none; /* disable pointer events by default to prevent accidental trigger */
+    opacity: 0;
+    visibility: hidden;
+    z-index: 10;
+    transition: opacity 120ms ease, visibility 120ms ease;
+}
+
+.nav-links.has-dropdown.show-gap:after {
+    opacity: 1;
+    visibility: visible;
+    pointer-events: auto; /* only interactive in developer preview */
+}
+
+/* Prevent odd black backgrounds on click/active states in some browsers */
+.nav-links a:active,
+.dropdown-toggle:active,
+.dropdown-menu a:active,
+.login-btn:active,
+.login-dropdown-menu a:active {
+    background: transparent;
+    color: inherit;
+    box-shadow: none;
+}
+
+.faq-category {
+    /* Use light, card-like surfaces for the light section so text contrast is clear */
+    background-color: var(--light-bg);
+    color: var(--text-dark);
+    padding: calc(var(--faq-padding) - 4px) calc(var(--faq-padding));
+    border-radius: var(--faq-card-radius);
+    border: 1px solid var(--border-soft);
+    box-shadow: 0 12px 30px rgba(6, 22, 55, 0.06);
+}
+
+.faq-category-title {
+    color: var(--accent-gold);
+    font-size: 1.1rem;
+    margin-bottom: 12px;
+}
+
+.faq-accordion {
+    display: grid;
+    gap: 8px;
+}
+
+.faq-item {
+    background-color: var(--card-bg); /* card surface for clean contrast on light card */
+    border-radius: var(--faq-card-radius) !important; /* use theme radius for consistency */
+    padding: var(--faq-item-padding);
+    overflow: hidden;
+    border: 1px solid var(--border-soft);
+}
+
+.faq-accordion {
+    display: grid;
+    gap: 8px;
+}
+
+.faq-item { 
+    background-color: var(--card-bg); /* card surface for clean contrast on light card */
+    border-radius: var(--compact-card-radius);
+    padding: calc(var(--compact-card-padding) / 1.2);
+    overflow: hidden;
+    border: 1px solid var(--border-soft);
+}
+.faq-item:hover { border-color: rgba(var(--primary-blue-rgb), 0.18); box-shadow: 0 8px 20px rgba(var(--primary-blue-rgb), 0.04); }
+
+.faq-question { 
+    width: 100%;
+    background: transparent;
+    border: none;
+    text-align: left;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    color: var(--text-dark);
+    font-weight: 700;
+    padding: var(--faq-question-padding);
+    cursor: pointer;
+    transition: color 120ms ease, background-color 120ms ease, font-size 120ms ease;
+}
+
+.faq-question:hover { color: var(--primary-blue); background-color: rgba(var(--primary-blue-rgb), 0.06); border-radius: 6px; }
+.faq-question:focus-visible { box-shadow: 0 0 0 4px var(--nav-focus-ring); background-color: var(--nav-focus-bg); border-radius: 6px; }
+
+.faq-toggle {
+    color: var(--accent-gold);
+    margin-left: 8px;
+    font-weight: 700;
+}
+
+.faq-answer {
+    max-height: 0;
+    transition: max-height 200ms ease, padding 160ms ease;
+    overflow: hidden;
+    color: var(--text-dark);
+    padding: 0 12px;
+}
+.faq-answer a { color: var(--primary-blue); text-decoration: underline; }
+
+.faq-item.open .faq-answer {
+    max-height: 360px;
+    padding-top: 8px;
+    padding-bottom: 12px;
+}
+
+.faq-item p { margin: 0; font-size: calc(0.95rem * var(--compact-font-scale)); line-height: 1.45; }
+.faq-question { font-size: 1rem; }
+.faq-item { padding: 8px; }
+
+/* Scroll-to-top button (bottom-right) */
+.scroll-top-btn {
+    position: fixed;
+    right: 18px;
+    bottom: 22px;
+    z-index: 60;
+    width: 44px;
+    height: 44px;
+    border-radius: 10px;
+    display: inline-grid;
+    place-items: center;
+    background-color: var(--nav-bg);
+    color: #ffffff;
+    cursor: pointer;
+    border: none;
+    box-shadow: 0 8px 20px rgba(6,22,55,0.12);
+    transition: transform 120ms ease, opacity 180ms ease;
+    opacity: 0;
+    pointer-events: none;
+}
+.scroll-top-btn.visible {
+    opacity: 1;
+    pointer-events: auto;
+    transform: translateY(0);
+}
+.scroll-top-btn:focus-visible { outline: none; box-shadow: 0 0 0 4px var(--nav-focus-ring); }
+.scroll-top-btn svg { width: 18px; height: 18px; }
+.scroll-top-btn:hover { background-color: var(--primary-blue); color: #fff; transform: translateY(-3px); }
+
+/* Login dropdown (nav) */
+.nav-auth { position: relative; }
+.login-btn {
+    background: transparent;
+    border: 1px solid transparent;
+    color: inherit;
+    cursor: pointer;
+    padding: 8px 12px;
+    border-radius: 8px;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-weight: 600;
+}
+.login-btn:focus { outline: none; box-shadow: 0 0 0 4px var(--nav-focus-ring); }
+.login-caret { font-size: 0.8rem; opacity: 0.9; }
+.login-dropdown-menu {
+    position: absolute;
+    right: 0;
+    /* reduce gap so cursor can move from button to panel without leaving the hover area */
+    top: calc(100% + 4px);
+    background: var(--card-bg);
+    color: var(--text-dark);
+    border-radius: 10px;
+    box-shadow: 0 12px 30px rgba(7,22,54,0.12);
+    padding: 6px 0;
+    min-width: 200px;
+    display: none;
+    z-index: 60;
+}
+.login-dropdown-menu.open { display: block; }
+.login-dropdown-menu li { list-style: none; }
+.login-dropdown-menu a {
+    display: block;
+    padding: 10px 14px;
+    color: inherit;
+    text-decoration: none;
+    font-size: 0.95rem;
+}
+.login-dropdown-menu a:hover { background-color: rgba(var(--primary-blue-rgb), 0.06); color: var(--primary-blue); }
+
+/* Mirror nav dropdown behaviour: show login menu only when its parent has .open.
+   Previously this also showed when the entire mobile nav overlay opened (`.nav-links.open`)
+   which caused the login list to display immediately on mobile. Remove that behavior
+   so login menu behaves like other dropdowns and only opens on interaction. */
+.login-dropdown.open .login-dropdown-menu {
+    display: block;
+    opacity: 1;
+    transform: translateY(0);
+    visibility: visible;
+    pointer-events: auto;
+}
+
+/* Keep login button text as accent gold to match header accent */
+.login-btn { color: var(--accent-gold); }
+
+@media (max-width: 768px) {
+    .login-dropdown-menu { position: static; box-shadow: none; background: transparent; padding: 0; min-width: auto; }
+    .login-dropdown-menu a { padding: 12px 0; }
+    .login-btn { padding: 10px; }
+}
+
+/* When menu overlay is open, slightly dim page content behind it for clarity */
+.nav-links.open ~ main,
+.nav-links.open ~ footer,
+.nav-links.open .hero-section,
+.nav-links.open + main {
+    /* Subtle dimming to visually emphasize the mobile nav overlay without blocking interactions */
+    filter: brightness(0.94) saturate(0.98);
+    transition: filter 180ms ease, opacity 180ms ease;
+}

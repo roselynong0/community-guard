@@ -1,0 +1,22 @@
+services:
+  - name: community-guard-backend
+    type: web
+    env: python
+    pythonVersion: 3.11.6
+    buildCommand: "cd backend && pip install -r requirements.txt"
+    startCommand: "gunicorn --bind 0.0.0.0:$PORT app:create_app()"
+    envVars:
+      - key: SUPABASE_URL
+        fromService:
+          name: supabase
+          type: postgres
+          envVarKey: DATABASE_URL
+      - key: SUPABASE_KEY
+        fromService:
+          name: supabase
+          type: postgres
+          envVarKey: DATABASE_KEY
+    healthCheckPath: /api/health
+    autoDeploy: true
+    region: oregon
+    plan: free

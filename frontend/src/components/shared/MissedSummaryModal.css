@@ -1,0 +1,87 @@
+.missed-overlay{
+    position:fixed;inset:0;
+    background:rgba(0,0,0,0.45);
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    z-index:20;
+}
+.missed-modal{
+    width:520px;
+    max-width:96%;
+    max-height:80vh;
+    background:var(--surface);
+    border-radius:10px;
+    box-shadow:0 10px 30px rgba(17,22,62,0.12);
+    overflow-x:hidden;
+    display:flex;
+    flex-direction:column;
+}
+.missed-header{
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    padding:12px 16px;
+    border-bottom:1px solid rgba(17,22,62,0.06);
+    gap:10px;
+}
+.missed-header-left h2{margin:0;font-size:1.05rem;color:var(--primary);}
+.missed-header-left .subtitle{margin:4px 0 0;font-size:0.85rem}
+.online-row{display:flex;align-items:center;gap:8px;margin-top:6px}
+.online-dot{width:10px;height:10px;border-radius:50%;background:#24a148;box-shadow:0 0 0 4px rgba(36,161,72,0.08)}
+.online-text{color:#24a148;font-weight:700;font-size:0.95rem}
+.missed-header-right{display:flex;align-items:center;gap:10px}
+.ch-badge{display:inline-flex;align-items:center;gap:8px;padding:6px 10px;background:#2d3b8f;color:#fff;border-radius:12px;font-weight:700;font-size:0.85rem}
+.muted{
+    color:rgba(17,22,62,0.55);
+    font-size:0.85rem;
+}
+.close-btn{
+    background:transparent;
+    border:0;
+    color:var(--primary);
+    font-weight:600;
+    padding:8px 10px;
+    border-radius:6px}
+.missed-body{display:grid;grid-template-columns:1fr;gap:12px;padding:14px 16px;overflow-y:auto;max-height:calc(80vh - 160px);}
+.no-reports-center{display:flex;flex-direction:column;align-items:center;justify-content:center;padding:14px 12px;gap:8px}
+.no-reports-icon{font-size:36px;background:#ecfbf1;color:#2d8a4a;border-radius:999px;width:56px;height:56px;display:flex;align-items:center;justify-content:center}
+.no-reports-center h3{margin:6px 0 0;font-size:1rem}
+.no-reports-center p{margin:2px 0 0;font-size:0.85rem;color:rgba(17,22,62,0.6)}
+.subtitle{color:rgba(17,22,62,0.7)}
+.missed-stats{display:flex;gap:10px}
+.stat-card{flex:1;background:linear-gradient(180deg,rgba(255,255,255,0.98),rgba(250,250,250,0.98));padding:10px;border-radius:8px;border:1px solid rgba(17,22,62,0.03)}
+.stat-card .big{font-size:1.6rem;margin:6px 0;color:var(--primary)}
+.missed-charts{display:flex;gap:10px;align-items:flex-start}
+.chart-card{flex:1;background:var(--surface);padding:10px;border-radius:8px;border:1px solid rgba(17,22,62,0.03)}
+.pie{width:100px;height:100px}
+.legend{list-style:none;margin:8px 0;padding:0}
+.legend-item{display:flex;align-items:center;gap:8px;font-size:0.9rem;margin:6px 0}
+.swatch{width:12px;height:12px;border-radius:2px}
+.cards-row{display:flex;gap:10px;align-items:stretch}
+.small-card{flex:1;min-width:140px;background:linear-gradient(180deg,rgba(255,255,255,0.98),rgba(250,250,250,0.98));padding:10px;border-radius:8px;border:1px solid rgba(17,22,62,0.03);display:flex;flex-direction:column;align-items:flex-start;justify-content:center;gap:6px}
+.card-title{font-size:0.85rem;color:rgba(17,22,62,0.75);font-weight:600}
+.card-count{font-size:1.4rem;font-weight:700;color:var(--primary)}
+.card-sub{font-size:0.8rem;color:rgba(17,22,62,0.55)}
+.category-scroller{display:flex;gap:10px;overflow-x:auto;padding:6px 4px}
+.category-card{min-width:110px;background:rgba(245,246,250,0.95);border-radius:8px;padding:8px;border:1px solid rgba(17,22,62,0.04);display:flex;flex-direction:column;align-items:flex-start}
+.category-name{font-weight:700;font-size:0.9rem}
+.category-count{font-size:1rem;color:var(--primary);margin-top:6px}
+.top-list{margin:0;padding:0 0 0 14px;max-height:160px;overflow:auto}
+.top-list li{margin:6px 0}
+.top-title{font-weight:600}
+.top-meta{font-size:0.82rem;color:rgba(17,22,62,0.6)}
+.missed-footer{display:flex;justify-content:flex-end;padding:10px 14px;border-top:1px solid rgba(17,22,62,0.06)}
+.primary{background:var(--primary);color:var(--surface);border:0;padding:8px 12px;border-radius:8px;font-weight:700}
+@media(max-width:720px){
+    .missed-modal{width:95%;padding:0}
+    .missed-stats{flex-direction:column}
+    .missed-charts{flex-direction:column}
+    .cards-row{flex-direction:row;overflow-x:auto}
+}
+
+/* Small scrollbar touchups */
+.category-scroller::-webkit-scrollbar{height:8px}
+.category-scroller::-webkit-scrollbar-thumb{background:rgba(17,22,62,0.12);border-radius:999px}
+.top-list::-webkit-scrollbar{width:8px}
+.top-list::-webkit-scrollbar-thumb{background:rgba(17,22,62,0.08);border-radius:999px}
