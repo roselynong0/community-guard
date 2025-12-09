@@ -52,6 +52,8 @@ function PrivacyModal({ isOpen, onClose }) {
             LGU or barangay office. You can also reach the platform team at
             the contact details provided on the website.
           </p>
+          {/* Okay Again*/}
+
         </div>
 
         <button className="terms-close-btn" onClick={onClose}>
