@@ -52,12 +52,6 @@ function PrivacyModal({ isOpen, onClose }) {
             LGU or barangay office. You can also reach the platform team at
             the contact details provided on the website.
           </p>
-
-          <p>
-            Note: This page consolidates LGU and barangay policies — replace
-            this placeholder text with the official wording from your LGU and
-            barangays as needed.
-          </p>
         </div>
 
         <button className="terms-close-btn" onClick={onClose}>

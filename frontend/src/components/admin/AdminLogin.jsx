@@ -78,7 +78,7 @@ export default function AdminLogin({ setSession, setNotification }) {
           localStorage.removeItem("token");
           localStorage.removeItem("session");
           
-          // Redirect to the correct login page for the user's role
+          // Redirect to the correct login page for the user's role hi.
           const roleToPath = {
             "Admin": "/login?role=admin",
             "Barangay Official": "/login?role=barangay",
