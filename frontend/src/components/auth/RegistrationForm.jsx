@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { FaEye, FaEyeSlash, FaArrowLeft } from "react-icons/fa";
 import TermsModal from "../shared/TermsModal";
+import PrivacyModal from "../shared/PrivacyModal";
 import "./LoginForm.css";
 import "./RegistrationForm.css";
 import "../shared/Notification.css";
@@ -28,6 +29,7 @@ function RegistrationForm() {
   const [errors, setErrors] = useState({});
   const [notification, setNotification] = useState({ message: "", type: "" });
   const [showTerms, setShowTerms] = useState(false);
+	const [showPrivacy, setShowPrivacy] = useState(false);
   const [passwordTouched, setPasswordTouched] = useState(false);
 
   const [passwordStatus, setPasswordStatus] = useState({
@@ -290,22 +292,22 @@ function RegistrationForm() {
 )}
 
 <label className="checkbox">
-  <input
-	type="checkbox"
-	name="agree"
-	checked={formData.agree}
-	onChange={handleChange}
-  />
-  <span>
-	I agree with{" "}
-	<a
-	  type="button"
-	  className="terms-btn"
-	  onClick={() => setShowTerms(true)}
-	>
-	  Terms & Conditions
-	</a>
-  </span>
+	<input
+		type="checkbox"
+		name="agree"
+		checked={formData.agree}
+		onChange={handleChange}
+	/>
+	<span>
+		I agree with{" "}
+		<a type="button" className="terms-btn" onClick={() => setShowTerms(true)}>
+			Terms & Conditions
+		</a>
+		{" "}and{" "}
+		<a type="button" className="terms-btn" onClick={() => setShowPrivacy(true)}>
+			Privacy Policy
+		</a>
+	</span>
 </label>
 {errors.agree && <p className="error">{errors.agree}</p>}
 
@@ -321,6 +323,7 @@ function RegistrationForm() {
 </div>
 
 <TermsModal isOpen={showTerms} onClose={() => setShowTerms(false)} />
+<PrivacyModal isOpen={showPrivacy} onClose={() => setShowPrivacy(false)} />
 </div>
 );
 }

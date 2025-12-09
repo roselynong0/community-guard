@@ -2,6 +2,8 @@ import React, { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { FaEye, FaEyeSlash, FaArrowLeft } from "react-icons/fa";
 import VerificationRenewalModal from "../shared/VerificationRenewalModal";
+import TermsModal from "../shared/TermsModal";
+import PrivacyModal from "../shared/PrivacyModal";
 import { API_CONFIG, getApiUrl } from "../../utils/apiConfig";
 import "./LoginForm.css";
 import "../shared/Notification.css";
@@ -11,6 +13,8 @@ function LoginForm({ setSession, setNotification }) {
   const [errors, setErrors] = useState({});
   const [showPassword, setShowPassword] = useState(false);
   const [showVerificationModal, setShowVerificationModal] = useState(false);
+  const [showTerms, setShowTerms] = useState(false);
+  const [showPrivacy, setShowPrivacy] = useState(false);
   const [verificationData, setVerificationData] = useState({ email: "", user_id: "" });
   const [isLoggingIn, setIsLoggingIn] = useState(false);
   // loginMode: 'Resident' | 'Admin'
@@ -265,6 +269,12 @@ function LoginForm({ setSession, setNotification }) {
                 )}
               </button>
 
+              <div className="terms-privacy-links" style={{ marginTop: '8px' }}>
+                <button type="button" className="terms-btn" onClick={() => setShowTerms(true)}>Terms & Conditions</button>
+                <span style={{ margin: '0 8px', color: '#888' }}>|</span>
+                <button type="button" className="terms-btn" onClick={() => setShowPrivacy(true)}>Privacy Policy</button>
+              </div>
+
               <Link to={`/forgot-password?role=${loginMode === 'Admin' ? 'admin' : 'resident'}`} className="forgot-password-link">
                 Forgot Password?
               </Link>
@@ -287,6 +297,8 @@ function LoginForm({ setSession, setNotification }) {
         userID={verificationData.user_id}
         onRenewVerification={handleRenewVerification}
       />
+      <TermsModal isOpen={showTerms} onClose={() => setShowTerms(false)} />
+      <PrivacyModal isOpen={showPrivacy} onClose={() => setShowPrivacy(false)} />
     </>
   );
 }
