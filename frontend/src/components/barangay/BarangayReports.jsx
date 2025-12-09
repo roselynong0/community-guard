@@ -234,6 +234,7 @@ function BarangayReports({ token }) {
     // Export modal states
     const [showExportModal, setShowExportModal] = useState(false);
     const [exportType, setExportType] = useState(null); // 'csv' or 'pdf'
+    const [exportColorMode, setExportColorMode] = useState('color'); // 'color' or 'bw'
 
     // ⭐ NEW: Trending reports states
     const [trendingReports, setTrendingReports] = useState([]);
@@ -1314,7 +1315,7 @@ function BarangayReports({ token }) {
     };
 
     // Export to PDF with Community Helper AI Analytics
-    const exportToPDF = async (timeFilter = 'all') => {
+    const exportToPDF = async (timeFilter = 'all', colorMode = 'color') => {
         const reportsToExport = filterReportsByTime(filteredReports, timeFilter);
         const timeLabel = timeFilter === 'all' ? 'All Time' : timeFilter === 'today' ? 'Today' : timeFilter === 'this-week' ? 'This Week' : 'This Month';
         
@@ -1351,6 +1352,8 @@ function BarangayReports({ token }) {
         // Logo (static import)
         const logoPath = logoImg;
         
+        const colorCss = colorMode === 'bw' ? 'html { filter: grayscale(100%); }' : '';
+
         const printContent = `
             <!DOCTYPE html>
             <html>
@@ -3432,13 +3435,23 @@ function BarangayReports({ token }) {
                     >
                         <div className="modal" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '400px' }}>
                             <h3 id="export-modal-title">📊 Export Reports</h3>
-                            <p style={{ marginBottom: '20px', color: '#666' }}>
+                            <p style={{ marginBottom: '12px', color: '#666' }}>
                                 Select a time range for your {exportType === 'csv' ? 'CSV' : 'PDF'} export:
                             </p>
+
+                            {exportType === 'pdf' && (
+                                <div style={{ marginBottom: '12px', display: 'flex', gap: '8px', alignItems: 'center' }}>
+                                    <label htmlFor="export-color-mode" style={{ fontSize: '13px', color: '#444' }}>PDF Color Mode:</label>
+                                    <select id="export-color-mode" value={exportColorMode} onChange={(e) => setExportColorMode(e.target.value)} style={{ padding: '6px 8px', borderRadius: 6, border: '1px solid #e5e7eb' }}>
+                                        <option value="color">Colored</option>
+                                        <option value="bw">Black &amp; White</option>
+                                    </select>
+                                </div>
+                            )}
                             
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginBottom: '20px' }}>
                                 <button 
-                                    onClick={() => exportType === 'csv' ? exportToCSV('today') : exportToPDF('today')}
+                                    onClick={() => exportType === 'csv' ? exportToCSV('today') : exportToPDF('today', exportColorMode)}
                                     style={{ 
                                         padding: '12px 20px', 
                                         borderRadius: '8px', 
@@ -3457,7 +3470,7 @@ function BarangayReports({ token }) {
                                 </button>
                                 
                                 <button 
-                                    onClick={() => exportType === 'csv' ? exportToCSV('this-week') : exportToPDF('this-week')}
+                                    onClick={() => exportType === 'csv' ? exportToCSV('this-week') : exportToPDF('this-week', exportColorMode)}
                                     style={{ 
                                         padding: '12px 20px', 
                                         borderRadius: '8px', 
@@ -3476,7 +3489,7 @@ function BarangayReports({ token }) {
                                 </button>
                                 
                                 <button 
-                                    onClick={() => exportType === 'csv' ? exportToCSV('this-month') : exportToPDF('this-month')}
+                                    onClick={() => exportType === 'csv' ? exportToCSV('this-month') : exportToPDF('this-month', exportColorMode)}
                                     style={{ 
                                         padding: '12px 20px', 
                                         borderRadius: '8px', 
@@ -3495,7 +3508,7 @@ function BarangayReports({ token }) {
                                 </button>
                                 
                                 <button 
-                                    onClick={() => exportType === 'csv' ? exportToCSV('all') : exportToPDF('all')}
+                                    onClick={() => exportType === 'csv' ? exportToCSV('all') : exportToPDF('all', exportColorMode)}
                                     style={{ 
                                         padding: '12px 20px', 
                                         borderRadius: '8px', 
