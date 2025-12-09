@@ -4,7 +4,6 @@ import "../resident/Reports.css";
 import ModalPortal from "../shared/ModalPortal";
 
 import { API_CONFIG, getApiUrl } from "../../utils/apiConfig";
-// ... existing code ...
 const API_URL = getApiUrl(API_CONFIG.endpoints.reports);
 const REPORT_STATUSES = ["Pending", "Ongoing", "Resolved"];
 
@@ -22,7 +21,6 @@ const getStatusIcon = (status) => {
     }
 };
 
-// Utility Hook for Modal Accessibility (Focus trap and Esc key)
 const useAriaModal = (isOpen, onClose) => {
     const modalRef = useRef(null);
 
@@ -140,7 +138,7 @@ function RespondersReports({ token }) {
     const [loading, setLoading] = useState(true);
     const [search, setSearch] = useState("");
     const [category, setCategory] = useState("All");
-    const [userBarangay, setUserBarangay] = useState(null);
+    const [barangay, setBarangay] = useState("All");
     const [statusFilter, setStatusFilter] = useState("All"); 
     const [sort, setSort] = useState("latest");
     const [smartSort, setSmartSort] = useState("latest"); // When smart filter active
@@ -180,18 +178,12 @@ function RespondersReports({ token }) {
     const [trendingReports, setTrendingReports] = useState([]);
     const [trendingExpanded, setTrendingExpanded] = useState(true);
     const [trendingTimeFilter, setTrendingTimeFilter] = useState("this-month"); // today, yesterday, this-month
-    
-    const barangays = [
-        "All Barangay", "Barretto", "East Bajac-Bajac", "East Tapinac", "Gordon Heights",
-        "Kalaklan", "Mabayuan", "New Asinan", "New Banicain", "New Cabalan",
-        "New Ilalim", "New Kababae", "New Kalalake", "Old Cabalan", "Pag-Asa",
-        "Santa Rita", "West Bajac-Bajac", "West Tapinac",
-    ];
+
 
     // --- REFS for Keyboard Navigation ---
     const filterContainerRef = useRef(null);
-    // Elements we want to navigate between with arrow keys
-    const filterSelector = 'input.admin-search-input, .admin-top-controls .admin-filter-select, .reports-list button:first-child'; 
+    // Elements we want to navigate between with arrow keys (use current classes)
+    const filterSelector = 'input.barangay-search-input, .barangay-top-controls .barangay-filter-select, .reports-list button:first-child';
     useKeyboardNavigation(filterContainerRef, filterSelector);
     // -----------------------------------
 
@@ -420,11 +412,6 @@ function RespondersReports({ token }) {
 
             const data = await response.json();
             if (data.status === "success") {
-                // Set the user's barangay from response
-                if (data.barangay) {
-                    setUserBarangay(data.barangay);
-                }
-                
                 const reports = Array.isArray(data.reports) ? data.reports : [];
                 
                 const transformedReports = reports.map(report => {
@@ -744,6 +731,7 @@ function RespondersReports({ token }) {
     const filteredReports = reports
         .filter((r) => (category === "All" ? true : r.category === category))
         .filter((r) => (statusFilter === "All" ? true : r.status === statusFilter))
+        .filter((r) => (barangay === "All" ? true : r.barangay === barangay))
         .filter((r) => {
             // Priority filter only applies when Smart Filter is ON
             if (!showSmartFilter) return true;

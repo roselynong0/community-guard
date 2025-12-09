@@ -241,10 +241,18 @@ const MapView = forwardRef(function MapView(props, ref) {
         if (!response.ok) throw new Error("Failed to fetch reports");
 
         const data = await response.json();
-        // Filter reports with valid coordinates
-        const validReports = (data.reports || []).filter(r => r.latitude && r.longitude);
+        // Normalize and filter reports with valid coordinates and that are accepted + non-resolved
+        const validReports = (data.reports || [])
+          .map(r => ({ ...r, latitude: parseFloat(r.latitude), longitude: parseFloat(r.longitude) }))
+          .filter(r => {
+            if (!r.latitude || !r.longitude) return false;
+            const isRejected = r.is_rejected === true || r.is_rejected === 'true';
+            const isApprovedFalse = r.is_approved === false || r.is_approved === 'false' || r.is_accepted === false || r.is_accepted === 'false';
+            const isResolved = (r.status || '').toString().toLowerCase() === 'resolved';
+            return !isRejected && !isApprovedFalse && !isResolved;
+          });
         setBarangayReports(validReports);
-        console.log(`📍 Loaded ${validReports.length} reports for ${barangay}`);
+        console.log(`📍 Loaded ${validReports.length} accepted, non-resolved reports for ${barangay}`);
       } catch (error) {
         console.error("Error fetching barangay reports:", error);
         setBarangayReports([]);

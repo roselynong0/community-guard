@@ -301,11 +301,18 @@ function AdminMaps({ session }) {
     handleCloseHotspotModal();
   };
 
-  // Only count active (non-resolved) reports in barangay counts
-  const activeReports = reports.filter(r => r.status !== 'Resolved');
-  
-  // Group reports by barangay (only active, non-resolved reports)
-  const reportsByBarangay = activeReports.reduce((acc, r) => {
+  // Exclude unapproved or rejected reports from counts and maps
+  const acceptedReports = reports.filter(r => {
+    const isRejected = r.is_rejected === true || r.is_rejected === 'true';
+    const isApprovedFalse = r.is_approved === false || r.is_approved === 'false' || r.is_accepted === false || r.is_accepted === 'false';
+    return !isRejected && !isApprovedFalse;
+  });
+
+  // Separate resolved vs non-resolved accepted reports (case-insensitive)
+  const nonResolvedAcceptedReports = acceptedReports.filter(r => (r.status || '').toString().toLowerCase() !== 'resolved');
+
+  // Group non-resolved accepted reports by barangay (for map markers and counts)
+  const reportsByBarangay = nonResolvedAcceptedReports.reduce((acc, r) => {
     if (!acc[r.address_barangay]) acc[r.address_barangay] = [];
     acc[r.address_barangay].push(r);
     return acc;
@@ -314,10 +321,10 @@ function AdminMaps({ session }) {
   // Get all unique barangays
   const allBarangays = Object.keys(reportsByBarangay).sort();
 
-  // Filter reports by selected barangay (only active reports)
+  // Filter reports by selected barangay (only non-resolved accepted reports)
   const filteredReports = selectedBarangay === 'all'
-    ? activeReports
-    : activeReports.filter(r => r.address_barangay === selectedBarangay);
+    ? nonResolvedAcceptedReports
+    : nonResolvedAcceptedReports.filter(r => r.address_barangay === selectedBarangay);
 
   // Filter hotspots by selected barangay if needed
   const filteredHotspots = selectedBarangay === 'all'
@@ -522,7 +529,7 @@ function AdminMaps({ session }) {
                     fontWeight: '500'
                   }}
                 >
-                  <option value="all">All Barangays ({activeReports.length})</option>
+                  <option value="all">All Barangays ({nonResolvedAcceptedReports.length})</option>
                   {allBarangays.map(barangay => (
                     <option key={barangay} value={barangay}>
                       {barangay} ({reportsByBarangay[barangay].length})

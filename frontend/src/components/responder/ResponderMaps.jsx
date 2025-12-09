@@ -164,8 +164,14 @@ function ResponderMaps({ session }) {
             latitude: parseFloat(r.latitude),
             longitude: parseFloat(r.longitude),
           }));
-          // Reports are already filtered by barangay from backend
-          setReports(formatted);
+          // Ensure client-side filtering for accepted + non-resolved reports as a safety net
+          const accepted = formatted.filter(r => {
+            const isRejected = r.is_rejected === true || r.is_rejected === 'true';
+            const isApprovedFalse = r.is_approved === false || r.is_approved === 'false' || r.is_accepted === false || r.is_accepted === 'false';
+            const isResolved = (r.status || '').toString().toLowerCase() === 'resolved';
+            return !isRejected && !isApprovedFalse && !isResolved;
+          });
+          setReports(accepted);
           
           // Update responder barangay from response if available
           if (reportsData.barangay) {
@@ -188,10 +194,16 @@ function ResponderMaps({ session }) {
               latitude: parseFloat(r.latitude),
               longitude: parseFloat(r.longitude),
             }));
-            // Filter to responder's barangay only
-            const filteredByBarangay = responderBarangay 
+            // Filter to responder's barangay only, and ensure accepted + non-resolved
+            const filteredByBarangay = (responderBarangay 
               ? formatted.filter(r => r.address_barangay === responderBarangay)
-              : formatted;
+              : formatted)
+              .filter(r => {
+                const isRejected = r.is_rejected === true || r.is_rejected === 'true';
+                const isApprovedFalse = r.is_approved === false || r.is_approved === 'false' || r.is_accepted === false || r.is_accepted === 'false';
+                const isResolved = (r.status || '').toString().toLowerCase() === 'resolved';
+                return !isRejected && !isApprovedFalse && !isResolved;
+              });
             setReports(filteredByBarangay);
           }
         }
@@ -631,7 +643,7 @@ function ResponderMaps({ session }) {
             <div className="maps-stats-grid">
               <div className="maps-stat-item stat-reports">
                 <span className="stat-icon">📋</span>
-                <span className="stat-value">{reports.length}</span>
+                <span className="stat-value">{filteredReports.length}</span>
                 <span className="stat-label">Reports</span>
               </div>
               <div className="maps-stat-item stat-hotspots">

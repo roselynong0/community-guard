@@ -321,11 +321,19 @@ function Maps({ session, userRole }) {
     fetchMapReports();
   }, [session, userRole]);
 
-  // Only count active (non-resolved) reports in barangay counts
-  const acceptedReports = reports.filter(r => r.status !== 'Resolved');
-  
-  // Group reports by barangay (only active, non-resolved reports)
-  const reportsByBarangay = acceptedReports.reduce((acc, r) => {
+  // Exclude unapproved or rejected reports from counts and maps
+  const acceptedReports = reports.filter(r => {
+    const isRejected = r.is_rejected === true || r.is_rejected === 'true';
+    const isApprovedFalse = r.is_approved === false || r.is_approved === 'false' || r.is_accepted === false || r.is_accepted === 'false';
+    return !isRejected && !isApprovedFalse;
+  });
+
+  // Separate resolved vs non-resolved accepted reports (case-insensitive)
+  const resolvedAcceptedReports = acceptedReports.filter(r => (r.status || '').toString().toLowerCase() === 'resolved');
+  const nonResolvedAcceptedReports = acceptedReports.filter(r => (r.status || '').toString().toLowerCase() !== 'resolved');
+
+  // Group non-resolved accepted reports by barangay (for map markers and counts)
+  const reportsByBarangay = nonResolvedAcceptedReports.reduce((acc, r) => {
     if (!acc[r.address_barangay]) acc[r.address_barangay] = [];
     acc[r.address_barangay].push(r);
     return acc;
@@ -334,9 +342,10 @@ function Maps({ session, userRole }) {
   // Get all unique barangays for filter dropdown
   const allBarangays = Object.keys(reportsByBarangay).sort();
 
-  // Filter reports by selected barangay and show only active (non-resolved) reports
-  const filteredReports = acceptedReports
-    .filter(r => selectedBarangay === 'all' || r.address_barangay === selectedBarangay);
+  // Filter reports by selected barangay (only non-resolved accepted reports)
+  const filteredReports = selectedBarangay === 'all'
+    ? nonResolvedAcceptedReports
+    : nonResolvedAcceptedReports.filter(r => r.address_barangay === selectedBarangay);
 
   // Group overlapping markers for display
   const groupedMarkers = groupOverlappingReports(filteredReports);
@@ -616,7 +625,7 @@ function Maps({ session, userRole }) {
                   fontWeight: '500'
                 }}
               >
-                <option value="all">All Barangays ({acceptedReports.length})</option>
+                <option value="all">All Barangays ({nonResolvedAcceptedReports.length})</option>
                 {allBarangays.map(barangay => (
                   <option key={barangay} value={barangay}>
                     {barangay} ({reportsByBarangay[barangay].length})
@@ -671,7 +680,7 @@ function Maps({ session, userRole }) {
                   onChange={(e) => setSelectedBarangay(e.target.value)}
                   className="mobile-filter-select"
                 >
-                  <option value="all">All Barangays ({acceptedReports.length})</option>
+                  <option value="all">All Barangays ({nonResolvedAcceptedReports.length})</option>
                   {allBarangays.map(barangay => (
                     <option key={barangay} value={barangay}>
                       {barangay} ({reportsByBarangay[barangay].length})

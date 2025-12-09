@@ -283,9 +283,6 @@ function BarangayLayout({ session, setSession, setNotification }) {
             <NavLink to="/barangay/archived">
               <FaArchive /> Archived
             </NavLink>
-            <NavLink to="/barangay/assign-responders">
-              <FaUsers /> Assign Responders
-            </NavLink>
             <NavLink to="/barangay/cctv">
               <FaVideo /> Live CCTV Feeds
             </NavLink>
@@ -432,9 +429,6 @@ function BarangayLayout({ session, setSession, setNotification }) {
           </NavLink>
           <NavLink to="/barangay/archived" onClick={() => setShowMobileNav(false)}>
             <FaArchive /> Archived
-          </NavLink>
-          <NavLink to="/barangay/assign-responders" onClick={() => setShowMobileNav(false)}>
-            <FaUsers /> Assign Responders
           </NavLink>
           <NavLink to="/barangay/cctv" onClick={() => setShowMobileNav(false)}>
             <FaVideo /> Live CCTV Feeds

@@ -1,7 +1,7 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   FaHome,
-  FaExclamationTriangle,
+  FaChartLine,
   FaMap,
   FaBell,
   FaUser,
@@ -221,7 +221,7 @@ export default function ResponderLayout({ session, setSession, setNotification }
           >
             <NavLink to="/responder/home"><FaHome /> Dashboard</NavLink>
             <NavLink to="/responder/maps"><FaMap /> Map</NavLink>
-            <NavLink to="/responder/reports"><FaExclamationTriangle /> Reports</NavLink>
+            <NavLink to="/responder/reports"><FaChartLine /> Reports</NavLink>
             <NavLink to="/responder/archived"><FaArchive /> Archived</NavLink>
             <NavLink to="/responder/notifications"><FaBell /> Notifications
               {notificationCount > 0 && (
@@ -348,7 +348,7 @@ export default function ResponderLayout({ session, setSession, setNotification }
               <FaMap /> Map
             </NavLink>
             <NavLink to="/responder/reports" onClick={() => setShowMobileNav(false)}>
-              <FaExclamationTriangle /> Reports
+              <FaChartLine /> Reports
             </NavLink>
             <NavLink to="/responder/archived" onClick={() => setShowMobileNav(false)}>
               <FaArchive /> Archived
@@ -380,7 +380,7 @@ export default function ResponderLayout({ session, setSession, setNotification }
           <FaMap />
         </NavLink>
         <NavLink to="/responder/reports">
-          <FaExclamationTriangle />
+          <FaChartLine />
         </NavLink>
         <NavLink to="/responder/notifications">
           <FaBell />

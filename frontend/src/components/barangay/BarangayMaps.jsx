@@ -116,10 +116,16 @@ function BarangayMaps({ session, userBarangay }) {
             latitude: parseFloat(r.latitude),
             longitude: parseFloat(r.longitude),
           }));
-          // Filter to only show reports from the user's barangay
-          const filteredReports = allReports.filter(r => r.address_barangay === userBarangay);
+          // Filter to only show accepted, non-resolved reports from the user's barangay
+          const filteredReports = allReports.filter(r => {
+            if (r.address_barangay !== userBarangay) return false;
+            const isRejected = r.is_rejected === true || r.is_rejected === 'true';
+            const isApprovedFalse = r.is_approved === false || r.is_approved === 'false' || r.is_accepted === false || r.is_accepted === 'false';
+            const isResolved = (r.status || '').toString().toLowerCase() === 'resolved';
+            return !isRejected && !isApprovedFalse && !isResolved;
+          });
           setReports(filteredReports);
-          console.log(`✅ Loaded ${filteredReports.length} reports for barangay: ${userBarangay}`);
+          console.log(`✅ Loaded ${filteredReports.length} accepted, non-resolved reports for barangay: ${userBarangay}`);
         } else {
           console.error("Barangay map reports error:", data.message);
         }
