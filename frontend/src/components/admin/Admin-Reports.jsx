@@ -218,6 +218,7 @@ function AdminReports({ token, reportTitle = 'All Community Reports', showTitle 
     const [showExportModal, setShowExportModal] = useState(false);
     const [exportType, setExportType] = useState(null); // 'csv' or 'pdf'
     const [exportColorMode, setExportColorMode] = useState('color'); // 'color' or 'bw'
+    const [exportPageSize, setExportPageSize] = useState('A4'); // 'A4'|'Letter'|'Legal'|'Long'
 
     // Loading animation states
     const [showMountAnimation, setShowMountAnimation] = useState(false);
@@ -1155,7 +1156,7 @@ function AdminReports({ token, reportTitle = 'All Community Reports', showTitle 
     };
 
     // Export to PDF with Community Helper AI Analytics
-    const exportToPDF = async (timeFilter = 'all', colorMode = 'color') => {
+    const exportToPDF = async (timeFilter = 'all', colorMode = 'color', pageSize = 'A4') => {
         const reportsToExport = filterReportsByTime(filteredReports, timeFilter);
         const timeLabel = timeFilter === 'all' ? 'All Time' : timeFilter === 'today' ? 'Today' : timeFilter === 'this-week' ? 'This Week' : 'This Month';
         
@@ -1207,6 +1208,24 @@ function AdminReports({ token, reportTitle = 'All Community Reports', showTitle 
         const logoPath = logoImg;
         
         const colorCss = colorMode === 'bw' ? 'html { filter: grayscale(100%); }' : '';
+        let pageCss = '';
+        switch ((pageSize || 'A4').toLowerCase()) {
+            case 'letter':
+                pageCss = '@page { size: 8.5in 11in; margin: 20mm; }';
+                break;
+            case 'legal':
+                pageCss = '@page { size: 8.5in 14in; margin: 20mm; }';
+                break;
+            case 'long':
+                pageCss = '@page { size: 8.5in 22in; margin: 20mm; }';
+                break;
+            default:
+                pageCss = '@page { size: A4; margin: 20mm; }';
+        }
+
+        // safezones & hotspots counts
+        let safezoneCount = 0;
+        let hotspotCount = 0;
 
         const printContent = `
             <!DOCTYPE html>
@@ -1215,6 +1234,7 @@ function AdminReports({ token, reportTitle = 'All Community Reports', showTitle 
                 <title>Community Guard - Admin Reports Analytics</title>
                 <style>
                     ${colorCss}
+                    ${pageCss}
                     * { box-sizing: border-box; margin: 0; padding: 0; }
                     body { font-family: 'Segoe UI', Arial, sans-serif; padding: 40px; color: #333; }
                     .header { text-align: center; margin-bottom: 30px; border-bottom: 3px solid #2d3b8f; padding-bottom: 20px; }
@@ -1402,6 +1422,20 @@ function AdminReports({ token, reportTitle = 'All Community Reports', showTitle 
                     <p style="font-size: 11px; color: #64748b; margin-top: 15px; text-align: center; font-style: italic;">
                         This analysis is based on report data patterns. Always verify insights with local knowledge.
                     </p>
+                </div>
+                
+                <!-- Safezones & Hotspots counts -->
+                <div class="section" style="margin-top:18px;">
+                    <div style="display:flex; gap:16px;">
+                        <div style="flex:1; background:#fff; padding:12px; border-radius:8px; border:1px solid #e5e7eb; text-align:center;">
+                            <div style="font-size:22px; font-weight:700; color:#2d3b8f;">${safezoneCount}</div>
+                            <div style="font-size:12px; color:#475569;">Safezones</div>
+                        </div>
+                        <div style="flex:1; background:#fff; padding:12px; border-radius:8px; border:1px solid #e5e7eb; text-align:center;">
+                            <div style="font-size:22px; font-weight:700; color:#2d3b8f;">${hotspotCount}</div>
+                            <div style="font-size:12px; color:#475569;">Hotspots</div>
+                        </div>
+                    </div>
                 </div>
                 
                 <div class="footer">
@@ -2809,12 +2843,19 @@ function AdminReports({ token, reportTitle = 'All Community Reports', showTitle 
                                         <option value="color">Colored</option>
                                         <option value="bw">Black &amp; White</option>
                                     </select>
+                                    <label htmlFor="export-page-size" style={{ fontSize: '13px', color: '#444', marginLeft: 8 }}>Page Size:</label>
+                                    <select id="export-page-size" value={exportPageSize} onChange={(e) => setExportPageSize(e.target.value)} style={{ padding: '6px 8px', borderRadius: 6, border: '1px solid #e5e7eb' }}>
+                                        <option value="A4">A4</option>
+                                        <option value="Letter">Letter</option>
+                                        <option value="Legal">Legal</option>
+                                        <option value="Long">Long</option>
+                                    </select>
                                 </div>
                             )}
                             
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginBottom: '20px' }}>
                                 <button 
-                                    onClick={() => exportType === 'csv' ? exportToCSV('today') : exportToPDF('today', exportColorMode)}
+                                    onClick={() => exportType === 'csv' ? exportToCSV('today') : exportToPDF('today', exportColorMode, exportPageSize)}
                                     style={{ 
                                         padding: '12px 20px', 
                                         borderRadius: '8px', 
@@ -2833,7 +2874,7 @@ function AdminReports({ token, reportTitle = 'All Community Reports', showTitle 
                                 </button>
                                 
                                 <button 
-                                    onClick={() => exportType === 'csv' ? exportToCSV('this-week') : exportToPDF('this-week', exportColorMode)}
+                                    onClick={() => exportType === 'csv' ? exportToCSV('this-week') : exportToPDF('this-week', exportColorMode, exportPageSize)}
                                     style={{ 
                                         padding: '12px 20px', 
                                         borderRadius: '8px', 
@@ -2852,7 +2893,7 @@ function AdminReports({ token, reportTitle = 'All Community Reports', showTitle 
                                 </button>
                                 
                                 <button 
-                                    onClick={() => exportType === 'csv' ? exportToCSV('this-month') : exportToPDF('this-month', exportColorMode)}
+                                    onClick={() => exportType === 'csv' ? exportToCSV('this-month') : exportToPDF('this-month', exportColorMode, exportPageSize)}
                                     style={{ 
                                         padding: '12px 20px', 
                                         borderRadius: '8px', 
@@ -2871,7 +2912,7 @@ function AdminReports({ token, reportTitle = 'All Community Reports', showTitle 
                                 </button>
                                 
                                 <button 
-                                    onClick={() => exportType === 'csv' ? exportToCSV('all') : exportToPDF('all', exportColorMode)}
+                                    onClick={() => exportType === 'csv' ? exportToCSV('all') : exportToPDF('all', exportColorMode, exportPageSize)}
                                     style={{ 
                                         padding: '12px 20px', 
                                         borderRadius: '8px', 

@@ -48,7 +48,8 @@ def verification_token_required(f):
             
         except Exception as e:
             print(f"Verification token error: {e}")
-            return jsonify({"status": "error", "message": "Authentication failed"}), 401
+            # Transient auth validation failure - return 503 so clients don't treat this as a hard logout
+            return jsonify({"status": "error", "message": "Authentication service temporarily unavailable. Please try again."}), 503
     
     return decorated
 
@@ -96,8 +97,8 @@ def token_required(f):
             print(f"[Auth] ✅ Session validated successfully")
         except Exception as e:
             print(f"Session lookup error after retries: {e}")
-            # Return 401 instead of 500 to prevent logout cascade
-            return jsonify({"status": "error", "message": "Session validation temporarily unavailable. Please try again."}), 401
+            # Transient session validation failure - return 503 so clients can retry without forcing logout
+            return jsonify({"status": "error", "message": "Session validation temporarily unavailable. Please try again."}), 503
 
         session = sessions[0]
         now = datetime.now(timezone.utc)

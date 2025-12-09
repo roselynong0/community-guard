@@ -235,6 +235,7 @@ function BarangayReports({ token }) {
     const [showExportModal, setShowExportModal] = useState(false);
     const [exportType, setExportType] = useState(null); // 'csv' or 'pdf'
     const [exportColorMode, setExportColorMode] = useState('color'); // 'color' or 'bw'
+    const [exportPageSize, setExportPageSize] = useState('A4'); // 'A4'|'Letter'|'Legal'|'Long'
 
     // ⭐ NEW: Trending reports states
     const [trendingReports, setTrendingReports] = useState([]);
@@ -1315,7 +1316,7 @@ function BarangayReports({ token }) {
     };
 
     // Export to PDF with Community Helper AI Analytics
-    const exportToPDF = async (timeFilter = 'all', colorMode = 'color') => {
+    const exportToPDF = async (timeFilter = 'all', colorMode = 'color', pageSize = 'A4') => {
         const reportsToExport = filterReportsByTime(filteredReports, timeFilter);
         const timeLabel = timeFilter === 'all' ? 'All Time' : timeFilter === 'today' ? 'Today' : timeFilter === 'this-week' ? 'This Week' : 'This Month';
         
@@ -1353,7 +1354,188 @@ function BarangayReports({ token }) {
         const logoPath = logoImg;
         
         const colorCss = colorMode === 'bw' ? 'html { filter: grayscale(100%); }' : '';
+        // Page size CSS for print-friendly sizing
+        let pageCss = '';
+        switch ((pageSize || 'A4').toLowerCase()) {
+            case 'letter':
+                pageCss = '@page { size: 8.5in 11in; margin: 20mm; }';
+                break;
+            case 'legal':
+                pageCss = '@page { size: 8.5in 14in; margin: 20mm; }';
+                break;
+            case 'long':
+                // long / continuous (choose an elongated paper size)
+                pageCss = '@page { size: 8.5in 22in; margin: 20mm; }';
+                break;
+            default:
+                pageCss = '@page { size: A4; margin: 20mm; }';
+        }
 
+        // --- Build monthly and top-barangays data ---
+        // Try to fetch system-wide monthly trends and top barangays if available
+        let monthsArr = [];
+        let pieData = [];
+
+        // Attempt to fetch safezones & hotspots counts (optional endpoints)
+        let safezoneCount = 0;
+        let hotspotCount = 0;
+
+        try {
+            // Attempt to fetch monthly trends (may include other barangays)
+            const mtRes = await fetch('/api/dashboard/monthly-trends', { headers: { 'Authorization': `Bearer ${token}` } });
+            if (mtRes.ok) {
+                const mtJson = await mtRes.json().catch(() => null) || {};
+                const mtList = mtJson.trends || mtJson.data || mtJson || [];
+                if (Array.isArray(mtList) && mtList.length > 0) {
+                    monthsArr = mtList.map((item) => {
+                        // item may have { month: 'Jan 2025', count: 12 } or {label, count}
+                        const label = item.month || item.label || `${item.label || ''}`;
+                        const count = item.count || item.total || item.value || 0;
+                        // Attempt to parse a date for sorting
+                        let date = new Date();
+                        try {
+                            if (item.month && typeof item.month === 'string') {
+                                const parts = item.month.split(' ');
+                                date = new Date(`${parts[0]} 1 ${parts[1] || ''}`);
+                            } else if (item.date) {
+                                date = new Date(item.date);
+                            }
+                        } catch (e) { /* ignore */ }
+                        return { label: label || item.label || item.month, count, date };
+                    }).sort((a, b) => a.date - b.date);
+                }
+            }
+        } catch (e) {
+            // ignore fetch errors and fall back to local data
+            console.warn('Monthly trends fetch failed:', e);
+        }
+
+        // If we didn't get external months, build from reportsToExport (local barangay reports)
+        if (!monthsArr.length) {
+            const monthMap = {};
+            reportsToExport.forEach((r) => {
+                try {
+                    const d = new Date(r.created_at);
+                    if (isNaN(d)) return;
+                    const label = d.toLocaleString('en-US', { month: 'short', year: 'numeric' });
+                    monthMap[label] = (monthMap[label] || 0) + 1;
+                } catch (e) { /* ignore bad dates */ }
+            });
+
+            monthsArr = Object.keys(monthMap).map((label) => {
+                const parts = label.split(' ');
+                const month = parts[0];
+                const year = parts[1];
+                const date = new Date(`${month} 1 ${year}`);
+                return { label, count: monthMap[label], date };
+            }).sort((a, b) => a.date - b.date);
+        }
+
+        // Line chart SVG
+        let lineChartSvg = '';
+        if (monthsArr.length > 0) {
+            const svgW = 640, svgH = 220, pad = 28;
+            const maxVal = Math.max(...monthsArr.map(m => m.count), 1);
+            const stepX = monthsArr.length > 1 ? (svgW - pad * 2) / (monthsArr.length - 1) : 1;
+            const points = monthsArr.map((m, i) => {
+                const x = Math.round(pad + i * stepX);
+                const y = Math.round(svgH - pad - ((m.count / maxVal) * (svgH - pad * 2)));
+                return { x, y, label: m.label, value: m.count };
+            });
+            const polyPoints = points.map(p => `${p.x},${p.y}`).join(' ');
+            const circles = points.map(p => `<circle cx="${p.x}" cy="${p.y}" r="3" fill="#2d3b8f" />`).join('');
+            const xLabels = points.map((p, i) => `<text x="${p.x}" y="${svgH - 6}" font-size="10" fill="#444" text-anchor="middle">${p.label.split(' ')[0]}</text>`).join('');
+            lineChartSvg = `
+                <svg width="${svgW}" height="${svgH}" viewBox="0 0 ${svgW} ${svgH}" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+                    <rect width="100%" height="100%" fill="#ffffff" />
+                    <polyline fill="none" stroke="#2d3b8f" stroke-width="2" points="${polyPoints}" />
+                    ${circles}
+                    ${xLabels}
+                </svg>
+            `;
+        } else {
+            lineChartSvg = `<div style="color:#666; font-size:12px;">No monthly trend data to display.</div>`;
+        }
+
+        // Pie chart SVG for top barangays (fallback to grouping by barangay)
+        // Attempt to fetch top barangays across the system (if available)
+        try {
+            const tbRes = await fetch('/api/dashboard/top-barangays', { headers: { 'Authorization': `Bearer ${token}` } });
+            if (tbRes.ok) {
+                const tbJson = await tbRes.json().catch(() => null) || {};
+                const tbList = tbJson.barangays || tbJson.data || tbJson || [];
+                if (Array.isArray(tbList) && tbList.length > 0) {
+                    pieData = tbList.slice(0, 6).map(b => ({ name: b.barangay || b.name || b.label, value: parseInt(b.total || b.count || b.value || 0) }));
+                }
+            }
+        } catch (e) {
+            console.warn('Top barangays fetch failed:', e);
+        }
+
+        // If fetch didn't populate pieData, fall back to existing sources
+        if (!pieData.length) {
+            if (typeof topBarangays !== 'undefined' && topBarangays && topBarangays.length > 0) {
+                pieData = topBarangays.slice(0, 6).map(b => ({ name: b.barangay, value: parseInt(b.total || 0) }));
+            } else {
+                // group by barangay from reportsToExport
+                const map = {};
+                reportsToExport.forEach(r => {
+                    const name = r.barangay || r.address_barangay || 'Unknown';
+                    map[name] = (map[name] || 0) + 1;
+                });
+                pieData = Object.entries(map).map(([name, value]) => ({ name, value })).sort((a,b) => b.value - a.value).slice(0,6);
+            }
+        }
+
+        let pieChartSvg = '';
+        if (pieData.length > 0) {
+            const cx = 120, cy = 120, r = 90;
+            const total = pieData.reduce((s, p) => s + p.value, 0) || 1;
+            const palette = ['#4a76b9','#d9534f','#f0ad4e','#5cb85c','#777777','#8e44ad'];
+            let start = -Math.PI / 2;
+            const slices = pieData.map((p, idx) => {
+                const angle = (p.value / total) * Math.PI * 2;
+                const end = start + angle;
+                const x1 = cx + r * Math.cos(start);
+                const y1 = cy + r * Math.sin(start);
+                const x2 = cx + r * Math.cos(end);
+                const y2 = cy + r * Math.sin(end);
+                const largeArc = angle > Math.PI ? 1 : 0;
+                const path = `M ${cx} ${cy} L ${x1} ${y1} A ${r} ${r} 0 ${largeArc} 1 ${x2} ${y2} z`;
+                const color = palette[idx % palette.length];
+                const slice = `<path d="${path}" fill="${color}" stroke="#fff" stroke-width="1"/>`;
+                const legend = `<g><rect x="${cx + 260}" y="${30 + idx*20}" width="12" height="12" fill="${color}"/><text x="${cx + 280}" y="${40 + idx*20}" font-size="12" fill="#333">${p.name} (${p.value})</text></g>`;
+                start = end;
+                return { slice, legend };
+            });
+            pieChartSvg = `
+                <svg width="520" height="260" viewBox="0 0 520 260" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+                    <rect width="100%" height="100%" fill="#fff" />
+                    <g transform="translate(0,0)">
+                        ${slices.map(s => s.slice).join('')}
+                    </g>
+                    <g transform="translate(0,0)">
+                        ${slices.map(s => s.legend).join('')}
+                    </g>
+                </svg>
+            `;
+        } else {
+            pieChartSvg = `<div style="color:#666; font-size:12px;">No top barangay data to display.</div>`;
+        }
+
+        // Try to fetch safezones/hotspots counts from dashboard endpoint
+        try {
+            const shRes = await fetch('/api/dashboard/safezones-hotspots', { headers: { 'Authorization': `Bearer ${token}` } });
+            if (shRes.ok) {
+                const shJson = await shRes.json().catch(() => null) || {};
+                safezoneCount = parseInt(shJson.safezones || shJson.safezone_count || shJson.safezoneCount || 0) || 0;
+                hotspotCount = parseInt(shJson.hotspots || shJson.hotspot_count || shJson.hotspotCount || 0) || 0;
+            }
+        } catch (e) {
+            // ignore
+        }
+
+        // Inject colorCss and pageCss into page styles and include chart/numeric summaries in the printable HTML
         const printContent = `
             <!DOCTYPE html>
             <html>
@@ -1394,6 +1576,7 @@ function BarangayReports({ token }) {
                     .footer-brand img { width: 28px; height: 28px; object-fit: contain; }
                     .footer-brand span { font-weight: 600; color: #2d3b8f; font-size: 14px; }
                     @media print { body { padding: 20px; } }
+                    ${colorCss}
                 </style>
             </head>
             <body>
@@ -1432,16 +1615,19 @@ function BarangayReports({ token }) {
                 
                 ${trendingForPdf.length > 0 ? `
                 <div class="analytics-card">
-                    <h3>🔥 Trending Reports (Top ${trendingForPdf.length})</h3>
-                    ${trendingForPdf.map((r, i) => `
-                        <div class="analytics-item">
-                            <span class="name">${i + 1}. ${r.title || 'Untitled'}</span>
-                            <span class="count">❤️ ${r.reaction_count || 0}</span>
-                        </div>
-                    `).join("")}
+                    <h3>🔥 Trending Reports (Top 1)</h3>
+                    ${(() => {
+                        const top = trendingForPdf[0];
+                        return `
+                            <div class="analytics-item">
+                                <span class="name">1. ${top.title || 'Untitled'}</span>
+                                <span class="count">❤️ ${top.reaction_count || 0}</span>
+                            </div>
+                        `;
+                    })()}
                 </div>
                 ` : ''}
-                
+
                 <div class="analytics-card">
                     <h3>📁 Reports by Category</h3>
                     ${sortedCategories.map(([name, count]) => `
@@ -1450,6 +1636,41 @@ function BarangayReports({ token }) {
                             <span class="count">${count}</span>
                         </div>
                     `).join("")}
+                </div>
+
+                <!-- Numeric summaries: Monthly Trend (numbers) and Top Barangays (numbers) side-by-side -->
+                <div class="section" style="display:flex; gap:20px; align-items:flex-start;">
+                    <div style="flex:1; background:#fff; padding:12px; border-radius:8px; border:1px solid #e5e7eb;">
+                        <h3 style="margin:0 0 8px 0; color:#2d3b8f; font-size:14px;">📈 Monthly Reports Trend</h3>
+                        <div>
+                            ${monthsArr.length > 0 ? `
+                                <ul style="list-style:none; padding:0; margin:0;">
+                                    ${monthsArr.map(m => `
+                                        <li style="display:flex; justify-content:space-between; padding:8px 6px; border-bottom:1px solid #f1f5f9;">
+                                            <span style="color:#475569">${m.label}</span>
+                                            <strong style="color:#2d3b8f">${m.count}</strong>
+                                        </li>
+                                    `).join('')}
+                                </ul>
+                            ` : `<div style="color:#666; font-size:12px;">No monthly trend data to display.</div>`}
+                        </div>
+                    </div>
+
+                    <div style="width:320px; background:#fff; padding:12px; border-radius:8px; border:1px solid #e5e7eb;">
+                        <h3 style="margin:0 0 8px 0; color:#2d3b8f; font-size:14px;">📊 Top Barangays</h3>
+                        <div>
+                            ${pieData.length > 0 ? `
+                                <ul style="list-style:none; padding:0; margin:0;">
+                                    ${pieData.map(p => `
+                                        <li style="display:flex; justify-content:space-between; padding:8px 6px; border-bottom:1px solid #f1f5f9;">
+                                            <span style="color:#475569">${p.name}</span>
+                                            <strong style="color:#2d3b8f">${p.value}</strong>
+                                        </li>
+                                    `).join('')}
+                                </ul>
+                            ` : `<div style="color:#666; font-size:12px;">No top barangay data to display.</div>`}
+                        </div>
+                    </div>
                 </div>
                 
                 <div class="section">
@@ -3446,12 +3667,19 @@ function BarangayReports({ token }) {
                                         <option value="color">Colored</option>
                                         <option value="bw">Black &amp; White</option>
                                     </select>
+                                    <label htmlFor="export-page-size" style={{ fontSize: '13px', color: '#444', marginLeft: 8 }}>Page Size:</label>
+                                    <select id="export-page-size" value={exportPageSize} onChange={(e) => setExportPageSize(e.target.value)} style={{ padding: '6px 8px', borderRadius: 6, border: '1px solid #e5e7eb' }}>
+                                        <option value="A4">A4</option>
+                                        <option value="Letter">Letter</option>
+                                        <option value="Legal">Legal</option>
+                                        <option value="Long">Long</option>
+                                    </select>
                                 </div>
                             )}
                             
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginBottom: '20px' }}>
                                 <button 
-                                    onClick={() => exportType === 'csv' ? exportToCSV('today') : exportToPDF('today', exportColorMode)}
+                                    onClick={() => exportType === 'csv' ? exportToCSV('today') : exportToPDF('today', exportColorMode, exportPageSize)}
                                     style={{ 
                                         padding: '12px 20px', 
                                         borderRadius: '8px', 
@@ -3470,7 +3698,7 @@ function BarangayReports({ token }) {
                                 </button>
                                 
                                 <button 
-                                    onClick={() => exportType === 'csv' ? exportToCSV('this-week') : exportToPDF('this-week', exportColorMode)}
+                                    onClick={() => exportType === 'csv' ? exportToCSV('this-week') : exportToPDF('this-week', exportColorMode, exportPageSize)}
                                     style={{ 
                                         padding: '12px 20px', 
                                         borderRadius: '8px', 
@@ -3489,7 +3717,7 @@ function BarangayReports({ token }) {
                                 </button>
                                 
                                 <button 
-                                    onClick={() => exportType === 'csv' ? exportToCSV('this-month') : exportToPDF('this-month', exportColorMode)}
+                                    onClick={() => exportType === 'csv' ? exportToCSV('this-month') : exportToPDF('this-month', exportColorMode, exportPageSize)}
                                     style={{ 
                                         padding: '12px 20px', 
                                         borderRadius: '8px', 
@@ -3508,7 +3736,7 @@ function BarangayReports({ token }) {
                                 </button>
                                 
                                 <button 
-                                    onClick={() => exportType === 'csv' ? exportToCSV('all') : exportToPDF('all', exportColorMode)}
+                                    onClick={() => exportType === 'csv' ? exportToCSV('all') : exportToPDF('all', exportColorMode, exportPageSize)}
                                     style={{ 
                                         padding: '12px 20px', 
                                         borderRadius: '8px', 

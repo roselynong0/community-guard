@@ -196,6 +196,10 @@ function RespondersReports({ token }) {
     useKeyboardNavigation(filterContainerRef, filterSelector);
     // -----------------------------------
 
+    // Export controls
+    const [exportColorMode, setExportColorMode] = useState('color');
+    const [exportPageSize, setExportPageSize] = useState('A4');
+
     // Notification handler
     const showNotification = useCallback((message, type = "success") => {
         setNotification({ message, type });
@@ -857,6 +861,68 @@ function RespondersReports({ token }) {
                         <option key={b} value={b === "All Barangay" ? "All" : b}>{b}</option>
                     ))}
                 </select>
+                
+                <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                    <select value={exportColorMode} onChange={(e) => setExportColorMode(e.target.value)} style={{ padding: 6, borderRadius: 6 }}>
+                        <option value="color">Colored</option>
+                        <option value="bw">Black & White</option>
+                    </select>
+                    <select value={exportPageSize} onChange={(e) => setExportPageSize(e.target.value)} style={{ padding: 6, borderRadius: 6 }}>
+                        <option value="A4">A4</option>
+                        <option value="Letter">Letter</option>
+                        <option value="Legal">Legal</option>
+                        <option value="Long">Long</option>
+                    </select>
+                    <div style={{ display: 'flex', gap: 6 }}>
+                        <button className="export-btn csv">Export CSV</button>
+                        <button className="export-btn pdf" onClick={async () => {
+                            try {
+                                const token = session?.token;
+                                // system-wide monthly trends (optional)
+                                const mtRes = await fetch('/api/dashboard/monthly-trends', { headers: { 'Authorization': `Bearer ${token}` } });
+                                const mtJson = mtRes.ok ? await mtRes.json().catch(() => null) : null;
+                                const monthsArr = (mtJson && (mtJson.trends || mtJson.data || mtJson)) || [];
+
+                                // top barangays
+                                const tbRes = await fetch('/api/dashboard/top-barangays', { headers: { 'Authorization': `Bearer ${token}` } });
+                                const tbJson = tbRes.ok ? await tbRes.json().catch(() => null) : null;
+                                const topBarangays = (tbJson && (tbJson.barangays || tbJson.data || tbJson)) || [];
+
+                                // assigned reports count (local fallback)
+                                const assignedCount = reports.filter(r => r.assigned_report_id || r.assigned_responder_id || r.assigned_to || r.assigned_to_id).length;
+                                const systemCount = reports.length;
+
+                                // safezones/hotspots
+                                let safezoneCount = 0, hotspotCount = 0;
+                                try {
+                                    const shRes = await fetch('/api/dashboard/safezones-hotspots', { headers: { 'Authorization': `Bearer ${token}` } });
+                                    if (shRes.ok) {
+                                        const shJson = await shRes.json().catch(() => null) || {};
+                                        safezoneCount = parseInt(shJson.safezones || shJson.safezone_count || 0) || 0;
+                                        hotspotCount = parseInt(shJson.hotspots || shJson.hotspot_count || 0) || 0;
+                                    }
+                                } catch (e) { }
+
+                                const pageSizeMap = { A4: 'A4', Letter: '8.5in 11in', Legal: '8.5in 14in', Long: '8.5in 22in' };
+                                const pageCss = `@page { size: ${pageSizeMap[exportPageSize] || 'A4'}; margin: 20mm; }`;
+                                const colorCss = exportColorMode === 'bw' ? 'html { filter: grayscale(100%); }' : '';
+
+                                const monthsHtml = Array.isArray(monthsArr) && monthsArr.length ? monthsArr.map(m => `<div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid #f1f5f9;"><span>${m.month || m.label}</span><strong>${m.count || m.total || 0}</strong></div>`).join('') : '<div style="color:#666">No monthly trend data.</div>';
+                                const barangaysHtml = Array.isArray(topBarangays) && topBarangays.length ? topBarangays.map(b => `<div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid #f1f5f9;"><span>${b.barangay || b.name}</span><strong>${b.total || b.count || 0}</strong></div>`).join('') : '<div style="color:#666">No top barangay data.</div>';
+
+                                const html = `<!doctype html><html><head><meta charset="utf-8"><title>Responder Reports - Export</title><style>*{box-sizing:border-box} body{font-family:Segoe UI,Arial;padding:24px;color:#333;} ${colorCss} ${pageCss}</style></head><body><h2>Responder Export</h2><div style="display:flex;gap:24px;align-items:flex-start;"><div style="flex:1;border:1px solid #e5e7eb;padding:12px;border-radius:8px;"><h3>📈 Monthly Reports Trend</h3>${monthsHtml}</div><div style="width:320px;border:1px solid #e5e7eb;padding:12px;border-radius:8px;"><h3>📊 Top Barangays</h3>${barangaysHtml}</div></div><div style="display:flex;gap:16px;margin-top:16px;"><div style="flex:1;border:1px solid #e5e7eb;padding:12px;border-radius:8px;text-align:center;"><div style="font-size:22px;font-weight:700;color:#2d3b8f;">${systemCount}</div><div style="font-size:12px;color:#475569;">System Reports</div></div><div style="flex:1;border:1px solid #e5e7eb;padding:12px;border-radius:8px;text-align:center;"><div style="font-size:22px;font-weight:700;color:#2d3b8f;">${assignedCount}</div><div style="font-size:12px;color:#475569;">Assigned Reports</div></div><div style="flex:1;border:1px solid #e5e7eb;padding:12px;border-radius:8px;text-align:center;"><div style="font-size:22px;font-weight:700;color:#2d3b8f;">${safezoneCount}</div><div style="font-size:12px;color:#475569;">Safezones</div></div><div style="flex:1;border:1px solid #e5e7eb;padding:12px;border-radius:8px;text-align:center;"><div style="font-size:22px;font-weight:700;color:#2d3b8f;">${hotspotCount}</div><div style="font-size:12px;color:#475569;">Hotspots</div></div></div><p style="margin-top:20px;color:#666">Generated: ${new Date().toLocaleString()}</p></body></html>`;
+
+                                const w = window.open('', '_blank');
+                                w.document.write(html);
+                                w.document.close();
+                                w.print();
+                            } catch (e) {
+                                console.error('Responder export failed', e);
+                                alert('Export failed. Check console for details.');
+                            }
+                        }}>Export PDF</button>
+                    </div>
+                </div>
                 
                 <label htmlFor="status-filter" className="sr-only">Filter by Status</label>
                 <select 
