@@ -6,6 +6,7 @@ import {
   Popup,
   CircleMarker,
   Circle,
+  FeatureGroup,
 } from "react-leaflet";
 import { getApiUrl } from "../../utils/apiConfig";
 import { fetchSafezonesWithCache } from "../../utils/safezonesService";
@@ -371,7 +372,7 @@ function Maps({ session, userRole }) {
           />
 
           {/* Render safezones as circles */}
-          {showSafezones && safezones.map((sz) => {
+          {showSafezones && safezones.map((sz, idx) => {
             const latitude = sz?.center?.latitude;
             const longitude = sz?.center?.longitude;
             if (
@@ -384,18 +385,30 @@ function Maps({ session, userRole }) {
               return null;
             }
 
+            // small northward offset (~30m) so the marker appears above the circle
+            const pointerOffset = 0.00027;
+
             return (
-              <Circle
-                key={`safezone-${sz.id ?? `${latitude}-${longitude}`}`}
-                center={[Number(latitude), Number(longitude)]}
-                radius={sz.radius_meters}
-                color="#0891b2"
-                fillColor="#06b6d4"
-                fillOpacity={0.25}
-                weight={3}
-                dashArray="5, 5"
-                className={`safezone safezone-${sz.id ?? 'unknown'}`}
-              >
+              <FeatureGroup key={`safezone-frag-${sz.id ?? `${latitude}-${longitude}`}`}>
+                <Circle
+                  key={`safezone-${sz.id ?? `${latitude}-${longitude}`}`}
+                  center={[Number(latitude), Number(longitude)]}
+                  radius={sz.radius_meters}
+                  color="#0891b2"
+                  fillColor="#06b6d4"
+                  fillOpacity={0.25}
+                  weight={3}
+                  dashArray="5, 5"
+                  className={`safezone safezone-${sz.id ?? 'unknown'}`}
+                />
+
+                {/* Blue location marker pointer slightly above the safezone */}
+                <Marker
+                  key={`safezone-pointer-${sz.id ?? idx}`}
+                  position={[Number(latitude) + pointerOffset, Number(longitude)]}
+                  icon={createColoredIcon('#3b82f6')}
+                />
+
                 <Popup>
                   <div>
                     <strong style={{ fontSize: "14px" }}>🛡️ {sz.name}</strong>
@@ -409,7 +422,7 @@ function Maps({ session, userRole }) {
                     <small style={{ color: '#666' }}>ID: {sz.id ?? 'n/a'}</small>
                   </div>
                 </Popup>
-              </Circle>
+              </FeatureGroup>
             );
           })}
 

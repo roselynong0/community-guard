@@ -6,6 +6,7 @@ import {
   Popup,
   CircleMarker,
   Circle,
+  FeatureGroup,
 } from "react-leaflet";
 import { API_CONFIG, getApiUrl } from "../../utils/apiConfig";
 import { fetchSafezonesWithCache } from "../../utils/safezonesService";
@@ -189,17 +190,28 @@ function BarangayMaps({ session, userBarangay }) {
             const longitude = sz?.center?.longitude || sz?.longitude;
             if (!latitude || !longitude) return null;
 
+            const pointerOffset = 0.00027; // ~30 meters
+
             return (
-              <Circle
-                key={`safezone-${sz.id || idx}`}
-                center={[Number(latitude), Number(longitude)]}
-                radius={sz.radius_meters || 100}
-                color="#0891b2"
-                fillColor="#06b6d4"
-                fillOpacity={0.25}
-                weight={3}
-                dashArray="5, 5"
-              >
+              <FeatureGroup key={`safezone-frag-${sz.id || idx}`}>
+                <Circle
+                  key={`safezone-${sz.id || idx}`}
+                  center={[Number(latitude), Number(longitude)]}
+                  radius={sz.radius_meters || 100}
+                  color="#0891b2"
+                  fillColor="#06b6d4"
+                  fillOpacity={0.25}
+                  weight={3}
+                  dashArray="5, 5"
+                />
+
+                {/* Blue location marker pointer slightly above the safezone */}
+                <Marker
+                  key={`safezone-pointer-${sz.id || idx}`}
+                  position={[Number(latitude) + pointerOffset, Number(longitude)]}
+                  icon={createColoredIcon('#3b82f6')}
+                />
+
                 <Popup>
                   <div>
                     <strong style={{ fontSize: "14px" }}>🛡️ {sz.name}</strong>
@@ -211,7 +223,7 @@ function BarangayMaps({ session, userBarangay }) {
                     </span>
                   </div>
                 </Popup>
-              </Circle>
+              </FeatureGroup>
             );
           })}
 

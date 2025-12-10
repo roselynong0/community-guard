@@ -1226,228 +1226,283 @@ function AdminReports({ token, reportTitle = 'All Community Reports', showTitle 
         // safezones & hotspots counts
         let safezoneCount = 0;
         let hotspotCount = 0;
+        // Build months array (last 6 months) for monthly trend
+        const monthsArr = (() => {
+            const now = new Date();
+            const months = [];
+            for (let i = 5; i >= 0; i--) {
+                const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+                const label = d.toLocaleString('default', { month: 'short', year: 'numeric' });
+                months.push({ key: `${d.getFullYear()}-${d.getMonth()}`, label, count: 0 });
+            }
+            reportsToExport.forEach(r => {
+                try {
+                    const d = new Date(r.created_at || r.date || 0);
+                    const key = `${d.getFullYear()}-${d.getMonth()}`;
+                    const m = months.find(x => x.key === key);
+                    if (m) m.count++;
+                } catch (e) { /* ignore parse errors */ }
+            });
+            return months;
+        })();
+
+        // Build pie data from sortedBarangays
+        const pieData = sortedBarangays.map(([name, count]) => ({ name, value: count }));
+
+        const userBarangayLabel = (barangay && barangay !== 'All') ? barangay : 'All Barangays';
 
         const printContent = `
-            <!DOCTYPE html>
-            <html>
-            <head>
-                <title>Community Guard - Admin Reports Analytics</title>
-                <style>
-                    ${colorCss}
-                    ${pageCss}
-                    * { box-sizing: border-box; margin: 0; padding: 0; }
-                    body { font-family: 'Segoe UI', Arial, sans-serif; padding: 40px; color: #333; }
-                    .header { text-align: center; margin-bottom: 30px; border-bottom: 3px solid #2d3b8f; padding-bottom: 20px; }
-                    .header-logo { display: flex; align-items: center; justify-content: center; gap: 12px; margin-bottom: 10px; }
-                    .header-logo img { width: 48px; height: 48px; object-fit: contain; }
-                    .header h1 { color: #2d3b8f; font-size: 28px; margin-bottom: 5px; }
-                    .header .subtitle { color: #666; font-size: 14px; }
-                    .header .role-badge { background: #2d3b8f; color: white; padding: 4px 12px; border-radius: 12px; font-size: 12px; margin-top: 8px; display: inline-block; }
-                    .ai-badge { background: linear-gradient(135deg, #2d3b8f, #1e2966); color: white; padding: 10px 20px; border-radius: 20px; display: inline-flex; align-items: center; gap: 10px; margin: 15px 0; font-size: 14px; font-weight: 500; }
-                    .ai-badge img { width: 24px; height: 24px; object-fit: contain; border-radius: 4px; }
-                    .section { margin-bottom: 30px; }
-                    .section-title { font-size: 18px; color: #2d3b8f; margin-bottom: 15px; padding-bottom: 8px; border-bottom: 2px solid #e5e7eb; }
-                    .stats-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 15px; margin-bottom: 25px; }
-                    .stat-card { background: #f8fafc; padding: 20px; border-radius: 10px; text-align: center; border: 1px solid #e5e7eb; }
-                    .stat-card .number { font-size: 32px; font-weight: bold; color: #2d3b8f; }
-                    .stat-card .label { font-size: 12px; color: #666; margin-top: 5px; }
-                    .analytics-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 25px; }
-                    .analytics-card { background: #f8fafc; padding: 20px; border-radius: 10px; border: 1px solid #e5e7eb; }
-                    .analytics-card h3 { font-size: 14px; color: #2d3b8f; margin-bottom: 15px; }
-                    .analytics-item { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #e5e7eb; }
-                    .analytics-item:last-child { border-bottom: none; }
-                    .analytics-item .name { font-size: 13px; }
-                    .analytics-item .count { font-weight: bold; color: #2d3b8f; }
-                    table { width: 100%; border-collapse: collapse; font-size: 11px; margin-top: 15px; }
-                    th { background: #2d3b8f; color: white; padding: 10px 8px; text-align: left; }
-                    td { padding: 10px 8px; border-bottom: 1px solid #e5e7eb; vertical-align: top; }
-                    tr:nth-child(even) { background: #f8fafc; }
-                    .priority-critical, .priority-high { color: #dc2626; font-weight: bold; }
-                    .priority-medium { color: #f59e0b; font-weight: bold; }
-                    .priority-low { color: #22c55e; }
-                    .footer { margin-top: 40px; text-align: center; font-size: 12px; color: #666; padding-top: 20px; border-top: 2px solid #2d3b8f; }
-                    .footer-brand { display: flex; align-items: center; justify-content: center; gap: 10px; margin-bottom: 8px; }
-                    .footer-brand img { width: 28px; height: 28px; object-fit: contain; }
-                    .footer-brand span { font-weight: 600; color: #2d3b8f; font-size: 14px; }
-                    .footer-subtitle { margin-top: 8px; font-size: 11px; color: #888; font-style: italic; }
-                    @media print { body { padding: 20px; } .stats-grid { grid-template-columns: repeat(4, 1fr); } }
-                </style>
-            </head>
-            <body>
-                <div class="header">
-                    <div class="header-logo">
-                        <img src="${logoPath}" alt="Community Guard Logo" onerror="this.style.display='none'" />
-                        <h1>Community Guard</h1>
-                    </div>
-                    <p class="subtitle">Admin Reports - Complete Analytics Report (${timeLabel})</p>
-                    <div class="ai-badge">💡 Community Helper</div>
-                    <p style="margin-top: 10px; font-size: 13px; color: #666;">Generated: ${reportDate}</p>
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <title>Community Guard - ${userBarangayLabel || 'Barangay'} Reports Summary</title>
+            <style>
+                * { box-sizing: border-box; margin: 0; padding: 0; }
+                body { font-family: 'Segoe UI', Arial, sans-serif; padding: 40px; color: #333; }
+
+                /* HEADER */
+                .header { text-align: center; margin-bottom: 30px; border-bottom: 3px solid #2d3b8f; padding-bottom: 20px; }
+                .header-logo { display: flex; align-items: center; justify-content: center; gap: 12px; margin-bottom: 10px; }
+                .header-logo img { width: 48px; height: 48px; object-fit: contain; }
+                .header h1 { color: #2d3b8f; font-size: 30px; font-weight: 700; }
+                .header .subtitle { color: #666; font-size: 14px; margin-top: 5px; }
+
+                /* SECTION TITLE */
+                .section-title {
+                    font-size: 18px;
+                    font-weight: 600;
+                    color: #2d3b8f;
+                    margin: 25px 0 10px 0;
+                    border-bottom: 2px solid #e2e8f0;
+                    padding-bottom: 6px;
+                }
+
+                /* TABLES */
+                table { width: 100%; border-collapse: collapse; font-size: 12px; margin-top: 12px; }
+                th { background: #2d3b8f; color: white; padding: 8px; font-size: 12px; text-align: left; }
+                td { padding: 8px; border-bottom: 1px solid #e5e7eb; }
+                tr:nth-child(even) { background: #f8fafc; }
+                .totals-row { background: #e7f0ff; font-weight: bold; color: #1e293b; }
+
+                /* PRIORITY COLORS */
+                .priority-critical, .priority-high { color: #dc2626; font-weight: bold; }
+                .priority-medium { color: #f59e0b; font-weight: bold; }
+                .priority-low { color: #22c55e; font-weight: bold; }
+
+                /* FOOTER */
+                .footer { margin-top: 40px; text-align: center; font-size: 12px; color: #666; padding-top: 20px; border-top: 2px solid #2d3b8f; }
+                .footer-brand img { width: 26px; margin-bottom: 5px; }
+                @media print { body { padding: 20px; } }
+                ${colorCss}
+            </style>
+        </head>
+        <body>
+
+            <!-- HEADER -->
+            <div class="header">
+                <div class="header-logo">
+                    <img src="${logoPath}" onerror="this.style.display='none'"/>
+                    <h1>Community Guard</h1>
                 </div>
-                
-                <div class="section">
-                    <div class="stats-grid">
-                        <div class="stat-card">
-                            <div class="number">${totalReports}</div>
-                            <div class="label">Total Reports</div>
-                        </div>
-                        <div class="stat-card">
-                            <div class="number" style="color: #f59e0b;">${statusStats.Pending}</div>
-                            <div class="label">Pending</div>
-                        </div>
-                        <div class="stat-card">
-                            <div class="number" style="color: #3b82f6;">${statusStats.Ongoing}</div>
-                            <div class="label">Ongoing</div>
-                        </div>
-                        <div class="stat-card">
-                            <div class="number" style="color: #22c55e;">${statusStats.Resolved}</div>
-                            <div class="label">Resolved</div>
-                        </div>
-                    </div>
-                </div>
-                
-                <div class="analytics-grid">
-                    <div class="analytics-card">
-                        <h3>📁 Reports by Category</h3>
-                        ${sortedCategories.map(([name, count]) => `
-                            <div class="analytics-item">
-                                <span class="name">${name}</span>
-                                <span class="count">${count}</span>
-                            </div>
-                        `).join("")}
-                    </div>
-                    <div class="analytics-card">
-                        <h3>📍 Reports by Barangay</h3>
-                        ${sortedBarangays.slice(0, 8).map(([name, count]) => `
-                            <div class="analytics-item">
-                                <span class="name">${name}</span>
-                                <span class="count">${count}</span>
-                            </div>
-                        `).join("")}
-                        ${sortedBarangays.length > 8 ? `<div class="analytics-item"><span class="name" style="color: #999;">... and ${sortedBarangays.length - 8} more</span><span></span></div>` : ""}
-                    </div>
-                </div>
-                
-                ${topLikedReports.length > 0 ? `
-                <div class="section">
-                    <h2 class="section-title">🔥 Community Engagement - Top Trending Reports</h2>
-                    <div class="stats-grid" style="grid-template-columns: 1fr 1fr;">
-                        <div class="stat-card">
-                            <div class="number" style="color: #ef4444;">${totalLikes}</div>
-                            <div class="label">Total Likes</div>
-                        </div>
-                        <div class="stat-card">
-                            <div class="number" style="color: #f59e0b;">${topLikedReports.length}</div>
-                            <div class="label">Trending Reports</div>
-                        </div>
-                    </div>
-                    <div class="analytics-card" style="margin-top: 15px;">
-                        <h3>❤️ Most Liked Reports</h3>
-                        ${topLikedReports.map((r) => `
-                            <div class="analytics-item">
-                                <span class="name">${r.title?.substring(0, 40) || "Untitled"}${r.title?.length > 40 ? '...' : ''}</span>
-                                <span class="count">${r.reaction_count || 0} ❤️</span>
-                            </div>
-                        `).join("")}
-                    </div>
-                </div>
-                ` : ''}
-                
-                <div class="section">
-                    <h2 class="section-title">📋 Detailed Report List</h2>
-                    <table>
-                        <thead>
-                            <tr>
-                                <th>ID</th>
-                                <th>Title</th>
-                                <th>Category</th>
-                                <th>Status</th>
-                                <th>Barangay</th>
-                                <th>Priority</th>
-                                <th>Likes</th>
-                                <th>Created</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            ${reportsToExport.slice(0, 50).map((report) => `
-                                <tr>
-                                    <td>${report.id}</td>
-                                    <td>${report.title || "Untitled"}</td>
-                                    <td>${report.category || "N/A"}</td>
-                                    <td>${report.status || "N/A"}</td>
-                                    <td>${report.barangay || report.address_barangay || "N/A"}</td>
-                                    <td class="priority-${getReportPriority(report).toLowerCase()}">${getReportPriority(report)}</td>
-                                    <td style="text-align: center;">${report.reaction_count || 0} ❤️</td>
-                                    <td>${new Date(report.created_at).toLocaleDateString()}</td>
-                                </tr>
-                            `).join("")}
-                        </tbody>
-                    </table>
-                    ${reportsToExport.length > 50 ? `<p style="margin-top: 15px; color: #666; font-size: 12px; text-align: center;">Showing first 50 of ${reportsToExport.length} reports</p>` : ""}
-                </div>
-                
-                <div class="section" style="background: linear-gradient(135deg, #f0f4ff, #e8f0fe); padding: 25px; border-radius: 12px; border: 1px solid #3b82f6;">
-                    <h2 class="section-title" style="border-bottom-color: #3b82f6;">🤖 Community Helper - AI Analysis & Recommendations</h2>
-                    
-                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-top: 15px;">
-                        <div style="background: white; padding: 15px; border-radius: 8px; border-left: 4px solid ${priorityStats.Critical > 0 || priorityStats.High > 0 ? '#dc2626' : '#22c55e'};">
-                            <h4 style="color: #1e293b; margin-bottom: 10px;">📊 Risk Assessment</h4>
-                            <p style="font-size: 13px; color: #475569; line-height: 1.5;">
-                                ${priorityStats.Critical > 0 ? `<strong style="color: #dc2626;">⚠️ ${priorityStats.Critical} Critical</strong> priority report${priorityStats.Critical > 1 ? 's' : ''} requiring immediate attention. ` : ''}
-                                ${priorityStats.High > 0 ? `<strong style="color: #f59e0b;">${priorityStats.High} High</strong> priority report${priorityStats.High > 1 ? 's' : ''} should be addressed soon. ` : ''}
-                                ${priorityStats.Critical === 0 && priorityStats.High === 0 ? `✅ No critical or high priority reports. Community safety is currently stable.` : ''}
-                            </p>
-                        </div>
-                        
-                        <div style="background: white; padding: 15px; border-radius: 8px; border-left: 4px solid #3b82f6;">
-                            <h4 style="color: #1e293b; margin-bottom: 10px;">📈 Trend Analysis</h4>
-                            <p style="font-size: 13px; color: #475569; line-height: 1.5;">
-                                ${sortedCategories.length > 0 ? `Most reported category: <strong>${sortedCategories[0][0]}</strong> (${sortedCategories[0][1]} reports, ${((sortedCategories[0][1] / totalReports) * 100).toFixed(0)}% of total). ` : ''}
-                                ${topLikedReports.length > 0 ? `Community engagement shows ${totalLikes} total reactions across reports.` : 'Community engagement data is being collected.'}
-                            </p>
-                        </div>
-                    </div>
-                    
-                    <div style="background: white; padding: 15px; border-radius: 8px; margin-top: 15px; border-left: 4px solid #8b5cf6;">
-                        <h4 style="color: #1e293b; margin-bottom: 10px;">💡 Recommendations</h4>
-                        <ul style="font-size: 13px; color: #475569; line-height: 1.8; margin-left: 20px;">
-                            ${statusStats.Pending > totalReports * 0.3 ? `<li><strong>High Pending Rate:</strong> ${statusStats.Pending} reports (${((statusStats.Pending / totalReports) * 100).toFixed(0)}%) are pending. Consider allocating more resources for faster review.</li>` : ''}
-                            ${sortedBarangays.length > 0 && sortedBarangays[0][1] > totalReports * 0.3 ? `<li><strong>Hotspot Alert:</strong> ${sortedBarangays[0][0]} has ${sortedBarangays[0][1]} reports (${((sortedBarangays[0][1] / totalReports) * 100).toFixed(0)}% of total). Consider increased monitoring in this area.</li>` : ''}
-                            ${categoryStats['Crime'] && categoryStats['Crime'] > totalReports * 0.2 ? `<li><strong>Crime Reports:</strong> ${categoryStats['Crime']} crime-related reports detected. Coordinate with local law enforcement.</li>` : ''}
-                            ${categoryStats['Hazard'] && categoryStats['Hazard'] > totalReports * 0.2 ? `<li><strong>Hazard Reports:</strong> ${categoryStats['Hazard']} hazard reports. Ensure emergency services are aware and prepared.</li>` : ''}
-                            ${totalLikes > 0 && topLikedReports.length > 0 ? `<li><strong>Community Awareness:</strong> Reports with high engagement (${topLikedReports[0]?.reaction_count || 0}+ likes) indicate issues affecting many residents.</li>` : ''}
-                            <li><strong>Regular Review:</strong> Continue monitoring trends and adjust response strategies based on emerging patterns.</li>
-                        </ul>
-                    </div>
-                    
-                    <p style="font-size: 11px; color: #64748b; margin-top: 15px; text-align: center; font-style: italic;">
-                        This analysis is based on report data patterns. Always verify insights with local knowledge.
-                    </p>
-                </div>
-                
-                <!-- Safezones & Hotspots counts -->
-                <div class="section" style="margin-top:18px;">
-                    <div style="display:flex; gap:16px;">
-                        <div style="flex:1; background:#fff; padding:12px; border-radius:8px; border:1px solid #e5e7eb; text-align:center;">
-                            <div style="font-size:22px; font-weight:700; color:#2d3b8f;">${safezoneCount}</div>
-                            <div style="font-size:12px; color:#475569;">Safezones</div>
-                        </div>
-                        <div style="flex:1; background:#fff; padding:12px; border-radius:8px; border:1px solid #e5e7eb; text-align:center;">
-                            <div style="font-size:22px; font-weight:700; color:#2d3b8f;">${hotspotCount}</div>
-                            <div style="font-size:12px; color:#475569;">Hotspots</div>
-                        </div>
-                    </div>
-                </div>
-                
-                <div class="footer">
-                    <div class="footer-brand">
-                        <img src="${logoPath}" alt="Community Guard Logo" onerror="this.style.display='none'" />
-                        <span>Community Guard</span>
-                    </div>
-                    <p>Protecting Communities Together</p>
-                    <p style="margin-top: 5px; font-size: 11px; color: #888;">Time Range: ${timeLabel}</p>
-                </div>
-            </body>
-            </html>
+                <p class="subtitle">${userBarangayLabel} • Consolidated Report Summary</p>
+                <p class="subtitle">Generated: ${reportDate}</p>
+            </div>
+
+
+            <!-- REPORT SUMMARY TABLE -->
+            <h2 class="section-title">Summary Overview</h2>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Total Reports</th>
+                        <th>Pending</th>
+                        <th>Ongoing</th>
+                        <th>Total Likes</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr class="totals-row">
+                        <td>${totalReports}</td>
+                        <td>${statusStats.Pending}</td>
+                        <td>${statusStats.Ongoing}</td>
+                        <td>${totalLikes}</td>
+                    </tr>
+                </tbody>
+            </table>
+
+
+            <!-- TRENDING -->
+            ${trendingReports.length > 0 ? `
+            <h2 class="section-title">Trending Report</h2>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Rank</th>
+                        <th>Title</th>
+                        <th>Likes</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>1</td>
+                        <td>${trendingReports[0].title || 'Untitled'}</td>
+                        <td>❤️ ${trendingReports[0].reaction_count || 0}</td>
+                    </tr>
+                </tbody>
+            </table>
+            ` : ''}
+
+
+            <!-- CATEGORY BREAKDOWN -->
+            <h2 class="section-title">Reports by Category</h2>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Category</th>
+                        <th>Total Reports</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    ${sortedCategories.map(([name, count]) => `
+                        <tr>
+                            <td>${name}</td>
+                            <td>${count}</td>
+                        </tr>
+                    `).join("")}
+                    <tr class="totals-row">
+                        <td>Total</td>
+                        <td>${totalReports}</td>
+                    </tr>
+                </tbody>
+            </table>
+
+
+            <!-- MONTHLY TREND -->
+            <h2 class="section-title">Monthly Report Trend</h2>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Month</th>
+                        <th>Report Count</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    ${monthsArr.map(m => `
+                        <tr>
+                            <td>${m.label}</td>
+                            <td>${m.count}</td>
+                        </tr>
+                    `).join("")}
+                </tbody>
+            </table>
+
+
+            <!-- TOP BARANGAYS -->
+            <h2 class="section-title">Top Barangays (Report Volume)</h2>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Barangay</th>
+                        <th>Total Reports</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    ${pieData.map(p => `
+                        <tr>
+                            <td>${p.name}</td>
+                            <td>${p.value}</td>
+                        </tr>
+                    `).join("")}
+                </tbody>
+            </table>
+
+
+            <!-- DETAILED LIST -->
+            <h2 class="section-title">Detailed Report List</h2>
+            <table>
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Title</th>
+                        <th>Category</th>
+                        <th>Status</th>
+                        <th>Priority</th>
+                        <th>Likes</th>
+                        <th>Created</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    ${reportsToExport.slice(0, 50).map(r => `
+                        <tr>
+                            <td>${r.id}</td>
+                            <td>${r.title || 'Untitled'}</td>
+                            <td>${r.category || 'N/A'}</td>
+                            <td>${r.status || 'N/A'}</td>
+                            <td class="priority-${getReportPriority(r).toLowerCase()}">${getReportPriority(r)}</td>
+                            <td>❤️ ${r.reaction_count || 0}</td>
+                            <td>${new Date(r.created_at).toLocaleDateString()}</td>
+                        </tr>
+                    `).join("")}
+                </tbody>
+            </table>
+            ${reportsToExport.length > 50 ? `<p style="font-size:11px;text-align:center;margin-top:10px;color:#666;">Showing first 50 of ${reportsToExport.length} records</p>` : ""}
+
+
+            <!-- ANALYSIS & RECOMMENDATIONS -->
+            <h2 class="section-title">Analysis & Recommendations</h2>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Assessment</th>
+                        <th>Details</th>
+                    </tr>
+                </thead>
+                <tbody>
+
+                    <tr>
+                        <td><strong>Risk Assessment</strong></td>
+                        <td>
+                            ${priorityStats.Critical > 0 ? `${priorityStats.Critical} critical-priority reports identified requiring immediate attention. ` : ''}
+                            ${priorityStats.High > 0 ? `${priorityStats.High} high-priority reports noted and should be acted on promptly. ` : ''}
+                            ${(priorityStats.Critical === 0 && priorityStats.High === 0)
+                                ? `No critical or high-risk reports detected at this time.`
+                                : ''}
+                        </td>
+                    </tr>
+
+                    <tr>
+                        <td><strong>Trend Observations</strong></td>
+                        <td>
+                            ${sortedCategories.length > 0 ? `Most reported category: <strong>${sortedCategories[0][0]}</strong> (${sortedCategories[0][1]} reports). ` : ''}
+                            ${trendingReports.length > 0 ? `Total community reactions: ${totalLikes}. Highest engagement report has ${trendingReports[0].reaction_count} likes.` : ''}
+                        </td>
+                    </tr>
+
+                    <tr>
+                        <td><strong>Recommendations</strong></td>
+                        <td>
+                            <ul style="margin-left:18px;line-height:1.6;">
+                                ${statusStats.Pending > totalReports * 0.3 ? `<li>High pending workload (${statusStats.Pending}). Consider increasing review frequency.</li>` : ''}
+                                ${categoryStats['Crime'] > totalReports * 0.2 ? `<li>Crime-related reports are elevated. Strengthen barangay patrol visibility.</li>` : ''}
+                                ${categoryStats['Hazard'] > totalReports * 0.2 ? `<li>Infrastructure and hazard concerns require coordination with city maintenance teams.</li>` : ''}
+                                <li>Maintain regular follow-ups on ongoing reports to uphold public trust.</li>
+                            </ul>
+                        </td>
+                    </tr>
+
+                </tbody>
+            </table>
+
+
+            <!-- FOOTER -->
+            <div class="footer">
+                <img src="${logoPath}" height="26" onerror="this.style.display='none'">
+                <p><strong>Generated by Community Guard</strong> • ${reportDate}</p>
+                <p>Time Range: ${timeLabel}</p>
+            </div>
+
+        </body>
+        </html>
         `;
         
         const printWindow = window.open("", "_blank");

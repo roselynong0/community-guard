@@ -115,7 +115,7 @@ function ArchivedReports({ session }) {
   // Export modal states
   const [showExportModal, setShowExportModal] = useState(false);
   const [exportType, setExportType] = useState(null); // 'csv' or 'pdf'
-  const [exportTimeFilter, setExportTimeFilter] = useState("all"); // 'today', 'this-week', 'this-month', 'all'
+  // const [exportTimeFilter, setExportTimeFilter] = useState("all"); // 'today', 'this-week', 'this-month', 'all' - unused
   const [exportColorMode, setExportColorMode] = useState('color'); // 'color' or 'bw'
   const [exportPageSize, setExportPageSize] = useState('A4'); // 'A4', 'Letter', 'Legal', 'Long'
 
@@ -354,32 +354,20 @@ function ArchivedReports({ session }) {
   // Open export modal
   const openExportModal = (type) => {
     setExportType(type);
-    setExportTimeFilter("all");
     setShowExportModal(true);
   };
 
-  // Export to CSV with time filter
+  // Export to CSV with time filter - align with BarangayReports CSV design (includes address, reporter, trending flag)
   const exportToCSV = (timeFilter = "all") => {
     const reportsToExport = filterReportsByTime(filteredReports, timeFilter);
+    const trendingIds = new Set(trendingReports.map(r => r.id));
     
     if (reportsToExport.length === 0) {
       alert("No reports found for the selected time period.");
       return;
     }
     
-    const headers = [
-      "ID",
-      "Title",
-      "Category",
-      "Status",
-      "Barangay",
-      "Priority",
-      "Likes",
-      "Reporter",
-      "Created At",
-      "Resolved At",
-      "Description"
-    ];
+    const headers = ["ID","Title","Category","Status","Barangay","Address","Reporter","Priority","Likes","Trending","Created At","Description"];
     
     const csvRows = [headers.join(",")];
     
@@ -391,11 +379,12 @@ function ArchivedReports({ session }) {
         report.category || "",
         report.status || "",
         report.address_barangay || "",
+        `"${(report.address_street || report.addressStreet || "").replace(/"/g, '""')}"`,
+        report.reporter ? `"${(report.reporter.firstname || "") + " " + (report.reporter.lastname || "")}"` : '"Unknown"',
         priority,
         report.reaction_count || 0,
-        `"${report.reporter?.firstname || "Unknown"} ${report.reporter?.lastname || ""}"`,
-        new Date(report.created_at).toLocaleString(),
-        report.resolved_at ? new Date(report.resolved_at).toLocaleString() : "N/A",
+        trendingIds.has(report.id) ? "Yes" : "No",
+        report.created_at ? new Date(report.created_at).toLocaleString() : "N/A",
         `"${(report.description || "").replace(/"/g, '""').replace(/\n/g, ' ')}"`,
       ];
       csvRows.push(row.join(","));
@@ -421,9 +410,10 @@ function ArchivedReports({ session }) {
     setShowExportModal(false);
   };
 
-  // Export to PDF with Community Helper AI Analytics
+  // Export to PDF with Community Helper AI Analytics - aligned with BarangayReports design
   const exportToPDF = async (timeFilter = "all", colorMode = 'color', pageSize = 'A4') => {
     const reportsToExport = filterReportsByTime(filteredReports, timeFilter);
+    const trendingIds = new Set(trendingReports.map(r => r.id));
     
     if (reportsToExport.length === 0) {
       alert("No reports found for the selected time period.");
@@ -690,29 +680,35 @@ function ArchivedReports({ session }) {
           <table>
             <thead>
               <tr>
-                <th>ID</th>
-                <th>Title</th>
-                <th>Category</th>
-                <th>Barangay</th>
-                <th>Priority</th>
-                <th>Likes</th>
-                <th>Created</th>
+                  <th>ID</th>
+                  <th>Title</th>
+                  <th>Category</th>
+                  <th>Barangay</th>
+                  <th>Address</th>
+                  <th>Reporter</th>
+                  <th>Priority</th>
+                  <th>Likes</th>
+                  <th>Trending</th>
+                  <th>Created</th>
               </tr>
             </thead>
             <tbody>
-              ${reportsToExport.map((report) => {
-                const priority = getReportPriority(report);
-                return `
-                <tr>
-                  <td>${report.id}</td>
-                  <td>${report.title || "Untitled"}</td>
-                  <td>${report.category || "N/A"}</td>
-                  <td>${report.address_barangay || "N/A"}</td>
-                  <td class="priority-${priority.toLowerCase()}">${priority}</td>
-                  <td>${report.reaction_count || 0} ❤️</td>
-                  <td>${new Date(report.created_at).toLocaleDateString()}</td>
-                </tr>
-              `}).join("")}
+                ${reportsToExport.map((report) => {
+                  const priority = getReportPriority(report);
+                  return `
+                  <tr>
+                    <td>${report.id}</td>
+                    <td>${report.title || "Untitled"}</td>
+                    <td>${report.category || "N/A"}</td>
+                    <td>${report.address_barangay || "N/A"}</td>
+                    <td>${report.address_street ? report.address_street : (report.addressStreet || '')}</td>
+                    <td>${report.reporter ? `${report.reporter.firstname || ''} ${report.reporter.lastname || ''}`.trim() : 'Unknown'}</td>
+                    <td class="priority-${priority.toLowerCase()}">${priority}</td>
+                    <td>${report.reaction_count || 0} ❤️</td>
+                    <td>${trendingIds.has(report.id) ? 'Yes' : 'No'}</td>
+                    <td>${new Date(report.created_at).toLocaleDateString()}</td>
+                  </tr>
+                `}).join("")}
             </tbody>
           </table>
         </div>
@@ -1070,90 +1066,88 @@ function ArchivedReports({ session }) {
               );
             })
           ) : (
-            // List View
             <div className="archived-list-table">
-              <div className="list-header">
-                <div className="list-col col-image">Image</div>
-                <div className="list-col col-title">Title</div>
-                <div className="list-col col-category">Category</div>
-                <div className="list-col col-barangay">Barangay</div>
-                <div className="list-col col-priority">Priority</div>
-                <div className="list-col col-reporter">Reporter</div>
-                <div className="list-col col-date">Date</div>
-                <div className="list-col col-status">Status</div>
-                <div className="list-col col-likes" style={{ width: '60px', textAlign: 'center' }}>Likes</div>
-              </div>
-              {filteredReports.map((report, index) => (
-                <div 
-                  key={report.id} 
-                  className="list-row"
-                  onClick={() => toggleExpand(report.id)}
-                >
-                  <div className="list-col col-image">
-                    {report.images && report.images.length > 0 ? (
-                      <img
-                        src={report.images[0]}
-                        alt="Report thumbnail"
-                        className="list-thumbnail"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setPreviewImage(report.images[0]);
-                        }}
-                      />
-                    ) : (
-                      <div className="no-thumbnail">
-                        <FaArchive />
-                      </div>
-                    )}
-                  </div>
-                  <div className="list-col col-title">
-                    <span className="list-title">{report.title || "Untitled"}</span>
-                    {expandedPosts.includes(report.id) && (
-                      <p className="list-description">{report.description}</p>
-                    )}
-                  </div>
-                  <div className="list-col col-category">
-                    <span className="category-tag">{report.category || "N/A"}</span>
-                  </div>
-                  <div className="list-col col-barangay">{report.address_barangay || "N/A"}</div>
-                  <div className="list-col col-priority">
-                    <span className={`priority-tag priority-${(report.priority || "low").toLowerCase()}`}>
-                      {report.priority || "N/A"}
-                    </span>
-                  </div>
-                  <div className="list-col col-reporter">
-                    <div className="reporter-info">
-                      <img
-                        src={report.reporter?.avatar_url || "/src/assets/profile.png"}
-                        alt=""
-                        className="reporter-avatar"
-                        onError={(e) => {
-                          e.target.src = "/src/assets/profile.png";
-                        }}
-                      />
-                      <span>{report.reporter?.firstname || "Unknown"}</span>
-                    </div>
-                  </div>
-                  <div className="list-col col-date">
-                    <span className="date-text">
-                      {report.created_at
-                        ? new Date(report.created_at).toLocaleDateString()
-                        : "N/A"}
-                    </span>
-                  </div>
-                  <div className="list-col col-status">
-                    <span className="status-tag resolved">
-                      <FaCheckCircle /> Resolved
-                    </span>
-                  </div>
-                  <div className="list-col col-likes" style={{ width: '60px', textAlign: 'center' }}>
-                    <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px', color: '#9ca3af' }}>
-                      <FaHeart style={{ color: '#ef4444', opacity: 0.6, fontSize: '0.8em' }} />
-                      {report.reaction_count || 0}
-                    </span>
-                  </div>
-                </div>
-              ))}
+              <table className="archived-list-table-table" role="table">
+                <thead>
+                  <tr className="list-header">
+                    <th className="col-image">Image</th>
+                    <th className="col-title">Title</th>
+                    <th className="col-category">Category</th>
+                    <th className="col-barangay">Barangay</th>
+                    <th className="col-priority">Priority</th>
+                    <th className="col-reporter">Reporter</th>
+                    <th className="col-date">Date</th>
+                    <th className="col-status">Status</th>
+                    <th className="col-likes" style={{ width: '60px', textAlign: 'center' }}>Likes</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredReports.map((report) => (
+                    <tr 
+                      key={report.id}
+                      className="list-row"
+                      onClick={() => toggleExpand(report.id)}
+                      role="row"
+                    >
+                      <td className="list-col col-image">
+                        {report.images && report.images.length > 0 ? (
+                          <img
+                            src={report.images[0]}
+                            alt="Report thumbnail"
+                            className="list-thumbnail"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setPreviewImage(report.images[0]);
+                            }}
+                          />
+                        ) : (
+                          <div className="no-thumbnail">
+                            <FaArchive />
+                          </div>
+                        )}
+                      </td>
+                      <td className="list-col col-title">
+                        <span className="list-title">{report.title || "Untitled"}</span>
+                        {expandedPosts.includes(report.id) && (
+                          <p className="list-description">{report.description}</p>
+                        )}
+                      </td>
+                      <td className="list-col col-category">
+                        <span className="category-tag">{report.category || "N/A"}</span>
+                      </td>
+                      <td className="list-col col-barangay">{report.address_barangay || "N/A"}</td>
+                      <td className="list-col col-priority">
+                        <span className={`priority-tag priority-${(getReportPriority(report) || "low").toLowerCase()}`}>
+                          {getReportPriority(report) || "N/A"}
+                        </span>
+                      </td>
+                      <td className="list-col col-reporter">
+                        <div className="reporter-info">
+                          <img
+                            src={report.reporter?.avatar_url || "/src/assets/profile.png"}
+                            alt=""
+                            className="reporter-avatar"
+                            onError={(e) => { e.target.src = "/src/assets/profile.png"; }}
+                          />
+                          <span>{report.reporter?.firstname || "Unknown"}</span>
+                        </div>
+                      </td>
+                      <td className="list-col col-date">
+                        <span className="date-text">{report.created_at ? new Date(report.created_at).toLocaleDateString() : "N/A"}</span>
+                      </td>
+                      <td className="list-col col-status">
+                        <span className="status-tag resolved"><FaCheckCircle /> Resolved</span>
+                      </td>
+                      <td className="list-col col-likes" style={{ width: '60px', textAlign: 'center' }}>
+                        <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px', color: '#9ca3af' }}>
+                          <FaHeart style={{ color: '#ef4444', opacity: 0.6, fontSize: '0.8em' }} />
+                          {report.reaction_count || 0}
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
           )
         ) : (

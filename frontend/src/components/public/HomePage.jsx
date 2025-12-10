@@ -498,7 +498,7 @@ const HomePage = () => {
                         <span>Safer communities</span>
                     </div>
                     <h1>
-                        Your community safety partner.
+                        "Your community safety partner"
                     </h1>
                     <p>
                         Community Guard makes it easy to report incidents, stay informed about what's happening in your barangay, 
