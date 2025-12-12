@@ -1543,29 +1543,88 @@ function BarangayReports({ token }) {
             <title>Community Guard - ${userBarangay || 'Barangay'} Reports Summary</title>
             <style>
                 * { box-sizing: border-box; margin: 0; padding: 0; }
-                body { font-family: 'Segoe UI', Arial, sans-serif; padding: 40px; color: #333; }
+                @page {
+                    size: ${pageSize && pageSize.toLowerCase() === 'letter' ? 'letter' : pageSize && pageSize.toLowerCase() === 'legal' ? 'legal' : pageSize && pageSize.toLowerCase() === 'long' ? '8.5in 22in' : 'A4'};
+                    margin: 12mm 10mm 22mm 10mm;
+                }
+                html, body { width: 100%; height: 100%; }
+                body {
+                    font-family: 'Segoe UI', Arial, sans-serif;
+                    color: #333;
+                    margin: 0;
+                    padding: 0;
+                    background: #fff;
+                }
 
                 /* HEADER */
-                .header { text-align: center; margin-bottom: 30px; border-bottom: 3px solid #2d3b8f; padding-bottom: 20px; }
-                .header-logo { display: flex; align-items: center; justify-content: center; gap: 12px; margin-bottom: 10px; }
-                .header-logo img { width: 48px; height: 48px; object-fit: contain; }
-                .header h1 { color: #2d3b8f; font-size: 30px; font-weight: 700; }
-                .header .subtitle { color: #666; font-size: 14px; margin-top: 5px; }
+                .header {
+                    position: fixed;
+                    top: 0;
+                    left: 0;
+                    right: 0;
+                    width: 100%;
+                    background: #fff;
+                    text-align: center;
+                    border-bottom: 3px solid #2d3b8f;
+                    padding: 8px 10mm 6px 10mm;
+                    z-index: 1001;
+                    page-break-after: avoid;
+                    break-after: avoid-page;
+                    box-sizing: border-box;
+                }
+                .header-logo { display: flex; align-items: center; justify-content: center; gap: 8px; margin-bottom: 4px; }
+                .header-logo img { width: 32px; height: 32px; object-fit: contain; }
+                .header h1 { color: #2d3b8f; font-size: 20px; font-weight: 700; margin: 0; }
+                .header .subtitle { color: #666; font-size: 11px; margin: 2px 0 0 0; }
+
+                /* MAIN CONTENT */
+                .content-wrapper {
+                    margin-top: 65px;
+                    margin-bottom: 40px;
+                    padding: 0 10mm;
+                }
 
                 /* SECTION TITLE */
                 .section-title {
-                    font-size: 18px;
+                    font-size: 15px;
                     font-weight: 600;
                     color: #2d3b8f;
-                    margin: 25px 0 10px 0;
+                    margin: 12px 0 8px 0;
                     border-bottom: 2px solid #e2e8f0;
-                    padding-bottom: 6px;
+                    padding-bottom: 4px;
+                    page-break-after: avoid;
+                    break-after: avoid-page;
+                    text-align: center;
                 }
 
                 /* TABLES */
-                table { width: 100%; border-collapse: collapse; font-size: 12px; margin-top: 12px; }
-                th { background: #2d3b8f; color: white; padding: 8px; font-size: 12px; text-align: left; }
-                td { padding: 8px; border-bottom: 1px solid #e5e7eb; }
+                table {
+                    width: 100%;
+                    border-collapse: collapse;
+                    font-size: 11px;
+                    margin: 10px 0 0 0;
+                    page-break-inside: avoid;
+                    break-inside: avoid-page;
+                    background: #fff;
+                }
+                th {
+                    background: #2d3b8f;
+                    color: white;
+                    padding: 6px 4px;
+                    font-size: 10px;
+                    text-align: center;
+                    page-break-inside: avoid;
+                    break-inside: avoid-page;
+                }
+                td {
+                    padding: 5px 4px;
+                    border-bottom: 1px solid #e5e7eb;
+                    page-break-inside: avoid;
+                    break-inside: avoid-page;
+                    text-align: center;
+                    font-size: 11px;
+                }
+                tr { page-break-inside: avoid; break-inside: avoid-page; }
                 tr:nth-child(even) { background: #f8fafc; }
                 .totals-row { background: #e7f0ff; font-weight: bold; color: #1e293b; }
 
@@ -1575,9 +1634,46 @@ function BarangayReports({ token }) {
                 .priority-low { color: #22c55e; font-weight: bold; }
 
                 /* FOOTER */
-                .footer { margin-top: 40px; text-align: center; font-size: 12px; color: #666; padding-top: 20px; border-top: 2px solid #2d3b8f; }
-                .footer-brand img { width: 26px; margin-bottom: 5px; }
-                @media print { body { padding: 20px; } }
+                .footer {
+                    position: fixed;
+                    left: 0;
+                    right: 0;
+                    bottom: 0;
+                    width: 100%;
+                    background: #fff;
+                    text-align: center;
+                    font-size: 11px;
+                    color: #666;
+                    padding: 6px 10mm;
+                    border-top: 2px solid #2d3b8f;
+                    z-index: 1000;
+                    box-sizing: border-box;
+                    page-break-after: avoid;
+                    break-after: avoid-page;
+                }
+                .footer p { margin: 2px 0; }
+                .footer-brand img { width: 20px; margin-bottom: 2px; }
+                .footer-page-number {
+                    display: block;
+                    text-align: center;
+                    font-size: 10px;
+                    color: #888;
+                    margin-top: 2px;
+                }
+
+                @media print {
+                    body { margin: 0; padding: 0; }
+                    .content-wrapper { margin-top: 60px; margin-bottom: 35px; padding: 0 10mm; }
+                    .header { padding: 6px 10mm; }
+                    .footer { padding: 5px 10mm; }
+                    table { font-size: 10px; }
+                    th { padding: 5px 3px; font-size: 9px; }
+                    td { padding: 4px 3px; font-size: 10px; }
+                    table, tr, th, td, .section-title {
+                        page-break-inside: avoid;
+                        break-inside: avoid-page;
+                    }
+                }
                 ${colorCss}
             </style>
         </head>
@@ -1593,6 +1689,7 @@ function BarangayReports({ token }) {
                 <p class="subtitle">Generated: ${reportDate}</p>
             </div>
 
+            <div class="content-wrapper">
 
             <!-- REPORT SUMMARY TABLE -->
             <h2 class="section-title">Summary Overview</h2>
@@ -1702,35 +1799,45 @@ function BarangayReports({ token }) {
             </table>
 
 
-            <!-- DETAILED LIST -->
-            <h2 class="section-title">Detailed Report List</h2>
-            <table>
-                <thead>
-                    <tr>
-                        <th>ID</th>
-                        <th>Title</th>
-                        <th>Category</th>
-                        <th>Status</th>
-                        <th>Priority</th>
-                        <th>Likes</th>
-                        <th>Created</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    ${reportsToExport.slice(0, 50).map(r => `
-                        <tr>
-                            <td>${r.id}</td>
-                            <td>${r.title || 'Untitled'}</td>
-                            <td>${r.category || 'N/A'}</td>
-                            <td>${r.status || 'N/A'}</td>
-                            <td class="priority-${getReportPriority(r).toLowerCase()}">${getReportPriority(r)}</td>
-                            <td>❤️ ${r.reaction_count || 0}</td>
-                            <td>${new Date(r.created_at).toLocaleDateString()}</td>
-                        </tr>
-                    `).join("")}
-                </tbody>
-            </table>
-            ${reportsToExport.length > 50 ? `<p style="font-size:11px;text-align:center;margin-top:10px;color:#666;">Showing first 50 of ${reportsToExport.length} records</p>` : ""}
+
+                        <!-- DETAILED LIST -->
+                        <h2 class="section-title">Detailed Report List</h2>
+                        ${(() => {
+                                const chunkSize = 20;
+                                const chunks = [];
+                                for (let i = 0; i < reportsToExport.length; i += chunkSize) {
+                                    chunks.push(reportsToExport.slice(i, i + chunkSize));
+                                }
+                                return chunks.map((chunk, idx) => `
+                                    <table style="${idx > 0 ? 'page-break-before: always; break-before: page;' : ''}">
+                                        <thead>
+                                            <tr>
+                                                <th>ID</th>
+                                                <th>Title</th>
+                                                <th>Category</th>
+                                                <th>Status</th>
+                                                <th>Priority</th>
+                                                <th>Likes</th>
+                                                <th>Created</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            ${chunk.map(r => `
+                                                <tr>
+                                                    <td>${r.id}</td>
+                                                    <td>${r.title || 'Untitled'}</td>
+                                                    <td>${r.category || 'N/A'}</td>
+                                                    <td>${r.status || 'N/A'}</td>
+                                                    <td class="priority-${getReportPriority(r).toLowerCase()}">${getReportPriority(r)}</td>
+                                                    <td>❤️ ${r.reaction_count || 0}</td>
+                                                    <td>${new Date(r.created_at).toLocaleDateString()}</td>
+                                                </tr>
+                                            `).join('')}
+                                        </tbody>
+                                    </table>
+                                `).join('');
+                        })()}
+                        ${reportsToExport.length > 50 ? `<p style="font-size:11px;text-align:center;margin-top:10px;color:#666;">Showing first 50 of ${reportsToExport.length} records</p>` : ""}
 
 
             <!-- ANALYSIS & RECOMMENDATIONS -->
@@ -1778,13 +1885,34 @@ function BarangayReports({ token }) {
                 </tbody>
             </table>
 
+            </div>
 
             <!-- FOOTER -->
             <div class="footer">
                 <img src="${logoPath}" height="26" onerror="this.style.display='none'">
                 <p><strong>Generated by Community Guard</strong> • ${reportDate}</p>
                 <p>Time Range: ${timeLabel}</p>
+                <div class="footer-page-number" data-page-number></div>
             </div>
+
+            <script>
+              (function() {
+                // Count total pages by calculating content height
+                const footerHeight = 40;
+                const headerHeight = 55;
+                const pageHeight = ${pageSize && pageSize.toLowerCase() === 'letter' ? '11' : pageSize && pageSize.toLowerCase() === 'legal' ? '14' : pageSize && pageSize.toLowerCase() === 'long' ? '22' : '29.7'} * 38; // Convert inches/cm to px (approx)
+                const contentHeight = document.body.scrollHeight || document.documentElement.scrollHeight;
+                const usableHeight = pageHeight - headerHeight - footerHeight;
+                const totalPages = Math.max(1, Math.ceil((contentHeight - headerHeight) / usableHeight));
+                
+                // Update all footer page numbers
+                const footerNumbers = document.querySelectorAll('[data-page-number]');
+                footerNumbers.forEach((el, index) => {
+                  const pageNum = index + 1;
+                  el.textContent = 'Page ' + pageNum + ' of ' + totalPages;
+                });
+              })();
+            </script>
 
         </body>
         </html>
