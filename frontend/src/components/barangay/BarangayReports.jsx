@@ -1406,7 +1406,7 @@ function BarangayReports({ token }) {
                 }
             }
         } catch (e) {
-            // ignore fetch errors and fall back to local data
+            // ignore fetch errors and fall back to local data hghjgjg
             console.warn('Monthly trends fetch failed:', e);
         }
 
