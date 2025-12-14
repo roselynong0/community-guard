@@ -8,7 +8,7 @@ import LoadingScreen from "../shared/LoadingScreen";
 const logoImg = /* @vite-ignore */ new URL('../../assets/logo.png', import.meta.url).href;
 const REPORT_STATUSES = ["Pending", "Ongoing", "Resolved"];
 
-// Priority level colors
+// Priority level
 const PRIORITY_COLORS = {
   Crime: { borderColor: '#c0392b', bgColor: '#fdedec', priority: 'Critical', label: '🔴 Critical' },
   Hazard: { borderColor: '#d35400', bgColor: '#fef5e7', priority: 'High', label: '🟠 High' },
@@ -72,6 +72,7 @@ const useAriaModal = (isOpen, onClose) => {
 
         const modalElement = modalRef.current;
         if (!modalElement) return;
+
         const focusTimeout = setTimeout(() => {
             modalElement.focus();
         }, 0);
@@ -93,7 +94,7 @@ const useAriaModal = (isOpen, onClose) => {
                         lastElement.focus();
                         e.preventDefault();
                     }
-                } else 
+                } else {
                     if (document.activeElement === lastElement) {
                         firstElement.focus();
                         e.preventDefault();
@@ -142,9 +143,10 @@ const useKeyboardNavigation = (containerRef, selector) => {
                 } else if (currentIndex < focusableElements.length - 1) {
                     focusableElements[currentIndex + 1].focus();
                 } else {
+                    // Loop to the first element
                     focusableElements[0].focus();
                 }
-                event.preventDefault(); 
+                event.preventDefault();
             } else if (event.key === 'ArrowLeft' || event.key === 'ArrowUp') {
                 if (currentIndex === -1) {
                     focusableElements[focusableElements.length - 1]?.focus();
@@ -162,7 +164,6 @@ const useKeyboardNavigation = (containerRef, selector) => {
     }, [containerRef, selector]);
 };
 
-
 function BarangayReports({ token }) {
     const [reports, setReports] = useState([]);
     const [loading, setLoading] = useState(true);
@@ -176,12 +177,13 @@ function BarangayReports({ token }) {
     const [previewImage, setPreviewImage] = useState(null);
     const [notification, setNotification] = useState(null);
     const [highlightedReportId, setHighlightedReportId] = useState(null);
+    const [showCommunityHelper] = useState(true); 
     const [showSmartFilter, setShowSmartFilter] = useState(false);
-    const [aiUsagePercent, setAiUsagePercent] = useState(0); 
-    const [timeRemainingHMS, setTimeRemainingHMS] = useState('48:00:00'); 
-    const [timeRemainingSeconds, setTimeRemainingSeconds] = useState(172800); 
-    const [showUsageModal, setShowUsageModal] = useState(false); 
-    const [isPremiumUser, setIsPremiumUser] = useState(false); 
+    const [aiUsagePercent, setAiUsagePercent] = useState(0);
+    const [timeRemainingHMS, setTimeRemainingHMS] = useState('48:00:00');
+    const [timeRemainingSeconds, setTimeRemainingSeconds] = useState(172800);
+    const [showUsageModal, setShowUsageModal] = useState(false);
+    const [isPremiumUser, setIsPremiumUser] = useState(false);
     const [viewMode, setViewMode] = useState("card");
 
     const [isStatusModalOpen, setIsStatusModalOpen] = useState(false);
@@ -210,17 +212,18 @@ function BarangayReports({ token }) {
     const [rejectionInfoModalOpen, setRejectionInfoModalOpen] = useState(false);
     const [rejectionInfoReport, _setRejectionInfoReport] = useState(null);
 
+    // Export modal states
     const [showExportModal, setShowExportModal] = useState(false);
-    const [exportType, setExportType] = useState(null); 
+    const [exportType, setExportType] = useState(null);
     const [exportColorMode, setExportColorMode] = useState('color'); 
-    const [exportPageSize, setExportPageSize] = useState('A4');
+    const [exportPageSize, setExportPageSize] = useState('A4'); 
 
     const [trendingReports, setTrendingReports] = useState([]);
     const [trendingExpanded, setTrendingExpanded] = useState(false); 
-    const [trendingTimeFilter, setTrendingTimeFilter] = useState("all");
+    const [trendingTimeFilter, setTrendingTimeFilter] = useState("all"); 
     
     const [pendingReports, setPendingReports] = useState([]);
-    const [pendingExpanded, setPendingExpanded] = useState(false);
+    const [pendingExpanded, setPendingExpanded] = useState(false); 
 
     const [isAssignResponderModalOpen, setIsAssignResponderModalOpen] = useState(false);
     const [selectedReportForResponder, setSelectedReportForResponder] = useState(null);
@@ -343,7 +346,7 @@ function BarangayReports({ token }) {
                 setTimeRemainingHMS(time_remaining_hms || '48:00:00');
                 setTimeRemainingSeconds(time_remaining_seconds ?? 172800);
                 setIsPremiumUser(is_premium || false);
-                
+
                 console.log(`[Smart Filter] 📈 Usage Updated:`);
                 console.log(`  Total this week: ${total_seconds}s (${(total_seconds / 3600).toFixed(2)}h)`);
                 console.log(`  Usage percent: ${usage_percent}%`);
