@@ -119,7 +119,7 @@ function ResponderMaps({ session }) {
   const [overlayExited, setOverlayExited] = useState(false);
   const mapRef = useRef(null);
 
-  // Fetch responder profile to get barangay
+  // Fetch responder profile
   useEffect(() => {
     const fetchResponderBarangay = async () => {
       try {
@@ -152,7 +152,6 @@ function ResponderMaps({ session }) {
           return;
         }
 
-        // Use responder-specific map endpoint that filters by barangay and excludes rejected reports
         const reportsEndpoint = getApiUrl('/api/responder/map_reports');
         const reportsResponse = await fetch(reportsEndpoint, {
           headers: { Authorization: `Bearer ${token}` },
@@ -165,8 +164,7 @@ function ResponderMaps({ session }) {
             latitude: parseFloat(r.latitude),
             longitude: parseFloat(r.longitude),
           }));
-          // Ensure client-side filtering for accepted + non-resolved reports as a safety net
-          const accepted = formatted.filter(r => {
+                    const accepted = formatted.filter(r => {
             const isRejected = r.is_rejected === true || r.is_rejected === 'true';
             const isApprovedFalse = r.is_approved === false || r.is_approved === 'false' || r.is_accepted === false || r.is_accepted === 'false';
             const isResolved = (r.status || '').toString().toLowerCase() === 'resolved';
@@ -174,14 +172,13 @@ function ResponderMaps({ session }) {
           });
           setReports(accepted);
           
-          // Update responder barangay from response if available
           if (reportsData.barangay) {
             setResponderBarangay(reportsData.barangay);
           }
           
           console.log(`✅ Loaded ${formatted.length} responder map reports for barangay: ${reportsData.barangay || 'All'}`);
         } else {
-          // Fallback to regular map_reports if responder endpoint fails
+
           console.warn("Responder map endpoint failed, falling back to regular map_reports");
           const fallbackEndpoint = getApiUrl('/api/map_reports');
           const fallbackResponse = await fetch(fallbackEndpoint, {
@@ -195,7 +192,7 @@ function ResponderMaps({ session }) {
               latitude: parseFloat(r.latitude),
               longitude: parseFloat(r.longitude),
             }));
-            // Filter to responder's barangay only, and ensure accepted + non-resolved
+
             const filteredByBarangay = (responderBarangay 
               ? formatted.filter(r => r.address_barangay === responderBarangay)
               : formatted)
@@ -223,7 +220,6 @@ function ResponderMaps({ session }) {
         // Fetch safezones with caching
         const cachedSafezones = await fetchSafezonesWithCache(token);
         const normalizedSafezones = (cachedSafezones || []).map(sz => {
-          // Normalize safezone center format
           if (sz?.center?.latitude && sz?.center?.longitude) {
             return sz;
           }
@@ -260,7 +256,7 @@ function ResponderMaps({ session }) {
     ? reports
     : reports.filter(r => r.address_barangay === selectedBarangay);
 
-  // Filter hotspots by selected barangay (match by proximity if needed)
+  // Filter hotspots by selected barangay
   const filteredHotspots = selectedBarangay === 'all'
     ? hotspots
     : hotspots;
@@ -302,7 +298,6 @@ function ResponderMaps({ session }) {
     }
   };
 
-  // Handle safezone created from SafezoneModal
   const handleSafezoneCreated = (newSafezone) => {
     const normalized = {
       ...newSafezone,
@@ -346,7 +341,6 @@ function ResponderMaps({ session }) {
         setSafezoneModal(null);
         setIsCreatingSafezone(false);
         alert("✅ Safezone created successfully!");
-        // Trigger hotspots refresh after creating a safezone
         try {
           await fetch(getApiUrl('/api/hotspots/refresh'), {
             method: 'POST',
@@ -433,7 +427,7 @@ function ResponderMaps({ session }) {
           const longitude = sz?.center?.longitude || sz?.longitude;
           if (!latitude || !longitude) return null;
 
-          const pointerOffset = 0.00027; // ~30m north
+          const pointerOffset = 0.00027;
 
           return (
             <FeatureGroup key={`safezone-frag-${sz.id || idx}`}>
@@ -448,7 +442,6 @@ function ResponderMaps({ session }) {
                 dashArray="5, 5"
               />
 
-              {/* Blue location marker pointer slightly above the safezone */}
               <Marker
                 key={`safezone-pointer-${sz.id || idx}`}
                 position={[Number(latitude) + pointerOffset, Number(longitude)]}
@@ -494,9 +487,7 @@ function ResponderMaps({ session }) {
           </Circle>
         ))}
 
-        {/* Report markers grouped by barangay */}
         {Object.entries(reportsByBarangay).map(([barangay, reportsArray], i) => {
-          // Only show if this barangay is selected or all are selected
           if (selectedBarangay !== 'all' && barangay !== selectedBarangay) {
             return null;
           }
@@ -622,7 +613,7 @@ function ResponderMaps({ session }) {
           </div>
         )}
 
-        {/* Desktop Control Panel Overlay - Top Right */}
+        {/* Top Right */}
         {!loading && (
           <div className="maps-control-panel desktop-only">
             {/* Toggle Hotspots */}
@@ -649,7 +640,7 @@ function ResponderMaps({ session }) {
           </div>
         )}
 
-        {/* Statistics Overlay - Bottom Left (Desktop) / Bottom Bar (Mobile) */}
+        {/* Statistics Overlay */}
         {!loading && (
           <div className="maps-stats-panel">
             <div className="maps-stats-grid">

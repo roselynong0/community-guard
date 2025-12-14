@@ -26,11 +26,8 @@ const ROLE_COLORS = {
   "Resident": { bg: "rgba(59, 130, 246, 0.1)", text: "#3b82f6" },
 };
 
-// Sort options - null means no sort active
 const DEFAULT_SORT = null;
 
-// Responder community feed - View and interact with posts (no moderation)
-// Responders can only see posts from their assigned barangay
 export default function CommunityFeedResponder({ session, token }) {
   const outlet = useOutletContext?.() || {};
 
@@ -43,7 +40,6 @@ export default function CommunityFeedResponder({ session, token }) {
   const [sortBy, setSortBy] = useState(DEFAULT_SORT);
   const [userBarangay, setUserBarangay] = useState("");
   
-  // Trending section states
   const [trendingPosts, setTrendingPosts] = useState([]);
   const [trendingExpanded, setTrendingExpanded] = useState(false);
   const [trendingTimeFilter, setTrendingTimeFilter] = useState("all"); // all, today, yesterday, this-month
@@ -76,11 +72,9 @@ export default function CommunityFeedResponder({ session, token }) {
     setLoading(true);
 
     try {
-      // Responders only see posts from their barangay
       let url = getApiUrl('/api/community/posts');
       const params = new URLSearchParams();
 
-      // Force filter to responder's barangay only
       if (userBarangay) {
         params.append("barangay", userBarangay);
       }
@@ -100,7 +94,6 @@ export default function CommunityFeedResponder({ session, token }) {
           user_liked: p.user_liked,
           comments: p.comment_count
         })));
-        // Filter out rejected posts
         const visiblePosts = (data.posts || []).filter(p => 
           p.status !== 'rejected'
         );
@@ -122,7 +115,6 @@ export default function CommunityFeedResponder({ session, token }) {
     }
   }, [fetchPosts, userBarangay]);
 
-  // ⭐ Compute trending posts - Same algorithm as resident CommunityFeed
   useEffect(() => {
     if (!posts.length) {
       setTrendingPosts([]);
@@ -132,9 +124,8 @@ export default function CommunityFeedResponder({ session, token }) {
 
     const now = new Date();
     
-    // Time filter logic - matches resident CommunityFeed
     const filterByTime = (createdAt) => {
-      if (trendingTimeFilter === "all") return true; // Show all posts
+      if (trendingTimeFilter === "all") return true;
       
       const postDate = new Date(createdAt);
       const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
@@ -154,8 +145,6 @@ export default function CommunityFeedResponder({ session, token }) {
       }
     };
     
-    // Filter approved posts with likes for trending
-    // reaction_count is synced from react_counts DB column on backend
     const approvedPosts = posts.filter(p => 
       p.status === 'approved' && 
       (p.reaction_count || 0) > 0 &&
@@ -165,8 +154,6 @@ export default function CommunityFeedResponder({ session, token }) {
     console.log(`📋 Responder: Filtered ${approvedPosts.length} engaged posts from ${posts.length} total (${trendingTimeFilter})`);
     console.log(`❤️ Responder: Posts with reactions: ${posts.filter(p => (p.reaction_count || 0) > 0).length}`);
     
-    // Apply trending algorithm - Community Awareness & Involvement
-    // Score = (reactions * 15 + comments * 8 + type_weight + base_score) / (days_old + 1)^0.8
     const scored = approvedPosts.map((p) => {
       const createdAt = new Date(p.created_at || 0);
       const daysOld = Math.max(0, (now - createdAt) / (1000 * 60 * 60 * 24));
@@ -177,7 +164,6 @@ export default function CommunityFeedResponder({ session, token }) {
       const baseScore = 5;
       const engagement = reactionBoost + commentBoost + (typeWeight[p.post_type] || 2) + baseScore;
       
-      // Very gentle time decay (0.8 exponent) - keeps trending stable
       const timeFactor = Math.pow(daysOld + 1, 0.8);
       const trendingScore = engagement / timeFactor;
       
@@ -197,7 +183,6 @@ export default function CommunityFeedResponder({ session, token }) {
     })));
   }, [posts, trendingTimeFilter]);
 
-  // ✅ ADD COMMENT
   const handleAddComment = async (postId, commentText) => {
     if (!commentText.trim()) return;
 
@@ -219,7 +204,6 @@ export default function CommunityFeedResponder({ session, token }) {
     setTimeout(() => setNotification(null), 2000);
   };
 
-  // ✅ DELETE COMMENT (own comments only)
   const handleDeleteComment = async (postId, commentId) => {
     if (!window.confirm("Delete this comment?")) return;
 
@@ -237,7 +221,7 @@ export default function CommunityFeedResponder({ session, token }) {
     }
   };
 
-  // ✅ LIKE POST
+  // LIKE POST
   const handleLikePost = async (postId) => {
     try {
       const response = await fetch(getApiUrl(`/api/community/posts/${postId}/react`), {
@@ -261,7 +245,7 @@ export default function CommunityFeedResponder({ session, token }) {
     }
   };
 
-  // ✅ FILTER POSTS
+  // FILTER POSTS
   const filteredPosts = useMemo(() => {
     let filtered = posts.filter((p) => {
       const text = searchTerm.toLowerCase();
@@ -297,7 +281,6 @@ export default function CommunityFeedResponder({ session, token }) {
         return bScore - aScore;
       });
     } else {
-      // Default sort by date
       filtered.sort((a, b) => {
         if (sortOrder === "oldest") {
           return new Date(a.created_at) - new Date(b.created_at);
@@ -330,7 +313,7 @@ export default function CommunityFeedResponder({ session, token }) {
           Community Feed — {userBarangay || "My Barangay"}
         </h2>
 
-        {/* ✅ TOP CONTROLS - Matching CommunityFeed Design */}
+        {/* TOP CONTROLS */}
         <div className="feed-top-controls">
           <div className="feed-search-container">
             <input 
@@ -369,7 +352,7 @@ export default function CommunityFeedResponder({ session, token }) {
         </div>
       </div>
 
-      {/* ⭐ Pill Button Row: Trending, Top */}
+      {/* Pill Button Row */}
       <div className="feed-pill-row">
         <button
           className={`feed-trending-pill-btn ${sortBy === 'trending' ? 'active' : ''} ${trendingPosts.length === 0 ? 'empty' : ''}`}
@@ -401,7 +384,7 @@ export default function CommunityFeedResponder({ session, token }) {
         </button>
       </div>
 
-      {/* ⭐ Trending Posts Section */}
+      {/* Trending Posts Section */}
       {trendingExpanded && trendingPosts.length > 0 && (
         <div className="feed-trending-container expanded">
           <div className="feed-trending-header">
@@ -489,7 +472,7 @@ export default function CommunityFeedResponder({ session, token }) {
   );
 }
 
-// ✅ RESPONDER POST CARD (View + Comment only)
+// RESPONDER POST CARD
 const ResponderPostCard = ({ post, onAddComment, onDeleteComment, onLike }) => {
   const [comment, setComment] = useState("");
   const [showComments, setShowComments] = useState(false);
@@ -558,7 +541,7 @@ const ResponderPostCard = ({ post, onAddComment, onDeleteComment, onLike }) => {
         By {authorName} · {postedDate} · {post.barangay}
       </p>
 
-      {/* Like Button - Only for accepted/approved posts */}
+      {/* Like Button */}
       {canLike && (
         <div className="post-engagement" style={{
           display: 'flex',

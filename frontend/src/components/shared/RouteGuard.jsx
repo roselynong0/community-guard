@@ -1,6 +1,6 @@
 import { Navigate } from "react-router-dom";
 
-// Admin route guard - only allows admins
+// Admin route guard
 export function AdminRoute({ children, session }) {
   if (!session?.user) {
     return <Navigate to="/login?role=admin" replace />;
@@ -13,7 +13,7 @@ export function AdminRoute({ children, session }) {
   return children;
 }
 
-// Resident route guard - only allows residents
+// Resident route guard
 export function ResidentRoute({ children, session }) {
   if (!session?.user) {
     return <Navigate to="/login?role=resident" replace />;

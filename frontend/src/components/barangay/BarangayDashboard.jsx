@@ -32,7 +32,7 @@ import "../shared/Notification.css";
 import LoadingScreen from "../shared/LoadingScreen";
 import ModalPortal from "../shared/ModalPortal";
 
-// ✅ Fetch helper (same as resident)
+// Fetch helper
 async function fetchWithToken(url, token, retries = 3) {
   if (!token) throw new Error("Token is required");
 
@@ -55,10 +55,9 @@ async function fetchWithToken(url, token, retries = 3) {
       console.log(`Fetch attempt ${attempt}/${retries} failed:`, error.message);
       
       if (attempt === retries) {
-        throw error; // Last attempt failed, throw the error
+        throw error;
       }
       
-      // Wait before retrying (exponential backoff)
       const delay = Math.min(1000 * Math.pow(2, attempt - 1), 5000);
       console.log(`Retrying in ${delay}ms...`);
       await new Promise(resolve => setTimeout(resolve, delay));
@@ -66,16 +65,13 @@ async function fetchWithToken(url, token, retries = 3) {
   }
 }
 
-// ✅ AnimatedNumber component - MOVED OUTSIDE to prevent ref reset on parent re-renders
-// Counts from previous to new value smoothly, skips animation on initial load
 function AnimatedNumber({ value, duration = 800 }) {
   const [display, setDisplay] = useState(value);
   const startRef = useRef(null);
-  const fromRef = useRef(null); // null initially to detect first render
+  const fromRef = useRef(null);
   const isFirstRender = useRef(true);
 
   useEffect(() => {
-    // Handle null/undefined - show nothing during initial load
     if (value === null || value === undefined) {
       setDisplay(null);
       return;
@@ -83,7 +79,6 @@ function AnimatedNumber({ value, duration = 800 }) {
     
     const to = Number(value) || 0;
     
-    // Skip animation on first meaningful value (avoid 0 → actual flash)
     if (isFirstRender.current) {
       isFirstRender.current = false;
       setDisplay(to);
@@ -93,7 +88,6 @@ function AnimatedNumber({ value, duration = 800 }) {
     
     const from = fromRef.current ?? to;
     
-    // Skip animation if no change
     if (from === to) {
       setDisplay(to);
       return;
@@ -120,7 +114,6 @@ function AnimatedNumber({ value, duration = 800 }) {
     return () => { if (raf) cancelAnimationFrame(raf); };
   }, [value, duration]);
 
-  // Show dash placeholder during loading
   if (display === null) {
     return <p className="stat-loading">—</p>;
   }
@@ -142,10 +135,10 @@ export default function BarangayDashboard({ token }) {
   const [topBarangays, setTopBarangays] = useState([]);
   const [userBarangay, setUserBarangay] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [reportView, setReportView] = useState("barangay"); // Toggle between "barangay" and "monthly"
-  const [onpremium, setOnpremium] = useState(false); // Premium status
-  const [showPremiumModal, setShowPremiumModal] = useState(false); // Premium upgrade modal
-  const [notification, setNotification] = useState(null); // Toast notification
+  const [reportView, setReportView] = useState("barangay");
+  const [onpremium, setOnpremium] = useState(false);
+  const [showPremiumModal, setShowPremiumModal] = useState(false);
+  const [notification, setNotification] = useState(null);
   const [overlayExited, setOverlayExited] = useState(false);
 
   const loadingFeatures = [
@@ -159,7 +152,6 @@ export default function BarangayDashboard({ token }) {
     setTimeout(() => setNotification(null), 4000);
   };
 
-  // ✅ Single useEffect to fetch profile and dashboard data
   useEffect(() => {
     if (!token) {
       setLoading(false);
@@ -170,7 +162,6 @@ export default function BarangayDashboard({ token }) {
       setLoading(true);
       setOverlayExited(false);
       try {
-        // 1. Fetch profile first to get barangay from info table and premium status
         const profileResponse = await fetchWithToken(getApiUrl('/api/profile'), token);
         if (profileResponse.status !== "success") {
           console.error("Failed to load profile:", profileResponse);
@@ -184,10 +175,8 @@ export default function BarangayDashboard({ token }) {
         const isPremium = profile?.onpremium === true;
         setOnpremium(isPremium);
         console.log('📊 User premium status:', isPremium);
-        
-        // Get address_barangay from info table (via profile endpoint)
+
         const userBarangayValue = profile?.address_barangay;
-        // Only use barangay if it's a valid value (not the default placeholder)
         const selectedBarangay = (userBarangayValue && userBarangayValue !== "No barangay selected") 
           ? userBarangayValue 
           : null;
@@ -199,12 +188,8 @@ export default function BarangayDashboard({ token }) {
           console.warn('No address_barangay set in info table — skipping barangay-specific dashboard fetch');
           setTopBarangays([]);
           setTrendData([]);
-          // still allow stats to be empty or default
         } else {
           console.log("🔄 Fetching dashboard data for barangay:", selectedBarangay);
-          // 2. Fetch dashboard data scoped to the user's barangay from info table
-          // This includes stats, top barangays, and monthly trends filtered by this barangay
-          // Use filter=all to get all-time stats (not just this month)
           const dashboardEndpoint = getApiUrl(`/api/dashboard/barangay/stats?barangay=${encodeURIComponent(selectedBarangay)}&filter=all`);
           console.log("📊 Fetching all data from:", dashboardEndpoint);
           const response = await fetchWithToken(dashboardEndpoint, token);
@@ -212,7 +197,6 @@ export default function BarangayDashboard({ token }) {
           if (response.status === "success") {
           console.log("✅ Dashboard data loaded for barangay:", selectedBarangay, response);
           
-          // Update stats (filtered by user's barangay from info table)
           if (response.stats) {
             console.log("📊 Stats for barangay", selectedBarangay, ":", response.stats);
             setStats([
@@ -243,7 +227,7 @@ export default function BarangayDashboard({ token }) {
             ]);
           }
           
-          // Update monthly trends (filtered by user's barangay from info table)
+          // Update monthly trends
           if (response.trends && response.trends.length > 0) {
             console.log("📅 Monthly trends for barangay", selectedBarangay, ":", response.trends.length, "months");
             setTrendData(response.trends);
@@ -252,7 +236,7 @@ export default function BarangayDashboard({ token }) {
             setTrendData([]);
           }
           
-          // Update top barangays (shows all barangays for comparison)
+          // Update top barangays
           if (response.topBarangays && response.topBarangays.length > 0) {
             console.log("🏘️ Top barangays loaded:", response.topBarangays.length);
             setTopBarangays(response.topBarangays);
@@ -275,13 +259,13 @@ export default function BarangayDashboard({ token }) {
     };
 
     fetchAllData();
-  }, [token]); // Only depend on token, not userProfile
+  }, [token]);
 
   const mapRef = useRef(null);
 
   const content = (
     <div className={`dashboard ${overlayExited ? 'overlay-exited' : ''}`}>
-      {/* --- STAT CARDS (Dynamic) --- */}
+      {/* STAT CARDS */}
       <div className="stats-grid">
         {stats.map((stat, i) => (
           <div
@@ -301,7 +285,7 @@ export default function BarangayDashboard({ token }) {
         ))}
       </div>
 
-      {/* --- COMBINED TRENDS SECTION (Barangay Trends & Monthly Reports) --- */}
+      {/* COMBINED TRENDS SECTION */}
       <div className="section-card">
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1.5rem" }}>
           <h3 style={{ margin: 0 }}>
@@ -314,12 +298,11 @@ export default function BarangayDashboard({ token }) {
               value={reportView}
               onChange={(e) => {
                 const newView = e.target.value;
-                // Check premium status before allowing monthly view
                 if (newView === "monthly" && !onpremium) {
                   console.log('📊 Monthly reports require premium - showing upgrade modal');
                   showNotification('✨ Premium feature - Upgrade to unlock Monthly Reports', 'premium');
                   setShowPremiumModal(true);
-                  return; // Don't change view
+                  return;
                 }
                 setReportView(newView);
               }}
@@ -341,7 +324,7 @@ export default function BarangayDashboard({ token }) {
           </div>
         </div>
 
-        {/* Single section-card: tabs to switch between Chart and Pie (pie shown in same container) */}
+        {/* Single section-card */}
         <ChartTabs
           reportView={reportView}
           trendData={trendData}
@@ -349,7 +332,7 @@ export default function BarangayDashboard({ token }) {
         />
       </div>
 
-      {/* --- MAP --- */}
+      {/* MAP */}
       <div className="map-section">
         <h3>{userBarangay ? `${userBarangay} High-Risk Zones Map` : 'High-Risk Zones Map'}</h3>
         <div className="map-placeholder">
@@ -357,7 +340,7 @@ export default function BarangayDashboard({ token }) {
         </div>
       </div>
 
-      {/* --- PREMIUM UPGRADE MODAL --- */}
+      {/* PREMIUM UPGRADE MODAL */}
       {showPremiumModal && (
         <ModalPortal>
         <div 
@@ -425,7 +408,7 @@ export default function BarangayDashboard({ token }) {
         </ModalPortal>
       )}
 
-      {/* Toast Notification - wrapped in ModalPortal for proper z-index */}
+      {/* Toast Notification */}
       {notification && (
         <ModalPortal>
           <div 
@@ -451,12 +434,9 @@ export default function BarangayDashboard({ token }) {
       onExited={() => {
         setOverlayExited(true);
         setTimeout(() => {
-          // Trigger a window resize then invalidate the Leaflet map twice with a short delay
-          // to ensure Leaflet recalculates container size after the loading overlay is removed.
           window.dispatchEvent(new Event('resize'));
           try {
             mapRef.current?.invalidate();
-            // Second invalidate after a short delay as a safeguard for stubborn layouts
             setTimeout(() => {
               try { mapRef.current?.invalidate(); } catch { /* ignore */ }
             }, 160);
@@ -472,19 +452,15 @@ export default function BarangayDashboard({ token }) {
   );
 }
 
-// Small presentational tab component kept in same file for convenience
 function ChartTabs({ reportView, trendData, topBarangays }) {
   const [tab, setTab] = useState('chart');
 
-  // Color palette for pies/legends
   const palette = ["#4a76b9","#d9534f","#f0ad4e","#5cb85c","#777777","#8e44ad","#16a085"];
 
-  // Build the pie data depending on the active report view
   const pieData = React.useMemo(() => {
     if (reportView === 'barangay') {
       return (topBarangays || []).map(b => ({ name: b.barangay, value: parseInt(b.total) || 0 }));
     }
-    // monthly view -> use trendData (month / count)
     return (trendData || []).map(t => ({ name: t.month || t.label || 'Unknown', value: parseInt(t.count) || 0 }));
   }, [reportView, topBarangays, trendData]);
 

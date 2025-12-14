@@ -9,7 +9,6 @@ import ModernLoading, {
 } from './ModernLoading';
 import './ModernLoading.css';
 
-// 🎪 Demo component to showcase all loading animations
 const LoadingAnimationDemo = () => {
   const [activeDemo, setActiveDemo] = useState('basic');
   const [showShimmer, setShowShimmer] = useState(true);

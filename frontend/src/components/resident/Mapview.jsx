@@ -5,7 +5,6 @@ import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import { API_CONFIG, getApiUrl } from "../../utils/apiConfig";
 
-// Component to recenter map when user location is detected
 function RecenterOnUser({ userLocation, onCentered }) {
   const map = useMap();
   useEffect(() => {
@@ -14,7 +13,6 @@ function RecenterOnUser({ userLocation, onCentered }) {
         animate: true,
         duration: 1
       });
-      // Mark as centered so we don't keep recentering
       if (onCentered) {
         setTimeout(() => onCentered(), 100);
       }
@@ -30,7 +28,6 @@ L.Icon.Default.mergeOptions({
   shadowUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png",
 });
 
-// Barangay colors - same as Maps.jsx
 const barangayColors = {
   Barretto: "#3b82f6",
   "East Bajac-Bajac": "#ef4444",
@@ -53,7 +50,6 @@ const barangayColors = {
 
 const getColor = (barangay) => barangayColors[barangay?.trim()] || "#6b7280";
 
-// Priority colors matching reports - Critical (Crime), High (Hazard), Medium (Concern/Lost&Found), Low (Others)
 const CATEGORY_COLORS = {
   Crime: { bg: '#fdedec', text: '#c0392b', label: '🔴 Critical' },
   Hazard: { bg: '#fef5e7', text: '#d35400', label: '🟠 High' },
@@ -71,7 +67,6 @@ const STATUS_COLORS = {
 const getCategoryStyle = (category) => CATEGORY_COLORS[category] || CATEGORY_COLORS.Others;
 const getStatusStyle = (status) => STATUS_COLORS[status] || STATUS_COLORS.Pending;
 
-// Create colored marker icon based on barangay
 const createColoredIcon = (color) => {
   const colorMap = {
     "#3b82f6": "blue",
@@ -96,7 +91,6 @@ const createColoredIcon = (color) => {
   });
 };
 
-// Red marker icon for hotspots
 const redMarkerIcon = L.icon({
   iconUrl: "https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-red.png",
   shadowUrl: "https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png",
@@ -106,7 +100,6 @@ const redMarkerIcon = L.icon({
   shadowSize: [41, 41],
 });
 
-// Blue marker icon for user location
 const blueMarkerIcon = L.icon({
   iconUrl: "https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-blue.png",
   shadowUrl: "https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png",
@@ -116,9 +109,8 @@ const blueMarkerIcon = L.icon({
   shadowSize: [41, 41],
 });
 
-// Calculate distance between two coordinates in meters using Haversine formula
 const getDistanceInMeters = (lat1, lon1, lat2, lon2) => {
-  const R = 6371000; // Earth's radius in meters
+  const R = 6371000; 
   const dLat = (lat2 - lat1) * Math.PI / 180;
   const dLon = (lon2 - lon1) * Math.PI / 180;
   const a = 
@@ -129,7 +121,6 @@ const getDistanceInMeters = (lat1, lon1, lat2, lon2) => {
   return R * c;
 };
 
-// Group overlapping reports within a distance threshold (default 150 meters)
 const groupOverlappingReports = (reports, thresholdMeters = 150) => {
   const validReports = reports.filter(r => r.latitude && r.longitude);
   const groups = [];
@@ -138,7 +129,6 @@ const groupOverlappingReports = (reports, thresholdMeters = 150) => {
   validReports.forEach((report, idx) => {
     if (assigned.has(idx)) return;
     
-    // Start a new group with this report
     const group = {
       latitude: parseFloat(report.latitude),
       longitude: parseFloat(report.longitude),
@@ -146,7 +136,6 @@ const groupOverlappingReports = (reports, thresholdMeters = 150) => {
     };
     assigned.add(idx);
     
-    // Find all other reports within threshold distance
     validReports.forEach((otherReport, otherIdx) => {
       if (assigned.has(otherIdx)) return;
       
@@ -161,7 +150,6 @@ const groupOverlappingReports = (reports, thresholdMeters = 150) => {
       }
     });
     
-    // Calculate centroid for the group marker position
     if (group.reports.length > 1) {
       const avgLat = group.reports.reduce((sum, r) => sum + parseFloat(r.latitude), 0) / group.reports.length;
       const avgLng = group.reports.reduce((sum, r) => sum + parseFloat(r.longitude), 0) / group.reports.length;
@@ -184,7 +172,6 @@ const MapView = forwardRef(function MapView(props, ref) {
   const mapRef = useRef(null);
   const navigate = useNavigate();
 
-  // Get user's current location
   useEffect(() => {
     if (navigator && navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(
@@ -199,7 +186,6 @@ const MapView = forwardRef(function MapView(props, ref) {
     const token = localStorage.getItem("token");
     if (!token) return;
 
-    // Only fetch if user has a barangay set
     if (!barangay) {
       console.log("📍 No barangay set - skipping map data fetch");
       setHotspots([]);
@@ -207,7 +193,6 @@ const MapView = forwardRef(function MapView(props, ref) {
       return;
     }
 
-    // Fetch hotspots filtered by user's barangay
     const fetchHotspots = async () => {
       try {
         const base = getApiUrl(API_CONFIG.endpoints.hotspots);
@@ -228,7 +213,6 @@ const MapView = forwardRef(function MapView(props, ref) {
       }
     };
 
-    // Fetch reports filtered by user's barangay only
     const fetchBarangayReports = async () => {
       try {
         const base = getApiUrl(API_CONFIG.endpoints.reports);
@@ -241,7 +225,6 @@ const MapView = forwardRef(function MapView(props, ref) {
         if (!response.ok) throw new Error("Failed to fetch reports");
 
         const data = await response.json();
-        // Normalize and filter reports with valid coordinates and that are accepted + non-resolved
         const validReports = (data.reports || [])
           .map(r => ({ ...r, latitude: parseFloat(r.latitude), longitude: parseFloat(r.longitude) }))
           .filter(r => {
@@ -263,7 +246,6 @@ const MapView = forwardRef(function MapView(props, ref) {
     fetchBarangayReports();
   }, [reports, barangay]);
 
-  // Expose an invalidate API so parent can force a redraw
   useImperativeHandle(ref, () => ({
     invalidate: () => {
       try {
@@ -276,7 +258,7 @@ const MapView = forwardRef(function MapView(props, ref) {
 
   return (
     <div style={{ height: "100%", width: "100%", position: "relative" }}>
-      {/* Hotspots count badge - top right */}
+      {/* Hotspots count badge */}
       {barangay && (
         <div style={{
           position: "absolute",
@@ -304,7 +286,6 @@ const MapView = forwardRef(function MapView(props, ref) {
         zoom={14}
         style={{ height: "100%", width: "100%", borderRadius: "12px" }}
       >
-        {/* Auto-recenter on user location when detected */}
         {!initialCenterDone && userLocation && (
           <RecenterOnUser 
             userLocation={userLocation} 
@@ -372,7 +353,6 @@ const MapView = forwardRef(function MapView(props, ref) {
           );
         })}
 
-        {/* Show markers for barangay reports with stacking for overlapping coordinates */}
         {groupOverlappingReports(barangayReports).map((group, groupIdx) => {
           const primaryReport = group.reports[0];
           const reportCount = group.reports.length;
@@ -413,7 +393,6 @@ const MapView = forwardRef(function MapView(props, ref) {
                           borderBottom: isStacked && rIdx < reportCount - 1 ? '1px solid #e5e7eb' : 'none'
                         }}
                       >
-                        {/* Report Count, Category and Status Tags - show on first report only */}
                         {rIdx === 0 && (
                           <div style={{ display: 'flex', gap: '6px', marginBottom: '4px', flexWrap: 'wrap', alignItems: 'center' }}>
                             <span style={{
@@ -452,7 +431,6 @@ const MapView = forwardRef(function MapView(props, ref) {
                           </div>
                         )}
                         
-                        {/* Show category/status for additional stacked reports */}
                         {rIdx > 0 && (
                           <div style={{ display: 'flex', gap: '6px', marginBottom: '4px', flexWrap: 'wrap', alignItems: 'center' }}>
                             <span style={{ 
@@ -519,8 +497,7 @@ const MapView = forwardRef(function MapView(props, ref) {
             </Marker>
           );
         })}
-
-        {/* Default center marker if no barangay set */}
+        
         {!barangay && !userLocation && (
           <Marker position={[14.8292, 120.2828]}>
             <Popup>

@@ -14,7 +14,7 @@ import { API_CONFIG, getApiUrl } from "../../utils/apiConfig";
 function Profile({ token }) {
     const navigate = useNavigate();
 
-    // ------------------- STATES -------------------
+    // STATES
     const [user, setUser] = useState(null);
     const [isLoading, setIsLoading] = useState(true);
     const [profilePic, setProfilePic] = useState(null);
@@ -48,7 +48,6 @@ function Profile({ token }) {
         "Santa Rita", "West Bajac-Bajac", "West Tapinac",
     ];
 
-    // Show empty string while loading, only show placeholder if loading finished and no data
     const displayField = (field, placeholder) => {
         if (isLoading) return "";
         return field || placeholder;
@@ -68,7 +67,6 @@ function Profile({ token }) {
         }
     };
 
-    // MODIFIED: Adjusting notification type logic to match CSS
     const addNotification = (message, type = "error") => {
         const id = Date.now();
         setNotifications((prev) => [...prev, { id, message, type }]);
@@ -77,7 +75,7 @@ function Profile({ token }) {
         }, 5000);
     };
 
-    // ------------------- FETCH PROFILE -------------------
+    // FETCH PROFILE
     useEffect(() => {
         if (!token) return;
 
@@ -152,7 +150,6 @@ function Profile({ token }) {
         fetchUserStats();
     }, [token, API_URL, REPORTS_URL, STATS_URL]);
 
-    // ------------------- UPDATE REPORTS STATS -------------------
     useEffect(() => {
         if (!user) return;
         const userReports = reports.filter(r => String(r.user_id) === String(user.id));
@@ -180,7 +177,6 @@ function Profile({ token }) {
         []
     );
 
-    // ------------------- PROFILE PICTURE -------------------
     const handlePicUpload = async (e) => {
         const file = e.target.files[0];
         if (!file) return;
@@ -204,7 +200,6 @@ function Profile({ token }) {
         }
     };
 
-    // ------------------- DELETE ACCOUNT -------------------
     const handleDeleteAccount = async () => {
         try {
             const res = await fetch(API_URL, {
@@ -213,7 +208,6 @@ function Profile({ token }) {
             });
             const data = await res.json();
             if (data.status === "success") {
-                // Determine role-aware login path
                 const role = (user && user.role) || (data && data.profile && data.profile.role) || 'Resident';
                 const roleKey = role === 'Admin' ? 'admin' : (role === 'Barangay Official' ? 'barangay' : (role === 'Responder' ? 'responder' : 'resident'));
                 navigate(`/login?role=${encodeURIComponent(roleKey)}`); // cascades to info & reports
@@ -224,14 +218,12 @@ function Profile({ token }) {
             console.error("Failed to fetch profile:", err);
         }
     };
-
-    // ------------------- UPDATE PROFILE -------------------
+    
     const handleProfileUpdate = async () => {
         if (!user) return;
 
         let updateFields = {};
 
-        // ---------------- HEADER MODAL ----------------
         if (showModal === "header") {
             const { firstname, lastname, address_barangay } = editProfileData;
             if (firstname !== user.firstname) updateFields.firstname = firstname;
@@ -239,17 +231,14 @@ function Profile({ token }) {
             if (address_barangay !== user.address_barangay)
                 updateFields.address_barangay = address_barangay;
 
-            // Optional: fixed city, send only if it differs
             if ((editProfileData.address_city || "Olongapo City") !== (user.address_city || "Olongapo City"))
                 updateFields.address_city = editProfileData.address_city || "Olongapo City";
         }
 
-        // ---------------- ABOUT MODAL ----------------
         else if (showModal === "about") {
             if (editProfileData.bio !== user.bio) updateFields.bio = editProfileData.bio;
         }
 
-        // ---------------- PERSONAL MODAL ----------------
         else if (showModal === "personal") {
             const { email, phone, address_street, birthdate } = editProfileData;
             if (email !== user.email) updateFields.email = email;
@@ -258,7 +247,6 @@ function Profile({ token }) {
             if (birthdate !== user.birthdate) updateFields.birthdate = birthdate;
         }
 
-        // ---------------- NO CHANGES ----------------
         if (Object.keys(updateFields).length === 0) {
             addNotification("No changes detected.", "info");
             setShowModal(null);
@@ -313,19 +301,16 @@ function Profile({ token }) {
         }
     };
 
-    // Prepare main page content then conditionally show inline loader
     const safeUser = user || {};
 
     const mainContent = (
         <div className={`profile-page ${overlayExited ? "overlay-exited" : ""}`}>
-            {/* MODIFIED: Adjusted notification JSX to use provided CSS classes */}
             {notifications.map((notif) => (
                 <div key={notif.id} className={`notif notif-${notif.type}`}>
                     {notif.message}
                 </div>
             ))}
 
-            {/* HEADER - Apply fade-in-up animation and stagger delay */}
             <div className="profile-header-card">
                 <button
                     type="button"
@@ -405,7 +390,6 @@ function Profile({ token }) {
             <div className="profile-content">
                 {/* SIDEBAR */}
                 <div className="profile-sidebar">
-                    {/* Card 1 - Apply stagger delay */}
                     <div className="profile-card">
                         <div className="card-header">
                             <h3>About</h3>
@@ -422,7 +406,6 @@ function Profile({ token }) {
                         <p>{displayField(safeUser.bio, "No information added yet.")}</p>
                     </div>
 
-                    {/* Card 2 - Apply stagger delay */}
                     <div className="profile-card">
                         <div className="card-header">
                             <h3>Personal Info</h3>
@@ -500,7 +483,6 @@ function Profile({ token }) {
                         </p>
                     </div>
 
-                    {/* Activity Card - Only show for Residents */}
                     {safeUser.role === "Resident" && (
                         <div className="profile-card">
                             <h3>Activity</h3>
@@ -511,7 +493,6 @@ function Profile({ token }) {
                 </div>
             </div>
 
-            {/* ------------------- PROFILE MODAL ------------------- */}
             {showModal && (
                 <ModalPortal>
                 <div className="portal-modal-overlay" onClick={() => setShowModal(null)}>
@@ -633,7 +614,6 @@ function Profile({ token }) {
                 </ModalPortal>
             )}
 
-            {/* ------------------- DELETE ACCOUNT MODAL (re-styled to match Delete Report modal) ------------------- */}
             {showDeleteAccount && (
                 <ModalPortal>
                 <div
@@ -675,7 +655,6 @@ function Profile({ token }) {
                 </ModalPortal>
             )}
 
-            {/* ------------------- FULLSCREEN IMAGE MODAL ------------------- */}
             {fullScreenImage && (
                 <ModalPortal>
                 <div

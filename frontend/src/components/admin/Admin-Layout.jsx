@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import {
   FaHome,
   FaPlusCircle,
@@ -42,7 +42,7 @@ function AdminLayout({ session, setSession, setNotification }) {
 
   const navigate = useNavigate();
 
-  // Fetch admin profile if session exists
+  // Fetch admin profile
   useEffect(() => {
     const loadProfile = async () => {
       if (!session?.token) {
@@ -60,7 +60,7 @@ function AdminLayout({ session, setSession, setNotification }) {
         });
         clearTimeout(timeout);
         
-        // Check for session expiration (401/403)
+        // Check for session expiration
         if (isSessionExpired(res)) {
           handleSessionExpired(setSession, setNotification, navigate, 'admin');
           return;
@@ -82,14 +82,9 @@ function AdminLayout({ session, setSession, setNotification }) {
             navigate("/login?role=admin");
             return;
           }
-          
-          // Auto-set onpremium = true for Admin users (ensures premium status in database)
-          // This is a fire-and-forget call - Admin always has premium access regardless of DB state
           if (data.profile?.role === "Admin") {
-            // Always set premium in the profile state for Admin users
             data.profile.onpremium = true;
-            
-            // Try to sync with database if not already premium
+
             if (!data.profile?.onpremium) {
               const premiumUrl = getApiUrl('/api/admin/set-premium');
               fetch(premiumUrl, {
@@ -106,7 +101,6 @@ function AdminLayout({ session, setSession, setNotification }) {
                   console.log('[Admin] ⚠️ Premium sync returned:', resp.status, '- Admin still has premium access');
                 }
               }).catch(err => {
-                // Silently ignore - Admin always has premium access in the app
                 console.log('[Admin] ℹ️ Premium sync skipped (network) - Admin has premium access by default');
               });
             }
@@ -126,7 +120,6 @@ function AdminLayout({ session, setSession, setNotification }) {
           err.name === "TypeError";
 
         if (isNetworkError) {
-          // If we have a cached session user, use it to continue the admin UI gracefully
           if (session?.user) {
             setUser({
               ...session.user,
@@ -160,12 +153,10 @@ function AdminLayout({ session, setSession, setNotification }) {
     loadProfile();
   }, [session, setSession, setNotification, navigate]);
 
-  // 🔹 Fetch missed reports summary for admin (toast only)
   useEffect(() => {
     const fetchMissedReports = async () => {
       if (!session?.token || !user) return;
 
-      // Only show toast once per session
       const toastKey = `missed_toast_shown_admin_${user.id || 'anon'}`;
       if (sessionStorage.getItem(toastKey)) return;
 
@@ -179,8 +170,7 @@ function AdminLayout({ session, setSession, setNotification }) {
         const data = await res.json();
         if (data?.status === 'success' && data?.summary?.total > 0) {
           const totalMissed = data.summary.total;
-          
-          // Show toast after 2.5 seconds delay
+
           setTimeout(() => {
             if (toastRef.current) {
               toastRef.current.show(
@@ -200,10 +190,8 @@ function AdminLayout({ session, setSession, setNotification }) {
     fetchMissedReports();
   }, [session?.token, user]);
 
-  // 🔹 Setup real-time notifications via SSE for admin
   useEffect(() => {
     if (!session?.token) {
-      // Stop polling if token is cleared (logout)
       if (pollingIntervalRef.current) {
         stopNotificationPolling(pollingIntervalRef.current);
         pollingIntervalRef.current = null;
@@ -223,7 +211,6 @@ function AdminLayout({ session, setSession, setNotification }) {
       setNotificationCount(count);
     });
 
-    // Start polling only for Admin role (Admin layout only calls /api/admin/admin_notifications)
     try {
       pollingIntervalRef.current = startNotificationPolling(session.token, 'Admin', 10000);
     } catch (e) {
@@ -238,7 +225,6 @@ function AdminLayout({ session, setSession, setNotification }) {
     };
   }, [session?.token]);
 
-  // 🕒 Update date/time every second
   useEffect(() => {
     const interval = setInterval(() => setDateTime(new Date()), 1000);
     return () => clearInterval(interval);
@@ -300,7 +286,7 @@ function AdminLayout({ session, setSession, setNotification }) {
   return (
     <div className="home-container">
       <Toast ref={toastRef} />
-      {/* Sidebar */}
+      {/* SIDEBAR */}
       {sidebarOpen && (
         <aside className="sidebar">
           <div className="logo">
@@ -311,7 +297,7 @@ function AdminLayout({ session, setSession, setNotification }) {
             }}>Community Guard</h2>
           </div>
 
-          {/* Sidebar Nav - Order: Users(Admin Dashboard), Maps, Reports, Archived, Community Feed, Notifications */}
+          {/* SIDEBAR NAV */}
           <nav
             style={{
               borderBottom: "1px solid rgba(255,255,255,0.1)",
@@ -341,7 +327,7 @@ function AdminLayout({ session, setSession, setNotification }) {
             </NavLink>
           </nav>
 
-          {/* Logout - matching Layout/BarangayLayout design */}
+          {/* LOGOUT */}
           <button
             className="logout-btn"
             onClick={() => setShowLogoutConfirm(true)}
@@ -352,7 +338,7 @@ function AdminLayout({ session, setSession, setNotification }) {
         </aside>
       )}
 
-      {/* Main content */}
+      {/* MAIN CONTENT */}
       <main className="main-area">
         <div
           className="top-bar"
@@ -363,7 +349,7 @@ function AdminLayout({ session, setSession, setNotification }) {
             padding: "0.8rem 1.2rem",
           }}
         >
-          {/* Left side: Menu + DateTime */}
+          {/* MENU */}
           <div
             style={{
               display: "flex",
@@ -399,7 +385,7 @@ function AdminLayout({ session, setSession, setNotification }) {
             </div>
           </div>
 
-          {/* Right side: Admin Profile */}
+          {/* Admin Profile */}
           {!loading && user && (
             <div
               className="admin-profile-top"
@@ -410,7 +396,6 @@ function AdminLayout({ session, setSession, setNotification }) {
                 cursor: "pointer",
               }}
             >
-              {/* Admin actions moved to the Community Metrics page */}
               <img
                 src={user.avatar_url || "/src/assets/profile.png"}
                 alt="Admin Profile"
@@ -451,7 +436,7 @@ function AdminLayout({ session, setSession, setNotification }) {
         <Outlet />
       </main>
 
-      {/* Mobile Navigation Menu - Shows in top bar */}
+      {/* MOBILE NAVIGATION MENU */}
       {showMobileNav && (
         <div className="mobile-nav-dropdown-top">
           <NavLink to="/admin/users" onClick={() => setShowMobileNav(false)}>
@@ -478,7 +463,7 @@ function AdminLayout({ session, setSession, setNotification }) {
         </div>
       )}
 
-      {/* Bottom nav (mobile) */}
+      {/* BOTTOM NAV */}
       <nav className="bottom-nav">
             <NavLink to="/admin/users">
               <FaUsers />
@@ -497,7 +482,6 @@ function AdminLayout({ session, setSession, setNotification }) {
             </NavLink>
       </nav>
 
-      {/* Desktop: Floating Chat Button - Always visible when chat is closed */}
       {session?.token && !showChatBot && (
         <button
           className="floating-chat-btn desktop-only"
@@ -509,7 +493,7 @@ function AdminLayout({ session, setSession, setNotification }) {
         </button>
       )}
 
-      {/* Mobile: 3-dot action menu */}
+      {/* MOBILE MENU */}
       <div className="mobile-action-menu">
         <button
           className="mobile-action-trigger"
@@ -546,7 +530,7 @@ function AdminLayout({ session, setSession, setNotification }) {
         )}
       </div>
 
-      {/* Logout confirmation modal - matching Layout/BarangayLayout design */}
+      {/* LOGOUT CONFIRMATION MODAL */}
       {showLogoutConfirm && (
         <ModalPortal>
         <div className="portal-modal-overlay">
@@ -575,7 +559,7 @@ function AdminLayout({ session, setSession, setNotification }) {
         </ModalPortal>
       )}
 
-      {/* ChatBot Component - Premium for Admin */}
+      {/* CHATBOT COMPONENT */}
       {session?.token && (
         <ChatBot 
           isOpen={showChatBot} 

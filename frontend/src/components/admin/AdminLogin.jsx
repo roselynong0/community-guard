@@ -18,7 +18,7 @@ export default function AdminLogin({ setSession, setNotification }) {
   const [showPrivacy, setShowPrivacy] = useState(false);
   const [verificationData, setVerificationData] = useState({ email: "", user_id: "" });
   const [isLoggingIn, setIsLoggingIn] = useState(false);
-  const loginMode = "Admin"; // fixed role
+  const loginMode = "Admin";
   const navigate = useNavigate();
 
   const handleChange = (e) => {
@@ -65,20 +65,18 @@ export default function AdminLogin({ setSession, setNotification }) {
       const result = await res.json();
 
       if (res.ok && result.status === "success") {
-        // Store session first
         localStorage.setItem("token", result.session.token);
         localStorage.setItem("session", JSON.stringify(result.session));
         const userRole = result.session.user?.role;
         const userFirstname = result.session.user?.firstname || "User";
 
-        // Admin page: only allow Admin role
+        // Admin page
         const allowed = ["Admin"];
         if (!allowed.includes(userRole)) {
-          // Clear session - don't keep wrong role logged in
           localStorage.removeItem("token");
           localStorage.removeItem("session");
           
-          // Redirect to the correct login page for the user's role hi.
+          // Redirect Login Page based on role
           const roleToPath = {
             "Admin": "/login?role=admin",
             "Barangay Official": "/login?role=barangay",
@@ -98,7 +96,6 @@ export default function AdminLogin({ setSession, setNotification }) {
           return;
         }
 
-        // Allowed: set session and continue to admin area
         setSession?.(result.session);
         const redirectPath = "/admin/users";
         setNotification?.({ message: "Admin access granted!", type: "success" });

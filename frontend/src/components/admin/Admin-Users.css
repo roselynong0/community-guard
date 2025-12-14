@@ -62,7 +62,6 @@
     border-left-color: #8b5cf6;
 }
 
-/* Barangay Official and Responder stat card colors */
 .admin-stat-card.barangay-official {
     border-left-color: #2563eb;
 }
@@ -203,7 +202,6 @@ input.admin-search-input {
     color: #374151;
 }
 
-/* Enhanced focus states for better accessibility */
 .admin-search-input:focus-visible,
 .admin-filter-select:focus-visible {
     box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.2);
@@ -282,7 +280,7 @@ input.admin-search-input {
     align-items: center;
     gap: 0.75rem;
     flex: 1;
-    min-width: 0; /* Allow shrinking */
+    min-width: 0;
 }
 
 .admin-user-avatar {
@@ -296,7 +294,7 @@ input.admin-search-input {
 
 .admin-user-details {
     flex: 1;
-    min-width: 0; /* Allow shrinking */
+    min-width: 0;
 }
 
 .admin-user-details h4 {
@@ -325,8 +323,8 @@ input.admin-search-input {
     font-weight: 600;
     text-transform: uppercase;
     letter-spacing: 0.5px;
-    flex-shrink: 0; /* Prevent shrinking */
-    white-space: nowrap; /* Prevent text wrapping */
+    flex-shrink: 0;
+    white-space: nowrap;
 }
 
 .admin-role-badge.admin {
@@ -334,7 +332,6 @@ input.admin-search-input {
     color: #8b5cf6;
 }
 
-/* Role badge colors for Barangay Officials and Responders */
 .admin-role-badge.barangay-official {
     background: rgba(37, 99, 235, 0.08);
     color: #2563eb;
@@ -516,7 +513,7 @@ input.admin-search-input {
     align-items: center;
     padding: 24px;
     border-bottom: 1px solid #e2e8f0;
-    flex-shrink: 0; /* Keep header fixed at top */
+    flex-shrink: 0;
     background: white;
 }
 
@@ -550,25 +547,22 @@ button.modal-close {
     overflow-y: auto;
     overflow-x: hidden;
     padding: 24px;
-    padding-right: 32px; /* Account for custom scrollbar */  
-    max-height: calc(85vh - 80px); /* Account for header and button area */
+    padding-right: 32px;
+    max-height: calc(85vh - 80px);
     flex: 1;
-    scroll-behavior: smooth; /* Smooth scrolling */
+    scroll-behavior: smooth;
 }
 
-/* Modern scrollbar features with progressive enhancement */
 @supports (scrollbar-gutter: stable) {
     .admin-modal-content {
-        scrollbar-gutter: stable; /* Reserve space for scrollbar */
+        scrollbar-gutter: stable;
     }
 }
 
-/* When scrollbar is not needed, reduce padding */
 .admin-modal-content:not(.has-scroll) {
     padding-right: 24px;
 }
 
-/* Custom scrollbar styles for admin modal */
 .admin-modal-content::-webkit-scrollbar {
     width: 8px;
 }
@@ -595,7 +589,6 @@ button.modal-close {
     background: transparent;
 }
 
-/* Firefox scrollbar fallback with better support detection */
 @supports (scrollbar-width: thin) {
     .admin-modal-content {
         scrollbar-width: thin;
@@ -615,7 +608,6 @@ button.modal-close {
     border: 1px solid #e2e8f0;
 }
 
-/* Modal user profile section */
 .user-profile-section {
     display: flex;
     align-items: flex-start;
@@ -789,10 +781,9 @@ button.modal-close {
     padding: 24px;
     border-top: 1px solid #e2e8f0;
     background: #f8fafc;
-    flex-shrink: 0; /* Keep actions fixed at bottom */
+    flex-shrink: 0;
 }
 
-/* Ensure buttons don't extend beyond content area */
 .admin-modal-actions button {
     max-width: 100%;
     box-sizing: border-box;
@@ -809,7 +800,6 @@ button.modal-close {
 }
 
 /* === MODAL CONTENT STYLES === */
-/* User Profile Section in Modal */
 .user-profile-section {
     display: flex;
     align-items: flex-start;
@@ -867,7 +857,6 @@ button.modal-close {
     font-weight: 500;
 }
 
-/* Verification status colors */
 .current-verification-status .verified {
     background: rgba(16, 185, 129, 0.1);
     color: #059669;
@@ -883,7 +872,6 @@ button.modal-close {
     color: #dc2626;
 }
 
-/* User Extended Info */
 .user-extended-info {
     border: 1px solid #e2e8f0;
     border-radius: 12px;
@@ -1008,7 +996,6 @@ button.modal-close {
     filter: drop-shadow(0 1px 3px rgba(45, 45, 115, 0.1));
 }
 
-
 /* === NO DATA STATES === */
 .admin-no-info {
     display: flex;
@@ -1109,16 +1096,15 @@ button.modal-close {
         grid-template-columns: 1fr;
     }
 
-    /* Mobile responsive adjustments for user header */
     .admin-user-header {
-        flex-wrap: nowrap; /* Keep items on same line */
+        flex-wrap: nowrap;
         align-items: center;
         gap: 0.5rem;
     }
     
     .admin-user-info {
-        flex: 1; /* Allow flexible sizing but don't force full width */
-        min-width: 0; /* Allow shrinking */
+        flex: 1;
+        min-width: 0;
     }
     
     .admin-user-details h4,
@@ -1129,12 +1115,11 @@ button.modal-close {
     }
     
     .admin-role-badge {
-        flex-shrink: 0; /* Prevent badge from shrinking */
-        font-size: 0.7rem; /* Slightly smaller on mobile */
-        padding: 0.2rem 0.5rem; /* Reduce padding for mobile */
+        flex-shrink: 0;
+        font-size: 0.7rem;
+        padding: 0.2rem 0.5rem;
     }
 
-    /* Modal responsive adjustments */
     .modal-user-header {
         flex-wrap: nowrap;
         align-items: center;
@@ -1153,8 +1138,8 @@ button.modal-close {
 
     .admin-modal-content {
         padding: 16px;
-        padding-right: 24px; /* Adjust for mobile scrollbar */
-        max-height: calc(95vh - 140px); /* Account for mobile header and actions */
+        padding-right: 24px;
+        max-height: calc(95vh - 140px);
     }
 
     .admin-modal-actions {
@@ -1275,7 +1260,6 @@ button.modal-close {
     color: #3b82f6;
 }
 
-/* Icon Colors */
 .admin-icon-primary {
     color: var(--admin-primary, #2d2d73);
 }
@@ -1304,7 +1288,6 @@ button.modal-close {
     color: #5aecff;
 }
 
-/* Role Colors */
 .admin-icon-role-resident {
     color: #5aecff;
 }

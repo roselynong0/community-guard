@@ -24,7 +24,6 @@ import logo from '../../assets/logo.png';
 import { logout, handleSessionExpired, isSessionExpired } from '../../utils/session';
 import LoadingScreen from '../shared/LoadingScreen';
 
-// Enhanced responder layout with improved design matching admin/barangay styles
 export default function ResponderLayout({ session, setSession, setNotification }) {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [user, setUser] = useState(null);
@@ -54,7 +53,6 @@ export default function ResponderLayout({ session, setSession, setNotification }
           headers: { Authorization: `Bearer ${token}` },
         });
         
-        // Check for session expiration (401/403)
         if (isSessionExpired(res)) {
           handleSessionExpired(setSession, setNotification, navigate, 'responder');
           setUser(null);
@@ -83,12 +81,10 @@ export default function ResponderLayout({ session, setSession, setNotification }
     loadProfile();
   }, [token, setSession, setNotification, navigate]);
 
-  // 🔹 Fetch missed reports summary for responder (toast only)
   useEffect(() => {
     const fetchMissedReports = async () => {
       if (!token || !user) return;
 
-      // Only show toast once per session
       const toastKey = `missed_toast_shown_responder_${user.id || 'anon'}`;
       if (sessionStorage.getItem(toastKey)) return;
 
@@ -107,7 +103,6 @@ export default function ResponderLayout({ session, setSession, setNotification }
           const missedInBarangay = userBarangay ? (barangayCounts[userBarangay] || 0) : totalMissed;
           
           if (missedInBarangay > 0) {
-            // Show toast after 2.5 seconds delay
             setTimeout(() => {
               if (toastRef.current) {
                 toastRef.current.show(
@@ -128,7 +123,6 @@ export default function ResponderLayout({ session, setSession, setNotification }
     fetchMissedReports();
   }, [token, user]);
 
-  // 🔹 Setup real-time notifications via SSE for responder
   useEffect(() => {
     if (!token) return;
 
@@ -144,7 +138,6 @@ export default function ResponderLayout({ session, setSession, setNotification }
       setNotificationCount(count);
     });
 
-    // Start SSE with Responder role (will fallback to polling if SSE not available)
     try {
       startNotificationSSE(token, 'Responder');
     } catch (e) {
@@ -212,7 +205,6 @@ export default function ResponderLayout({ session, setSession, setNotification }
             }}>Community Guard</h2>
           </div>
 
-          {/* Responder navigation - Order: Dashboard, Map, Reports, Archived, Notifications, Profile */}
           <nav
             style={{
               borderBottom: 'rgba(255,255,255,0.1)',
@@ -232,7 +224,7 @@ export default function ResponderLayout({ session, setSession, setNotification }
             <NavLink to="/responder/profile"><FaUser /> Profile</NavLink>
           </nav>
 
-          {/* Logout Button - matching Layout/BarangayLayout design */}
+          {/* Logout Button */}
           <button
             className="logout-btn"
             onClick={() => setShowLogoutConfirm(true)}
@@ -254,7 +246,6 @@ export default function ResponderLayout({ session, setSession, setNotification }
             padding: '0.8rem 1.2rem',
           }}
         >
-          {/* Left side: Menu + DateTime */}
           <div
             style={{
               display: 'flex',
@@ -371,7 +362,7 @@ export default function ResponderLayout({ session, setSession, setNotification }
         <Outlet />
       </main>
 
-      {/* Bottom nav (mobile) */}
+      {/* Bottom nav */}
       <nav className="bottom-nav">
         <NavLink to="/responder/home">
           <FaHome />
@@ -390,7 +381,6 @@ export default function ResponderLayout({ session, setSession, setNotification }
         </NavLink>
       </nav>
 
-      {/* Desktop: Floating Chat Button - Always visible when chat is closed */}
       {token && !showChatBot && (
         <button
           className="floating-chat-btn desktop-only"
@@ -402,7 +392,7 @@ export default function ResponderLayout({ session, setSession, setNotification }
         </button>
       )}
 
-      {/* Mobile: 3-dot action menu */}
+      {/* Mobile: Action Menu */}
       <div className="mobile-action-menu">
         <button
           className="mobile-action-trigger"
@@ -439,7 +429,7 @@ export default function ResponderLayout({ session, setSession, setNotification }
         )}
       </div>
 
-      {/* Logout confirmation modal - matching Layout/BarangayLayout design */}
+      {/* Logout confirmation modal */}
       {showLogoutConfirm && (
         <ModalPortal>
         <div className="portal-modal-overlay">
@@ -468,7 +458,7 @@ export default function ResponderLayout({ session, setSession, setNotification }
         </ModalPortal>
       )}
 
-      {/* ChatBot Component - Premium for Responders */}
+      {/* ChatBot Component */}
       {token && (
         <ChatBot 
           isOpen={showChatBot} 

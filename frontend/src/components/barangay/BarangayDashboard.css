@@ -115,13 +115,11 @@
   }
 }
 
-/* Ensure Recharts pie doesn't scale on hover for this dashboard */
 .reports-chart .recharts-surface .recharts-pie-sector:hover {
   transform: none !important;
   transition: none !important;
 }
 
-/* Simple tab styles used in the section-card */
 .tab-active {
   background: var(--accent-primary);
   color: white;
@@ -133,12 +131,9 @@
   border: 1px solid rgba(17,22,62,0.04);
 }
 
-/* Ensure map area stays static */
 .map-section { animation: none !important; }
 
-/* ========================================
-   PREMIUM MODAL STYLES - Matching Screenshot
-   ======================================== */
+/* PREMIUM MODAL STYLES */
 .premium-modal-overlay {
   position: fixed;
   top: 0;

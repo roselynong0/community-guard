@@ -69,7 +69,6 @@ const HomePage = () => {
     };
 
     const handleDropdownToggle = (key) => {
-        // Click toggles pinned state: clicking will pin it open; clicking again unpins
         if (pinnedDropdown === key) {
             setPinnedDropdown(null);
             setOpenDropdown(null);
@@ -115,14 +114,12 @@ const HomePage = () => {
         }
     }, []);
 
-    // When nav hover state changes, close dropdown if not pinned
     useEffect(() => {
         if (!navHovered && !pinnedDropdown) {
             setOpenDropdown(null);
         }
     }, [navHovered, pinnedDropdown]);
 
-    // Close dropdown when clicking outside nav if nothing pinned
     useEffect(() => {
         const handler = (e) => {
             if (!document.querySelector('.navbar')) return;
@@ -138,7 +135,6 @@ const HomePage = () => {
         };
     }, [pinnedDropdown]);
 
-    // Ensure no-scroll class is removed when component unmounts
     useEffect(() => {
         return () => {
             if (typeof document !== 'undefined' &&
@@ -150,8 +146,6 @@ const HomePage = () => {
         };
     }, []);
 
-    // Shared mouse-enter / mouse-leave handlers for nav items to provide
-    // consistent hover sensitivity (delay before hiding) across all dropdowns.
     const handleNavMouseEnter = (key = null) => {
         if (navLeaveTimerRef.current) {
             clearTimeout(navLeaveTimerRef.current);
@@ -162,21 +156,17 @@ const HomePage = () => {
     };
 
     const handleNavMouseLeave = (delay = 180) => {
-        // Delay hiding slightly to avoid flicker when moving between elements
-        // Accept a custom delay so we can make login's sensitivity more forgiving.
         if (navLeaveTimerRef.current) {
             clearTimeout(navLeaveTimerRef.current);
             navLeaveTimerRef.current = null;
         }
         navLeaveTimerRef.current = setTimeout(() => {
             setNavHovered(false);
-            // only close if nothing is pinned
             if (!pinnedDropdown) setOpenDropdown(null);
             navLeaveTimerRef.current = null;
         }, delay);
     };
 
-    // Listen for scroll and show/hide scroll-to-top button
     useEffect(() => {
         const onScroll = () => {
             try {
@@ -202,8 +192,6 @@ const HomePage = () => {
                 { label: "Operations Workflow", href: "#workflow" }
             ]
         },
-        // Platform dropdown removed - platform/deployment sections deleted
-        // resources dropdown removed per request
         {
             key: "company",
             label: "About",
@@ -333,8 +321,6 @@ const HomePage = () => {
         }
     ];
 
-    // techHighlights removed as platform section was deleted
-
     const steps = [
         {
             title: "1. Submit Your Report",
@@ -391,7 +377,6 @@ const HomePage = () => {
         }
     ];
 
-    // Flattened list of FAQ items (no categories) - keep `category` for potential future use
     const faqItems = faqSections.flatMap((s) => s.items.map((it) => ({ ...it, category: s.title })));
 
     return (

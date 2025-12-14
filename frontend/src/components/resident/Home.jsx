@@ -79,22 +79,17 @@ function Home({ token, session }) {
   const [_activeSlice, setActiveSlice] = useState(null);
   const [userBarangay, setUserBarangay] = useState(null);
   
-  // Calculate total (0 for "No Data" state, actual sum otherwise)
   const hasRealData = categoryData.length > 0 && !(categoryData.length === 1 && categoryData[0].name === "No Data");
   const totalReports = hasRealData ? categoryData.reduce((s, c) => s + (c.value || 0), 0) : 0;
   
-  // Prepare pie data - use value=1 for rendering "No Data" pie slice visually, but display 0
   const pieDisplayData = hasRealData 
     ? categoryData 
     : [{ name: "No Data", value: 1, color: "#e9ecef", displayValue: 0 }];
 
-  // Custom tooltip to show category amount + percentage
   function CustomTooltip({ active, payload, total }) {
     if (!active || !payload || !payload.length) return null;
     const item = payload[0].payload || payload[0];
-    // Use displayValue if available (for "No Data" state), otherwise use value
     const value = item.displayValue !== undefined ? item.displayValue : (item.value || 0);
-    // For "No Data" state, show 100% since the gray represents the full pie
     const isNoData = item.name === "No Data" && item.displayValue === 0;
     const pct = isNoData ? "100.0" : (total ? ((value / total) * 100).toFixed(1) : "0.0");
     return (
@@ -108,7 +103,7 @@ function Home({ token, session }) {
   const [error, setError] = useState(null);
   const [overlayExited, setOverlayExited] = useState(false);
   const [showGetVerifiedModal, setShowGetVerifiedModal] = useState(false);
-  const [userProfile, setUserProfile] = useState(null); // Store full profile for GetVerifiedModal
+  const [userProfile, setUserProfile] = useState(null);
   const toastRef = useRef(null);
   const getCategoryColor = useCallback((categoryName) => {
     return CATEGORY_COLORS[categoryName] || CATEGORY_COLORS.default;
@@ -118,14 +113,11 @@ function Home({ token, session }) {
   useEffect(() => {
     if (!token) return;
 
-    // Check if user came from login (URL has ?showMissed=1)
     const urlParams = new URLSearchParams(window.location.search || window.location.hash.split('?')[1] || '');
     const showMissedParam = urlParams.get('showMissed') || urlParams.get('show_missed');
     const cameFromLogin = showMissedParam === '1';
 
-    // Fetch missed-summary and show toast (only if user came from login)
     const fetchMissedSummaryAndShowToast = async () => {
-      // Only fetch if user came from login with ?showMissed=1
       if (!cameFromLogin) {
         console.log('📊 Skipping missed summary - user did not come from login');
         return;
@@ -133,7 +125,7 @@ function Home({ token, session }) {
       
       try {
         const toastKey = `missed_toast_home_${session?.user?.id || session?.user?.email || 'anon'}`;
-        if (sessionStorage.getItem(toastKey)) return; // Already shown toast this session
+        if (sessionStorage.getItem(toastKey)) return;
         
         const res = await fetch(getApiUrl('/api/reports/missed_summary'), {
           headers: { Authorization: `Bearer ${token}` },
@@ -148,7 +140,6 @@ function Home({ token, session }) {
             const totalMissed = data.summary.total || 0;
             const barangayCounts = data.summary.barangays || {};
             
-            // Show toast after a short delay
             if (totalMissed > 0) {
               setTimeout(() => {
                 if (toastRef.current) {
@@ -168,7 +159,6 @@ function Home({ token, session }) {
                   }
                 }
               }, 2000);
-              // Mark toast as shown for this session to prevent duplicates
               try { sessionStorage.setItem(toastKey, '1'); } catch { /* ignore */ }
             }
           }
@@ -180,20 +170,16 @@ function Home({ token, session }) {
 
     const fetchData = async () => {
       setLoading(true);
-        // Reset overlay exited flag when a new loading cycle starts
         setOverlayExited(false);
         setError(null);
         try {
-          // Show toast for missed reports (non-blocking)
-          fetchMissedSummaryAndShowToast();        // 1. Fetch user profile first to get their barangay from info table
+          fetchMissedSummaryAndShowToast();
         let barangay = null;
         try {
           const profileEndpoint = getApiUrl(API_CONFIG.endpoints.profile);
           const profileRes = await fetchWithToken(profileEndpoint, token);
           if (profileRes.status === "success" && profileRes.profile) {
-            // address_barangay comes from info table via profile endpoint
             const userBarangayValue = profileRes.profile.address_barangay;
-            // Only use barangay if it's a valid value (not the default placeholder)
             if (userBarangayValue && userBarangayValue !== "No barangay selected") {
               barangay = userBarangayValue;
               setUserBarangay(barangay);
@@ -206,7 +192,6 @@ function Home({ token, session }) {
           console.warn("Could not fetch user barangay:", profileErr);
         }
         
-        // 2. Fetch stats filtered by user's barangay (if set)
         const statsEndpoint = getApiUrl(API_CONFIG.endpoints.stats + (barangay ? `?barangay=${encodeURIComponent(barangay)}` : ''));
         const statsRes = await fetchWithToken(statsEndpoint, token);
         if (statsRes.status === "success") {
@@ -218,7 +203,6 @@ function Home({ token, session }) {
           ]);
         }
 
-        // 3. Fetch categories filtered by user's barangay from info table
         const categoryEndpoint = getApiUrl(
           API_CONFIG.endpoints.reports + 
           `/categories?filter=all${barangay ? `&barangay=${encodeURIComponent(barangay)}` : ''}`
@@ -235,7 +219,6 @@ function Home({ token, session }) {
           setCategoryData([{ name: "No Data", value: 0, color: "#e9ecef" }]);
         }
 
-        // 4. Fetch recent reports filtered by user's barangay from info table
         const reportsEndpoint = getApiUrl(
           API_CONFIG.endpoints.reports + 
           `?limit=5&sort=desc&filter=all${barangay ? `&barangay=${encodeURIComponent(barangay)}` : ''}`
@@ -267,30 +250,25 @@ function Home({ token, session }) {
     fetchData();
   }, [token, session?.user?.role, session?.user?.email, session?.user?.id, getCategoryColor]);
 
-  // Check verification status after login and show GetVerifiedModal if needed
   useEffect(() => {
     if (!token) return;
 
-    // Check URL params - only show modal when coming from login
     const urlParams = new URLSearchParams(window.location.search || window.location.hash.split('?')[1] || '');
     const showMissedParam = urlParams.get('showMissed') || urlParams.get('show_missed');
     const cameFromLogin = showMissedParam === '1';
     
     if (!cameFromLogin) return;
 
-    // Avoid showing modal multiple times
     const verifyModalKey = `verify_modal_shown_${session?.user?.id || session?.user?.email || 'anon'}`;
     if (sessionStorage.getItem(verifyModalKey)) return;
 
     let cancelled = false;
     (async () => {
       try {
-        // Fetch latest profile to check verification flags
         const profileUrl = getApiUrl(API_CONFIG.endpoints.profile);
         const profileResp = await fetchWithToken(profileUrl, token).catch(() => null);
         const profileData = profileResp && profileResp.profile ? profileResp.profile : profileResp || {};
 
-        // Check info.verified (from profile response)
         const infoVerified = profileData.verified === true;
 
         console.log('🔐 Verification check:', { infoVerified });
@@ -298,7 +276,6 @@ function Home({ token, session }) {
         if (!cancelled) {
           setUserProfile(profileData);
           
-          // Show GetVerifiedModal if not verified
           if (!infoVerified) {
             setShowGetVerifiedModal(true);
             try { sessionStorage.setItem(verifyModalKey, '1'); } catch { /* ignore */ }
@@ -312,7 +289,6 @@ function Home({ token, session }) {
     return () => { cancelled = true; };
   }, [token, session?.user?.id, session?.user?.email]);
 
-  // Profile update handler passed to verification modal
   const handleProfileUpdate = async (updateData) => {
     try {
       const profileUrl = getApiUrl(API_CONFIG.endpoints.profile);
@@ -322,9 +298,7 @@ function Home({ token, session }) {
         body: JSON.stringify(updateData)
       });
       if (!res.ok) throw new Error('Update failed');
-      // on success, close verification modal
       setShowGetVerifiedModal(false);
-      // Show success toast
       if (toastRef.current) {
         toastRef.current.show('Profile updated successfully!', 'success');
       }
@@ -359,10 +333,6 @@ function Home({ token, session }) {
   };
 
   const mapRef = useRef(null);
-
-  // REMOVED: Duplicate missed-summary fetch that was showing modal without login check
-  // The fetchMissedSummary in the main fetchData useEffect already handles this correctly
-  // by checking for ?showMissed=1 parameter
 
   const mapSection = (
     <div className="map-section" style={{ animationDelay: "0.5s" }}>
@@ -428,7 +398,6 @@ function Home({ token, session }) {
         <div className="reports-chart">
           <h3>Reports by Category</h3>
           <div className="chart-container">
-            {/* Use a numeric height so Recharts can measure reliably */}
             <div className="chart-wrapper">
               <ResponsiveContainer width="100%" height={300}>
                 <PieChart>
@@ -463,12 +432,9 @@ function Home({ token, session }) {
                 <div className="label">Total reports</div>
               </div>
             </div>
-            {/* custom legend will be rendered inside the card (below chart) */}
             <div className="custom-legend">
               {categoryData.map((cat, idx) => {
-                // Use displayValue if available (for "No Data" state), otherwise use value
                 const value = cat.displayValue !== undefined ? cat.displayValue : (cat.value || 0);
-                // For "No Data" state, show 100% since the gray represents the full pie
                 const isNoData = !hasRealData && cat.name === "No Data";
                 const pct = isNoData ? '100' : (totalReports ? ((value / totalReports) * 100).toFixed(0) : '0');
                 return (
@@ -513,7 +479,6 @@ function Home({ token, session }) {
     >
       {contentWithoutMap}
     </LoadingScreen>
-    {/* GetVerifiedModal for unverified users */}
     <React.Suspense fallback={null}>
       <GetVerifiedModal
         open={showGetVerifiedModal}

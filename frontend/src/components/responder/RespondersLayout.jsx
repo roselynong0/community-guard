@@ -195,7 +195,6 @@ function ResponderLayout({ session, setSession, setNotification }) {
         <NavLink to="/responders/notifications"><FaBell /></NavLink>
       </nav>
 
-      {/* ✅ ✅ Added — Mobile Logout Bubble */}
       <div
         className="mobile-logout-bubble"
         onClick={() => setShowLogoutConfirm(true)}

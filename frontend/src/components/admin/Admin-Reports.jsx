@@ -13,7 +13,7 @@ import LoadingScreen from "../shared/LoadingScreen";
 const logoImg = /* @vite-ignore */ new URL('../../assets/logo.png', import.meta.url).href;
 const REPORT_STATUSES = ["Pending", "Ongoing", "Resolved"];
 
-// Priority level colors and styling (copied from BarangayReports)
+// Priority level colors
 const PRIORITY_COLORS = {
     Crime: { borderColor: '#c0392b', bgColor: '#fdedec', priority: 'Critical', label: '🔴 Critical' },
     Hazard: { borderColor: '#d35400', bgColor: '#fef5e7', priority: 'High', label: '🟠 High' },
@@ -26,8 +26,6 @@ const getPriorityStyle = (category) => {
     return PRIORITY_COLORS[category] || PRIORITY_COLORS['Others'];
 };
 
-// Category keywords - kept for reference only, actual confidence is computed by backend AI
-// The backend ml_categorizer.py uses weighted keyword matching for accurate confidence scoring
 const CATEGORY_KEYWORDS = {
     Crime: ['theft', 'robbery', 'assault', 'violence', 'vandalism'],
     Hazard: ['fire', 'flood', 'explosion', 'gas leak', 'collapse'],
@@ -36,20 +34,14 @@ const CATEGORY_KEYWORDS = {
     Others: ['other', 'misc', 'general']
 };
 
-// Fallback confidence computation - only used when backend AI is unavailable
-// The primary confidence comes from backend's weighted keyword matching algorithm
 const computeConfidence = (description = '', numImages = 0) => {
-    // Simple fallback - returns baseline confidence
-    // Real confidence is calculated by backend AI using weighted keyword matching
     const text = (description || '').toLowerCase().trim();
     if (!text) return 55;
-    
-    // Basic length and image bonus for fallback
+
     const wordCount = text.split(/\s+/).length;
     const lengthBonus = Math.min(10, Math.floor(wordCount / 5));
     const imageBonus = Math.min(7, numImages * 2.5);
-    
-    // Base confidence with simple bonuses
+
     return Math.max(55, Math.min(75, 58 + lengthBonus + imageBonus));
 };
 
@@ -67,7 +59,7 @@ const getStatusIcon = (status) => {
     }
 };
 
-// Utility Hook for Modal Accessibility (Focus trap and Esc key)
+// Utility Hook for Modal Accessibility
 const useAriaModal = (isOpen, onClose) => {
     const modalRef = useRef(null);
 
@@ -77,12 +69,10 @@ const useAriaModal = (isOpen, onClose) => {
         const modalElement = modalRef.current;
         if (!modalElement) return;
 
-        // 1. Focus the modal container on open
         const focusTimeout = setTimeout(() => {
             modalElement.focus();
         }, 0);
 
-        // 2. Trap focus within the modal
         const focusableElements = 'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])';
         
         const handleTabKeyPress = (e) => {
@@ -95,12 +85,12 @@ const useAriaModal = (isOpen, onClose) => {
                 const firstElement = focusableModalElements[0];
                 const lastElement = focusableModalElements[focusableModalElements.length - 1];
 
-                if (e.shiftKey) { // Shift + Tab
+                if (e.shiftKey) {
                     if (document.activeElement === firstElement) {
                         lastElement.focus();
                         e.preventDefault();
                     }
-                } else { // Tab
+                } else {
                     if (document.activeElement === lastElement) {
                         firstElement.focus();
                         e.preventDefault();
@@ -109,7 +99,6 @@ const useAriaModal = (isOpen, onClose) => {
             }
         };
 
-        // 3. Close on Escape key press
         const handleKeyDown = (e) => {
             if (e.key === 'Escape') {
                 onClose();
@@ -129,14 +118,12 @@ const useAriaModal = (isOpen, onClose) => {
     return modalRef;
 };
 
-// --- NEW Hook for Arrow Key Navigation in Filter Controls ---
 const useKeyboardNavigation = (containerRef, selector) => {
     useEffect(() => {
         const container = containerRef.current;
         if (!container) return;
 
         const handleArrowNavigation = (event) => {
-            // Only capture arrows if the current focus is within the filter container
             if (!container.contains(document.activeElement) && event.key !== 'ArrowRight' && event.key !== 'ArrowLeft') {
                 return;
             }
@@ -148,28 +135,22 @@ const useKeyboardNavigation = (containerRef, selector) => {
 
             if (event.key === 'ArrowRight' || event.key === 'ArrowDown') {
                 if (currentIndex === -1) {
-                    // If no element is currently focused in the list, focus the first one
                     focusableElements[0]?.focus();
                 } else if (currentIndex < focusableElements.length - 1) {
-                    // Move to the next element
                     focusableElements[currentIndex + 1].focus();
                 } else {
-                    // Loop to the first element (optional, but often helpful)
                     focusableElements[0].focus();
                 }
-                event.preventDefault(); // Prevent default scroll/behavior
+                event.preventDefault();
             } else if (event.key === 'ArrowLeft' || event.key === 'ArrowUp') {
                 if (currentIndex === -1) {
-                    // If no element is currently focused in the list, focus the last one
                     focusableElements[focusableElements.length - 1]?.focus();
                 } else if (currentIndex > 0) {
-                    // Move to the previous element
                     focusableElements[currentIndex - 1].focus();
                 } else {
-                    // Loop to the last element (optional)
                     focusableElements[focusableElements.length - 1].focus();
                 }
-                event.preventDefault(); // Prevent default scroll/behavior
+                event.preventDefault();
             }
         };
 
@@ -177,8 +158,6 @@ const useKeyboardNavigation = (containerRef, selector) => {
         return () => window.removeEventListener('keydown', handleArrowNavigation);
     }, [containerRef, selector]);
 };
-// -------------------------------------------------------------
-
 
 function AdminReports({ token, reportTitle = 'All Community Reports', showTitle = true }) {
     const [reports, setReports] = useState([]);
@@ -189,60 +168,54 @@ function AdminReports({ token, reportTitle = 'All Community Reports', showTitle 
     const [barangay, setBarangay] = useState("All");
     const [statusFilter, setStatusFilter] = useState("All"); 
     const [sort, setSort] = useState("latest");
-    const [smartSort, setSmartSort] = useState("latest"); // When Smart Filter active, controls date ordering for smart mode
+    const [smartSort, setSmartSort] = useState("latest");
     const [previewImage, setPreviewImage] = useState(null);
     const [notification, setNotification] = useState(null);
     const [highlightedReportId, setHighlightedReportId] = useState(null);
-    const [viewMode, setViewMode] = useState("card"); // "card" or "list" view
-    // Smart Filter states (copied from BarangayReports)
+    const [viewMode, setViewMode] = useState("card");
     const [showSmartFilter, setShowSmartFilter] = useState(false);
     const [aiUsagePercent, setAiUsagePercent] = useState(0);
-    const [timeRemainingHMS, setTimeRemainingHMS] = useState('48:00:00'); // HH:MM:SS format
-    const [timeRemainingSeconds, setTimeRemainingSeconds] = useState(172800); // 48 hours in seconds
+    const [timeRemainingHMS, setTimeRemainingHMS] = useState('48:00:00');
+    const [timeRemainingSeconds, setTimeRemainingSeconds] = useState(172800);
     const [showUsageModal, setShowUsageModal] = useState(false);
     const [smartFilterStartTime, setSmartFilterStartTime] = useState(null);
     const [hasAcceptedAiWarning, setHasAcceptedAiWarning] = useState(false);
     const [showSmartFilterWarning, setShowSmartFilterWarning] = useState(false);
     const [liveSessionSeconds, setLiveSessionSeconds] = useState(0);
-    const [showCommunityHelper] = useState(true); // show inline category suggestion
-    const [isPremium, setIsPremium] = useState(false); // Admin premium status - unlimited AI usage
+    const [showCommunityHelper] = useState(true);
+    const [isPremium, setIsPremium] = useState(false);
 
-    // ⭐ Trending and Pending reports states (matching Reports.jsx)
     const [trendingReports, setTrendingReports] = useState([]);
-    const [trendingExpanded, setTrendingExpanded] = useState(false); // Collapsed by default
-    const [trendingTimeFilter, setTrendingTimeFilter] = useState("all"); // today, yesterday, this-month, all
-    const [pendingReports, setPendingReports] = useState([]); // Reports awaiting approval (is_approved = false)
-    const [pendingExpanded, setPendingExpanded] = useState(false); // Collapsed by default
+    const [trendingExpanded, setTrendingExpanded] = useState(false);
+    const [trendingTimeFilter, setTrendingTimeFilter] = useState("all");
+    const [pendingReports, setPendingReports] = useState([]);
+    const [pendingExpanded, setPendingExpanded] = useState(false); 
 
     // Export modal states
     const [showExportModal, setShowExportModal] = useState(false);
-    const [exportType, setExportType] = useState(null); // 'csv' or 'pdf'
-    const [exportColorMode, setExportColorMode] = useState('color'); // 'color' or 'bw'
-    const [exportPageSize, setExportPageSize] = useState('A4'); // 'A4'|'Letter'|'Legal'|'Long'
+    const [exportType, setExportType] = useState(null);
+    const [exportColorMode, setExportColorMode] = useState('color');
+    const [exportPageSize, setExportPageSize] = useState('A4');
 
     // Loading animation states
     const [showMountAnimation, setShowMountAnimation] = useState(false);
     const [mountStage, setMountStage] = useState("exit");
     const loadingRef = useRef(loading);
 
-    // Keep loadingRef in sync with loading state
     useEffect(() => {
         loadingRef.current = loading;
     }, [loading]);
 
-    // Start a cinematic mount animation only if a real loading fetch is not already running.
     useEffect(() => {
         let startTimer = null;
         let exitTimer = null;
 
         if (!loadingRef.current) {
             startTimer = setTimeout(() => {
-                // If a fetch started while waiting, skip mount animation
                 if (loadingRef.current) return;
                 setShowMountAnimation(true);
                 setMountStage("loading");
 
-                // After a short display, transition to exit to play the exit animation
                 exitTimer = setTimeout(() => {
                     setMountStage("exit");
                 }, 700);
@@ -253,19 +226,16 @@ function AdminReports({ token, reportTitle = 'All Community Reports', showTitle 
             if (startTimer) clearTimeout(startTimer);
             if (exitTimer) clearTimeout(exitTimer);
         };
-        // Run on mount only
     }, []);
 
-    // If a real loading starts while the mount animation is visible, cancel the cinematic
     useEffect(() => {
         if (loading) {
             setShowMountAnimation(false);
         }
     }, [loading]);
 
-    // --- Smart Filter helpers (copied and adapted from BarangayReports) ---
+    // Smart Filter helpers
     const trackAiUsage = useCallback(async (durationSeconds = 0) => {
-        // Premium users bypass AI usage tracking completely
         if (isPremium) {
             console.log('[Smart Filter] ✨ Premium user - skipping usage tracking');
             return;
@@ -276,7 +246,6 @@ function AdminReports({ token, reportTitle = 'All Community Reports', showTitle 
             return;
         }
 
-        // Don't track if duration is 0 or negative
         if (durationSeconds <= 0) {
             console.log('[Smart Filter] Skipping zero-duration tracking');
             return;
@@ -320,7 +289,6 @@ function AdminReports({ token, reportTitle = 'All Community Reports', showTitle 
     }, [token, isPremium]);
 
     const handleSmartFilterToggle = useCallback(() => {
-        // Premium users (Admin) skip the warning modal
         if (!showSmartFilter && !hasAcceptedAiWarning && !isPremium) {
             setShowSmartFilterWarning(true);
             return;
@@ -334,7 +302,7 @@ function AdminReports({ token, reportTitle = 'All Community Reports', showTitle 
         } else if (!showSmartFilter && (hasAcceptedAiWarning || isPremium)) {
             setSmartFilterStartTime(Date.now());
             if (isPremium) {
-                setHasAcceptedAiWarning(true); // Auto-accept for premium
+                setHasAcceptedAiWarning(true);
             }
         }
 
@@ -354,9 +322,7 @@ function AdminReports({ token, reportTitle = 'All Community Reports', showTitle 
         setShowSmartFilterWarning(false);
     }, []);
 
-    // Real-time countdown timer for active Smart Filter session
-    // Updates: liveSessionSeconds, live aiUsagePercent, live timeRemainingHMS  
-    const WEEK_LIMIT_SECONDS = 172800; // 48 hours
+    const WEEK_LIMIT_SECONDS = 172800;
     
     useEffect(() => {
         if (!showSmartFilter || !smartFilterStartTime) {
@@ -370,9 +336,7 @@ function AdminReports({ token, reportTitle = 'All Community Reports', showTitle 
             const elapsed = Math.floor((Date.now() - smartFilterStartTime) / 1000);
             setLiveSessionSeconds(elapsed);
             
-            // Premium users don't need countdown - always show unlimited
             if (isPremium) {
-                // Just track session time, no percentage updates needed
                 if (elapsed > 0 && elapsed % 30 === 0) {
                     const minutes = Math.floor(elapsed / 60);
                     const seconds = elapsed % 60;
@@ -381,34 +345,29 @@ function AdminReports({ token, reportTitle = 'All Community Reports', showTitle 
                 return;
             }
             
-            // Calculate real-time usage: base usage + current session elapsed time
             const baseUsedSeconds = WEEK_LIMIT_SECONDS - timeRemainingSeconds;
             const totalUsedNow = baseUsedSeconds + elapsed;
             const livePercent = Math.min(100, Math.round((totalUsedNow / WEEK_LIMIT_SECONDS) * 100));
             const liveRemaining = Math.max(0, WEEK_LIMIT_SECONDS - totalUsedNow);
             
-            // Update usage percent in real-time
             setAiUsagePercent(livePercent);
             
-            // Format live time remaining as HH:MM:SS
             const hrs = Math.floor(liveRemaining / 3600);
             const mins = Math.floor((liveRemaining % 3600) / 60);
             const secs = liveRemaining % 60;
             setTimeRemainingHMS(`${String(hrs).padStart(2, '0')}:${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`);
             
-            // Log progress every 30 seconds
             if (elapsed > 0 && elapsed % 30 === 0) {
                 const minutes = Math.floor(elapsed / 60);
                 const seconds = elapsed % 60;
                 console.log(`[Smart Filter] ⏳ Session: ${minutes}m ${seconds}s | Usage: ${livePercent}% | Remaining: ${hrs}:${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`);
             }
-        }, 1000); // Update every second for countdown display
+        }, 1000);
 
         return () => clearInterval(timer);
     }, [showSmartFilter, smartFilterStartTime, timeRemainingSeconds, isPremium]);
     // ---------------------------------------------------------------------
 
-    // States for the Status Update Modal
     const [isStatusModalOpen, setIsStatusModalOpen] = useState(false);
     const [selectedReport, setSelectedReport] = useState(null);
     const [newStatus, setNewStatus] = useState("");
@@ -418,18 +377,16 @@ function AdminReports({ token, reportTitle = 'All Community Reports', showTitle 
     const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false);
     const [deleteTarget, setDeleteTarget] = useState(null);
     const [isDeleting, setIsDeleting] = useState(false);
-    // New states for deletion reason flow
+
     const [isDeleteReasonOpen, setIsDeleteReasonOpen] = useState(false);
     const [deleteReason, setDeleteReason] = useState('');
     const [deleteReasonOther, setDeleteReasonOther] = useState('');
-    
-    // New states for approval workflow
+
     const [isApprovingReport, setIsApprovingReport] = useState(false);
     const [isRejectingReport, setIsRejectingReport] = useState(false);
     
-    // New states for rejection info modal (when viewing rejected reports in list)
     const [rejectionInfoModalOpen, setRejectionInfoModalOpen] = useState(false);
-    const [rejectionInfoReport, setRejectionInfoReport] = useState(null); // eslint-disable-line no-unused-vars
+    const [rejectionInfoReport, setRejectionInfoReport] = useState(null);
     
     const barangays = [
         "All Barangay", "Barretto", "East Bajac-Bajac", "East Tapinac", "Gordon Heights",
@@ -438,12 +395,9 @@ function AdminReports({ token, reportTitle = 'All Community Reports', showTitle 
         "Santa Rita", "West Bajac-Bajac", "West Tapinac",
     ];
 
-    // --- REFS for Keyboard Navigation ---
     const filterContainerRef = useRef(null);
-    // Elements we want to navigate between with arrow keys
     const filterSelector = 'input.admin-search-input, .admin-top-controls .admin-filter-select, .reports-list button:first-child'; 
     useKeyboardNavigation(filterContainerRef, filterSelector);
-    // -----------------------------------
 
     // Notification handler
     const showNotification = useCallback((message, type = "success") => {
@@ -451,13 +405,13 @@ function AdminReports({ token, reportTitle = 'All Community Reports', showTitle 
         setTimeout(() => setNotification(null), 4000);
     }, []);
 
-    // --- Modal Control Functions for Accessibility ---
+    // Modal Control Functions
     const closeStatusModal = useCallback(() => {
-        if (!isUpdatingStatus) { // Only allow closing if not updating
+        if (!isUpdatingStatus) {
             setIsStatusModalOpen(false);
             setSelectedReport(null);
             setNewStatus("");
-            setIsUpdatingStatus(false); // Reset state
+            setIsUpdatingStatus(false);
         }
     }, [isUpdatingStatus]);
 
@@ -468,15 +422,12 @@ function AdminReports({ token, reportTitle = 'All Community Reports', showTitle 
     };
 
     const closeDeleteConfirm = useCallback(() => {
-        if (!isDeleting) { // Only allow closing if not deleting
+        if (!isDeleting) {
             setIsDeleteConfirmOpen(false);
             setDeleteTarget(null);
         }
     }, [isDeleting]);
 
-    
-
-    // New: open initial delete-reason modal instead of immediately showing permanent delete
     const closeDeleteReason = useCallback(() => {
         if (!isDeleting) {
             setIsDeleteReasonOpen(false);
@@ -493,22 +444,17 @@ function AdminReports({ token, reportTitle = 'All Community Reports', showTitle 
     };
 
     const proceedToConfirmDelete = () => {
-        // Ensure a reason is selected; allow 'Other' with text
         if (!deleteReason) return;
         if (deleteReason === 'Other' && !deleteReasonOther.trim()) return;
 
-        // close reason modal and open the confirm modal
         setIsDeleteReasonOpen(false);
         setIsDeleteConfirmOpen(true);
     };
 
-    // Use the custom hook to handle focus trapping and ESC key for both modals
     const statusRef = useAriaModal(isStatusModalOpen, closeStatusModal);
     const deleteRef = useAriaModal(isDeleteConfirmOpen, closeDeleteConfirm);
     const reasonRef = useAriaModal(isDeleteReasonOpen, closeDeleteReason);
-    // --------------------------------------------------
 
-    // Fetch reports from API (kept original logic)
     const fetchReports = useCallback(async () => {
         if (!token) {
             setLoading(false);
@@ -560,14 +506,12 @@ function AdminReports({ token, reportTitle = 'All Community Reports', showTitle 
                         is_rejected: report.is_rejected ?? false,
                         rejection_reason: report.rejection_reason ?? null,
                         images: report.images?.map(img => img.url) || [],
-                        // ⭐ Include reaction data for trending algorithm
                         reaction_count: report.reaction_count || 0,
                         user_liked: report.user_liked ?? false,
                         deleted_at: report.deleted_at || null
                     };
                 });
                 
-                // Debug: Log first 3 reports with reaction data
                 console.log("📥 Admin fetched reports:", reports.length, "reports");
                 console.log("📊 Admin report reaction stats:", reports.slice(0, 5).map(r => ({
                     id: r.id,
@@ -576,7 +520,6 @@ function AdminReports({ token, reportTitle = 'All Community Reports', showTitle 
                     user_liked: r.user_liked,
                     is_approved: r.is_approved
                 })));
-                // Try to get ML-based confidences from backend in a single batch call.
                 try {
                     const items = transformedReports.map(r => ({ id: r.id, description: r.description, images: r.images?.length || 0 }));
                     const resp = await fetch(getApiUrl('/api/ai/categorize/batch'), {
@@ -593,7 +536,6 @@ function AdminReports({ token, reportTitle = 'All Community Reports', showTitle 
                         const results = json.results || {};
                         const annotated = transformedReports.map(r => {
                             const res = results[r.id] || {};
-                            // Use backend's confidence_percent directly, or calculate from confidence, or fallback to local computation
                             const aiConfidence = res.confidence_percent 
                                 ?? (typeof res.confidence === 'number' ? Math.round(res.confidence * 100) : null)
                                 ?? computeConfidence(r.description, r.category, r.images?.length || 0);
@@ -603,7 +545,6 @@ function AdminReports({ token, reportTitle = 'All Community Reports', showTitle 
                                 ai_category: res.category || r.category,
                                 ai_method: res.method || 'batch',
                                 ai_reason: res.reason || '',
-                                // Include priority data from backend (capitalized: Critical/High/Medium/Low)
                                 ai_priority: res.priority || 'Low',
                                 ai_priority_score: res.priority_score || 1,
                                 ai_priority_label: res.priority_label || '⚪ Low'
@@ -611,7 +552,6 @@ function AdminReports({ token, reportTitle = 'All Community Reports', showTitle 
                         });
                         setReports(annotated);
                     } else {
-                        // fallback to deterministic client-side heuristic
                         const fallback = transformedReports.map(r => {
                             const catPriority = getPriorityStyle(r.category);
                             return {
@@ -619,7 +559,7 @@ function AdminReports({ token, reportTitle = 'All Community Reports', showTitle 
                                 ai_confidence: computeConfidence(r.description, r.category, r.images?.length || 0),
                                 ai_category: r.category,
                                 ai_method: 'heuristic',
-                                ai_priority: catPriority.priority,  // Already capitalized: Critical/High/Medium/Low
+                                ai_priority: catPriority.priority,
                                 ai_priority_score: catPriority.priority === 'Critical' ? 10 : (catPriority.priority === 'High' ? 8 : (catPriority.priority === 'Medium' ? 5 : 2)),
                                 ai_priority_label: catPriority.label
                             };
@@ -635,7 +575,7 @@ function AdminReports({ token, reportTitle = 'All Community Reports', showTitle 
                             ai_confidence: computeConfidence(r.description, r.category, r.images?.length || 0),
                             ai_category: r.category,
                             ai_method: 'error',
-                            ai_priority: catPriority.priority,  // Already capitalized: Critical/High/Medium/Low
+                            ai_priority: catPriority.priority,
                             ai_priority_score: catPriority.priority === 'Critical' ? 10 : (catPriority.priority === 'High' ? 8 : (catPriority.priority === 'Medium' ? 5 : 2)),
                             ai_priority_label: catPriority.label
                         };
@@ -657,7 +597,6 @@ function AdminReports({ token, reportTitle = 'All Community Reports', showTitle 
         fetchReports();
     }, [fetchReports]);
 
-    // Fetch current week AI usage on component mount
     useEffect(() => {
         if (!token) return;
         
@@ -695,7 +634,6 @@ function AdminReports({ token, reportTitle = 'All Community Reports', showTitle 
         fetchCurrentUsage();
     }, [token]);
 
-    // Handle highlight parameter from URL (kept original logic)
     useEffect(() => {
         const urlParams = new URLSearchParams(window.location.search);
         const highlightId = urlParams.get('highlight');
@@ -714,14 +652,12 @@ function AdminReports({ token, reportTitle = 'All Community Reports', showTitle 
         }
     }, [reports]);
 
-    // ⭐ Compute trending reports - Admin sees ALL trending reports across all barangays (max 5)
     useEffect(() => {
         if (!reports.length) {
             setTrendingReports([]);
             return;
         }
 
-        // Time filter logic - matches Reports.jsx algorithm
         const now = new Date();
         const filterByTime = (createdAt) => {
             if (trendingTimeFilter === "all") return true; // Show all reports
@@ -744,8 +680,6 @@ function AdminReports({ token, reportTitle = 'All Community Reports', showTitle 
             }
         };
 
-        // Admin sees ALL trending reports across all barangays
-        // Filter approved reports that are not resolved AND have likes > 0
         const eligibleReports = reports.filter((r) => 
             r.is_approved === true &&
             r.status !== "Resolved" &&
@@ -755,27 +689,21 @@ function AdminReports({ token, reportTitle = 'All Community Reports', showTitle 
             filterByTime(r.created_at)
         );
 
-        // Apply trending algorithm: Community Awareness & Involvement
-        // Score = (reactions * 15 + category_weight + base_score) / (days_old + 1)^0.8
-        // Gentler decay keeps reports visible longer for stable trending
         const scored = eligibleReports.map((r) => {
             const createdAt = new Date(r.created_at || 0);
             const daysOld = Math.max(0, (now - createdAt) / (1000 * 60 * 60 * 24));
-            
-            // Engagement weights - higher for community interaction
+    
             const severityWeight = { Crime: 4, Hazard: 3.5, Concern: 3, 'Lost&Found': 2, Others: 2 };
-            const reactionBoost = (r.reaction_count || 0) * 15; // High weight for community engagement
-            const baseScore = 5; // Base score ensures reports don't vanish suddenly
+            const reactionBoost = (r.reaction_count || 0) * 15;
+            const baseScore = 5;
             const engagement = reactionBoost + (severityWeight[r.category] || 2) + baseScore;
             
-            // Very gentle time decay (0.8 exponent) - keeps trending stable
             const timeFactor = Math.pow(daysOld + 1, 0.8);
             const trendingScore = engagement / timeFactor;
             
             return { ...r, trendingScore };
         });
 
-        // Sort by trending score descending, limit to 5 (admin sees all barangays)
         const trending = scored
             .sort((a, b) => b.trendingScore - a.trendingScore)
             .slice(0, 5);
@@ -784,20 +712,18 @@ function AdminReports({ token, reportTitle = 'All Community Reports', showTitle 
         console.log(`🔥 ${trending.length} trending reports (admin view - all barangays)`);
     }, [reports, trendingTimeFilter]);
 
-    // ⭐ Compute pending reports (is_approved = false, not rejected)
     useEffect(() => {
         if (!reports.length) {
             setPendingReports([]);
             return;
         }
 
-        // Filter reports awaiting approval
         const pending = reports.filter((r) => 
             r.is_approved === false &&
             r.is_rejected !== true &&
             r.deleted_at === null &&
             r.status !== "Resolved"
-        ).sort((a, b) => new Date(b.created_at) - new Date(a.created_at)); // Latest first
+        ).sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
 
         setPendingReports(pending);
         console.log(`⏳ ${pending.length} pending reports awaiting approval`);
@@ -809,7 +735,6 @@ function AdminReports({ token, reportTitle = 'All Community Reports', showTitle 
         );
     };
 
-    // Handle heart/like toggle for reports
     const handleToggleLike = async (reportId) => {
         if (!token) {
             showNotification("Please log in to like reports", "error");
@@ -829,8 +754,6 @@ function AdminReports({ token, reportTitle = 'All Community Reports', showTitle 
             const data = await response.json();
             
             if (data.status === 'success') {
-                // Update the report's reaction data in state
-                // Backend returns 'liked' or 'unliked' for action
                 setReports(prevReports => 
                     prevReports.map(report => 
                         report.id === reportId 
@@ -854,7 +777,6 @@ function AdminReports({ token, reportTitle = 'All Community Reports', showTitle 
     const handleUpdateStatus = async () => {
         if (!selectedReport || !newStatus || !token) return;
 
-        // Prevent double submissions
         if (isUpdatingStatus) {
             console.log("⚠️ Already updating status, ignoring duplicate request");
             return;
@@ -921,7 +843,6 @@ function AdminReports({ token, reportTitle = 'All Community Reports', showTitle 
                     'Authorization': `Bearer ${token}`,
                     'Content-Type': 'application/json'
                 },
-                // include deletion reason for auditing; server may accept or ignore
                 body: JSON.stringify({ reason: deleteReason || null, reason_other: deleteReasonOther || null })
             });
 
@@ -950,7 +871,6 @@ function AdminReports({ token, reportTitle = 'All Community Reports', showTitle 
         }
     };
 
-    // Approval workflow handlers
     const handleApproveReport = async (reportId) => {
         if (!token) return;
         
@@ -1004,7 +924,6 @@ function AdminReports({ token, reportTitle = 'All Community Reports', showTitle 
                 throw new Error(errorData.message || 'Failed to reject report');
             }
 
-            // Update report to show is_rejected = true instead of removing it
             setReports(prevReports =>
                 prevReports.map(r => 
                     r.id === reportId 
@@ -1022,7 +941,6 @@ function AdminReports({ token, reportTitle = 'All Community Reports', showTitle 
         }
     };
 
-    // Filtered reports with Smart Filter aware ordering
     const priorityRank = (priorityLabel) => {
         if (!priorityLabel) return 0;
         switch (priorityLabel) {
@@ -1034,22 +952,18 @@ function AdminReports({ token, reportTitle = 'All Community Reports', showTitle 
     };
 
     const smartComparator = (a, b) => {
-        // 1) Unapproved/pending (is_approved === false) come first
         const aApproved = !!a.is_approved;
         const bApproved = !!b.is_approved;
         if (aApproved !== bApproved) return aApproved ? 1 : -1;
 
-        // 2) Priority ranking: Critical > High > Medium > Low
         const aPri = priorityRank(getPriorityStyle(a.category).priority);
         const bPri = priorityRank(getPriorityStyle(b.category).priority);
-        if (aPri !== bPri) return bPri - aPri; // higher priority first
+        if (aPri !== bPri) return bPri - aPri;
 
-        // 3) Within same priority, prioritize higher confidence percentage
         const aConf = (typeof a.ai_confidence === 'number') ? a.ai_confidence : computeConfidence(a.description || '', a.category, (a.images || []).length);
         const bConf = (typeof b.ai_confidence === 'number') ? b.ai_confidence : computeConfidence(b.description || '', b.category, (b.images || []).length);
-        if (aConf !== bConf) return bConf - aConf; // higher confidence first
+        if (aConf !== bConf) return bConf - aConf;
 
-        // 4) Fallback to date ordering based on smartSort
         const aT = new Date(a.created_at).getTime() || 0;
         const bT = new Date(b.created_at).getTime() || 0;
         return smartSort === 'latest' ? bT - aT : aT - bT;
@@ -1062,9 +976,7 @@ function AdminReports({ token, reportTitle = 'All Community Reports', showTitle 
         return aT - bT;
     };
 
-    // Helper to get priority label from AI or fallback to category-based
     const getReportPriority = (report) => {
-        // Use AI priority if available
         if (report.ai_priority) {
             const pri = String(report.ai_priority).toLowerCase().trim();
             console.log(`[Admin Priority Debug] Report ${report.id}: ai_priority="${report.ai_priority}" normalized="${pri}"`);
@@ -1074,13 +986,11 @@ function AdminReports({ token, reportTitle = 'All Community Reports', showTitle 
             if (pri === 'low') return 'Low';
             return 'Low';
         }
-        // Fallback to category-based priority
         const catPriority = getPriorityStyle(report.category);
         console.log(`[Admin Priority Debug] Report ${report.id}: Using fallback category="${report.category}" priority="${catPriority.priority}"`);
         return catPriority.priority || 'Low';
     };
 
-    // Helper to filter reports by time range
     const filterReportsByTime = (reportsToFilter, timeRange) => {
         if (timeRange === 'all') return reportsToFilter;
         
@@ -1108,14 +1018,12 @@ function AdminReports({ token, reportTitle = 'All Community Reports', showTitle 
         });
     };
 
-    // Export to CSV with time filter
+    // Export to CSV
     const exportToCSV = (timeFilter = 'all') => {
         const reportsToExport = filterReportsByTime(filteredReports, timeFilter);
         
-        // ⭐ Include engagement data: Likes, Trending Score
         const headers = ["ID", "Title", "Category", "Status", "Barangay", "Address", "Reporter", "Priority", "Likes", "Trending Score", "Created At", "Description"];
         const rows = reportsToExport.map((r) => {
-            // Calculate trending score for CSV export
             const now = new Date();
             const createdAt = new Date(r.created_at || 0);
             const daysOld = Math.max(0, (now - createdAt) / (1000 * 60 * 60 * 24));
@@ -1155,7 +1063,7 @@ function AdminReports({ token, reportTitle = 'All Community Reports', showTitle 
         showNotification(`Exported ${reportsToExport.length} reports to CSV`, 'success');
     };
 
-    // Export to PDF with Community Helper AI Analytics
+    // Export to PDF
     const exportToPDF = async (timeFilter = 'all', colorMode = 'color', pageSize = 'A4') => {
         const reportsToExport = filterReportsByTime(filteredReports, timeFilter);
         const timeLabel = timeFilter === 'all' ? 'All Time' : timeFilter === 'today' ? 'Today' : timeFilter === 'this-week' ? 'This Week' : 'This Month';
@@ -1174,7 +1082,7 @@ function AdminReports({ token, reportTitle = 'All Community Reports', showTitle 
         const statusStats = { Pending: 0, Ongoing: 0, Resolved: 0 };
         const priorityStats = { Critical: 0, High: 0, Medium: 0, Low: 0 };
         
-        // ⭐ Engagement analytics
+        // Engagement analytics
         let totalLikes = 0;
         let topLikedReports = [];
         
@@ -1191,7 +1099,6 @@ function AdminReports({ token, reportTitle = 'All Community Reports', showTitle 
             const priority = getReportPriority(report);
             priorityStats[priority] = (priorityStats[priority] || 0) + 1;
             
-            // Track engagement
             totalLikes += (report.reaction_count || 0);
         });
         
@@ -1203,8 +1110,7 @@ function AdminReports({ token, reportTitle = 'All Community Reports', showTitle 
         
         const sortedCategories = Object.entries(categoryStats).sort((a, b) => b[1] - a[1]);
         const sortedBarangays = Object.entries(barangayStats).sort((a, b) => b[1] - a[1]);
-        
-        // Logo (static import)
+
         const logoPath = logoImg;
         
         const colorCss = colorMode === 'bw' ? 'html { filter: grayscale(100%); }' : '';
@@ -1223,10 +1129,9 @@ function AdminReports({ token, reportTitle = 'All Community Reports', showTitle 
                 pageCss = '@page { size: A4; margin: 20mm; }';
         }
 
-        // safezones & hotspots counts
+        // Safezones & Hotspots
         let safezoneCount = 0;
         let hotspotCount = 0;
-        // Build months array (last 6 months) for monthly trend
         const monthsArr = (() => {
             const now = new Date();
             const months = [];
@@ -1246,7 +1151,6 @@ function AdminReports({ token, reportTitle = 'All Community Reports', showTitle 
             return months;
         })();
 
-        // Build pie data from sortedBarangays
         const pieData = sortedBarangays.map(([name, count]) => ({ name, value: count }));
 
         const userBarangayLabel = (barangay && barangay !== 'All') ? barangay : 'All Barangays';
@@ -1516,15 +1420,14 @@ function AdminReports({ token, reportTitle = 'All Community Reports', showTitle 
 
     const filteredReports = reports
         .filter((r) => !r.is_rejected)
-        .filter((r) => r.status !== "Resolved") // Exclude resolved reports - they go to Archived
+        .filter((r) => r.status !== "Resolved")
         .filter((r) => (category === "All" ? true : r.category === category))
         .filter((r) => (barangay === "All" ? true : r.barangay === barangay))
         .filter((r) => (statusFilter === "All" ? true : r.status === statusFilter))
         .filter((r) => {
-            // Priority filter only applies when Smart Filter is ON
+            // Priority filter
             if (!showSmartFilter) return true;
             if (priorityFilter === "All") return true;
-            // Use AI-generated priority for filtering
             const reportPriority = getReportPriority(r);
             return reportPriority === priorityFilter;
         })
@@ -1537,34 +1440,27 @@ function AdminReports({ token, reportTitle = 'All Community Reports', showTitle 
                     reporterName.toLowerCase().includes(search.toLowerCase());
         })
         .filter((r) => {
-            // When Top sort is active, only show approved reports
             if (sort === 'top') return r.is_approved === true;
             return true;
         })
         .sort((a, b) => {
-            // ⭐ Top sort: prioritize highest liked reports
             if (sort === 'top') {
                 const aLikes = a.reaction_count || 0;
                 const bLikes = b.reaction_count || 0;
-                if (aLikes !== bLikes) return bLikes - aLikes; // Higher likes first
-                // Fallback to date (latest first) if same likes
+                if (aLikes !== bLikes) return bLikes - aLikes;
                 const aT = new Date(a.created_at).getTime() || 0;
                 const bT = new Date(b.created_at).getTime() || 0;
                 return bT - aT;
             }
 
-            // Default: prioritize unapproved/pending reports on top
             const aApproved = !!a.is_approved;
             const bApproved = !!b.is_approved;
             if (aApproved !== bApproved) return aApproved ? 1 : -1;
-
-            // If both have same approval status, apply smart ordering when enabled,
-            // otherwise fallback to the regular date comparator.
             if (showSmartFilter) return smartComparator(a, b);
             return dateComparator(a, b);
         });
 
-    // Loading / mount animation features (cards shown during mount/loading)
+    // Loading features
     const loadingFeatures = [
         { title: "Report Management", description: "View, approve, reject, and manage all community reports." },
         { title: "Smart Filter", description: "Smart-assisted categorization and priority-based sorting." },
@@ -1633,7 +1529,6 @@ function AdminReports({ token, reportTitle = 'All Community Reports', showTitle 
                         </div>
                     </div>
                 </div>
-            {/* IMPROVEMENT: Added ref to the filter container for keyboard navigation */}
             <div className="admin-top-controls" ref={filterContainerRef}>
                 <div className="admin-search-container">
                     <label htmlFor="search-input" className="sr-only">Search reports by title or reporter name</label>
@@ -1664,7 +1559,7 @@ function AdminReports({ token, reportTitle = 'All Community Reports', showTitle 
                     <option value="Others">Others</option>
                 </select>
                 
-                {/* Priority Filter - Only visible when Smart Filter is ON */}
+                {/* Priority Filter */}
                 {showSmartFilter && (
                     <>
                         <label htmlFor="priority-filter" className="sr-only">Filter by Priority</label>
@@ -1735,7 +1630,7 @@ function AdminReports({ token, reportTitle = 'All Community Reports', showTitle 
                         <option value="oldest">Oldest → Latest</option>
                     </select>
                 )}
-                {/* Smart Filter Toggle - Premium golden bar for Admin users */}
+                {/* Smart Filter Toggle */}
                 <div className="admin-smart-filter-container">
                     <button
                         onClick={() => {
@@ -1762,7 +1657,6 @@ function AdminReports({ token, reportTitle = 'All Community Reports', showTitle 
                                     style={{ width: isPremium ? '100%' : `${aiUsagePercent}%` }}
                                 />
                             </div>
-                            {/* Premium: Show infinity icon with Active label below, Non-premium: ? button */}
                             {isPremium ? (
                                 <div className="admin-premium-btn-container">
                                     <button 
@@ -1785,7 +1679,7 @@ function AdminReports({ token, reportTitle = 'All Community Reports', showTitle 
                             )}
                         </div>
 
-                        {/* Session timer - only for non-premium users */}
+                        {/* Session timer*/}
                         {!isPremium && showSmartFilter && hasAcceptedAiWarning && (
                             <div className="admin-session-timer">
                                 <span>🕐 Session: {Math.floor(liveSessionSeconds / 60)}m {liveSessionSeconds % 60}s</span>
@@ -1796,7 +1690,7 @@ function AdminReports({ token, reportTitle = 'All Community Reports', showTitle 
                 </div>
             </div>
 
-            {/* Smart Filter Warning Modal */}
+            {/* Smart Filter Modal */}
             {showSmartFilterWarning && (
                 <ModalPortal>
                 <div className="modal-overlay" onClick={handleRejectSmartFilterWarning}>
@@ -1833,7 +1727,7 @@ function AdminReports({ token, reportTitle = 'All Community Reports', showTitle 
                 </ModalPortal>
             )}
 
-            {/* AI Usage Modal - Premium-aware */}
+            {/* AI Usage Modal */}
             {showUsageModal && (
                 <ModalPortal>
                 <div className="modal-overlay" onClick={() => setShowUsageModal(false)}>
@@ -1865,7 +1759,7 @@ function AdminReports({ token, reportTitle = 'All Community Reports', showTitle 
                                 </div>
                             )}
 
-                            {/* Live Session Timer - only for non-premium users */}
+                            {/* Live Session Timer */}
                             {!isPremium && showSmartFilter && hasAcceptedAiWarning && (
                                 <div className="admin-session-info">
                                     <div className="admin-session-info-title">🕐 Live Session Timer</div>
@@ -1878,7 +1772,7 @@ function AdminReports({ token, reportTitle = 'All Community Reports', showTitle 
                                 </div>
                             )}
 
-                            {/* Usage Bar - Premium shows golden full bar */}
+                            {/* Usage Bar */}
                             <div className="admin-usage-bar-container">
                                 <div className="admin-usage-bar-header">
                                     <span className="admin-usage-bar-label">
@@ -1916,7 +1810,7 @@ function AdminReports({ token, reportTitle = 'All Community Reports', showTitle 
                                 </div>
                             )}
 
-                            {/* Time Remaining (only for non-premium) */}
+                            {/* Time Remaining */}
                             {!isPremium && (
                                 <div className="admin-time-remaining">
                                     <div style={{ marginBottom: '8px' }}>
@@ -1952,7 +1846,7 @@ function AdminReports({ token, reportTitle = 'All Community Reports', showTitle 
                 </ModalPortal>
             )}
 
-            {/* ⭐ Pill Button Row: Trending, Pending, Top - matching Reports.jsx */}
+            {/* ⭐ Pill Button Row */}
             <div className="trending-pill-row">
                 {/* Trending Pill - Toggle sort */}
                 <button
@@ -1974,7 +1868,7 @@ function AdminReports({ token, reportTitle = 'All Community Reports', showTitle 
                     {sort === 'trending' ? <FaMinus className="trending-pill-toggle" /> : <FaPlus className="trending-pill-toggle" />}
                 </button>
 
-                {/* Pending Pill - Show pending approval reports */}
+                {/* Pending Pill */}
                 <button
                     className={`pending-pill-btn ${pendingExpanded ? 'active' : ''} ${pendingReports.length === 0 ? 'empty' : ''}`}
                     data-count={pendingReports.length}
@@ -1997,7 +1891,7 @@ function AdminReports({ token, reportTitle = 'All Community Reports', showTitle 
                 </button>
             </div>
 
-            {/* ⭐ Trending Reports Section - Feed-style container */}
+            {/* Trending Reports Section */}
             {trendingExpanded && (
                 <div className={`feed-trending-container expanded ${trendingReports.length === 0 ? 'empty' : ''}`}>
                     <div className="feed-trending-header">
@@ -2064,7 +1958,7 @@ function AdminReports({ token, reportTitle = 'All Community Reports', showTitle 
                 </div>
             )}
 
-            {/* ⭐ Pending Reports Section - Feed-style container */}
+            {/* Pending Reports Section */}
             {pendingExpanded && pendingReports.length > 0 && (
                 <div className="feed-pending-container expanded">
                     <div className="feed-pending-header">
@@ -2132,7 +2026,6 @@ function AdminReports({ token, reportTitle = 'All Community Reports', showTitle 
                         const isExpanded = expandedPosts.includes(report.id);
                         const isPending = !report.is_approved;
                         
-                        // DEBUG: Log is_approved value for first 3 reports
                         if (index < 3) {
                             console.log(`[Admin-Reports] Report ${report.id}: is_approved=${report.is_approved}, isPending=${isPending}, status=${report.status}`);
                         }
@@ -2145,7 +2038,6 @@ function AdminReports({ token, reportTitle = 'All Community Reports', showTitle 
                             cardClasses.push("highlighted-report");
                         }
 
-                        // Determine border color when Smart Filter is ON and report is approved
                         const priorityStyle = getPriorityStyle(report.category);
                         const showPriorityBorder = showSmartFilter && report.is_approved;
 
@@ -2211,7 +2103,6 @@ function AdminReports({ token, reportTitle = 'All Community Reports', showTitle 
                                     </div>
 
                                     <div className="report-header-actions">
-                                        {/* Inline priority label when Smart Filter active and report approved */}
                                         {showSmartFilter && report.is_approved && (
                                             <span style={{
                                                 display: 'inline-flex',
@@ -2302,7 +2193,6 @@ function AdminReports({ token, reportTitle = 'All Community Reports', showTitle 
                                     </div>
                                 </div>
 
-                                {/* Community Helper Inline Container - Below Profile, Above Title */}
                                 {showCommunityHelper && showSmartFilter && (
                                     <div style={{
                                         display: 'flex',
@@ -2384,7 +2274,7 @@ function AdminReports({ token, reportTitle = 'All Community Reports', showTitle 
                                     </div>
                                 )}
 
-                                {/* Heart/Like Button - Disabled for pending reports */}
+                                {/* Heart/Like Button */}
                                 <div className="report-reactions">
                                     <button
                                         className={`reaction-btn heart-btn ${report.user_liked ? 'liked' : ''} ${isPending ? 'disabled' : ''}`}
@@ -2726,7 +2616,7 @@ function AdminReports({ token, reportTitle = 'All Community Reports', showTitle 
                 </ModalPortal>
             )}
 
-            {/* Delete Reason Modal: ask admin why the report is being deleted */}
+            {/* Delete Reason Modal */}
             {isDeleteReasonOpen && (
                 <ModalPortal>
                 <div
@@ -2787,7 +2677,7 @@ function AdminReports({ token, reportTitle = 'All Community Reports', showTitle 
                 </ModalPortal>
             )}
 
-            {/* Rejection Info Modal - Shows when admin views a rejected report */}
+            {/* Rejection Info Modal */}
             {rejectionInfoModalOpen && rejectionInfoReport && (
                 <ModalPortal>
                 <div 
@@ -2875,7 +2765,7 @@ function AdminReports({ token, reportTitle = 'All Community Reports', showTitle 
                 </ModalPortal>
             )}
 
-            {/* Export Modal with Time Range Options */}
+            {/* Export Modal */}
             {showExportModal && (
                 <ModalPortal>
                     <div 
@@ -3004,7 +2894,7 @@ function AdminReports({ token, reportTitle = 'All Community Reports', showTitle 
                 </ModalPortal>
             )}
 
-            {/* Notification - wrapped in ModalPortal for proper z-index */}
+            {/* Notification */}
             {notification && (
                 <ModalPortal>
                     <div 

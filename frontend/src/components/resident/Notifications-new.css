@@ -1,5 +1,3 @@
-/* Consolidated and improved Notifications.css with Reports-style buttons */
-
 @keyframes fadeIn {
     from {
         opacity: 0;
@@ -57,9 +55,7 @@
     font-weight: 600;
 }
 
-/* ========================================
-   NOTIFICATION ACTION BUTTONS (Reports-style)
-   ======================================== */
+/* NOTIFICATION ACTION BUTTONS */
 .btn {
     padding: 0 20px;
     height: 48px;

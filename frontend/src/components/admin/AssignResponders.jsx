@@ -138,7 +138,7 @@ function AssignResponders({ token }) {
         }
     }, [token, showNotification]);
 
-    // Fetch responders for the user's barangay
+    // Fetch responders
     const fetchResponders = useCallback(async () => {
         if (!token || !userBarangay) return;
         
@@ -166,7 +166,7 @@ function AssignResponders({ token }) {
         }
     }, [userBarangay, fetchResponders]);
 
-    // Filter reports - only show reports from user's barangay
+    // Filter reports
     const filteredReports = reports
         .filter(r => !userBarangay || r.barangay === userBarangay)
         .filter(r => statusFilter === "All" ? true : r.status === statusFilter)
@@ -206,7 +206,7 @@ function AssignResponders({ token }) {
                 setIsAssignModalOpen(false);
                 setSelectedReport(null);
                 setSelectedResponder("");
-                fetchReports(); // Refresh the list
+                fetchReports();
             } else {
                 throw new Error(data.message || 'Failed to assign responder');
             }
@@ -433,7 +433,7 @@ function AssignResponders({ token }) {
                 )}
             </div>
 
-            {/* Assignment Modal - wrapped in ModalPortal for proper z-index */}
+            {/* Assignment Modal */}
             {isAssignModalOpen && (
                 <ModalPortal>
                 <div className="modal-backdrop" onClick={() => !isAssigning && setIsAssignModalOpen(false)}>
@@ -550,7 +550,7 @@ function AssignResponders({ token }) {
                 </ModalPortal>
             )}
 
-            {/* Notification - wrapped in ModalPortal for proper z-index display */}
+            {/* Notification */}
             {notification && (
                 <ModalPortal>
                     <div 

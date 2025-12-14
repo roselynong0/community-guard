@@ -12,9 +12,7 @@
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 
-  /* ============================================
-     DESIGN SYSTEM - Color Tokens
-     ============================================ */
+  /* DESIGN SYSTEM */
   
   /* Primary Colors */
   --color-primary: #2d3b8f;

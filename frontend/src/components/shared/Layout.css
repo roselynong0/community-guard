@@ -9,8 +9,8 @@
 
 /* Design tokens */
 :root {
-  --primary: #11163e; /* deep blue */
-  --accent: #f1d429;  /* yellow */
+  --primary: #11163e;
+  --accent: #f1d429;
   --muted: #f2f4f8;
   --surface: #ffffff;
   --glass: rgba(255,255,255,0.6);
@@ -32,7 +32,6 @@
   box-shadow: 0 6px 28px rgba(17,22,62,0.18);
 }
 
-/* Custom scrollbar styles for sidebar */
 .sidebar::-webkit-scrollbar {
   width: 6px;
 }
@@ -175,7 +174,6 @@
   box-shadow: 0 2px 6px rgba(17,22,62,0.12);
 }
 .logout-btn {
-  /* Primary logout button used across layouts. Updated to match admin styling */
   background: none;
   border: 1px solid rgba(255, 255, 255, 0.2);
   padding: 0.8rem;
@@ -196,7 +194,6 @@
 
 .logout-btn:hover,
 .logout-btn:focus {
-  /* Themed hover/focus: yellow surface with deep blue text */
   background: linear-gradient(135deg, var(--accent), #f3c243);
   color: var(--primary);
   transform: translateY(-1px);
@@ -395,8 +392,6 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  /* Ensure modals are above any dashboard content, loading overlays, and notifications */
-  /* normalized z-index: higher than loading overlays but kept small and consistent (<=50) */
   z-index: 3;
   -webkit-backdrop-filter: blur(3px);
   backdrop-filter: blur(3px);
@@ -424,14 +419,13 @@
   border: 1px solid rgba(17,22,62,0.06);
   animation: slideUp 0.3s ease-out;
   position: relative;
-  /* Responsive: cap modal height and allow internal scrolling on very small screens */
   max-height: 92vh;
   overflow-y: auto;
   box-sizing: border-box;
   border-left: 6px solid rgba(241,212,41,0.95);
 }
 
-/* Logout-confirm modal specific styles */
+/* Logout-confirm modal */
 .modal.logout-confirm {
   max-width: 420px;
   text-align: center;
@@ -446,7 +440,6 @@
 }
 
 .modal.logout-confirm .confirm-btn {
-  /* Primary (safe) action in theme blue: use inline-flex so icon + text fit */
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -469,7 +462,6 @@
 }
 
 .modal.logout-confirm .cancel-btn {
-  /* Mirror sizing/layout of confirm so the two buttons are visually consistent */
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -518,7 +510,6 @@
   width: 100%;
   padding: 0 1rem;
   box-sizing: border-box;
-  /* allow actions to wrap when space is constrained */
   flex-wrap: wrap;
 }
 
@@ -704,9 +695,7 @@
   }
 }
 
-/* ========================================
-   FLOATING CHAT BUTTON
-   ======================================== */
+/* FLOATING CHAT BUTTON */
 .floating-chat-btn {
   position: fixed;
   bottom: 20px;
@@ -761,9 +750,7 @@
   }
 }
 
-/* ========================================
-   MOBILE ACTION MENU (3-dot dropdown)
-   ======================================== */
+/* MOBILE ACTION MENU */
 .mobile-action-menu {
   display: none;
   position: fixed;
@@ -874,9 +861,7 @@
   }
 }
 
-/* ========================================
-   VERIFICATION HINT FOR DISABLED BUTTONS
-   ======================================== */
+/* VERIFICATION HINT FOR DISABLED BUTTONS */
 .verification-hint {
   display: inline-flex;
   align-items: center;
@@ -905,7 +890,6 @@
   .sidebar {
     display: none;
   }
-  /* Keep the logo compact on small screens */
   .logo-img {
     height: 48px;
   }
@@ -1120,7 +1104,6 @@
   }
 }
 
-/* Additional small-screen modal improvements */
 @media (max-width: 520px) {
   .modal {
     width: calc(100% - 32px);

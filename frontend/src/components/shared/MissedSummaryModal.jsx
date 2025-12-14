@@ -1,7 +1,6 @@
 import React from 'react';
 import './MissedSummaryModal.css';
 
-// Lightweight modal with simple SVG charts (no external chart libs required)
 export default function MissedSummaryModal({ open, onClose, data, onProceed, showProceedAsNext = false }) {
   if (!open || !data) return null;
 
@@ -23,30 +22,25 @@ export default function MissedSummaryModal({ open, onClose, data, onProceed, sho
   const reportsInUserBarangay = userBarangay ? (barangays[userBarangay] || 0) : 0;
   const communityPosts = summary.community_posts_count || summary.community_posts || 0;
 
-  // Robust timestamp parsing to handle Postgres/Supabase formats and browser differences
   const parseTimestamp = (ts) => {
     if (!ts) return null;
     if (ts instanceof Date) return ts;
     try {
       let s = String(ts).trim();
-      // common Postgres format: '2025-11-20 23:21:12.72662+00'
       if (s.indexOf('T') === -1 && s.indexOf(' ') !== -1) {
         s = s.replace(' ', 'T');
       }
-      // ensure timezone offset like +00 becomes +00:00
       const tzMatch = s.match(/([+-]\d{2})(:?\d{2})?$/);
       if (tzMatch) {
         const part = tzMatch[0];
         if (/^[+-]\d{2}$/.test(part)) {
           s = s.replace(/([+-]\d{2})$/, '$1:00');
         } else if (/^[+-]\d{4}$/.test(part)) {
-          // +hhmm -> +hh:mm
           s = s.replace(/([+-]\d{2})(\d{2})$/, '$1:$2');
         }
       }
       let d = new Date(s);
       if (isNaN(d)) {
-        // fallback: try appending Z
         d = new Date(s + 'Z');
       }
       return isNaN(d) ? null : d;

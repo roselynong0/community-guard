@@ -1,4 +1,4 @@
-/* 🔹 Fade-in animation */
+/* Fade-in animation */
 @keyframes fadeIn {
   from {
     opacity: 0;
@@ -10,7 +10,7 @@
   }
 }
 
-/* 🔹 Main map page */
+/* Main map page */
 .maps-page {
   padding: 20px;
   height: 100%;
@@ -21,7 +21,7 @@
   animation: fadeIn 0.5s ease-out forwards;
 }
 
-/* 🔹 Map container */
+/* Map container */
 .map-container {
   height: 80vh;
   width: 100%;
@@ -39,7 +39,7 @@ p {
   color: #555;
 }
 
-/* 🔹 Loading spinner inside map */
+/* Loading spinner inside map */
 .map-loading-overlay {
   position: absolute;
   top: 0;
@@ -78,7 +78,7 @@ p {
   }
 }
 
-/* 🔹 Modal overlay */
+/* Modal overlay */
 .modal-overlay {
   background-color: rgba(0, 0, 0, 0.5);
   position: fixed;
@@ -89,7 +89,7 @@ p {
   animation: fadeIn 0.3s ease-out forwards;
 }
 
-/* 🔹 Modal container */
+/* Modal container */
 .modal-container {
   background: #fff;
   padding: 25px;
@@ -101,7 +101,7 @@ p {
   animation: fadeIn 0.4s ease-out forwards;
 }
 
-/* 🔹 Report list */
+/* Report list */
 .report-list {
   margin-top: 10px;
   list-style: none;
@@ -120,7 +120,7 @@ p {
   background: #e9ecef;
 }
 
-/* 🔹 Close button */
+/* Close button */
 .close-btn {
   margin-top: 15px;
   background: #007bff;
@@ -136,7 +136,7 @@ p {
   background: #0056b3;
 }
 
-/* 🔹 Responsive */
+/* Responsive */
 @media (max-width: 600px) {
   .maps-page {
     padding: 10px;
@@ -152,9 +152,7 @@ p {
   }
 }
 
-/* ============================================
-   MAP SIDEBAR & CONTROLS
-   ============================================ */
+/* MAP SIDEBAR & CONTROLS */
 
 /* Sidebar Panel */
 .map-sidebar {
@@ -323,9 +321,7 @@ p {
   color: var(--color-text-light, #666);
 }
 
-/* ============================================
-   MAPS MOBILE-FIRST RESPONSIVE STYLES
-   ============================================ */
+/* MAPS MOBILE-FIRST RESPONSIVE STYLES */
 
 /* Maps container wrapper */
 .maps-container {
@@ -334,7 +330,7 @@ p {
   overflow: hidden;
 }
 
-/* Desktop header - hidden on mobile */
+/* Desktop header */
 .maps-header {
   margin-bottom: 16px;
 }
@@ -432,24 +428,19 @@ p {
   letter-spacing: 0.3px;
 }
 
-/* Mobile filter toggle button */
 .mobile-filter-toggle {
   display: none;
 }
 
-/* Mobile filter panel */
 .mobile-filter-panel {
   display: none;
 }
 
-/* Desktop-only utility class */
 .desktop-only {
   display: block;
 }
 
-/* ============================================
-   MOBILE RESPONSIVE (max-width: 768px)
-   ============================================ */
+/* MOBILE RESPONSIVE */
 @media (max-width: 768px) { 
   .maps-page {
     padding: 10px 15px;
@@ -457,14 +448,12 @@ p {
     background-color: #fff;
     border-radius: 0;
     overflow: visible;
-    /* Override Layout's main-area padding on mobile */
     margin: 0;
     width: 100%;
     position: relative;
     margin-top: 2rem;
   }
 
-  /* Hide header on mobile */
   .maps-header {
     display: none;
   }
@@ -473,15 +462,14 @@ p {
     display: none !important;
   }
 
-  /* Full-screen map on mobile - covers top bar */
   .maps-container {
     position: fixed;
     top: 0;
     left: 0;
     right: 0;
-    bottom: 170px; /* Above bottom nav */
+    bottom: 170px; 
     height: auto;
-    z-index: 1; /* Low z-index so stats panel appears above */
+    z-index: 1; 
   }
 
   .map-container {
@@ -489,7 +477,6 @@ p {
     border-radius: 0;
   }
 
-  /* Mobile filter toggle button - dark blue theme */
   .mobile-filter-toggle {
     display: flex;
     align-items: center;
@@ -596,7 +583,6 @@ p {
     cursor: pointer;
   }
 
-  /* Hotspot checkbox - red accent */
   .mobile-toggle-item.hotspot-toggle input[type="checkbox"] {
     width: 20px;
     height: 20px;
@@ -604,7 +590,6 @@ p {
     accent-color: #dc2626;
   }
 
-  /* Safezone checkbox - green accent */
   .mobile-toggle-item.safezone-toggle input[type="checkbox"] {
     width: 20px;
     height: 20px;

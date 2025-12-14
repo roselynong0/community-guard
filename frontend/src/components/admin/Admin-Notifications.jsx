@@ -20,7 +20,6 @@ const getFinalNotificationType = (n) => {
   const textContext = String(n.title || '') + ' ' + String(n.message || '') + ' ' + String(n.type || '');
   const normalizedText = textContext.trim().toLowerCase();
 
-  // Responder assignment/reassignment detection
   if (normalizedText.includes('responder reassign') || normalizedText.includes('reassigned')) {
     return 'responder_reassignment';
   }
@@ -28,7 +27,6 @@ const getFinalNotificationType = (n) => {
     return 'responder_assignment';
   }
 
-  // Report deletion should be detected first
   if (normalizedText.includes('report deleted') || normalizedText.includes('report was deleted') || (normalizedText.includes('deleted') && normalizedText.includes('report'))) {
     return 'report_deleted';
   }
@@ -44,11 +42,9 @@ const getFinalNotificationType = (n) => {
   if (normalizedText.includes('ongoing') || normalizedText.includes('in-progress')) {
     return 'ongoing';
   }
-  // Account deletion / user removed
   if (normalizedText.includes('user deleted') || normalizedText.includes('account deleted') || (normalizedText.includes('deleted') && normalizedText.includes('user'))) {
     return 'account_deleted';
   }
-  // Report related keywords
   if (normalizedText.includes('report') || normalizedText.includes('status')) {
     return 'report';
   }
@@ -64,23 +60,19 @@ const getNotificationIcon = (type) => {
     case 'success':
       return <FaCheckCircle className="icon icon-success" />;
     case 'account_alert':
-      // treat account_alert like a new report visually (exclamation icon)
       return <FaExclamationTriangle className="icon icon-report" />;
     case 'user':
-      return <FaUser className="icon icon-security" />; // user icon for account actions
+      return <FaUser className="icon icon-security" />;
     case 'responder_assignment':
-      return <FaUser className="icon icon-info" />; // user icon for responder assignment
+      return <FaUser className="icon icon-info" />;
     case 'responder_reassignment':
-      return <FaSyncAlt className="icon icon-ongoing" />; // sync icon for reassignment
+      return <FaSyncAlt className="icon icon-ongoing" />;
     case 'report':
-      // new report posts use the exclamation triangle like the home dashboard
       return <FaExclamationTriangle className="icon icon-report" />;
     case 'report_deleted':
-      // red trash icon for deleted reports
       return <FaTrashAlt className="icon icon-delete" />;
     case 'warning':
     case 'ongoing':
-      // ongoing status uses the sync/refresh icon (matching Home)
       return <FaSyncAlt className="icon icon-ongoing" />;
     case 'pending':
       return <FaClock className="icon icon-pending" />;
@@ -88,29 +80,22 @@ const getNotificationIcon = (type) => {
     case 'report deleted':
       return <FaTrashAlt className="icon icon-warning" />;
     case 'account_deleted':
-      // red trash icon for account deletions
       return <FaTrashAlt className="icon icon-delete" />;
     default:
       return <FaInfoCircle className="icon icon-info" />;
   }
 };
 
-
-// main icon shown at the left of each notification item
-// per request: keep the exclamation triangle in front of report posts
 const getMainIcon = (n) => {
-  // if the notification relates to a report or is an account_alert, show the exclamation triangle
   const t = String(n?.type || '').toLowerCase();
   const message = String(n?.message || '') + ' ' + String(n?.title || '');
   const msg = message.toLowerCase();
   if (t === 'report' || t === 'account_alert' || msg.includes('report') || msg.includes("updated to") || msg.includes('new report')) {
     return <FaExclamationTriangle className="icon icon-report" />;
   }
-  // fallback to the type-based icon
   return getNotificationIcon(t || 'info');
 };
 
-// badge helpers accept either a type string or the full notification object
 const getBadgeClass = (input) => {
   let t = '';
   let message = '';
@@ -121,18 +106,14 @@ const getBadgeClass = (input) => {
     message = String(input.message || '') + ' ' + String(input.title || '');
   }
 
-  // If message explicitly mentions status, prefer that
   const msg = message.toLowerCase();
   if (msg.includes('ongoing') || msg.includes('in-progress') || msg.includes('ongoing')) return 'ongoing';
   if (msg.includes('pending') || msg.includes('submitted') || msg.includes('waiting')) return 'pending';
 
-  // account / user deleted messages should show account-deleted badge
   if (msg.includes('user deleted') || msg.includes('account deleted') || (msg.includes('deleted') && msg.includes('user'))) return 'account-deleted';
 
-  // report deleted messages should show report-deleted badge
   if (msg.includes('report deleted') || msg.includes('report was deleted') || (msg.includes('deleted') && msg.includes('report'))) return 'report-deleted';
 
-  // Responder assignment badges
   if (msg.includes('responder reassign') || msg.includes('reassigned')) return 'responder-reassignment';
   if ((msg.includes('responder') && msg.includes('assign')) || t === 'responder_assignment' || t === 'responder assignment') return 'responder-assignment';
 
@@ -188,24 +169,21 @@ const getBadgeLabel = (input) => {
   }
 };
 
-// return an icon color class for the main/left icon; used to color the recipient avatar to match
 const getIconClassForNotification = (n) => {
   const t = String(n?.type || '').toLowerCase();
   const message = String(n?.message || '') + ' ' + String(n?.title || '');
   const msg = message.toLowerCase();
-  
-  // Responder assignment/reassignment colors
+
   if (t === 'responder_reassignment' || t === 'responder reassignment' || msg.includes('responder reassign') || msg.includes('reassigned')) {
-    return 'icon-ongoing'; // orange for reassignment
+    return 'icon-ongoing';
   }
   if (t === 'responder_assignment' || t === 'responder assignment' || (msg.includes('responder') && msg.includes('assign'))) {
-    return 'icon-info'; // blue for assignment
+    return 'icon-info';
   }
   
   if (t === 'report' || t === 'account_alert' || msg.includes('report') || msg.includes('new report') || msg.includes('updated to')) {
     return 'icon-report';
   }
-  // account deletion -> red trash color
   if (t === 'account_deleted' || t === 'user deleted' || t === 'user_deleted' || msg.includes('user deleted') || msg.includes('account deleted')) return 'icon-delete';
   if (msg.includes('ongoing') || msg.includes('in-progress') || t === 'ongoing') return 'icon-ongoing';
   if (msg.includes('pending') || msg.includes('submitted') || t === 'pending') return 'icon-pending';
@@ -225,10 +203,10 @@ export default function AdminNotifications({ session }) {
   const [loading, setLoading] = useState(true);
   const [overlayExited, setOverlayExited] = useState(false);
   const [error, setError] = useState('');
-  const [statusFilter, setStatusFilter] = useState('All'); // All | Unread | Read
-  const [categoryFilter, setCategoryFilter] = useState('All'); // All | Report | Account
+  const [statusFilter, setStatusFilter] = useState('All');
+  const [categoryFilter, setCategoryFilter] = useState('All');
 
-  // Loading features for inline loading screen
+  // Loading features
   const loadingFeatures = [
     { title: "Admin Notifications", description: "Loading system and user notifications." },
     { title: "Alerts & Updates", description: "Fetching reports and account activities." },
@@ -241,7 +219,6 @@ export default function AdminNotifications({ session }) {
       const res = await fetch(getApiUrl('/api/admin/admin_notifications'), { headers });
       if (!res.ok) throw new Error(`Failed to fetch (${res.status})`);
       const data = await res.json();
-      // Only admin-focused notifications (admin_notifications endpoint)
       const adminNotifs = (data.admin_notifications || []).map((n) => {
         const finalType = getFinalNotificationType(n);
         return {
@@ -270,7 +247,6 @@ export default function AdminNotifications({ session }) {
 
   const markAdminRead = async (rawId) => {
     try {
-      // optimistic update
       setNotifications(prev => prev.map(n => (n.raw_id === rawId ? { ...n, is_read: true } : n)));
       const res = await fetch(getApiUrl(`/api/admin/admin_notifications/${rawId}/read`), { method: 'POST', headers });
       if (!res.ok) throw new Error(`Failed to mark read (${res.status})`);
@@ -279,7 +255,6 @@ export default function AdminNotifications({ session }) {
         setNotifications(prev => prev.map(n => (n.raw_id === rawId ? { ...n, is_read: Boolean(data.notification.is_read) } : n)));
       }
     } catch (e) {
-      // revert optimistic change on failure
       setNotifications(prev => prev.map(n => (n.raw_id === rawId ? { ...n, is_read: false } : n)));
       setError(e.message || 'Failed to mark admin notification read');
     }
@@ -296,42 +271,35 @@ export default function AdminNotifications({ session }) {
       if (!res.ok) throw new Error(`Failed to mark all read (${res.status})`);
       const data = await res.json();
       if (data?.status !== 'success' && !data?.updated_count) {
-        // fallback to refetch if server didn't acknowledge
         throw new Error(data?.message || 'Unexpected response');
       }
-      // otherwise we assume success; if server returns notifications we could reconcile
     } catch (e) {
       setError(e.message || 'Failed to mark all admin notifications as read');
-      // refresh to restore authoritative state
       fetchNotifications();
     }
   };
 
   const deleteAdminNotification = async (rawId) => {
     try {
-      // optimistic remove
       setNotifications(prev => prev.filter(n => n.raw_id !== rawId));
       const res = await fetch(getApiUrl(`/api/admin/admin_notifications/${rawId}`), { method: 'DELETE', headers });
       if (!res.ok) throw new Error(`Failed to delete (${res.status})`);
-      // Optionally validate response
     } catch (e) {
       setError(e.message || 'Failed to delete admin notification');
-      fetchNotifications(); // refresh to restore state
+      fetchNotifications();
     }
   };
 
   const filtered = notifications.filter(n => {
-    // status filter
+    // Status Filter
     if (statusFilter === 'Unread' && n.is_read) return false;
     if (statusFilter === 'Read' && !n.is_read) return false;
 
-    // category filter
+    // Category Filter
     if (categoryFilter === 'Report') {
-      // include notifications that reference a report in the title/message or have type 'report'
       const title = String(n.title || '').toLowerCase();
       const msg = String(n.message || '').toLowerCase();
       const t = String(n.type || '').toLowerCase();
-      // Exclude responder assignment notifications from report category
       if (t.includes('responder') || title.includes('responder assign') || title.includes('responder reassign')) return false;
       if (!(title.includes('report') || msg.includes('report') || t === 'report')) return false;
     }
@@ -340,25 +308,19 @@ export default function AdminNotifications({ session }) {
       const msgLow = String(n.message || '').toLowerCase();
       const typeLow = String(n.type || '').toLowerCase();
 
-      // If the title explicitly mentions a report, prefer report classification
       if (titleLow.includes('report')) return false;
-      // Exclude responder assignments
       if (typeLow.includes('responder') || titleLow.includes('responder')) return false;
 
-      // Include when type is account_alert or title/message mention "account"
       if (!(typeLow === 'account_alert' || titleLow.includes('account') || msgLow.includes('account'))) return false;
     }
     if (categoryFilter === 'Responder') {
       const titleLow = String(n.title || '').toLowerCase();
       const typeLow = String(n.type || '').toLowerCase();
-      // Include responder assignment and reassignment notifications
       if (!(typeLow.includes('responder') || titleLow.includes('responder assign') || titleLow.includes('responder reassign'))) return false;
     }
 
     return true;
   });
-
-  // compute unread count inline when rendering to avoid unused-variable lint warnings
 
   const content = (
     <div className={`notifications-container ${overlayExited ? 'overlay-exited' : ''}`}>
@@ -424,8 +386,6 @@ export default function AdminNotifications({ session }) {
                   </div>
                 </div>
 
-
-                {/* Human-friendly message on the next line - preserve newlines with white-space: pre-wrap */}
                 <div className="notif-row">
                   <p className="notif-message">
                     {n.message}

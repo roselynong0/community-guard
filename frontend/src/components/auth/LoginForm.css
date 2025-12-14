@@ -60,7 +60,7 @@
 .login-role-admin .modal-header h2 {
   color: var(--login-modal-title-color);
 }
-/* Admin title tweaks (login form h2 only) */
+/* Admin title */
 .login-role-admin .form-card h2 {
   color: var(--login-card-title-color);
 }
@@ -79,9 +79,7 @@
   border: 1px solid var(--login-btn-bg) !important;
 }
 
-/* Admin container-level variables + stronger overrides (already defined above) */
-
-/* Barangay Official (deep blue) */
+/* Barangay Official */
 .login-role-barangay-official .form-card {
   border: 1px solid var(--login-border-color, var(--login-btn-bg)) !important;
 }
@@ -99,7 +97,7 @@
   color: var(--login-modal-title-color);
 }
 .login-role-barangay-official .form-card h2 {
-  color: var(--login-btn-bg); /* slightly darker blue for login title */
+  color: var(--login-btn-bg);
 }
 
 .login-role-barangay-official .form-submit-btn {
@@ -116,7 +114,7 @@
   border: 1px solid var(--login-btn-bg) !important;
 }
 
-/* Responder (red) */
+/* Responder */
 .login-role-responder .form-card {
   border: 1px solid var(--login-border-color, var(--login-btn-bg)) !important;
 }
@@ -137,8 +135,6 @@
   color: var(--login-card-title-color);
 }
 
-/* Responder container-level variables + stronger overrides */
-
 .login-role-responder .form-submit-btn {
   background: var(--login-btn-bg) !important;
   color: #fff !important;
@@ -153,12 +149,12 @@
   border: 1px solid var(--login-btn-bg) !important;
 }
 
-/* Resident explicit theme: use the site's default (root) colors */
+/* Resident explicit theme */
 .login-role-resident .form-card {
   border: 1px solid var(--login-border-color) !important;
 }
 .login-role-resident .form-submit-btn {
-  background: var(--login-btn-bg); /* use root default */
+  background: var(--login-btn-bg);
   color: var(--login-btn-text, #fff);
 }
 .login-role-resident .form-submit-btn:hover:not(:disabled) {
@@ -168,16 +164,15 @@
   color: var(--login-card-title-color);
 }
 
-/* Resident container-level variables + stronger overrides */
+/* Resident container level */
 .login-role-resident {
-  /* Explicitly align resident role to the site's default theme */
   --login-btn-bg: #1d256a;
   --login-btn-hover: #778EA0;
   --login-border-color: transparent;
   --login-heading-color: #11163e;
   --login-top-heading-color: #ffffff;
 }
-/* Ensure modal top border uses the configured modal top color for resident too */
+
 .login-role-resident .modal-container {
   border-top: 4px solid var(--login-modal-top) !important;
 }
@@ -195,7 +190,6 @@
   border: 3px solid var(--login-border-color) !important;
 }
 
-/* Use the project's accent gold for the resident back-button hover to match brand */
 .login-role-resident .back-button-top-left:hover {
   background: var(--accent-gold, #f1d429) !important;
   color: var(--selection-color, #071737) !important;
@@ -203,8 +197,6 @@
   box-shadow: 0 6px 18px rgba(0,0,0,0.12);
   border-color: transparent;
 }
-
-/* ---- Core base styles copied from RegistrationForm.css ---- */
 
 html, body {
   background-color: #ffffff !important;
@@ -230,8 +222,8 @@ html, body {
   margin: auto;
   padding: 1rem;
   animation: fadeUp 0.8s ease-out 0.5s both;
-  position: relative; /* ok */
-  z-index: 1; /* keep below notif */
+  position: relative;
+  z-index: 1;
 }
 
 .top-section {
@@ -257,11 +249,11 @@ html, body {
 
 .form-card {
   background-color: #fff;
-  padding: 1.25rem 1.5rem 1rem 1.5rem; /* reduced bottom padding */
+  padding: 1.25rem 1.5rem 1rem 1.5rem;
   border-radius: 20px;
   margin-top: -2rem;
   box-shadow: 0 5px 20px rgba(0, 0, 0, 0.1);
-  position: relative; /* allow tab strip to overlap */
+  position: relative;
   overflow: visible;
   width: fit-content;
   min-width: 320px;
@@ -309,7 +301,7 @@ input[type="password"] {
   box-sizing: border-box;
 }
 
-/* Allow browser password visibility toggle */
+/* Allow browser password */
 input[type="password"]::-ms-reveal,
 input[type="password"]::-ms-clear {
   display: block;
@@ -319,7 +311,6 @@ input[type="password"]::-webkit-credentials-auto-fill-button {
   display: block !important;
 }
 
-/* Password field container for custom eye icon */
 .password-field-container {
   position: relative;
   display: inline-block;
@@ -471,7 +462,6 @@ input[type="password"]::placeholder {
   text-decoration: underline;
 }
 
-/* Top-left back button used on role login pages */
 .back-button-top-left {
   position: absolute;
   top: 16px;
@@ -479,7 +469,7 @@ input[type="password"]::placeholder {
   background: #ffffff;
   border: 1px solid rgba(0,0,0,0.06);
   padding: 8px 12px;
-  border-radius: 9999px; /* fully rounded pill */
+  border-radius: 9999px;
   font-size: 0.95rem;
   color: var(--login-btn-bg, #1d256a);
   display: inline-flex;
@@ -514,12 +504,11 @@ input[type="password"]::placeholder {
   text-align: right;
   font-size: 12px;
   margin-top: 0.5rem;
-  margin-bottom: 0.25rem; /* reduced bottom margin */
-  padding-right: 0; /* align with button's right edge */
+  margin-bottom: 0.25rem;
+  padding-right: 0;
   text-decoration: none;
 }
 
-/* Container that holds the forgot link and the info icon on opposite sides */
 .forgot-row {
   position: relative;
   display: flex;
@@ -527,7 +516,7 @@ input[type="password"]::placeholder {
   justify-content: space-between;
   gap: 8px;
   margin-top: 0.5rem;
-  margin-bottom: 0.25rem; /* reduced bottom margin */
+  margin-bottom: 0.25rem;
 }
 
 /* Small circled question icon */
@@ -544,17 +533,16 @@ input[type="password"]::placeholder {
   color: var(--login-btn-bg, #1d256a);
   transform: translateY(-0.5px);
   transition: transform 160ms ease, box-shadow 180ms ease, border-color 160ms ease, color 160ms ease, background 160ms ease;
-  padding: 0; /* avoid extra inner spacing */
+  padding: 0;
 }
 .info-icon:hover,
 .info-icon:focus {
-  /* Increase lift and shadow slightly without changing the icon fill/background */
   transform: translateY(-2.5px);
   box-shadow: 0 10px 30px rgba(7, 22, 54, 0.16);
   border-color: rgba(0,0,0,0.12);
   background: #fff;
 }
-/* Make the SVG inside the circle slightly larger to better fill the container */
+
 .info-icon svg,
 .info-icon svg * {
   width: 14px;
@@ -563,7 +551,6 @@ input[type="password"]::placeholder {
   color: inherit;
 }
 
-/* Tooltip container shown when hovering/clicking the icon */
 .info-tooltip {
   position: absolute;
   left: 0;
@@ -577,7 +564,7 @@ input[type="password"]::placeholder {
   border-radius: 10px;
   padding: 8px 10px;
   box-shadow: 0 10px 30px rgba(7, 22, 54, 0.12);
-  font-size: 0.8rem; /* slightly smaller text */
+  font-size: 0.8rem;
   line-height: 1.25;
   z-index: 40;
 }
@@ -601,14 +588,14 @@ input[type="password"]::placeholder {
   display: flex;
   justify-content: center;
   padding: 8px 16px 12px 16px;
-  margin: -1.5rem -1.5rem 0.75rem -1.5rem; /* extend to modal edges, reduced bottom margin */
+  margin: -1.5rem -1.5rem 0.75rem -1.5rem;
   background: linear-gradient(135deg, rgba(0,0,0,0.03), rgba(0,0,0,0.01));
   border-radius: 20px 20px 0 0;
   border-bottom: 1px solid rgba(0,0,0,0.06);
   gap: 8px;
 }
 
-/* Base Tab Button - Within Tab Strip */
+/* Base Tab Button */
 .tab-strip .tab-btn {
   flex: 1 1 0;
   margin: 0;
@@ -625,7 +612,7 @@ input[type="password"]::placeholder {
   box-shadow: 0 1px 3px rgba(0,0,0,0.04);
 }
 
-/* Tab Button Hover State - Unselected Tab */
+/* Tab Button Hover State */
 .tab-strip .tab-btn:hover:not(.active) {
   transform: translateY(-2px);
   box-shadow: 0 4px 12px rgba(0,0,0,0.1);
@@ -642,7 +629,7 @@ input[type="password"]::placeholder {
   transform: translateY(-1px);
 }
 
-/* Tab Button Active + Hover State */
+/* Tab Button Active */
 .tab-strip .tab-btn.active:hover {
   transform: translateY(-2px);
   box-shadow: 0 6px 16px rgba(45,45,115,0.25);
@@ -668,9 +655,7 @@ input[type="password"]::placeholder {
   }
 }
 
-/* ========================================
-   MOBILE RESPONSIVENESS
-   ======================================== */
+/* MOBILE RESPONSIVENESS */
 
 /* Tablet breakpoint */
 @media (max-width: 768px) {
@@ -836,5 +821,3 @@ input[type="password"]::placeholder {
     font-size: 13px;
   }
 }
-
-/* ---- End base styles ---- */

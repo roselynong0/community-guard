@@ -6,9 +6,9 @@
   --color-success: #5cb85c;
   --color-muted: #777777;
 
-  /* Accent variants used in cards (kept hex mapping from inline styles) */
+  /* Accent variants used in cards */
   --accent-primary: #2d2d73;
-  --accent-danger: #ef4444; /* more modern red */
+  --accent-danger: #ef4444;
   --accent-success: #10b981;
   --accent-warning: #f59e0b;
 
@@ -28,7 +28,6 @@
   --gap: 1rem;
   --shadow-1: 0 6px 20px rgba(17, 22, 62, 0.06);
   --shadow-2: 0 8px 30px rgba(17,22,62,0.08);
-  /* softer bluish shadow used for elevated list cards */
   --shadow-recent: 0 10px 30px rgba(45, 60, 95, 0.06);
 
   --badge-bg: #e9e9ff;
@@ -70,7 +69,7 @@
   transform: translateY(-2px);
 }
 
-/* Stat card variations - subtle top accent line */
+/* Stat card variations */
 .stat-card.primary::before,
 .stat-card.danger::before,
 .stat-card.success::before,
@@ -88,7 +87,6 @@
 .stat-card.success::before { background: var(--accent-success); }
 .stat-card.warning::before { background: var(--accent-warning); }
 
-/* Consistent gradient background for all stat cards */
 .stat-card.primary,
 .stat-card.danger,
 .stat-card.success,
@@ -256,30 +254,20 @@
 .reports-chart .chart-container {
   flex: 1;
   display: flex;
-  /* FIX 1: Change to row direction to enable side-by-side layout */
   flex-direction: row; 
-  /* FIX 2: Allow items to wrap onto the next line when space is limited */
   flex-wrap: wrap; 
-  
-  /* Retain/Update Sizing and Alignment */
-  align-items: center; /* Align items vertically in the container */
-  justify-content: space-around; /* Center items and add spacing */
+  align-items: center;
+  justify-content: space-around;
   min-height: 300px;
-  max-height: 520px; /* Optional, but safe to keep */
+  max-height: 520px;
   gap: 20px;
 }
 
-/* Chart wrapper and center label for donut charts */
 .chart-wrapper {
   position: relative;
   width: 100%;
-  
-  /* FIX 3: Add flexible sizing properties */
-  /* Grow: 1, Shrink: 1, Base Width: 300px */
   flex: 1 1 300px;
-  max-width: 400px; /* Max width for chart (optional, helps aesthetic) */
-  
-  /* fixed visual area for the chart (Keep this for the chart content) */
+  max-width: 400px;
   height: 320px; 
   display: flex;
   align-items: center;
@@ -306,7 +294,6 @@
   color: var(--muted);
 }
 
-/* Recharts legend + tooltip tweaks */
 .recharts-legend-wrapper {
   margin-top: 8px;
   font-size: 0.95rem;
@@ -317,13 +304,11 @@
   font-size: 0.95rem;
 }
 
-/* Ensure pie slices look clickable on hover */
 .reports-chart .recharts-surface .recharts-pie-sector:hover {
   transform: scale(1.02);
   transition: transform 120ms ease;
 }
 
-/* Category breakdown list below the chart */
 .custom-legend {
   display: flex;
   flex-wrap: wrap;
@@ -364,11 +349,9 @@
   color: var(--text-primary);
 }
 
-/* Restore bold text for legend names and emphasize percentages */
 .legend-item .legend-name { font-weight: 800; color: var(--text-primary); }
 .legend-item .legend-pct { font-weight: 800; color: var(--muted); }
 
-/* Make the first line of tooltip bold for the category/title */
 .custom-tooltip > div:first-child { font-weight: 700; color: var(--text-primary); }
 
 h3 {
@@ -387,7 +370,6 @@ h3 {
   border: 1px solid var(--map-border);
 }
 
-/* About card styles (complementary to AboutHomeCard.css) */
 .about-card {
   margin-top: 1rem;
 }
@@ -403,7 +385,6 @@ h3 {
   overflow: hidden; 
 }
 
-/* Badge used for barangay chip */
 .report-barangay {
   margin-left: 1rem;
   padding: 0.2rem 0.5rem;
@@ -414,20 +395,16 @@ h3 {
   font-weight: 500;
 }
 
-/* Ensure the map area stays static (no mount/remount animation) */
 .map-section {
-  /* prevent accidental animations */
   animation: none !important;
 }
 
-/* If any animate-up class is accidentally applied to children, neutralize it */
 .map-section .animate-up {
   animation: none !important;
   opacity: 1 !important;
   transform: translateY(0) !important;
 }
 
-/* Ensure Leaflet container fills the placeholder and doesn't collapse during overlay */
 .map-placeholder .leaflet-container {
   height: 100% !important;
   width: 100% !important;
@@ -516,12 +493,11 @@ h3 {
     gap: 1rem;
   }
   .custom-legend {
-    grid-column: auto; /* allow normal flow on small screens */
-    grid-template-columns: 1fr; /* single column on small screens */
+    grid-column: auto;
+    grid-template-columns: 1fr;
   }
 }
 
-/* Extra small screens - stats in single column */
 @media (max-width: 480px) {
   .stats-grid {
     grid-template-columns: 1fr;
@@ -552,6 +528,6 @@ h3 {
 @media (max-width: 510px) {
   .dashboard {
     padding: 0;
-    padding-bottom: 42px; /* reserve space for mobile bottom nav */
+    padding-bottom: 42px;
   }
 } 

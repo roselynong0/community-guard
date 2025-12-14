@@ -59,11 +59,10 @@ import Layout from "./components/shared/Layout";
 import LoadingScreen from "./components/shared/LoadingScreen";
 import CommunityMetrics from "./components/shared/CommunityMetrics";
 
-// Global styles for modal portal (must be imported at app level for z-index to work)
 import "./components/shared/ModalPortal.css";
 
 
-// ---------------- LOGIN WRAPPER ----------------
+// LOGIN WRAPPER
 function LoginWrapper({ session, setSession, setNotification }) {
   const location = useLocation();
   const params = new URLSearchParams(location.search);
@@ -72,23 +71,20 @@ function LoginWrapper({ session, setSession, setNotification }) {
 
   if (session && !forceLogin) return <Navigate to="/home" replace />;
 
-  // Route to the appropriate role-specific login component based on ?role=
   if (role === "admin") return <AdminLogin setSession={setSession} setNotification={setNotification} />;
   if (role === "barangay") return <BarangayLogin setSession={setSession} setNotification={setNotification} />;
   if (role === "responder") return <ResponderLogin setSession={setSession} setNotification={setNotification} />;
-  // default to resident
   return <ResidentLogin setSession={setSession} setNotification={setNotification} />;
 }
 
-// ---------------- APP COMPONENT ----------------
+// APP COMPONENT
 function App() {
   const [session, setSession] = useState(null);
   const [loading, setLoading] = useState(true);
   const [showSuccess, setShowSuccess] = useState(false);
-  const [loaderStage, setLoaderStage] = useState('loading'); // 'loading' | 'exit' | 'success' | 'done'
+  const [loaderStage, setLoaderStage] = useState('loading');
   const [notification, setNotification] = useState({ message: "", type: "" });
 
-  // 🔹 Fetch session on mount with retry logic for Vercel cold starts
   useEffect(() => {
     let cancelled = false;
     let successTimeout = null;
@@ -116,15 +112,13 @@ function App() {
       const token = localStorage.getItem("token");
       
       if (!token) {
-        // No token stored, but still show loading for minimum time
         const elapsed = Date.now() - startTime;
-        const minLoadTime = 1500; // Minimum 1.5s to show loading
+        const minLoadTime = 1500;
         
         if (elapsed < minLoadTime) {
           await new Promise(resolve => setTimeout(resolve, minLoadTime - elapsed));
         }
 
-        // Ensure the success overlay is mounted before playing loader exit
         setShowSuccess(true);
         setLoaderStage('exit');
         completeLoading('no-token');
@@ -137,7 +131,6 @@ function App() {
       while (retries > 0 && !currentSession) {
         currentSession = await fetchSession();
         if (!currentSession && retries > 1) {
-          // Wait before retrying (helps with backend cold starts)
           await new Promise(resolve => setTimeout(resolve, 1500));
           retries--;
         } else {
@@ -146,7 +139,6 @@ function App() {
       }
       
       if (!currentSession) {
-        // Only clear token if we're certain it's invalid (not just network issues)
         const storedSession = localStorage.getItem("session");
         if (!storedSession) {
           console.log("🔐 No valid session - clearing token");
@@ -159,15 +151,13 @@ function App() {
         setSession(currentSession);
       }
       
-      // Ensure minimum loading time for better UX
       const elapsed = Date.now() - startTime;
-      const minLoadTime = 2500; // Minimum 2.5s total loading time
+      const minLoadTime = 2500;
       
       if (elapsed < minLoadTime) {
         await new Promise(resolve => setTimeout(resolve, minLoadTime - elapsed));
       }
       
-      // Start staged transition: mount success overlay first, then play loading exit
       setShowSuccess(true);
       setLoaderStage('exit');
       completeLoading('session-loaded');
@@ -182,7 +172,6 @@ function App() {
     };
   }, []);
 
-  // 🔹 Auto-hide notifications
   useEffect(() => {
     if (notification.message) {
       const timer = setTimeout(() => setNotification({ message: "", type: "" }), 4000);
@@ -190,7 +179,6 @@ function App() {
     }
   }, [notification]);
 
-  // Show loader stages until done: loading -> exit -> success -> done
   if (loaderStage !== 'done') {
     console.log('📊 Loader state:', { loaderStage, showSuccess, loading });
     
@@ -216,7 +204,7 @@ function App() {
 
   return (
     <Router>
-      {/* 🔹 Global notification banner */}
+      {/* Global notification banner */}
       {notification.message && (
         <div className={`notif notif-${notification.type}`}>
           {notification.message}
@@ -224,7 +212,7 @@ function App() {
       )}
 
       <Routes>
-        {/* --- PUBLIC ROUTES --- */}
+        {/* PUBLIC ROUTES */}
         <Route
           path="/"
           element={
@@ -276,7 +264,7 @@ function App() {
         <Route path="/forgot-password" element={<ForgotPassword />} />
         <Route path="/reset-password" element={<ResetPassword />} />
 
-        {/* --- RESIDENT PROTECTED ROUTES (Residents only) --- */}
+        {/* RESIDENT PROTECTED ROUTES */}
         <Route
           element={
             session && session.user?.role === "Resident" ? (
@@ -426,7 +414,7 @@ function App() {
           />
         </Route>
 
-        {/* --- BARANGAY PROTECTED ROUTES --- */}
+        {/* BARANGAY PROTECTED ROUTES */}
         <Route
           element={
             session && session.user?.role === "Barangay Official" ? (
@@ -450,7 +438,7 @@ function App() {
           <Route path="/barangay/premium" element={<Premium token={session?.token} />} />
         </Route>
 
-        {/* --- RESPONDER PROTECTED ROUTES --- */}
+        {/* RESPONDER PROTECTED ROUTES */}
         <Route
           element={
             session && session.user?.role === "Responder" ? (
@@ -472,7 +460,7 @@ function App() {
           <Route path="/responder/cctv" element={<CCTVViewer />} />
         </Route>
 
-        {/* --- ADMIN PROTECTED ROUTES --- */}
+        {/* ADMIN PROTECTED ROUTES */}
         <Route
           element={
             session && session.user?.role === "Admin" ? (

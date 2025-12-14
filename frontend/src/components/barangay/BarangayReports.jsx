@@ -8,7 +8,7 @@ import LoadingScreen from "../shared/LoadingScreen";
 const logoImg = /* @vite-ignore */ new URL('../../assets/logo.png', import.meta.url).href;
 const REPORT_STATUSES = ["Pending", "Ongoing", "Resolved"];
 
-// Priority level colors and styling
+// Priority level colors
 const PRIORITY_COLORS = {
   Crime: { borderColor: '#c0392b', bgColor: '#fdedec', priority: 'Critical', label: '🔴 Critical' },
   Hazard: { borderColor: '#d35400', bgColor: '#fef5e7', priority: 'High', label: '🟠 High' },
@@ -21,7 +21,6 @@ const getPriorityStyle = (category) => {
   return PRIORITY_COLORS[category] || PRIORITY_COLORS['Others'];
 };
 
-// Category keywords used for deterministic confidence scoring (mirror of backend heuristics)
 const CATEGORY_KEYWORDS = {
     Crime: ['theft','robbery','burglary','stolen','steal','assault','attack','violence','vandalism','mugging','robbed'],
     Hazard: ['fire','flood','explosion','smoke','hazard','danger','pothole','streetlight','electric','gas','collapsed'],
@@ -65,7 +64,6 @@ const getStatusIcon = (status) => {
     }
 };
 
-// Utility Hook for Modal Accessibility (Focus trap and Esc key)
 const useAriaModal = (isOpen, onClose) => {
     const modalRef = useRef(null);
 
@@ -74,13 +72,10 @@ const useAriaModal = (isOpen, onClose) => {
 
         const modalElement = modalRef.current;
         if (!modalElement) return;
-
-        // 1. Focus the modal container on open
         const focusTimeout = setTimeout(() => {
             modalElement.focus();
         }, 0);
 
-        // 2. Trap focus within the modal
         const focusableElements = 'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])';
         
         const handleTabKeyPress = (e) => {
@@ -93,12 +88,12 @@ const useAriaModal = (isOpen, onClose) => {
                 const firstElement = focusableModalElements[0];
                 const lastElement = focusableModalElements[focusableModalElements.length - 1];
 
-                if (e.shiftKey) { // Shift + Tab
+                if (e.shiftKey) {
                     if (document.activeElement === firstElement) {
                         lastElement.focus();
                         e.preventDefault();
                     }
-                } else { // Tab
+                } else 
                     if (document.activeElement === lastElement) {
                         firstElement.focus();
                         e.preventDefault();
@@ -107,7 +102,6 @@ const useAriaModal = (isOpen, onClose) => {
             }
         };
 
-        // 3. Close on Escape key press
         const handleKeyDown = (e) => {
             if (e.key === 'Escape') {
                 onClose();
@@ -127,14 +121,12 @@ const useAriaModal = (isOpen, onClose) => {
     return modalRef;
 };
 
-// --- NEW Hook for Arrow Key Navigation in Filter Controls ---
 const useKeyboardNavigation = (containerRef, selector) => {
     useEffect(() => {
         const container = containerRef.current;
         if (!container) return;
 
         const handleArrowNavigation = (event) => {
-            // Only capture arrows if the current focus is within the filter container
             if (!container.contains(document.activeElement) && event.key !== 'ArrowRight' && event.key !== 'ArrowLeft') {
                 return;
             }
@@ -146,28 +138,22 @@ const useKeyboardNavigation = (containerRef, selector) => {
 
             if (event.key === 'ArrowRight' || event.key === 'ArrowDown') {
                 if (currentIndex === -1) {
-                    // If no element is currently focused in the list, focus the first one
                     focusableElements[0]?.focus();
                 } else if (currentIndex < focusableElements.length - 1) {
-                    // Move to the next element
                     focusableElements[currentIndex + 1].focus();
                 } else {
-                    // Loop to the first element (optional, but often helpful)
                     focusableElements[0].focus();
                 }
-                event.preventDefault(); // Prevent default scroll/behavior
+                event.preventDefault(); 
             } else if (event.key === 'ArrowLeft' || event.key === 'ArrowUp') {
                 if (currentIndex === -1) {
-                    // If no element is currently focused in the list, focus the last one
                     focusableElements[focusableElements.length - 1]?.focus();
                 } else if (currentIndex > 0) {
-                    // Move to the previous element
                     focusableElements[currentIndex - 1].focus();
                 } else {
-                    // Loop to the last element (optional)
                     focusableElements[focusableElements.length - 1].focus();
                 }
-                event.preventDefault(); // Prevent default scroll/behavior
+                event.preventDefault();
             }
         };
 
@@ -175,7 +161,6 @@ const useKeyboardNavigation = (containerRef, selector) => {
         return () => window.removeEventListener('keydown', handleArrowNavigation);
     }, [containerRef, selector]);
 };
-// -------------------------------------------------------------
 
 
 function BarangayReports({ token }) {
@@ -185,26 +170,24 @@ function BarangayReports({ token }) {
     const [category, setCategory] = useState("All");
     const [statusFilter, setStatusFilter] = useState("All"); 
     const [sort, setSort] = useState("latest");
-    const [smartSort, setSmartSort] = useState("latest"); // When smart filter active, controls primary date ordering
+    const [smartSort, setSmartSort] = useState("latest"); 
     const [priorityFilter, setPriorityFilter] = useState("All");
     const [userBarangay, setUserBarangay] = useState(null);
     const [previewImage, setPreviewImage] = useState(null);
     const [notification, setNotification] = useState(null);
     const [highlightedReportId, setHighlightedReportId] = useState(null);
-    const [showCommunityHelper] = useState(true); // Toggle for Community Helper visibility
-    const [showSmartFilter, setShowSmartFilter] = useState(false); // Smart Filter toggle - starts GREY (inactive)
-    const [aiUsagePercent, setAiUsagePercent] = useState(0); // AI usage percentage (0-100)
-    const [timeRemainingHMS, setTimeRemainingHMS] = useState('48:00:00'); // HH:MM:SS format
-    const [timeRemainingSeconds, setTimeRemainingSeconds] = useState(172800); // 48 hours in seconds
-    const [showUsageModal, setShowUsageModal] = useState(false); // Show usage details modal
-    const [isPremiumUser, setIsPremiumUser] = useState(false); // Premium user status for golden UI
-    const [viewMode, setViewMode] = useState("card"); // "card" or "list" view
+    const [showSmartFilter, setShowSmartFilter] = useState(false);
+    const [aiUsagePercent, setAiUsagePercent] = useState(0); 
+    const [timeRemainingHMS, setTimeRemainingHMS] = useState('48:00:00'); 
+    const [timeRemainingSeconds, setTimeRemainingSeconds] = useState(172800); 
+    const [showUsageModal, setShowUsageModal] = useState(false); 
+    const [isPremiumUser, setIsPremiumUser] = useState(false); 
+    const [viewMode, setViewMode] = useState("card");
 
-    // States for the Status Update Modal
     const [isStatusModalOpen, setIsStatusModalOpen] = useState(false);
     const [selectedReport, setSelectedReport] = useState(null);
     const [newStatus, setNewStatus] = useState("");
-    const [isUpdatingStatus, setIsUpdatingStatus] = useState(false); // Prevent double submissions
+    const [isUpdatingStatus, setIsUpdatingStatus] = useState(false);
 
     const [expandedPosts, setExpandedPosts] = useState([]);
     const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false);
@@ -212,41 +195,33 @@ function BarangayReports({ token }) {
     const [isDeleting, setIsDeleting] = useState(false);
     const [, setOverlayExited] = useState(false);
     
-    // States for Smart Filter time tracking and warning
     const [smartFilterStartTime, setSmartFilterStartTime] = useState(null);
     const [hasAcceptedAiWarning, setHasAcceptedAiWarning] = useState(false);
     const [showSmartFilterWarning, setShowSmartFilterWarning] = useState(false);
-    const [liveSessionSeconds, setLiveSessionSeconds] = useState(0); // Real-time session duration
+    const [liveSessionSeconds, setLiveSessionSeconds] = useState(0);
     
-    // New states for deletion reason flow
     const [isDeleteReasonOpen, setIsDeleteReasonOpen] = useState(false);
     const [deleteReason, setDeleteReason] = useState('');
     const [deleteReasonOther, setDeleteReasonOther] = useState('');
     
-    // New states for approval workflow
     const [isApprovingReport, setIsApprovingReport] = useState(false);
     const [isRejectingReport, setIsRejectingReport] = useState(false);
     
-    // New states for rejection info modal (when viewing rejected reports in list)
     const [rejectionInfoModalOpen, setRejectionInfoModalOpen] = useState(false);
     const [rejectionInfoReport, _setRejectionInfoReport] = useState(null);
 
-    // Export modal states
     const [showExportModal, setShowExportModal] = useState(false);
-    const [exportType, setExportType] = useState(null); // 'csv' or 'pdf'
-    const [exportColorMode, setExportColorMode] = useState('color'); // 'color' or 'bw'
-    const [exportPageSize, setExportPageSize] = useState('A4'); // 'A4'|'Letter'|'Legal'|'Long'
+    const [exportType, setExportType] = useState(null); 
+    const [exportColorMode, setExportColorMode] = useState('color'); 
+    const [exportPageSize, setExportPageSize] = useState('A4');
 
-    // ⭐ NEW: Trending reports states
     const [trendingReports, setTrendingReports] = useState([]);
-    const [trendingExpanded, setTrendingExpanded] = useState(false); // Collapsed by default
-    const [trendingTimeFilter, setTrendingTimeFilter] = useState("all"); // all, today, yesterday, this-month
+    const [trendingExpanded, setTrendingExpanded] = useState(false); 
+    const [trendingTimeFilter, setTrendingTimeFilter] = useState("all");
     
-    // ⭐ NEW: Pending reports states
     const [pendingReports, setPendingReports] = useState([]);
-    const [pendingExpanded, setPendingExpanded] = useState(false); // Collapsed by default
+    const [pendingExpanded, setPendingExpanded] = useState(false);
 
-    // ⭐ NEW: Responder assignment states
     const [isAssignResponderModalOpen, setIsAssignResponderModalOpen] = useState(false);
     const [selectedReportForResponder, setSelectedReportForResponder] = useState(null);
     const [responders, setResponders] = useState([]);
@@ -254,13 +229,10 @@ function BarangayReports({ token }) {
     const [loadingResponders, setLoadingResponders] = useState(false);
     const [isAssigningResponder, setIsAssigningResponder] = useState(false);
 
-    // --- REFS for Keyboard Navigation ---
     const filterContainerRef = useRef(null);
-    // Elements we want to navigate between with arrow keys
     const filterSelector = 'input.barangay-search-input, .barangay-top-controls .barangay-filter-select, .reports-list button:first-child'; 
     useKeyboardNavigation(filterContainerRef, filterSelector);
 
-    // Mount animation / cinematic intro state (matches Reports.jsx behavior)
     const [showMountAnimation, setShowMountAnimation] = useState(false);
     const [mountStage, setMountStage] = useState("exit");
     const loadingRef = useRef(loading);
@@ -271,7 +243,6 @@ function BarangayReports({ token }) {
         setTimeout(() => setNotification(null), 4000);
     }, []);
 
-    // Component initialization logging
     useEffect(() => {
         console.log('🔷 BarangayReports component mounted');
         console.log('[Smart Filter Init] 🟢 Component Initialized:');
@@ -285,29 +256,24 @@ function BarangayReports({ token }) {
         };
     }, []);
 
-    // Log aiUsagePercent changes separately to avoid requiring it in the mount-only effect
     useEffect(() => {
         console.log('[Smart Filter Init] aiUsagePercent updated:', aiUsagePercent);
     }, [aiUsagePercent]);
 
-    // Keep a ref of the current loading state for the mount animation logic
     useEffect(() => {
         loadingRef.current = loading;
     }, [loading]);
 
-    // Start a cinematic mount animation only if a real loading fetch is not already running.
     useEffect(() => {
         let startTimer = null;
         let exitTimer = null;
 
         if (!loadingRef.current) {
             startTimer = setTimeout(() => {
-                // If a fetch started while waiting, skip mount animation
                 if (loadingRef.current) return;
                 setShowMountAnimation(true);
                 setMountStage("loading");
 
-                // After a short display, transition to exit to play the exit animation
                 exitTimer = setTimeout(() => {
                     setMountStage("exit");
                 }, 700);
@@ -318,17 +284,14 @@ function BarangayReports({ token }) {
             if (startTimer) clearTimeout(startTimer);
             if (exitTimer) clearTimeout(exitTimer);
         };
-        // Run on mount only
     }, []);
 
-    // If a real loading starts while the mount animation is visible, cancel the cinematic
     useEffect(() => {
         if (loading) {
             setShowMountAnimation(false);
         }
     }, [loading]);
 
-    // Track AI smart filter usage - logs duration when Smart Filter turns off
     const trackAiUsage = useCallback(async (durationSeconds = 0) => {
         if (!token) {
             console.warn('[Smart Filter] ⚠️ No token available - skipping usage tracking');
@@ -375,12 +338,11 @@ function BarangayReports({ token }) {
             console.log('[Smart Filter] ✅ Backend response:', data);
 
             if (data.status === 'success') {
-                // Update local state with backend-persisted usage percent
                 const { usage_percent, hours_remaining, is_premium, total_seconds, time_remaining_hms, time_remaining_seconds } = data.data;
                 setAiUsagePercent(usage_percent);
                 setTimeRemainingHMS(time_remaining_hms || '48:00:00');
-                setTimeRemainingSeconds(time_remaining_seconds ?? 172800); // Update base for next live countdown
-                setIsPremiumUser(is_premium || false); // Track premium status for golden UI
+                setTimeRemainingSeconds(time_remaining_seconds ?? 172800);
+                setIsPremiumUser(is_premium || false);
                 
                 console.log(`[Smart Filter] 📈 Usage Updated:`);
                 console.log(`  Total this week: ${total_seconds}s (${(total_seconds / 3600).toFixed(2)}h)`);
@@ -402,11 +364,9 @@ function BarangayReports({ token }) {
         } catch (error) {
             console.error('[Smart Filter] ❌ Error tracking AI usage:', error);
             showNotification('Failed to log session - will retry on next sync', 'warning');
-            // Fallback: Don't modify local state on error, let user retry
         }
     }, [token, showNotification]);
 
-    // Handle Smart Filter toggle with warning and time tracking
     const handleSmartFilterToggle = useCallback(() => {
         console.log('[Smart Filter Toggle] Current state:', {
             showSmartFilter,
@@ -415,14 +375,12 @@ function BarangayReports({ token }) {
             liveSessionSeconds
         });
 
-        // If turning ON for the first time, show warning
         if (!showSmartFilter && !hasAcceptedAiWarning) {
             console.log('[Smart Filter] 🔔 First time activation - showing warning modal');
             setShowSmartFilterWarning(true);
             return;
         }
 
-        // If turning OFF, log the duration
         if (showSmartFilter && smartFilterStartTime && hasAcceptedAiWarning) {
             const durationSeconds = Math.floor((Date.now() - smartFilterStartTime) / 1000);
             console.log(`[Smart Filter] 🛑 Turning OFF - Duration: ${durationSeconds}s (${(durationSeconds / 60).toFixed(2)}m)`);
@@ -430,7 +388,6 @@ function BarangayReports({ token }) {
             setSmartFilterStartTime(null);
             setLiveSessionSeconds(0);
         }
-        // If turning ON and already accepted warning, start timer
         else if (!showSmartFilter && hasAcceptedAiWarning) {
             const startTime = Date.now();
             console.log(`[Smart Filter] 🟢 Turning ON - Start time: ${new Date(startTime).toISOString()}`);
@@ -440,7 +397,6 @@ function BarangayReports({ token }) {
         setShowSmartFilter(!showSmartFilter);
     }, [showSmartFilter, smartFilterStartTime, hasAcceptedAiWarning, liveSessionSeconds, trackAiUsage]);
 
-    // Handle Smart Filter warning acceptance
     const handleAcceptSmartFilterWarning = useCallback(() => {
         const startTime = Date.now();
         console.log('[Smart Filter] ✅ Warning accepted');
@@ -450,26 +406,21 @@ function BarangayReports({ token }) {
         setShowSmartFilterWarning(false);
         setShowSmartFilter(true);
         setSmartFilterStartTime(startTime);
-        setLiveSessionSeconds(0); // Reset timer to 0
+        setLiveSessionSeconds(0);
         
-        // Show appropriate notification based on premium status
         if (isPremiumUser) {
             showNotification('✨ Unlimited Smart Filter activated! Enjoy premium AI-powered categorization.', 'premium');
         } else {
             showNotification('✨ Smart Filter activated! You have free access with a 48-hour weekly limit.', 'success');
         }
     }, [isPremiumUser, showNotification]);
-
-    // Handle Smart Filter warning rejection
+    
     const handleRejectSmartFilterWarning = useCallback(() => {
         console.log('[Smart Filter] ❌ Warning rejected - Smart Filter OFF');
         setShowSmartFilterWarning(false);
-        // Don't turn on Smart Filter, keep it OFF
     }, []);
 
-    // Real-time countdown timer for active Smart Filter session
-    // Updates: liveSessionSeconds, live aiUsagePercent, live timeRemainingHMS
-    const WEEK_LIMIT_SECONDS = 172800; // 48 hours
+    const WEEK_LIMIT_SECONDS = 172800;
     
     useEffect(() => {
         if (!showSmartFilter || !smartFilterStartTime) {
@@ -477,35 +428,30 @@ function BarangayReports({ token }) {
             return;
         }
 
-        // Log session start
         console.log('[Smart Filter] ⏱️ Session timer started - tracking real-time usage');
 
         const timer = setInterval(() => {
             const elapsed = Math.floor((Date.now() - smartFilterStartTime) / 1000);
             setLiveSessionSeconds(elapsed);
             
-            // Calculate real-time usage: base usage + current session elapsed time
             const baseUsedSeconds = WEEK_LIMIT_SECONDS - timeRemainingSeconds;
             const totalUsedNow = baseUsedSeconds + elapsed;
             const livePercent = Math.min(100, Math.round((totalUsedNow / WEEK_LIMIT_SECONDS) * 100));
             const liveRemaining = Math.max(0, WEEK_LIMIT_SECONDS - totalUsedNow);
             
-            // Update usage percent in real-time
             setAiUsagePercent(livePercent);
             
-            // Format live time remaining as HH:MM:SS
             const hrs = Math.floor(liveRemaining / 3600);
             const mins = Math.floor((liveRemaining % 3600) / 60);
             const secs = liveRemaining % 60;
             setTimeRemainingHMS(`${String(hrs).padStart(2, '0')}:${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`);
             
-            // Log progress every 30 seconds
             if (elapsed > 0 && elapsed % 30 === 0) {
                 const minutes = Math.floor(elapsed / 60);
                 const seconds = elapsed % 60;
                 console.log(`[Smart Filter] ⏳ Session: ${minutes}m ${seconds}s | Usage: ${livePercent}% | Remaining: ${hrs}:${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`);
             }
-        }, 1000); // Update every second for countdown display
+        }, 1000);
 
         return () => {
             clearInterval(timer);
@@ -513,13 +459,12 @@ function BarangayReports({ token }) {
         };
     }, [showSmartFilter, smartFilterStartTime, timeRemainingSeconds]);
 
-    // --- Modal Control Functions for Accessibility ---
     const closeStatusModal = useCallback(() => {
-        if (!isUpdatingStatus) { // Only allow closing if not updating
+        if (!isUpdatingStatus) {
             setIsStatusModalOpen(false);
             setSelectedReport(null);
             setNewStatus("");
-            setIsUpdatingStatus(false); // Reset state
+            setIsUpdatingStatus(false);
         }
     }, [isUpdatingStatus]);
 
@@ -530,15 +475,12 @@ function BarangayReports({ token }) {
     };
 
     const closeDeleteConfirm = useCallback(() => {
-        if (!isDeleting) { // Only allow closing if not deleting
+        if (!isDeleting) {
             setIsDeleteConfirmOpen(false);
             setDeleteTarget(null);
         }
     }, [isDeleting]);
 
-    
-
-    // New: open initial delete-reason modal instead of immediately showing permanent delete
     const closeDeleteReason = useCallback(() => {
         if (!isDeleting) {
             setIsDeleteReasonOpen(false);
@@ -555,16 +497,13 @@ function BarangayReports({ token }) {
     };
 
     const proceedToConfirmDelete = () => {
-        // Ensure a reason is selected; allow 'Other' with text
         if (!deleteReason) return;
         if (deleteReason === 'Other' && !deleteReasonOther.trim()) return;
 
-        // close reason modal and open the confirm modal
         setIsDeleteReasonOpen(false);
         setIsDeleteConfirmOpen(true);
     };
 
-    // ⭐ NEW: Responder assignment modal functions
     const closeAssignResponderModal = useCallback(() => {
         if (!isAssigningResponder) {
             setIsAssignResponderModalOpen(false);
@@ -581,7 +520,6 @@ function BarangayReports({ token }) {
         setIsAssignResponderModalOpen(true);
 
         try {
-            // Fetch responders for this barangay (uses /api/users/responders endpoint)
             const response = await fetch(getApiUrl(`/api/users/responders?barangay=${encodeURIComponent(report.barangay || report.address_barangay)}`), {
                 headers: {
                     'Authorization': `Bearer ${token}`,
@@ -612,7 +550,6 @@ function BarangayReports({ token }) {
 
         setIsAssigningResponder(true);
         try {
-            // Check if this is a reassignment (previous responder exists)
             const previousResponderId = selectedReportForResponder.assigned_responder_id;
             const isReassignment = previousResponderId && previousResponderId !== selectedResponder;
 
@@ -635,18 +572,16 @@ function BarangayReports({ token }) {
 
             const data = await response.json();
             if (data.status === "success") {
-                // Find the assigned responder's details
                 const assignedResponder = responders.find(r => r.id === selectedResponder);
                 const responderName = assignedResponder ? `${assignedResponder.firstname} ${assignedResponder.lastname}` : 'Responder';
                 
-                // Update reports locally instead of refetching (no loading spinner)
                 setReports(prevReports => prevReports.map(report => {
                     if (report.id === selectedReportForResponder.id) {
                         return {
                             ...report,
                             assigned_responder_id: selectedResponder,
                             assigned_at: new Date().toISOString(),
-                            assigned_by: null, // We don't have the current user ID in frontend state
+                            assigned_by: null,
                             assigned_responder: assignedResponder ? {
                                 id: assignedResponder.id,
                                 firstname: assignedResponder.firstname,
@@ -671,14 +606,11 @@ function BarangayReports({ token }) {
         }
     };
 
-    // Use the custom hook to handle focus trapping and ESC key for both modals
     const statusRef = useAriaModal(isStatusModalOpen, closeStatusModal);
     const deleteRef = useAriaModal(isDeleteConfirmOpen, closeDeleteConfirm);
     const reasonRef = useAriaModal(isDeleteReasonOpen, closeDeleteReason);
     const responderRef = useAriaModal(isAssignResponderModalOpen, closeAssignResponderModal);
-    // --------------------------------------------------
 
-    // Fetch reports from API (kept original logic)
     const fetchReports = useCallback(async () => {
         if (!token) {
             setLoading(false);
@@ -688,7 +620,6 @@ function BarangayReports({ token }) {
         setLoading(true);
         try {
             const sortParam = sort === "latest" ? "desc" : "asc";
-            // Use the new barangay-specific endpoint
             const response = await fetch(getApiUrl(`/api/barangay/reports?limit=50&sort=${sortParam}`), {
                 headers: { 
                     'Authorization': `Bearer ${token}`,
@@ -702,7 +633,6 @@ function BarangayReports({ token }) {
 
             const data = await response.json();
             if (data.status === "success") {
-                // Set the user's barangay from response
                 if (data.barangay) {
                     setUserBarangay(data.barangay);
                 }
@@ -736,14 +666,12 @@ function BarangayReports({ token }) {
                         is_rejected: report.is_rejected ?? false,
                         rejection_reason: report.rejection_reason ?? null,
                         images: report.images?.map(img => img.url) || [],
-                        // ⭐ Include reaction data for trending algorithm
                         reaction_count: report.reaction_count || 0,
                         user_liked: report.user_liked ?? false,
                         deleted_at: report.deleted_at || null
                     };
                 });
-                
-                // Debug: Log first 3 reports with reaction data
+            
                 console.log("📥 Barangay fetched reports:", reports.length, "reports");
                 console.log("📊 Barangay report reaction stats:", reports.slice(0, 5).map(r => ({
                     id: r.id,
@@ -752,7 +680,6 @@ function BarangayReports({ token }) {
                     user_liked: r.user_liked,
                     is_approved: r.is_approved
                 })));
-                // Try batch ML annotate via backend
                 try {
                     const items = transformedReports.map(r => ({ id: r.id, description: r.description, images: r.images?.length || 0 }));
                     const resp = await fetch(getApiUrl('/api/ai/categorize/batch'), {
@@ -776,7 +703,6 @@ function BarangayReports({ token }) {
                                 ai_confidence: typeof res.confidence === 'number' ? Math.round(res.confidence * 100) : computeConfidence(r.description, r.category, r.images?.length || 0),
                                 ai_category: res.category || r.category,
                                 ai_method: res.method || 'batch',
-                                // AI priority data for filtering (capitalized to match filter options: Critical/High/Medium/Low)
                                 ai_priority: res.priority || 'Low',
                                 ai_priority_score: res.priority_score || 1,
                                 ai_priority_label: res.priority_label || '⚪ Low'
@@ -785,14 +711,13 @@ function BarangayReports({ token }) {
                         setReports(annotated);
                     } else {
                         const fallback = transformedReports.map(r => {
-                            // Fallback priority based on category
                             const catPriority = getPriorityStyle(r.category);
                             return {
                                 ...r,
                                 ai_confidence: computeConfidence(r.description, r.category, r.images?.length || 0),
                                 ai_category: r.category,
                                 ai_method: 'heuristic',
-                                ai_priority: catPriority.priority,  // Already capitalized: Critical/High/Medium/Low
+                                ai_priority: catPriority.priority,
                                 ai_priority_score: catPriority.priority === 'Critical' ? 10 : (catPriority.priority === 'High' ? 8 : (catPriority.priority === 'Medium' ? 5 : 2)),
                                 ai_priority_label: catPriority.label
                             };
@@ -802,14 +727,13 @@ function BarangayReports({ token }) {
                 } catch (err) {
                     console.error('AI batch classify failed, falling back to heuristic', err);
                     const fallback = transformedReports.map(r => {
-                        // Fallback priority based on category
                         const catPriority = getPriorityStyle(r.category);
                         return {
                             ...r,
                             ai_confidence: computeConfidence(r.description, r.category, r.images?.length || 0),
                             ai_category: r.category,
                             ai_method: 'error',
-                            ai_priority: catPriority.priority,  // Already capitalized: Critical/High/Medium/Low
+                            ai_priority: catPriority.priority,
                             ai_priority_score: catPriority.priority === 'Critical' ? 10 : (catPriority.priority === 'High' ? 8 : (catPriority.priority === 'Medium' ? 5 : 2)),
                             ai_priority_label: catPriority.label
                         };
@@ -825,14 +749,12 @@ function BarangayReports({ token }) {
         } finally {
             setLoading(false);
         }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [token]);
 
     useEffect(() => {
         fetchReports();
     }, [fetchReports]);
 
-    // Fetch current week AI usage on component mount
     useEffect(() => {
         const fetchAiUsage = async () => {
             if (!token) {
@@ -867,7 +789,7 @@ function BarangayReports({ token }) {
                         setAiUsagePercent(usagePercent);
                         setTimeRemainingHMS(timeHMS);
                         setTimeRemainingSeconds(timeSeconds);
-                        setIsPremiumUser(isPremium); // Set premium status for golden UI
+                        setIsPremiumUser(isPremium);
                     }
                 } else if (response.status === 404) {
                     console.warn('[Smart Filter Init] ⚠️  Endpoint not found - Migration may not be applied');
@@ -883,7 +805,6 @@ function BarangayReports({ token }) {
             } catch (error) {
                 console.warn('[Smart Filter Init] ⚠️  Failed to fetch current AI usage:', error.message);
                 console.log('[Smart Filter Init] ℹ️  Will continue without AI usage data');
-                // Continue with default 0% if fetch fails - Smart Filter starts grey
                 setAiUsagePercent(0);
             }
         };
@@ -891,7 +812,6 @@ function BarangayReports({ token }) {
         fetchAiUsage();
     }, [token]);
 
-    // Handle highlight parameter from URL (kept original logic)
     useEffect(() => {
         const urlParams = new URLSearchParams(window.location.search);
         const highlightId = urlParams.get('highlight');
@@ -910,7 +830,6 @@ function BarangayReports({ token }) {
         }
     }, [reports]);
 
-    // ⭐ NEW: Compute trending reports using newsfeed algorithm
     useEffect(() => {
         if (!reports.length) {
             setTrendingReports([]);
@@ -938,7 +857,6 @@ function BarangayReports({ token }) {
             }
         };
 
-        // Filter approved reports that are not resolved AND have likes > 0
         const eligibleReports = reports.filter((r) => 
             r.is_approved === true &&
             r.status !== "Resolved" &&
@@ -948,27 +866,22 @@ function BarangayReports({ token }) {
             filterByTime(r.created_at)
         );
 
-        // Apply trending algorithm: Community Awareness & Involvement
-        // Score = (reactions * 15 + category_weight + base_score) / (days_old + 1)^0.8
-        // Gentler decay keeps reports visible longer for stable trending
         const scored = eligibleReports.map((r) => {
             const createdAt = new Date(r.created_at || 0);
             const daysOld = Math.max(0, (now - createdAt) / (1000 * 60 * 60 * 24));
             
-            // Engagement weights - higher for community interaction
             const severityWeight = { Crime: 4, Hazard: 3.5, Concern: 3, 'Lost&Found': 2, Others: 2 };
-            const reactionBoost = (r.reaction_count || 0) * 15; // High weight for community engagement
-            const baseScore = 5; // Base score ensures reports don't vanish suddenly
+            const reactionBoost = (r.reaction_count || 0) * 15;
+            const baseScore = 5;
             const engagement = reactionBoost + (severityWeight[r.category] || 2) + baseScore;
             
-            // Very gentle time decay (0.8 exponent) - keeps trending stable
             const timeFactor = Math.pow(daysOld + 1, 0.8);
             const trendingScore = engagement / timeFactor;
             
             return { ...r, trendingScore };
         });
 
-        // Sort by trending score descending, limit to 5
+        // Sort by trending
         const trending = scored
             .sort((a, b) => b.trendingScore - a.trendingScore)
             .slice(0, 5);
@@ -977,7 +890,6 @@ function BarangayReports({ token }) {
         console.log(`🔥 ${trending.length} trending reports for barangay`);
     }, [reports, trendingTimeFilter]);
 
-    // ⭐ NEW: Compute pending reports (is_approved = false, not rejected)
     useEffect(() => {
         if (!reports.length) {
             setPendingReports([]);
@@ -1022,8 +934,6 @@ function BarangayReports({ token }) {
             const data = await response.json();
             
             if (data.status === 'success') {
-                // Update the report's reaction data in state
-                // Backend returns 'liked' or 'unliked' for action
                 setReports(prevReports => 
                     prevReports.map(report => 
                         report.id === reportId 
@@ -1114,7 +1024,6 @@ function BarangayReports({ token }) {
                     'Authorization': `Bearer ${token}`,
                     'Content-Type': 'application/json'
                 },
-                // include deletion reason for auditing; server may accept or ignore
                 body: JSON.stringify({ reason: deleteReason || null, reason_other: deleteReasonOther || null })
             });
 
@@ -1197,7 +1106,6 @@ function BarangayReports({ token }) {
                 throw new Error(errorData.message || 'Failed to reject report');
             }
 
-            // Update report to show is_rejected = true instead of removing it
             setReports(prevReports =>
                 prevReports.map(r => 
                     r.id === reportId 
@@ -1215,13 +1123,11 @@ function BarangayReports({ token }) {
         }
     };
 
-    // Priority scoring function for sorting
     const getPriorityScore = (category) => {
         const scores = { Crime: 4, Hazard: 3, Concern: 2, 'Lost&Found': 1, Others: 1 };
         return scores[category] || 0;
     };
 
-    // Map priority label (Critical/High/Medium/Low) to numeric rank for smart sorting
     const priorityRank = (priorityLabel) => {
         if (!priorityLabel) return 0;
         switch (priorityLabel) {
@@ -1232,11 +1138,8 @@ function BarangayReports({ token }) {
         }
     };
 
-    // Helper to get priority label from AI or fallback to category-based
     const getReportPriority = (report) => {
-        // Use AI priority if available (when Smart Filter is active)
         if (report.ai_priority) {
-            // Normalize AI priority to match filter options (Critical/High/Medium/Low)
             const pri = String(report.ai_priority).toLowerCase().trim();
             console.log(`[Priority Debug] Report ${report.id}: ai_priority="${report.ai_priority}" normalized="${pri}"`);
             if (pri === 'critical') return 'Critical';
@@ -1245,13 +1148,11 @@ function BarangayReports({ token }) {
             if (pri === 'low') return 'Low';
             return 'Low';
         }
-        // Fallback to category-based priority
         const catPriority = getPriorityStyle(report.category);
         console.log(`[Priority Debug] Report ${report.id}: Using fallback category="${report.category}" priority="${catPriority.priority}"`);
         return catPriority.priority || 'Low';
     };
 
-    // Helper to filter reports by time range
     const filterReportsByTime = (reportsToFilter, timeRange) => {
         if (timeRange === 'all') return reportsToFilter;
         
@@ -1279,11 +1180,9 @@ function BarangayReports({ token }) {
         });
     };
 
-    // Export to CSV with time filter - includes likes and trending data
     const exportToCSV = (timeFilter = 'all') => {
         const reportsToExport = filterReportsByTime(filteredReports, timeFilter);
         
-        // Mark trending reports
         const trendingIds = new Set(trendingReports.map(r => r.id));
         
         const headers = ["ID", "Title", "Category", "Status", "Barangay", "Address", "Reporter", "Priority", "Likes", "Trending", "Created At", "Description"];
@@ -1315,7 +1214,6 @@ function BarangayReports({ token }) {
         showNotification(`Exported ${reportsToExport.length} reports to CSV`, 'success');
     };
 
-    // Export to PDF with Community Helper AI Analytics
     const exportToPDF = async (timeFilter = 'all', colorMode = 'color', pageSize = 'A4') => {
         const reportsToExport = filterReportsByTime(filteredReports, timeFilter);
         const timeLabel = timeFilter === 'all' ? 'All Time' : timeFilter === 'today' ? 'Today' : timeFilter === 'this-week' ? 'This Week' : 'This Month';
@@ -1348,13 +1246,10 @@ function BarangayReports({ token }) {
         
         const sortedCategories = Object.entries(categoryStats).sort((a, b) => b[1] - a[1]);
         
-        // Get trending reports for PDF
         const trendingForPdf = trendingReports.slice(0, 5);
-        // Logo (static import)
         const logoPath = logoImg;
         
         const colorCss = colorMode === 'bw' ? 'html { filter: grayscale(100%); }' : '';
-        // Page size CSS for print-friendly sizing
         let pageCss = '';
         switch ((pageSize || 'A4').toLowerCase()) {
             case 'letter':
@@ -1364,34 +1259,27 @@ function BarangayReports({ token }) {
                 pageCss = '@page { size: 8.5in 14in; margin: 20mm; }';
                 break;
             case 'long':
-                // long / continuous (choose an elongated paper size)
                 pageCss = '@page { size: 8.5in 22in; margin: 20mm; }';
                 break;
             default:
                 pageCss = '@page { size: A4; margin: 20mm; }';
         }
 
-        // --- Build monthly and top-barangays data ---
-        // Try to fetch system-wide monthly trends and top barangays if available
         let monthsArr = [];
         let pieData = [];
 
-        // Attempt to fetch safezones & hotspots counts (optional endpoints)
         let safezoneCount = 0;
         let hotspotCount = 0;
 
         try {
-            // Attempt to fetch monthly trends (may include other barangays)
             const mtRes = await fetch('/api/dashboard/monthly-trends', { headers: { 'Authorization': `Bearer ${token}` } });
             if (mtRes.ok) {
                 const mtJson = await mtRes.json().catch(() => null) || {};
                 const mtList = mtJson.trends || mtJson.data || mtJson || [];
                 if (Array.isArray(mtList) && mtList.length > 0) {
                     monthsArr = mtList.map((item) => {
-                        // item may have { month: 'Jan 2025', count: 12 } or {label, count}
                         const label = item.month || item.label || `${item.label || ''}`;
                         const count = item.count || item.total || item.value || 0;
-                        // Attempt to parse a date for sorting
                         let date = new Date();
                         try {
                             if (item.month && typeof item.month === 'string') {
@@ -1406,11 +1294,10 @@ function BarangayReports({ token }) {
                 }
             }
         } catch (e) {
-            // ignore fetch errors and fall back to local data hghjgjg
+            // ignore
             console.warn('Monthly trends fetch failed:', e);
         }
 
-        // If we didn't get external months, build from reportsToExport (local barangay reports)
         if (!monthsArr.length) {
             const monthMap = {};
             reportsToExport.forEach((r) => {
@@ -1457,8 +1344,6 @@ function BarangayReports({ token }) {
             lineChartSvg = `<div style="color:#666; font-size:12px;">No monthly trend data to display.</div>`;
         }
 
-        // Pie chart SVG for top barangays (fallback to grouping by barangay)
-        // Attempt to fetch top barangays across the system (if available)
         try {
             const tbRes = await fetch('/api/dashboard/top-barangays', { headers: { 'Authorization': `Bearer ${token}` } });
             if (tbRes.ok) {
@@ -1472,12 +1357,10 @@ function BarangayReports({ token }) {
             console.warn('Top barangays fetch failed:', e);
         }
 
-        // If fetch didn't populate pieData, fall back to existing sources
         if (!pieData.length) {
             if (typeof topBarangays !== 'undefined' && topBarangays && topBarangays.length > 0) {
                 pieData = topBarangays.slice(0, 6).map(b => ({ name: b.barangay, value: parseInt(b.total || 0) }));
             } else {
-                // group by barangay from reportsToExport
                 const map = {};
                 reportsToExport.forEach(r => {
                     const name = r.barangay || r.address_barangay || 'Unknown';
@@ -1523,7 +1406,6 @@ function BarangayReports({ token }) {
             pieChartSvg = `<div style="color:#666; font-size:12px;">No top barangay data to display.</div>`;
         }
 
-        // Try to fetch safezones/hotspots counts from dashboard endpoint
         try {
             const shRes = await fetch('/api/dashboard/safezones-hotspots', { headers: { 'Authorization': `Bearer ${token}` } });
             if (shRes.ok) {
@@ -1535,7 +1417,6 @@ function BarangayReports({ token }) {
             // ignore
         }
 
-        // Inject colorCss and pageCss into page styles and include chart/numeric summaries in the printable HTML
         const printContent = `
         <!DOCTYPE html>
         <html>
@@ -1928,17 +1809,14 @@ function BarangayReports({ token }) {
         showNotification(`Exported ${reportsToExport.length} reports to PDF`, 'success');
     };
 
-    // Filtered reports (removed barangay filter - fetched from backend already filtered)
     const filteredReports = reports
-        .filter((r) => !r.is_rejected) // Hide rejected reports from barangay view
-        .filter((r) => r.status !== "Resolved") // Exclude resolved reports - they go to Archived
+        .filter((r) => !r.is_rejected)
+        .filter((r) => r.status !== "Resolved")
         .filter((r) => (category === "All" ? true : r.category === category))
         .filter((r) => (statusFilter === "All" ? true : r.status === statusFilter))
         .filter((r) => {
-            // Priority filter only applies when Smart Filter is ON
             if (!showSmartFilter) return true;
             if (!priorityFilter || priorityFilter === 'All') return true;
-            // Use AI-generated priority for filtering
             const reportPriority = getReportPriority(r);
             return reportPriority === priorityFilter;
         })
@@ -1952,46 +1830,36 @@ function BarangayReports({ token }) {
             }
         )
         .filter((r) => {
-            // When Top sort is active, only show approved reports
             if (sort === 'top') return r.is_approved === true;
             return true;
         })
         .sort((a, b) => {
-            // ⭐ Top sort: prioritize highest liked reports
             if (sort === 'top') {
                 const aLikes = a.reaction_count || 0;
                 const bLikes = b.reaction_count || 0;
-                if (aLikes !== bLikes) return bLikes - aLikes; // Higher likes first
-                // Fallback to date (latest first) if same likes
                 const aT = new Date(a.created_at).getTime() || 0;
                 const bT = new Date(b.created_at).getTime() || 0;
                 return bT - aT;
             }
 
-            // Default: prioritize unapproved/pending reports on top
             const aApproved = !!a.is_approved;
             const bApproved = !!b.is_approved;
             if (aApproved !== bApproved) return aApproved ? 1 : -1;
 
-            // If Smart Filter is active, use smart prioritization within the approval group
             if (showSmartFilter) {
-                // Use priority label mapping (Critical > High > Medium > Low)
                 const aPri = priorityRank(getPriorityStyle(a.category).priority);
                 const bPri = priorityRank(getPriorityStyle(b.category).priority);
                 if (aPri !== bPri) return bPri - aPri;
 
-                // Within same priority, order by confidence (higher first)
                 const aConf = (typeof a.ai_confidence === 'number') ? a.ai_confidence : computeConfidence(a.description || '', a.category, (a.images || []).length);
                 const bConf = (typeof b.ai_confidence === 'number') ? b.ai_confidence : computeConfidence(b.description || '', b.category, (b.images || []).length);
                 if (aConf !== bConf) return bConf - aConf;
 
-                // Fallback to date based on smartSort
                 const aT = new Date(a.timestamp || a.created_at).getTime() || 0;
                 const bT = new Date(b.timestamp || b.created_at).getTime() || 0;
                 return smartSort === 'latest' ? bT - aT : aT - bT;
             }
 
-            // Default behavior when Smart Filter is not active: priority then date
             const aPriority = getPriorityScore(a.category);
             const bPriority = getPriorityScore(b.category);
             if (aPriority !== bPriority) return bPriority - aPriority;
@@ -2001,10 +1869,8 @@ function BarangayReports({ token }) {
             return sort === 'latest' ? bTime - aTime : aTime - bTime;
         });
 
-    // Use user's address_barangay if available, otherwise generic label
     const headerBase = userBarangay ? `${userBarangay}` : 'Barangay';
 
-    // Loading / mount animation features (cards shown during mount/loading)
     const loadingFeatures = [
         { title: "Incident Triage", description: "Fast structured intake for actionable follow-up." },
         { title: "Smart Filter", description: "Optional Smart-assisted categorization for faster triage." },
@@ -2075,7 +1941,6 @@ function BarangayReports({ token }) {
                     </div>
                 </div>
 
-            {/* IMPROVEMENT: Added ref to the filter container for keyboard navigation */}
             <div className="barangay-top-controls" ref={filterContainerRef}>
                 <div className="barangay-search-container">
                     <label htmlFor="search-input" className="sr-only">Search reports by title or reporter name</label>
@@ -2119,7 +1984,7 @@ function BarangayReports({ token }) {
                         <option key={status} value={status}>{status}</option>
                     ))}
                 </select>
-                {/* Priority Filter - Only visible when Smart Filter is ON */}
+                {/* Priority Filter */}
                 {showSmartFilter && (
                     <>
                         <label htmlFor="priority-filter" className="sr-only">Filter by Priority</label>
@@ -2164,7 +2029,7 @@ function BarangayReports({ token }) {
                     </select>
                 )}
 
-                {/* Smart Filter Toggle Button with Premium Indicator & Full-Width Timer */}
+                {/* Smart Filter Toggle */}
                 <div style={{
                     display: 'flex',
                     alignItems: 'center',
@@ -2207,7 +2072,7 @@ function BarangayReports({ token }) {
                         {isPremiumUser ? 'Premium' : (aiUsagePercent >= 100 ? 'Premium' : 'Smart Filter')}
                     </button>
 
-                    {/* AI Usage Timer Bar - Full Width with Live Countdown */}
+                    {/* AI Usage Timer Bar */}
                     <div style={{
                         display: 'flex',
                         alignItems: 'center',
@@ -2274,7 +2139,7 @@ function BarangayReports({ token }) {
                             </button>
                         </div>
 
-                        {/* Live countdown timer - shows when Smart Filter is ON (not for premium users) */}
+                        {/* Live countdown timer */}
                         {showSmartFilter && hasAcceptedAiWarning && !isPremiumUser && (
                             <div style={{
                                 width: '100%',
@@ -2309,7 +2174,7 @@ function BarangayReports({ token }) {
                 </div>
             </div>
 
-            {/* Smart Filter Warning Modal - Show on first activation */}
+            {/* Smart Filter Warning Modal */}
             {showSmartFilterWarning && (
                 <ModalPortal>
                 <div 
@@ -2486,7 +2351,7 @@ function BarangayReports({ token }) {
                         </div>
 
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-                            {/* Live Session Timer - shows when Smart Filter is ON */}
+                            {/* Live Session Timer */}
                             {showSmartFilter && hasAcceptedAiWarning && (
                                 <div style={{
                                     padding: '12px',
@@ -2618,7 +2483,7 @@ function BarangayReports({ token }) {
                 }
             `}</style>
 
-            {/* ⭐ Trending Pill Button Row - Always visible, shows count */}
+            {/* Trending Pill Button Row */}
             <div className="trending-pill-row">
                 <button
                     className={`trending-pill-btn ${sort === 'trending' ? 'active' : ''} ${trendingReports.length === 0 ? 'empty' : ''}`}
@@ -2639,7 +2504,7 @@ function BarangayReports({ token }) {
                     {sort === 'trending' ? <FaMinus className="trending-pill-toggle" /> : <FaPlus className="trending-pill-toggle" />}
                 </button>
 
-                {/* Pending Pill - Show pending approval reports */}
+                {/* Pending Pill */}
                 <button
                     className={`pending-pill-btn ${pendingExpanded ? 'active' : ''} ${pendingReports.length === 0 ? 'empty' : ''}`}
                     data-count={pendingReports.length}
@@ -2662,7 +2527,7 @@ function BarangayReports({ token }) {
                 </button>
             </div>
 
-            {/* ⭐ Trending Reports Section - Collapsible */}
+            {/* Trending Reports Section */}
             {trendingExpanded && (
                 <div className="trending-reports-container expanded">
                     <div className="trending-reports-header">
@@ -2733,7 +2598,7 @@ function BarangayReports({ token }) {
                 </div>
             )}
 
-            {/* ⭐ Pending Reports Section - Feed-style container */}
+            {/* Pending Reports Section */}
             {pendingExpanded && pendingReports.length > 0 && (
                 <div className="feed-pending-container expanded">
                     <div className="feed-pending-header">
@@ -2796,7 +2661,6 @@ function BarangayReports({ token }) {
                         const isExpanded = expandedPosts.includes(report.id);
                         const isPending = !report.is_approved;
                         
-                        // DEBUG: Log is_approved value for first 3 reports
                         if (index < 3) {
                             console.log(`[BarangayReports] Report ${report.id}: is_approved=${report.is_approved}, isPending=${isPending}, status=${report.status}`);
                         }
@@ -2817,7 +2681,7 @@ function BarangayReports({ token }) {
                                 style={{
                                     animationDelay: `${index * 0.1}s`,
                                     position: 'relative',
-                                    // Smart Filter ON: Show priority border | OFF: Hide border for accepted posts
+                                    // Smart Filter
                                     border: `2px solid ${!isPending ? (showSmartFilter ? getPriorityStyle(report.category).borderColor : 'transparent') : 'transparent'}`,
                                 }} 
                                 aria-labelledby={`report-title-${report.id}`}
@@ -2873,7 +2737,6 @@ function BarangayReports({ token }) {
                                     </div>
 
                                     <div className="report-header-actions">
-                                        {/* Hide Pending status badge on card view - only show Ongoing/Resolved */}
                                         {report.status !== "Pending" && (
                                             <span className={`barangay-status-badge barangay-status-${report.status.toLowerCase()}`}>
                                                 {getStatusIcon(report.status)}
@@ -3065,7 +2928,7 @@ function BarangayReports({ token }) {
                                     </div>
                                 )}
 
-                                {/* Heart/Like Button - Disabled for pending reports */}
+                                {/* Heart/Like Button */}
                                 <div className="report-reactions">
                                     <button
                                         className={`reaction-btn heart-btn ${report.user_liked ? 'liked' : ''} ${isPending ? 'disabled' : ''}`}
@@ -3205,7 +3068,6 @@ function BarangayReports({ token }) {
                                             : "N/A"}
                                     </div>
                                     <div className="list-col col-status">
-                                        {/* Show all status badges on list view including Pending */}
                                         <span className={`barangay-status-badge barangay-status-${report.status.toLowerCase()}`}>
                                             {getStatusIcon(report.status)} {report.status}
                                         </span>
@@ -3442,7 +3304,7 @@ function BarangayReports({ token }) {
                 </ModalPortal>
             )}
 
-            {/* Delete Reason Modal: ask admin why the report is being deleted */}
+            {/* Delete Reason Modal */}
             {isDeleteReasonOpen && (
                 <ModalPortal>
                 <div
@@ -3503,7 +3365,7 @@ function BarangayReports({ token }) {
                 </ModalPortal>
             )}
 
-            {/* Rejection Info Modal - Shows when barangay official views a rejected report */}
+            {/* Rejection Info Modal */}
             {rejectionInfoModalOpen && rejectionInfoReport && (
                 <ModalPortal>
                 <div 
@@ -3591,7 +3453,7 @@ function BarangayReports({ token }) {
                 </ModalPortal>
             )}
 
-            {/* ⭐ NEW: Assign Responder Modal */}
+            {/* Assign Responder Modal */}
             {isAssignResponderModalOpen && selectedReportForResponder && (
                 <ModalPortal>
                 <div 
@@ -3938,7 +3800,7 @@ function BarangayReports({ token }) {
                 </ModalPortal>
             )}
 
-            {/* Notification - wrapped in ModalPortal for proper z-index display */}
+            {/* Notification */}
             {notification && (
                 <ModalPortal>
                     <div 

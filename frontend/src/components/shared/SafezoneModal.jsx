@@ -70,7 +70,6 @@ const SafezoneModal = ({ isOpen, onClose, onSave, defaultLat, defaultLng }) => {
     }
   }, [isOpen, defaultLat, defaultLng]);
 
-  // Focus trap
   useEffect(() => {
     if (!isOpen || !modalRef.current) return;
 

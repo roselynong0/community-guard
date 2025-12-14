@@ -4,7 +4,6 @@ import "../resident/Reports.css";
 import ModalPortal from "../shared/ModalPortal";
 
 import { API_CONFIG, getApiUrl } from "../../utils/apiConfig";
-// ... existing code ...
 const API_URL = getApiUrl(API_CONFIG.endpoints.reports);
 const REPORT_STATUSES = ["Pending", "Ongoing", "Resolved"];
 
@@ -22,7 +21,6 @@ const getStatusIcon = (status) => {
     }
 };
 
-// Utility Hook for Modal Accessibility (Focus trap and Esc key)
 const useAriaModal = (isOpen, onClose) => {
     const modalRef = useRef(null);
 
@@ -32,12 +30,10 @@ const useAriaModal = (isOpen, onClose) => {
         const modalElement = modalRef.current;
         if (!modalElement) return;
 
-        // 1. Focus the modal container on open
         const focusTimeout = setTimeout(() => {
             modalElement.focus();
         }, 0);
 
-        // 2. Trap focus within the modal
         const focusableElements = 'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])';
         
         const handleTabKeyPress = (e) => {
@@ -50,12 +46,12 @@ const useAriaModal = (isOpen, onClose) => {
                 const firstElement = focusableModalElements[0];
                 const lastElement = focusableModalElements[focusableModalElements.length - 1];
 
-                if (e.shiftKey) { // Shift + Tab
+                if (e.shiftKey) {
                     if (document.activeElement === firstElement) {
                         lastElement.focus();
                         e.preventDefault();
                     }
-                } else { // Tab
+                } else {
                     if (document.activeElement === lastElement) {
                         firstElement.focus();
                         e.preventDefault();
@@ -64,7 +60,6 @@ const useAriaModal = (isOpen, onClose) => {
             }
         };
 
-        // 3. Close on Escape key press
         const handleKeyDown = (e) => {
             if (e.key === 'Escape') {
                 onClose();
@@ -84,14 +79,12 @@ const useAriaModal = (isOpen, onClose) => {
     return modalRef;
 };
 
-// --- NEW Hook for Arrow Key Navigation in Filter Controls ---
 const useKeyboardNavigation = (containerRef, selector) => {
     useEffect(() => {
         const container = containerRef.current;
         if (!container) return;
 
         const handleArrowNavigation = (event) => {
-            // Only capture arrows if the current focus is within the filter container
             if (!container.contains(document.activeElement) && event.key !== 'ArrowRight' && event.key !== 'ArrowLeft') {
                 return;
             }
@@ -103,28 +96,22 @@ const useKeyboardNavigation = (containerRef, selector) => {
 
             if (event.key === 'ArrowRight' || event.key === 'ArrowDown') {
                 if (currentIndex === -1) {
-                    // If no element is currently focused in the list, focus the first one
                     focusableElements[0]?.focus();
                 } else if (currentIndex < focusableElements.length - 1) {
-                    // Move to the next element
                     focusableElements[currentIndex + 1].focus();
                 } else {
-                    // Loop to the first element (optional, but often helpful)
                     focusableElements[0].focus();
                 }
-                event.preventDefault(); // Prevent default scroll/behavior
+                event.preventDefault();
             } else if (event.key === 'ArrowLeft' || event.key === 'ArrowUp') {
                 if (currentIndex === -1) {
-                    // If no element is currently focused in the list, focus the last one
                     focusableElements[focusableElements.length - 1]?.focus();
                 } else if (currentIndex > 0) {
-                    // Move to the previous element
                     focusableElements[currentIndex - 1].focus();
                 } else {
-                    // Loop to the last element (optional)
                     focusableElements[focusableElements.length - 1].focus();
                 }
-                event.preventDefault(); // Prevent default scroll/behavior
+                event.preventDefault();
             }
         };
 
@@ -132,8 +119,6 @@ const useKeyboardNavigation = (containerRef, selector) => {
         return () => window.removeEventListener('keydown', handleArrowNavigation);
     }, [containerRef, selector]);
 };
-// -------------------------------------------------------------
-
 
 function RespondersReports({ token }) {
     const [reports, setReports] = useState([]);
@@ -143,8 +128,8 @@ function RespondersReports({ token }) {
     const [barangay, setBarangay] = useState("All");
     const [statusFilter, setStatusFilter] = useState("All"); 
     const [sort, setSort] = useState("latest");
-    const [userBarangay, setUserBarangay] = useState(null); // User's address_barangay from info table
-    const [smartSort, setSmartSort] = useState("latest"); // When smart filter active
+    const [userBarangay, setUserBarangay] = useState(null);
+    const [smartSort, setSmartSort] = useState("latest");
     const [previewImage, setPreviewImage] = useState(null);
     const [notification, setNotification] = useState(null);
     const [highlightedReportId, setHighlightedReportId] = useState(null);
@@ -153,7 +138,7 @@ function RespondersReports({ token }) {
     const [showSmartFilter, setShowSmartFilter] = useState(false);
     const [aiUsagePercent, setAiUsagePercent] = useState(0);
     const [timeRemainingHMS, setTimeRemainingHMS] = useState('48:00:00');
-    const [timeRemainingSeconds, setTimeRemainingSeconds] = useState(172800); // 48 hours
+    const [timeRemainingSeconds, setTimeRemainingSeconds] = useState(172800);
     const [, setShowUsageModal] = useState(false);
     const [smartFilterStartTime, setSmartFilterStartTime] = useState(null);
     const [hasAcceptedAiWarning, setHasAcceptedAiWarning] = useState(false);
@@ -166,21 +151,19 @@ function RespondersReports({ token }) {
     const [isStatusModalOpen, setIsStatusModalOpen] = useState(false);
     const [selectedReport, setSelectedReport] = useState(null);
     const [newStatus, setNewStatus] = useState("");
-    const [isUpdatingStatus, setIsUpdatingStatus] = useState(false); // Prevent double submissions
+    const [isUpdatingStatus, setIsUpdatingStatus] = useState(false);
 
     const [expandedPosts, setExpandedPosts] = useState([]);
     const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false);
     const [deleteTarget, setDeleteTarget] = useState(null);
     const [isDeleting, setIsDeleting] = useState(false);
-    // New states for deletion reason flow
     const [isDeleteReasonOpen, setIsDeleteReasonOpen] = useState(false);
     const [deleteReason, setDeleteReason] = useState('');
     const [deleteReasonOther, setDeleteReasonOther] = useState('');
 
-    // ⭐ NEW: Trending reports states
     const [trendingReports, setTrendingReports] = useState([]);
     const [trendingExpanded, setTrendingExpanded] = useState(true);
-    const [trendingTimeFilter, setTrendingTimeFilter] = useState("this-month"); // today, yesterday, this-month
+    const [trendingTimeFilter, setTrendingTimeFilter] = useState("this-month");
     
     const barangays = [
         "All Barangay", "Barretto", "East Bajac-Bajac", "East Tapinac", "Gordon Heights",
@@ -189,25 +172,20 @@ function RespondersReports({ token }) {
         "Santa Rita", "West Bajac-Bajac", "West Tapinac",
     ];
 
-    // --- REFS for Keyboard Navigation ---
     const filterContainerRef = useRef(null);
-    // Elements we want to navigate between with arrow keys
     const filterSelector = 'input.admin-search-input, .admin-top-controls .admin-filter-select, .reports-list button:first-child'; 
     useKeyboardNavigation(filterContainerRef, filterSelector);
-    // -----------------------------------
 
     // Export controls
     const [exportColorMode, setExportColorMode] = useState('color');
     const [exportPageSize, setExportPageSize] = useState('A4');
 
-    // Notification handler
     const showNotification = useCallback((message, type = "success") => {
         setNotification({ message, type });
         setTimeout(() => setNotification(null), 4000);
     }, []);
 
-    // --- Smart Filter AI Usage Tracking ---
-    const WEEK_LIMIT_SECONDS = 172800; // 48 hours
+    const WEEK_LIMIT_SECONDS = 172800;
 
     const trackAiUsage = useCallback(async (durationSeconds = 0) => {
         if (!token) {
@@ -253,22 +231,18 @@ function RespondersReports({ token }) {
         }
     }, [token, showNotification]);
 
-    // Handle Smart Filter toggle with warning and time tracking
     const handleSmartFilterToggle = useCallback(() => {
-        // If turning ON for the first time, show warning
         if (!showSmartFilter && !hasAcceptedAiWarning) {
             setShowSmartFilterWarning(true);
             return;
         }
 
-        // If turning OFF, log the duration
         if (showSmartFilter && smartFilterStartTime && hasAcceptedAiWarning) {
             const durationSeconds = Math.floor((Date.now() - smartFilterStartTime) / 1000);
             trackAiUsage(durationSeconds);
             setSmartFilterStartTime(null);
             setLiveSessionSeconds(0);
         }
-        // If turning ON and already accepted warning, start timer
         else if (!showSmartFilter && hasAcceptedAiWarning) {
             setSmartFilterStartTime(Date.now());
         }
@@ -276,7 +250,6 @@ function RespondersReports({ token }) {
         setShowSmartFilter(!showSmartFilter);
     }, [showSmartFilter, smartFilterStartTime, hasAcceptedAiWarning, trackAiUsage]);
 
-    // Handle Smart Filter warning acceptance
     const handleAcceptSmartFilterWarning = useCallback(() => {
         const startTime = Date.now();
         setHasAcceptedAiWarning(true);
@@ -285,7 +258,6 @@ function RespondersReports({ token }) {
         setSmartFilterStartTime(startTime);
         setLiveSessionSeconds(0);
         
-        // Show appropriate notification based on premium status
         if (isPremiumUser) {
             showNotification('✨ Unlimited Smart Filter activated. Enjoy premium AI-powered prioritization!', 'premium');
         } else {
@@ -293,12 +265,10 @@ function RespondersReports({ token }) {
         }
     }, [isPremiumUser, showNotification]);
 
-    // Handle Smart Filter warning rejection
     const handleRejectSmartFilterWarning = useCallback(() => {
         setShowSmartFilterWarning(false);
     }, []);
 
-    // Real-time countdown timer for active Smart Filter session
     useEffect(() => {
         if (!showSmartFilter || !smartFilterStartTime) {
             setLiveSessionSeconds(0);
@@ -309,7 +279,6 @@ function RespondersReports({ token }) {
             const elapsed = Math.floor((Date.now() - smartFilterStartTime) / 1000);
             setLiveSessionSeconds(elapsed);
             
-            // Calculate real-time usage
             const baseUsedSeconds = WEEK_LIMIT_SECONDS - timeRemainingSeconds;
             const totalUsedNow = baseUsedSeconds + elapsed;
             const livePercent = Math.min(100, Math.round((totalUsedNow / WEEK_LIMIT_SECONDS) * 100));
@@ -317,7 +286,6 @@ function RespondersReports({ token }) {
             
             setAiUsagePercent(livePercent);
             
-            // Format live time remaining as HH:MM:SS
             const hrs = Math.floor(liveRemaining / 3600);
             const mins = Math.floor((liveRemaining % 3600) / 60);
             const secs = liveRemaining % 60;
@@ -357,13 +325,12 @@ function RespondersReports({ token }) {
         fetchAiUsage();
     }, [token]);
 
-    // --- Modal Control Functions for Accessibility ---
     const closeStatusModal = useCallback(() => {
-        if (!isUpdatingStatus) { // Only allow closing if not updating
+        if (!isUpdatingStatus) {
             setIsStatusModalOpen(false);
             setSelectedReport(null);
             setNewStatus("");
-            setIsUpdatingStatus(false); // Reset state
+            setIsUpdatingStatus(false);
         }
     }, [isUpdatingStatus]);
 
@@ -374,15 +341,12 @@ function RespondersReports({ token }) {
     };
 
     const closeDeleteConfirm = useCallback(() => {
-        if (!isDeleting) { // Only allow closing if not deleting
+        if (!isDeleting) {
             setIsDeleteConfirmOpen(false);
             setDeleteTarget(null);
         }
     }, [isDeleting]);
 
-    
-
-    // New: open initial delete-reason modal instead of immediately showing permanent delete
     const closeDeleteReason = useCallback(() => {
         if (!isDeleting) {
             setIsDeleteReasonOpen(false);
@@ -399,22 +363,17 @@ function RespondersReports({ token }) {
     };
 
     const proceedToConfirmDelete = () => {
-        // Ensure a reason is selected; allow 'Other' with text
         if (!deleteReason) return;
         if (deleteReason === 'Other' && !deleteReasonOther.trim()) return;
 
-        // close reason modal and open the confirm modal
         setIsDeleteReasonOpen(false);
         setIsDeleteConfirmOpen(true);
     };
 
-    // Use the custom hook to handle focus trapping and ESC key for both modals
     const statusRef = useAriaModal(isStatusModalOpen, closeStatusModal);
     const deleteRef = useAriaModal(isDeleteConfirmOpen, closeDeleteConfirm);
     const reasonRef = useAriaModal(isDeleteReasonOpen, closeDeleteReason);
-    // --------------------------------------------------
 
-    // Fetch reports from API - uses responder endpoint that filters by barangay and excludes rejected
     const fetchReports = useCallback(async () => {
         if (!token) {
             setLoading(false);
@@ -424,7 +383,6 @@ function RespondersReports({ token }) {
         setLoading(true);
         try {
             const sortParam = sort === "latest" ? "desc" : "asc";
-            // Use responder-specific endpoint that filters by barangay and excludes rejected reports
             const responderEndpoint = getApiUrl(`/api/responder/reports?limit=50`);
             let response = await fetch(responderEndpoint, {
                 headers: { 
@@ -433,7 +391,6 @@ function RespondersReports({ token }) {
                 }
             });
 
-            // Fallback to regular reports endpoint if responder endpoint fails
             if (!response.ok) {
                 console.warn("Responder reports endpoint failed, falling back to regular reports");
                 response = await fetch(`${API_URL}/reports?limit=50&sort=${sortParam}`, {
@@ -449,12 +406,10 @@ function RespondersReports({ token }) {
 
             const data = await response.json();
             if (data.status === "success") {
-                // Set the user's barangay from response (from info table)
                 if (data.barangay) {
                     setUserBarangay(data.barangay);
                 }
                 
-                // Use reports from responder endpoint or fallback
                 const reports = Array.isArray(data.reports) ? data.reports : [];
                 
                 const transformedReports = reports.map(report => {
@@ -1504,7 +1459,7 @@ function RespondersReports({ token }) {
                 </ModalPortal>
             )}
 
-            {/* Delete Reason Modal: ask admin why the report is being deleted */}
+            {/* Delete Reason Modal */}
             {isDeleteReasonOpen && (
                 <ModalPortal>
                 <div
@@ -1594,7 +1549,7 @@ function RespondersReports({ token }) {
                 </ModalPortal>
             )}
 
-            {/* Smart Filter Warning Modal - Show on first activation */}
+            {/* Smart Filter Warning Modal */}
             {showSmartFilterWarning && (
                 <ModalPortal>
                 <div 
@@ -1733,7 +1688,7 @@ function RespondersReports({ token }) {
                 </ModalPortal>
             )}
 
-            {/* Notification - wrapped in ModalPortal for proper z-index */}
+            {/* Notification */}
             {notification && (
                 <ModalPortal>
                     <div 

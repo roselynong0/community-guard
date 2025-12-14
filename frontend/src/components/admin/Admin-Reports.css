@@ -80,7 +80,6 @@
     --admin-spinner-border: rgba(45, 45, 115, 0.12);
 }
 
-/* Premium Shimmer Animation for Golden Bars - Slow Left-to-Right Shine */
 @keyframes admin-shimmer {
     0% {
         background-position: -100% 50%;
@@ -90,7 +89,6 @@
     }
 }
 
-/* Slow Shine Sweep - Left to Right Only */
 @keyframes admin-shine-sweep {
     0% {
         left: -50%;
@@ -108,7 +106,6 @@
     }
 }
 
-/* Smooth Pulse Glow Animation for Progress Bars */
 @keyframes admin-progress-glow {
     0%, 100% {
         box-shadow: 0 0 4px var(--admin-premium-shadow),
@@ -121,7 +118,6 @@
     }
 }
 
-/* Wave Animation for Active Progress */
 @keyframes admin-progress-wave {
     0% {
         transform: translateX(-100%);
@@ -139,7 +135,6 @@
     width: 100%;
 }
 
-/* Smart Filter Button - Base */
 .admin-smart-filter-btn {
     padding: 8px 14px;
     color: var(--admin-text-white);
@@ -209,7 +204,6 @@
     box-shadow: inset 0 1px 3px rgba(243, 156, 18, 0.15);
 }
 
-/* Progress Bar Fill - Base Styles */
 .admin-progress-fill {
     height: 100%;
     background: linear-gradient(180deg, 
@@ -227,7 +221,6 @@
     transition: none;
 }
 
-/* Active progress wave overlay */
 .admin-progress-fill.active::after {
     content: '';
     position: absolute;
@@ -252,7 +245,6 @@
     );
 }
 
-/* Premium Progress Bar Fill - Slow Left-to-Right Shine */
 .admin-progress-fill.premium {
     width: 100%;
     background: linear-gradient(
@@ -268,7 +260,6 @@
                 0 0 16px rgba(243, 156, 18, 0.3);
 }
 
-/* Slow shine sweep effect - Left to Right Only */
 .admin-progress-fill.premium::after {
     content: '';
     position: absolute;
@@ -287,7 +278,6 @@
     animation: admin-shine-sweep 4s ease-in-out infinite;
 }
 
-/* Premium bar shine overlay */
 .admin-progress-fill.premium::before {
     content: '';
     position: absolute;
@@ -336,7 +326,6 @@
     box-shadow: 0 2px 6px var(--admin-premium-shadow);
 }
 
-/* Premium Button Container with Active Label */
 .admin-premium-btn-container {
     display: flex;
     flex-direction: column;
@@ -489,7 +478,6 @@
     transition: none;
 }
 
-/* Active modal progress wave overlay */
 .admin-modal-progress-fill.active::after {
     content: '';
     position: absolute;
@@ -514,7 +502,6 @@
     );
 }
 
-/* Premium Modal Progress Bar Fill - Professional Shimmer */
 .admin-modal-progress-fill.premium {
     width: 100%;
     background: linear-gradient(
@@ -531,7 +518,6 @@
     border-radius: 5px;
 }
 
-/* Premium modal bar shine overlay */
 .admin-modal-progress-fill.premium::before {
     content: '';
     position: absolute;
@@ -697,7 +683,7 @@
     margin: 0;
 }
 
-/* Top Controls - Matching Reports Design */
+/* Top Controls */
 .admin-top-controls {
     display: flex;
     flex-wrap: wrap;
@@ -812,7 +798,6 @@
     box-shadow: 0 4px 8px rgba(0, 0, 0, 0.08);
 }
 
-/* Custom Select Option Styling */
 .admin-filter-select option {
     padding: 12px 16px;
     background: #ffffff;
@@ -836,7 +821,6 @@
     font-weight: 600;
 }
 
-/* Enhanced focus states for better accessibility */
 .admin-search-input:focus-visible,
 .admin-filter-select:focus-visible {
     box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.2);
@@ -850,7 +834,6 @@
     gap: 18px;
 }
 
-/* No Reports Empty State */
 .no-reports {
     text-align: center;
     padding: 60px 20px;
@@ -931,7 +914,7 @@
     color: #64748b;
 }
 
-/* Status Badges - Pill style with icons */
+/* Status Badges */
 .admin-status-badge {
     display: inline-flex;
     align-items: center;
@@ -963,7 +946,6 @@
     color: white;
 }
 
-/* Mobile: Action buttons and status badges */
 @media (max-width: 768px) {
     .admin-report-header {
         flex-direction: column;
@@ -986,14 +968,12 @@
         padding: 10px 12px;
     }
     
-    /* Status badges - compact pill style */
     .admin-status-badge {
         font-size: 11px;
         padding: 4px 10px;
         white-space: nowrap;
     }
     
-    /* Icon buttons stay compact */
     .admin-report-actions .admin-icon-btn {
         width: auto;
         grid-column: auto;
@@ -1021,7 +1001,6 @@
     justify-content: center;
 }
 
-/* Legacy icon-only button hover - for backward compatibility */
 .admin-icon-btn.admin-edit-btn:hover {
     background: #dbeafe;
     color: #1e40af;
@@ -1069,7 +1048,6 @@
     cursor: not-allowed;
 }
 
-/* Accept Button - Green Theme */
 .admin-approve-btn {
     background: linear-gradient(135deg, #10b981 0%, #059669 100%);
     color: #ffffff;
@@ -1087,7 +1065,6 @@
     box-shadow: 0 2px 4px rgba(16, 185, 129, 0.3);
 }
 
-/* Update Button - Green Theme (matches Accept) */
 .admin-update-btn {
     background: linear-gradient(135deg, #10b981 0%, #059669 100%);
     color: #ffffff;
@@ -1105,7 +1082,6 @@
     box-shadow: 0 2px 4px rgba(16, 185, 129, 0.3);
 }
 
-/* Reject Button - Red Theme */
 .admin-reject-btn {
     background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
     color: #ffffff;
@@ -1123,7 +1099,6 @@
     box-shadow: 0 2px 4px rgba(239, 68, 68, 0.3);
 }
 
-/* Delete Button - Red Theme (matches Reject) */
 .admin-delete-btn {
     background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
     color: #ffffff;
@@ -1141,7 +1116,7 @@
     box-shadow: 0 2px 4px rgba(239, 68, 68, 0.3);
 }
 
-/* Button Spinner for Loading State */
+/* Loading State */
 .admin-btn-spinner {
     width: 14px;
     height: 14px;
@@ -1270,7 +1245,7 @@
     background: #94a3b8;
 }
 
-/* Modal Form Fields - Matching Profile Design */
+/* Modal Form Fields */
 .admin-modal-scrollable label {
     display: block;
     font-weight: 600;
@@ -1302,14 +1277,12 @@
     font-family: inherit;
 }
 
-/* Placeholder styling - use text area color when empty */
 .admin-modal-scrollable input::placeholder,
 .admin-modal-scrollable textarea::placeholder {
     color: #374151;
     opacity: 1;
 }
 
-/* When value is present, show black text */
 .admin-modal-scrollable input:not(:placeholder-shown),
 .admin-modal-scrollable textarea:not(:placeholder-shown) {
     color: #000 !important;
@@ -1534,14 +1507,12 @@
         grid-template-columns: 1fr;
     }
     
-    /* Modal sizing - match Profile modal */
     .admin-modal-content {
         width: 92%;
         max-width: 92%;
         margin: 10px auto;
     }
     
-    /* Modal buttons full width on mobile */
     .admin-modal-buttons {
         flex-direction: column;
         gap: 10px;
@@ -1551,7 +1522,6 @@
         width: 100%;
     }
     
-    /* Action buttons full width */
     .admin-report-header-actions {
         width: 100%;
         flex-direction: column;
@@ -1562,7 +1532,6 @@
         width: 100%;
     }
     
-    /* Pill buttons mobile */
     .trending-pill-row {
         gap: 8px;
         margin-bottom: 12px;
@@ -1574,7 +1543,7 @@
         padding: 10px 12px;
         gap: 0;
         position: relative;
-        overflow: visible; /* Allow badge to show outside pill */
+        overflow: visible;
     }
     
     .trending-pill-btn .trending-pill-icon,
@@ -1583,14 +1552,12 @@
         font-size: 1.1rem;
     }
     
-    /* Hide text and toggle icons on mobile */
     .pill-text,
     .trending-pill-toggle,
     .pending-pill-toggle {
         display: none;
     }
     
-    /* Badge for count on mobile */
     .trending-pill-btn::after {
         content: attr(data-count);
         position: absolute;
@@ -1631,19 +1598,17 @@
         color: #6b7280;
     }
     
-    /* Hide badge for Top pill (no count) */
     .top-pill-btn::after {
         display: none;
     }
     
-    /* Feed containers mobile */
     .feed-trending-list,
     .feed-pending-list {
         grid-template-columns: 1fr;
     }
 }
 
-/* ==================== HEADER ROW WITH VIEW TOGGLE & EXPORT ==================== */
+/* View Toggle & Export */
 
 .admin-header-row {
     display: flex;
@@ -1661,7 +1626,6 @@
     font-weight: 700;
 }
 
-/* Header Right - View Toggle & Export Buttons */
 .header-right {
     display: flex;
     gap: 12px;
@@ -1742,7 +1706,7 @@
     box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
 }
 
-/* ==================== LIST VIEW TABLE ==================== */
+/* List View Table */
 
 .admin-list-table {
     background: #ffffff;
@@ -2022,7 +1986,6 @@
     font-size: 14px;
 }
 
-/* Responsive for header-right and list view */
 @media (max-width: 768px) {
     .admin-header-row {
         flex-direction: column;
@@ -2053,10 +2016,7 @@
     }
 }
 
-/* ============================================= */
 /* Heart/Like Button Styles */
-/* ============================================= */
-
 .report-reactions {
     display: flex;
     align-items: center;
@@ -2122,9 +2082,7 @@
     }
 }
 
-/* ========================================
-   TRENDING PILL BUTTON ROW
-   ======================================== */
+/* Trending Pill Button Row */
 .trending-pill-row {
     display: flex;
     align-items: center;
@@ -2162,7 +2120,6 @@
     box-shadow: 0 2px 6px rgba(255, 107, 53, 0.3);
 }
 
-/* Empty state styling for trending pill when count is 0 */
 .trending-pill-btn.empty {
     background: linear-gradient(135deg, #94a3b8 0%, #64748b 100%);
     box-shadow: 0 4px 15px rgba(100, 116, 139, 0.25);
@@ -2192,7 +2149,6 @@
     left: 100%;
 }
 
-/* Active state for trending pill when sort is active */
 .trending-pill-btn.active {
     background: linear-gradient(135deg, #ea580c 0%, #dc2626 100%);
     box-shadow: 0 6px 20px rgba(234, 88, 12, 0.5);
@@ -2218,7 +2174,7 @@
     opacity: 0.9;
 }
 
-/* Top Pill Button - Star icon style */
+/* Top Pill Button */
 .top-pill-btn {
     display: flex;
     align-items: center;
@@ -2283,9 +2239,7 @@
     }
 }
 
-/* ========================================
-   UNIFIED TRENDING REPORTS CONTAINER
-   ======================================== */
+/* Unified Trending Reports Container */
 .trending-reports-container {
     margin-bottom: 24px;
     padding: 16px;
@@ -2522,9 +2476,7 @@
     margin-top: 8px;
 }
 
-/* ========================================
-   PENDING PILL BUTTON
-   ======================================== */
+/* Pending Pill Button */
 .pending-pill-btn {
     display: flex;
     align-items: center;
@@ -2579,10 +2531,7 @@
     opacity: 0.9;
 }
 
-/* ========================================
-   FEED-STYLE TRENDING/PENDING CONTAINERS
-   (Matching CommunityFeed / Reports.jsx design)
-   ======================================== */
+/* Feed-Style Trending/Pending Containers */
 .feed-trending-container {
     background: linear-gradient(135deg, #fff7ed 0%, #ffedd5 100%);
     border: 1px solid rgba(251, 146, 60, 0.3);

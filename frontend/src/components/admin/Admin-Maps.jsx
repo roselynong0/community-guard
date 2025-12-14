@@ -17,7 +17,6 @@ import SafezoneModal from "../shared/SafezoneModal";
 import HotspotModal from "../shared/HotspotModal";
 import LoadingScreen from "../shared/LoadingScreen";
 
-// Olongapo Center for map initialization
 const OLONGAPO_CENTER = [14.8291, 120.2829];
 const INITIAL_ZOOM = 13;
 
@@ -42,7 +41,6 @@ const barangayColors = {
 };
 
 const createColoredIcon = (color) => {
-  // Map hex colors to leaflet-color-markers color names
   const colorMap = {
     "#3b82f6": "blue",
     "#ef4444": "red",
@@ -158,7 +156,7 @@ function AdminMaps({ session }) {
   const [selectedMapLocation, setSelectedMapLocation] = useState({ lat: null, lng: null });
   const mapRef = useRef(null);
 
-  // Loading features for inline loading screen
+  // Loading features
   const loadingFeatures = [
     { title: "Map Data", description: "Loading all reports and locations." },
     { title: "Hotspots", description: "Identifying high-incident areas." },
@@ -243,7 +241,6 @@ function AdminMaps({ session }) {
     addSafezonesToCache([normalized]);
     handleCloseSafezoneModal();
 
-    // Also trigger hotspots refresh so the new safezone is represented in hotspot calculations
     (async () => {
       try {
         const token = session?.token || localStorage.getItem("token");
@@ -302,17 +299,14 @@ function AdminMaps({ session }) {
     handleCloseHotspotModal();
   };
 
-  // Exclude unapproved or rejected reports from counts and maps
   const acceptedReports = reports.filter(r => {
     const isRejected = r.is_rejected === true || r.is_rejected === 'true';
     const isApprovedFalse = r.is_approved === false || r.is_approved === 'false' || r.is_accepted === false || r.is_accepted === 'false';
     return !isRejected && !isApprovedFalse;
   });
 
-  // Separate resolved vs non-resolved accepted reports (case-insensitive)
   const nonResolvedAcceptedReports = acceptedReports.filter(r => (r.status || '').toString().toLowerCase() !== 'resolved');
 
-  // Group non-resolved accepted reports by barangay (for map markers and counts)
   const reportsByBarangay = nonResolvedAcceptedReports.reduce((acc, r) => {
     if (!acc[r.address_barangay]) acc[r.address_barangay] = [];
     acc[r.address_barangay].push(r);
@@ -322,12 +316,11 @@ function AdminMaps({ session }) {
   // Get all unique barangays
   const allBarangays = Object.keys(reportsByBarangay).sort();
 
-  // Filter reports by selected barangay (only non-resolved accepted reports)
+  // Filter reports by selected barangay
   const filteredReports = selectedBarangay === 'all'
     ? nonResolvedAcceptedReports
     : nonResolvedAcceptedReports.filter(r => r.address_barangay === selectedBarangay);
 
-  // Filter hotspots by selected barangay if needed
   const filteredHotspots = selectedBarangay === 'all'
     ? hotspots
     : hotspots;
@@ -337,7 +330,7 @@ function AdminMaps({ session }) {
       <h2>City-Wide Reports & Analytics Map</h2>
       <p>Admin dashboard showing all city reports, hotspots, and safezones. Use filters to focus on specific areas.</p>
 
-      {/* Map with overlaid controls */}
+      {/* MAP CONTROLS */}
       <div style={{ position: 'relative', height: '80vh', overflow: 'hidden' }}>
         <MapContainer
           center={OLONGAPO_CENTER}
@@ -351,7 +344,7 @@ function AdminMaps({ session }) {
             url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
           />
 
-          {/* Render safezones as circles */}
+          {/* RENDER SAFEZONES */}
           {showSafezones && safezones.map((sz, idx) => {
             const latitude = sz?.center?.latitude;
             const longitude = sz?.center?.longitude;
@@ -365,7 +358,7 @@ function AdminMaps({ session }) {
               return null;
             }
 
-            const pointerOffset = 0.00027; // ~30 meters north
+            const pointerOffset = 0.00027;
 
             return (
               <FeatureGroup key={`safezone-frag-${sz.id ?? `${latitude}-${longitude}`}`}>
@@ -380,7 +373,6 @@ function AdminMaps({ session }) {
                   dashArray="5, 5"
                 />
 
-                {/* Blue location marker pointer slightly above the safezone */}
                 <Marker
                   key={`safezone-pointer-${sz.id ?? idx}`}
                   position={[Number(latitude) + pointerOffset, Number(longitude)]}
@@ -427,7 +419,7 @@ function AdminMaps({ session }) {
             );
           })}
 
-          {/* Render hotspots */}
+          {/* RENDER HOTSPOTS */}
           {showHotspots && filteredHotspots.map((hs, idx) => (
             <Circle
               key={`hotspot-${idx}`}
@@ -451,10 +443,8 @@ function AdminMaps({ session }) {
             </Circle>
           ))}
 
-          {/* Report markers grouped by barangay */}
           {Object.entries(reportsByBarangay).map(([barangay, reportsArray], i) => {
             const markerPosition = [reportsArray[0].latitude, reportsArray[0].longitude];
-            // Determine if this barangay is selected
             const isSelected = selectedBarangay === 'all' || barangay === selectedBarangay;
 
             return (
@@ -492,7 +482,7 @@ function AdminMaps({ session }) {
             );
           })}
 
-          {/* Individual report markers */}
+          {/* REPORT MARKERS */}
           {filteredReports.map((r, idx) =>
             r.latitude && r.longitude ? (
               <CircleMarker
@@ -507,7 +497,7 @@ function AdminMaps({ session }) {
           )}
         </MapContainer>
 
-        {/* Control Panel Overlay - Top Right */}
+        {/* CONTROL PANNEL */}
         {!loading && (
           <div style={{
             position: 'absolute',
@@ -520,7 +510,7 @@ function AdminMaps({ session }) {
             zIndex: 1000,
             maxWidth: '320px'
           }}>
-            {/* Barangay Filter */}
+            {/* BARANGAY FILTER */}
             {allBarangays.length > 0 && (
               <div style={{ marginBottom: '16px' }}>
                 <label style={{ display: 'block', fontSize: '12px', fontWeight: '600', color: '#666', marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
@@ -551,7 +541,7 @@ function AdminMaps({ session }) {
               </div>
             )}
 
-            {/* Toggle Hotspots */}
+            {/* TOGGLE HOTSPOTS */}
             <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', marginBottom: '12px' }}>
               <input
                 type="checkbox"
@@ -562,7 +552,7 @@ function AdminMaps({ session }) {
               <span style={{ fontSize: '13px', fontWeight: '500', color: '#333' }}>Hotspots ({hotspots.length})</span>
             </label>
 
-            {/* Toggle Safezones */}
+            {/* TOGGLE SAFEZONES */}
             <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', marginBottom: '12px' }}>
               <input
                 type="checkbox"
@@ -573,7 +563,7 @@ function AdminMaps({ session }) {
               <span style={{ fontSize: '13px', fontWeight: '500', color: '#333' }}>Safezones ({safezones.length})</span>
             </label>
 
-            {/* Create/Manage Buttons */}
+            {/* CREATE/MANAGE BUTTONS */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', paddingTop: '12px', borderTop: '1px solid #d1d5db' }}>
               <button
                 onClick={() => setShowSafezoneModal(true)}
@@ -617,7 +607,7 @@ function AdminMaps({ session }) {
           </div>
         )}
 
-        {/* Statistics Overlay - Bottom Left (Desktop) / Bottom Bar (Mobile) */}
+        {/* STATISTICS OVERLAY */}
         {!loading && (
           <div className="maps-stats-panel">
             <div className="maps-stats-grid">
@@ -646,7 +636,7 @@ function AdminMaps({ session }) {
         )}
       </div>
 
-      {/* Modals */}
+      {/* MODALS */}
       <SafezoneModal
         isOpen={showSafezoneModal}
         onClose={handleCloseSafezoneModal}
@@ -671,7 +661,6 @@ function AdminMaps({ session }) {
       stage={loading ? "loading" : "exit"}
       onExited={() => {
         setOverlayExited(true);
-        // Trigger map resize after loading
         setTimeout(() => {
           window.dispatchEvent(new Event('resize'));
           try { mapRef.current?.invalidateSize?.(); } catch (e) { console.debug('map invalidate error', e); }

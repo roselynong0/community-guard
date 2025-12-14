@@ -1,7 +1,7 @@
 @keyframes fadeIn {
     from {
         opacity: 0;
-        transform: translateX(30px); /* Slide from right */
+        transform: translateX(30px); 
     }
     to {
         opacity: 1;
@@ -50,9 +50,7 @@
     font-weight: 600;
 }
 
-/* ========================================
-   NOTIFICATION ACTION BUTTONS (Reports-style)
-   ======================================== */
+/* NOTIFICATION ACTION BUTTONS */
 .btn {
     padding: 0 20px;
     height: 48px;
@@ -117,9 +115,7 @@
     font-size: 16px;
 }
 
-/* ========================================
-   FILTER BUTTON GROUP
-   ======================================== */
+/* FILTER BUTTON GROUP */
 .filter-button-group {
     display: flex;
     border-radius: 10px;
@@ -158,7 +154,6 @@
     color: #334155;
 }
 
-/* Dropdown styles for admin filters */
 .filter-select {
     padding: 0 12px;
     height: 48px;
@@ -233,18 +228,15 @@
 .icon-security { color: #2d2d73; }
 .icon-info { color: #6c757d; } 
 
-/* dashboard-aligned icon colors */
-.icon-report { color: #2d2d73; } /* total reports / primary */
-.icon-ongoing { color: #ef4444; } /* ongoing cases red (Home used #f40014ff/ef4444) */
+.icon-report { color: #2d2d73; }
+.icon-ongoing { color: #ef4444; }
 
-/* red delete icon for account deletions */
 .icon-delete { color: #ef4444; }
 
-/* Role-based user icon colors for actor/recipient display */
-.icon-admin { color: #8b5cf6; } /* Admin - purple */
-.icon-barangay { color: #2563eb; } /* Barangay Official - blue */
-.icon-responder { color: #ef4444; } /* Responder - red */
-.icon-resident { color: #2d2d73; } /* Resident/Account - primary blue */
+.icon-admin { color: #8b5cf6; }
+.icon-barangay { color: #2563eb; }
+.icon-responder { color: #ef4444; }
+.icon-resident { color: #2d2d73; }
 
 
 .notif-details {
@@ -277,11 +269,10 @@
 
 .notif-badge .small-icon { font-size: 14px; display: inline-flex; align-items: center; }
 
-/* Ensure the SVG icon inside the badge inherits the badge color so pending/ongoing match resolved */
 .notif-badge .small-icon,
 .notif-badge .small-icon svg {
     color: inherit;
-    fill: currentColor; /* react-icons use currentColor, ensure fill follows */
+    fill: currentColor;
 }
 
 /* Badge color variants */
@@ -289,13 +280,9 @@
 .notif-badge.pending { background: rgba(244,183,97,0.08); color: #f4b761; border: 1px solid rgba(244,183,97,0.12);} 
 .notif-badge.ongoing { background: rgba(244,0,20,0.06); color: #f40014; border: 1px solid rgba(244,0,20,0.08);} 
 .notif-badge.report { background: rgba(45,45,115,0.06); color: #2d2d73; border: 1px solid rgba(45,45,115,0.08);} 
-/* account deletion badge - red */
 .notif-badge.account-deleted { background: rgba(244,0,20,0.06); color: #f40014; border: 1px solid rgba(244,0,20,0.08); }
-/* report deletion badge - red with trash icon */
 .notif-badge.report-deleted { background: rgba(244,0,20,0.06); color: #f40014; border: 1px solid rgba(244,0,20,0.08); }
-/* responder assignment badge - blue */
 .notif-badge.responder-assignment { background: rgba(52,152,219,0.08); color: #3498db; border: 1px solid rgba(52,152,219,0.12); }
-/* responder reassignment badge - orange */
 .notif-badge.responder-reassignment { background: rgba(230,126,34,0.08); color: #e67e22; border: 1px solid rgba(230,126,34,0.12); }
 
 .notif-message { margin: 6px 0 0 0; color: #333; }
@@ -315,9 +302,7 @@
     color: #888;
 }
 
-/* ========================================
-   NOTIFICATION ITEM ACTION BUTTONS
-   ======================================== */
+/* NOTIFICATION ITEM ACTION BUTTONS */
 .notification-actions {
     margin-left: auto; 
     padding-left: 10px;
@@ -357,7 +342,7 @@
     background-color: #fee2e2;
 }
 
-/* --- Loading and Empty States --- */
+/* Loading and Empty States */
 .loading-block {
     display: flex;
     flex-direction: column;
@@ -469,7 +454,6 @@
     }
 }
 
-/* Disable animations after loading completes */
 .notifications-container.overlay-exited .notification-item {
     animation: none !important;
     opacity: 1 !important;
@@ -582,7 +566,6 @@
     background: #e9e9e9;
 }
 
-/* Dropdown styles for admin filters */
 .filter-select {
     padding: 6px 8px;
     border-radius: 6px;
@@ -653,11 +636,9 @@
     50% { opacity: 0.8; transform: scale(1.1); }
 }
 
-/* dashboard-aligned icon colors */
-.icon-report { color: #2d2d73; } /* total reports / primary */
-.icon-ongoing { color: #ef4444; } /* ongoing cases red (Home used #f40014ff/ef4444) */
+.icon-report { color: #2d2d73; }
+.icon-ongoing { color: #ef4444; } 
 
-/* red delete icon for account deletions */
 .icon-delete { color: #ef4444; }
 
 
@@ -693,11 +674,10 @@
 
 .notif-badge .small-icon { font-size: 14px; display: inline-flex; align-items: center; }
 
-/* Ensure the SVG icon inside the badge inherits the badge color so pending/ongoing match resolved */
 .notif-badge .small-icon,
 .notif-badge .small-icon svg {
     color: inherit;
-    fill: currentColor; /* react-icons use currentColor, ensure fill follows */
+    fill: currentColor;
 }
 
 /* Badge color variants */
@@ -705,11 +685,8 @@
 .notif-badge.pending { background: rgba(244,183,97,0.08); color: #f4b761; border: 1px solid rgba(244,183,97,0.12);} 
 .notif-badge.ongoing { background: rgba(244,0,20,0.06); color: #f40014; border: 1px solid rgba(244,0,20,0.08);} 
 .notif-badge.report { background: rgba(45,45,115,0.06); color: #2d2d73; border: 1px solid rgba(45,45,115,0.08);} 
-/* account deletion badge - red */
 .notif-badge.account-deleted { background: rgba(244,0,20,0.06); color: #f40014; border: 1px solid rgba(244,0,20,0.08); }
-/* responder assignment badge - blue */
 .notif-badge.responder-assignment { background: rgba(52,152,219,0.08); color: #3498db; border: 1px solid rgba(52,152,219,0.12); }
-/* responder reassignment badge - orange */
 .notif-badge.responder-reassignment { background: rgba(230,126,34,0.08); color: #e67e22; border: 1px solid rgba(230,126,34,0.12); }
 
 .notif-message { margin: 6px 0 0 0; color: #333; }
@@ -791,7 +768,6 @@
     background-color: #ffeaea;
 }
 
-/* --- Loading and Empty States --- */
 .loading-block {
     display: flex;
     flex-direction: column;
@@ -854,7 +830,6 @@
         order: -1; 
     }
 
-    /* Collapsible notification items on mobile */
     .notification-item {
         flex-direction: column;
         align-items: stretch;
@@ -863,7 +838,6 @@
         overflow: hidden;
     }
     
-    /* Collapsed header row with icon, title, and delete */
     .notif-collapsed-header {
         display: flex;
         align-items: center;
@@ -901,7 +875,6 @@
         transform: rotate(180deg);
     }
     
-    /* Collapsible content area */
     .notif-collapse-content {
         max-height: 0;
         overflow: hidden;
@@ -949,9 +922,7 @@
     }
 }
 
-/* ============================================
-   FILTER & UTILITY CLASSES
-   ============================================ */
+/* FILTER & UTILITY CLASSES */
 .filter-controls {
     display: flex;
     align-items: center;

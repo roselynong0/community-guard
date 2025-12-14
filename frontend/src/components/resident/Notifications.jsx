@@ -17,7 +17,6 @@ import {
 
 import { getApiUrl } from "../../utils/apiConfig";
 
-// Use getApiUrl for consistent base URL resolution
 import LoadingScreen from "../shared/LoadingScreen";
 
 
@@ -26,17 +25,14 @@ const getFinalNotificationType = (n) => {
     const normalizedText = textContext.trim().toLowerCase();
     const notifType = String(n.type || '').toLowerCase();
 
-    // Emergency alerts - highest priority detection
     if (notifType === 'urgent_emergency' || notifType === 'emergency_alert' || notifType === 'emergency_report') {
         return 'emergency';
     }
     
-    // Check for emergency keywords
     if (normalizedText.includes('emergency alert') || normalizedText.includes('🚨') || normalizedText.includes('community alert')) {
         return 'emergency';
     }
 
-    // Report/post deletion should be detected first
     if (normalizedText.includes('report deleted') || normalizedText.includes('post deleted') || (normalizedText.includes('deleted') && (normalizedText.includes('report') || normalizedText.includes('post')))) {
         return 'report_deleted';
     }
@@ -80,13 +76,9 @@ const getNotificationIcon = (type) => {
     case 'emergency_report':
       return <FaBell className="icon icon-emergency" />;
 
-    // ✅ NEW CASE FOR ACCOUNT/VERIFICATION ALERTS
     case 'account_alert':
     case 'security':
       return <FaUserShield className="icon icon-security" />;
-    // END NEW CASE
-    
-    // Report/post deletion - red trash icon
     case 'report_deleted':
       return <FaTrashAlt className="icon icon-delete" />;
       
@@ -138,14 +130,13 @@ export default function Notifications({ session, token }) {
       
       const list = (data?.notifications || []).map((n) => {
         
-        // --- Use the new helper to determine the type for the icon ---
         const finalType = getFinalNotificationType(n);
 
         return {
           id: n.id,
           title: n.title ?? n.type ?? "Notification",
           message: n.message ?? n.content ?? "",
-          type: finalType, // Use the determined type
+          type: finalType, 
           created_at: n.created_at ?? n.createdAt ?? new Date().toISOString(),
           read: Boolean(n.read),
         };
@@ -153,15 +144,12 @@ export default function Notifications({ session, token }) {
       setNotifications(list);
       
       if (list.length > 0) {
-        // Calculate animation duration: 80ms per notification + 500ms for slide animation
         const animationDuration = (list.length * 80) + 500;
         
-        // Keep loading screen visible until all notifications have animated in
         setTimeout(() => {
           setLoading(false);
         }, animationDuration);
       } else {
-        // No notifications, exit loading immediately
         setLoading(false);
       }
     } catch (e) {
@@ -207,7 +195,6 @@ export default function Notifications({ session, token }) {
 
   async function markRead(id) {
     try {
-      // Optimistic UI update
       setNotifications((prev) => prev.map((n) => (n.id === id ? { ...n, read: true } : n)));
       const res = await fetch(getApiUrl(`/api/notifications/${id}/read`), {
         method: "POST",
@@ -215,21 +202,18 @@ export default function Notifications({ session, token }) {
       });
       if (!res.ok) throw new Error(`Failed to mark as read (${res.status})`);
       const data = await res.json();
-      // If server returned a notification, reconcile with local state
       if (data?.notification) {
         const srv = data.notification;
         setNotifications((prev) => prev.map((n) => (n.id === srv.id ? { ...n, read: Boolean(srv.is_read), created_at: srv.created_at ?? n.created_at } : n)));
       }
     } catch (e) {
       setError(e.message || "Failed to mark notification as read");
-      // revert optimistic change
       setNotifications((prev) => prev.map((n) => (n.id === id ? { ...n, read: false } : n)));
     }
   }
 
   async function deleteNotification(id) {
     try {
-      // optimistic remove
       setNotifications((prev) => prev.filter((n) => n.id !== id));
       const res = await fetch(getApiUrl(`/api/notifications/${id}`), {
         method: "DELETE",
@@ -238,14 +222,12 @@ export default function Notifications({ session, token }) {
       if (!res.ok) throw new Error(`Failed to delete (${res.status})`);
     } catch (e) {
       setError(e.message || "Failed to delete notification");
-      // refetch to restore list
       fetchNotifications();
     }
   }
 
   async function markAllRead() {
     try {
-      // Optimistic UI update
       setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
       const res = await fetch(getApiUrl(`/api/notifications/read_all`), {
         method: "POST",
@@ -253,13 +235,11 @@ export default function Notifications({ session, token }) {
       });
       if (!res.ok) throw new Error(`Failed to mark all as read (${res.status})`);
       const data = await res.json();
-      // If server returned updated_count or failed, we can decide to refetch
       if (data?.status !== 'success') {
         throw new Error(data?.message || 'Unexpected server response');
       }
     } catch (e) {
       setError(e.message || "Failed to mark all as read");
-      // refresh from server to get authoritative state
       fetchNotifications();
     }
   }
@@ -326,7 +306,6 @@ export default function Notifications({ session, token }) {
         </div>
       )}
 
-      {/* Show notifications list during loading if they exist (they'll animate in) */}
       {visible.length > 0 ? (
         <ul className="notifications-list" role="list">
           {visible.map((n, index) => (

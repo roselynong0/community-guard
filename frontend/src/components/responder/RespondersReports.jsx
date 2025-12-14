@@ -30,12 +30,10 @@ const useAriaModal = (isOpen, onClose) => {
         const modalElement = modalRef.current;
         if (!modalElement) return;
 
-        // 1. Focus the modal container on open
         const focusTimeout = setTimeout(() => {
             modalElement.focus();
         }, 0);
 
-        // 2. Trap focus within the modal
         const focusableElements = 'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])';
         
         const handleTabKeyPress = (e) => {
@@ -48,12 +46,12 @@ const useAriaModal = (isOpen, onClose) => {
                 const firstElement = focusableModalElements[0];
                 const lastElement = focusableModalElements[focusableModalElements.length - 1];
 
-                if (e.shiftKey) { // Shift + Tab
+                if (e.shiftKey) {
                     if (document.activeElement === firstElement) {
                         lastElement.focus();
                         e.preventDefault();
                     }
-                } else { // Tab
+                } else {
                     if (document.activeElement === lastElement) {
                         firstElement.focus();
                         e.preventDefault();
@@ -62,7 +60,6 @@ const useAriaModal = (isOpen, onClose) => {
             }
         };
 
-        // 3. Close on Escape key press
         const handleKeyDown = (e) => {
             if (e.key === 'Escape') {
                 onClose();
@@ -82,14 +79,12 @@ const useAriaModal = (isOpen, onClose) => {
     return modalRef;
 };
 
-// --- NEW Hook for Arrow Key Navigation in Filter Controls ---
 const useKeyboardNavigation = (containerRef, selector) => {
     useEffect(() => {
         const container = containerRef.current;
         if (!container) return;
 
         const handleArrowNavigation = (event) => {
-            // Only capture arrows if the current focus is within the filter container
             if (!container.contains(document.activeElement) && event.key !== 'ArrowRight' && event.key !== 'ArrowLeft') {
                 return;
             }
@@ -101,28 +96,22 @@ const useKeyboardNavigation = (containerRef, selector) => {
 
             if (event.key === 'ArrowRight' || event.key === 'ArrowDown') {
                 if (currentIndex === -1) {
-                    // If no element is currently focused in the list, focus the first one
                     focusableElements[0]?.focus();
                 } else if (currentIndex < focusableElements.length - 1) {
-                    // Move to the next element
                     focusableElements[currentIndex + 1].focus();
                 } else {
-                    // Loop to the first element (optional, but often helpful)
                     focusableElements[0].focus();
                 }
-                event.preventDefault(); // Prevent default scroll/behavior
+                event.preventDefault();
             } else if (event.key === 'ArrowLeft' || event.key === 'ArrowUp') {
                 if (currentIndex === -1) {
-                    // If no element is currently focused in the list, focus the last one
                     focusableElements[focusableElements.length - 1]?.focus();
                 } else if (currentIndex > 0) {
-                    // Move to the previous element
                     focusableElements[currentIndex - 1].focus();
                 } else {
-                    // Loop to the last element (optional)
                     focusableElements[focusableElements.length - 1].focus();
                 }
-                event.preventDefault(); // Prevent default scroll/behavior
+                event.preventDefault();
             }
         };
 
@@ -130,8 +119,6 @@ const useKeyboardNavigation = (containerRef, selector) => {
         return () => window.removeEventListener('keydown', handleArrowNavigation);
     }, [containerRef, selector]);
 };
-// -------------------------------------------------------------
-
 
 function RespondersReports({ token }) {
     const [reports, setReports] = useState([]);
@@ -141,7 +128,7 @@ function RespondersReports({ token }) {
     const [barangay, setBarangay] = useState("All");
     const [statusFilter, setStatusFilter] = useState("All"); 
     const [sort, setSort] = useState("latest");
-    const [smartSort, setSmartSort] = useState("latest"); // When smart filter active
+    const [smartSort, setSmartSort] = useState("latest");
     const [previewImage, setPreviewImage] = useState(null);
     const [notification, setNotification] = useState(null);
     const [highlightedReportId, setHighlightedReportId] = useState(null);
@@ -150,7 +137,7 @@ function RespondersReports({ token }) {
     const [showSmartFilter, setShowSmartFilter] = useState(false);
     const [aiUsagePercent, setAiUsagePercent] = useState(0);
     const [timeRemainingHMS, setTimeRemainingHMS] = useState('48:00:00');
-    const [timeRemainingSeconds, setTimeRemainingSeconds] = useState(172800); // 48 hours
+    const [timeRemainingSeconds, setTimeRemainingSeconds] = useState(172800);
     const [, setShowUsageModal] = useState(false);
     const [smartFilterStartTime, setSmartFilterStartTime] = useState(null);
     const [hasAcceptedAiWarning, setHasAcceptedAiWarning] = useState(false);
@@ -159,42 +146,34 @@ function RespondersReports({ token }) {
     const [isPremiumUser, setIsPremiumUser] = useState(false);
     const [priorityFilter, setPriorityFilter] = useState("All");
 
-    // States for the Status Update Modal
     const [isStatusModalOpen, setIsStatusModalOpen] = useState(false);
     const [selectedReport, setSelectedReport] = useState(null);
     const [newStatus, setNewStatus] = useState("");
-    const [isUpdatingStatus, setIsUpdatingStatus] = useState(false); // Prevent double submissions
-
+    const [isUpdatingStatus, setIsUpdatingStatus] = useState(false);
+    
     const [expandedPosts, setExpandedPosts] = useState([]);
     const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false);
     const [deleteTarget, setDeleteTarget] = useState(null);
     const [isDeleting, setIsDeleting] = useState(false);
-    // New states for deletion reason flow
+
     const [isDeleteReasonOpen, setIsDeleteReasonOpen] = useState(false);
     const [deleteReason, setDeleteReason] = useState('');
     const [deleteReasonOther, setDeleteReasonOther] = useState('');
 
-    // ⭐ NEW: Trending reports states
     const [trendingReports, setTrendingReports] = useState([]);
     const [trendingExpanded, setTrendingExpanded] = useState(true);
-    const [trendingTimeFilter, setTrendingTimeFilter] = useState("this-month"); // today, yesterday, this-month
+    const [trendingTimeFilter, setTrendingTimeFilter] = useState("this-month");
 
-
-    // --- REFS for Keyboard Navigation ---
     const filterContainerRef = useRef(null);
-    // Elements we want to navigate between with arrow keys (use current classes)
     const filterSelector = 'input.barangay-search-input, .barangay-top-controls .barangay-filter-select, .reports-list button:first-child';
     useKeyboardNavigation(filterContainerRef, filterSelector);
-    // -----------------------------------
 
-    // Notification handler
     const showNotification = useCallback((message, type = "success") => {
         setNotification({ message, type });
         setTimeout(() => setNotification(null), 4000);
     }, []);
 
-    // --- Smart Filter AI Usage Tracking ---
-    const WEEK_LIMIT_SECONDS = 172800; // 48 hours
+    const WEEK_LIMIT_SECONDS = 172800;
 
     const trackAiUsage = useCallback(async (durationSeconds = 0) => {
         if (!token) return;
@@ -235,7 +214,6 @@ function RespondersReports({ token }) {
         }
     }, [token, showNotification]);
 
-    // Handle Smart Filter toggle
     const handleSmartFilterToggle = useCallback(() => {
         if (!showSmartFilter && !hasAcceptedAiWarning) {
             setShowSmartFilterWarning(true);
@@ -254,7 +232,6 @@ function RespondersReports({ token }) {
         setShowSmartFilter(!showSmartFilter);
     }, [showSmartFilter, smartFilterStartTime, hasAcceptedAiWarning, trackAiUsage]);
 
-    // Handle Smart Filter warning acceptance
     const handleAcceptSmartFilterWarning = useCallback(() => {
         setHasAcceptedAiWarning(true);
         setShowSmartFilterWarning(false);
@@ -269,12 +246,10 @@ function RespondersReports({ token }) {
         }
     }, [isPremiumUser, showNotification]);
 
-    // Handle Smart Filter warning rejection
     const handleRejectSmartFilterWarning = useCallback(() => {
         setShowSmartFilterWarning(false);
     }, []);
 
-    // Real-time countdown timer
     useEffect(() => {
         if (!showSmartFilter || !smartFilterStartTime) {
             setLiveSessionSeconds(0);
@@ -331,13 +306,12 @@ function RespondersReports({ token }) {
         fetchAiUsage();
     }, [token]);
 
-    // --- Modal Control Functions for Accessibility ---
     const closeStatusModal = useCallback(() => {
-        if (!isUpdatingStatus) { // Only allow closing if not updating
+        if (!isUpdatingStatus) {
             setIsStatusModalOpen(false);
             setSelectedReport(null);
             setNewStatus("");
-            setIsUpdatingStatus(false); // Reset state
+            setIsUpdatingStatus(false);
         }
     }, [isUpdatingStatus]);
 
@@ -348,15 +322,12 @@ function RespondersReports({ token }) {
     };
 
     const closeDeleteConfirm = useCallback(() => {
-        if (!isDeleting) { // Only allow closing if not deleting
+        if (!isDeleting) {
             setIsDeleteConfirmOpen(false);
             setDeleteTarget(null);
         }
     }, [isDeleting]);
 
-    
-
-    // New: open initial delete-reason modal instead of immediately showing permanent delete
     const closeDeleteReason = useCallback(() => {
         if (!isDeleting) {
             setIsDeleteReasonOpen(false);
@@ -373,22 +344,18 @@ function RespondersReports({ token }) {
     };
 
     const proceedToConfirmDelete = () => {
-        // Ensure a reason is selected; allow 'Other' with text
+
         if (!deleteReason) return;
         if (deleteReason === 'Other' && !deleteReasonOther.trim()) return;
-
-        // close reason modal and open the confirm modal
+        
         setIsDeleteReasonOpen(false);
         setIsDeleteConfirmOpen(true);
     };
 
-    // Use the custom hook to handle focus trapping and ESC key for both modals
     const statusRef = useAriaModal(isStatusModalOpen, closeStatusModal);
     const deleteRef = useAriaModal(isDeleteConfirmOpen, closeDeleteConfirm);
     const reasonRef = useAriaModal(isDeleteReasonOpen, closeDeleteReason);
-    // --------------------------------------------------
 
-    // Fetch reports from API - uses responder endpoint that filters by barangay and excludes rejected
     const fetchReports = useCallback(async () => {
         if (!token) {
             setLoading(false);
@@ -398,7 +365,6 @@ function RespondersReports({ token }) {
         setLoading(true);
         try {
             const sortParam = sort === "latest" ? "desc" : "asc";
-            // Use responder-specific endpoint that filters by responder's assigned barangay
             const response = await fetch(getApiUrl(`/api/responder/reports?limit=50&sort=${sortParam}`), {
                 headers: { 
                     'Authorization': `Bearer ${token}`,
@@ -449,7 +415,6 @@ function RespondersReports({ token }) {
                     };
                 });
                 
-                // Debug: Log first 3 reports
                 console.log("📥 Responder fetched reports:", transformedReports.length, "reports");
                 console.log("📊 Responder report data sample:", transformedReports.slice(0, 3).map(r => ({
                     id: r.id,
@@ -476,7 +441,6 @@ function RespondersReports({ token }) {
         fetchReports();
     }, [fetchReports]);
 
-    // Handle highlight parameter from URL (kept original logic)
     useEffect(() => {
         const urlParams = new URLSearchParams(window.location.search);
         const highlightId = urlParams.get('highlight');
@@ -495,7 +459,6 @@ function RespondersReports({ token }) {
         }
     }, [reports]);
 
-    // ⭐ NEW: Compute trending reports using newsfeed algorithm
     useEffect(() => {
         if (!reports.length) {
             setTrendingReports([]);
@@ -523,7 +486,6 @@ function RespondersReports({ token }) {
             }
         };
 
-        // Filter approved reports that are not resolved
         const eligibleReports = reports.filter((r) => 
             r.is_approved === true &&
             r.status !== "Resolved" &&
@@ -532,13 +494,10 @@ function RespondersReports({ token }) {
             filterByTime(r.created_at)
         );
 
-        // Apply trending algorithm: reactions + engagement + recency
-        // Score = (reactions * 2 + category_weight) / (hours_old + 2)^1.5
         const scored = eligibleReports.map((r) => {
             const createdAt = new Date(r.created_at || 0);
             const hoursOld = Math.max(0, (now - createdAt) / (1000 * 60 * 60));
             
-            // Engagement: reactions + severity weight
             const severityWeight = { Crime: 3, Hazard: 2.5, Concern: 2, 'Lost&Found': 1, Others: 1 };
             const reactionBoost = (r.reaction_count || 0) * 2;
             const engagement = reactionBoost + (severityWeight[r.category] || 1) * 2;
@@ -550,7 +509,7 @@ function RespondersReports({ token }) {
             return { ...r, trendingScore };
         });
 
-        // Sort by trending score descending, limit to 5
+        // Sort by trending score
         const trending = scored
             .sort((a, b) => b.trendingScore - a.trendingScore)
             .slice(0, 5);
@@ -565,7 +524,7 @@ function RespondersReports({ token }) {
         );
     };
 
-    // ⭐ NEW: Handle heart/like toggle for reports
+    // Handle heart/like toggle for reports
     const handleToggleLike = async (reportId) => {
         if (!token) {
             showNotification("Please log in to like reports", "error");
@@ -585,7 +544,6 @@ function RespondersReports({ token }) {
             const data = await response.json();
             
             if (data.status === 'success') {
-                // Update the report's reaction data in state
                 setReports(prevReports => 
                     prevReports.map(report => 
                         report.id === reportId 
@@ -676,7 +634,6 @@ function RespondersReports({ token }) {
                     'Authorization': `Bearer ${token}`,
                     'Content-Type': 'application/json'
                 },
-                // include deletion reason for auditing; server may accept or ignore
                 body: JSON.stringify({ reason: deleteReason || null, reason_other: deleteReasonOther || null })
             });
 
@@ -705,7 +662,6 @@ function RespondersReports({ token }) {
         }
     };
 
-    // Priority calculation helpers for Smart Filter
     const getPriorityStyle = (category) => {
         const PRIORITY_COLORS = {
             Crime: { priority: 'Critical', label: '🔴 Critical' },
@@ -726,14 +682,11 @@ function RespondersReports({ token }) {
         return report.ai_priority || getPriorityStyle(report.category).priority;
     };
 
-    // Filtered reports with Smart Filter support
-    // NOTE: Backend /api/responder/reports already filters to only assigned reports
     const filteredReports = reports
         .filter((r) => (category === "All" ? true : r.category === category))
         .filter((r) => (statusFilter === "All" ? true : r.status === statusFilter))
         .filter((r) => (barangay === "All" ? true : r.barangay === barangay))
         .filter((r) => {
-            // Priority filter only applies when Smart Filter is ON
             if (!showSmartFilter) return true;
             if (!priorityFilter || priorityFilter === 'All') return true;
             const reportPriority = getReportPriority(r);
@@ -749,19 +702,16 @@ function RespondersReports({ token }) {
             }
         )
         .sort((a, b) => {
-            // If Smart Filter is active, use smart prioritization
             if (showSmartFilter) {
                 const aPri = priorityRank(getPriorityStyle(a.category).priority);
                 const bPri = priorityRank(getPriorityStyle(b.category).priority);
                 if (aPri !== bPri) return bPri - aPri;
 
-                // Fallback to date based on smartSort
                 const aT = new Date(a.created_at).getTime() || 0;
                 const bT = new Date(b.created_at).getTime() || 0;
                 return smartSort === 'latest' ? bT - aT : aT - bT;
             }
 
-            // Default behavior: date sort
             const aTime = new Date(a.created_at).getTime() || 0;
             const bTime = new Date(b.created_at).getTime() || 0;
             return sort === 'latest' ? bTime - aTime : aTime - bTime;
@@ -773,7 +723,6 @@ function RespondersReports({ token }) {
                 <h2>Assigned Reports</h2>
             </div>
 
-            {/* IMPROVEMENT: Added ref to the filter container for keyboard navigation */}
             <div className="barangay-top-controls" ref={filterContainerRef}>
                 <div className="barangay-search-container">
                     <label htmlFor="search-input" className="sr-only">Search reports by title or reporter name</label>
@@ -818,7 +767,7 @@ function RespondersReports({ token }) {
                     ))}
                 </select>
                 
-                {/* Priority Filter - Only visible when Smart Filter is ON */}
+                {/* Priority Filter */}
                 {showSmartFilter && (
                     <>
                         <label htmlFor="priority-filter" className="sr-only">Filter by Priority</label>
@@ -864,7 +813,7 @@ function RespondersReports({ token }) {
                 )}
             </div>
 
-            {/* Smart Filter Toggle with Usage Timer */}
+            {/* Smart Filter Toggle */}
             <div style={{
                 display: 'flex',
                 alignItems: 'center',
@@ -939,7 +888,7 @@ function RespondersReports({ token }) {
                     </span>
                 </div>
 
-                {/* Live Session Timer when Smart Filter is active */}
+                {/* Live Session Timer */}
                 {showSmartFilter && liveSessionSeconds > 0 && (
                     <span style={{
                         fontSize: '0.85em',
@@ -955,7 +904,7 @@ function RespondersReports({ token }) {
                 )}
             </div>
 
-            {/* ⭐ Trending Pill Button Row - Always visible, shows count */}
+            {/* Trending Pill Button Row */}
             <div className="trending-pill-row">
                 <button
                     className={`trending-pill-btn ${trendingReports.length === 0 ? 'empty' : ''}`}
@@ -968,7 +917,7 @@ function RespondersReports({ token }) {
                 </button>
             </div>
 
-            {/* ⭐ Trending Reports Section - Collapsible */}
+            {/* Trending Reports Section */}
             {trendingExpanded && (
                 <div className="trending-reports-container expanded">
                     <div className="trending-reports-header">
@@ -1176,7 +1125,7 @@ function RespondersReports({ token }) {
                                     </div>
                                 )}
 
-                                {/* ⭐ NEW: Like/Heart Button */}
+                                {/* Like/Heart Button */}
                                 <div className="report-reactions">
                                     <button 
                                         className={`reaction-btn heart-btn ${report.user_liked ? 'liked' : ''}`}
@@ -1372,7 +1321,7 @@ function RespondersReports({ token }) {
                 </ModalPortal>
             )}
 
-            {/* Delete Reason Modal: ask admin why the report is being deleted */}
+            {/* Delete Reason Modal */}
             {isDeleteReasonOpen && (
                 <ModalPortal>
                 <div
@@ -1462,7 +1411,7 @@ function RespondersReports({ token }) {
                 </ModalPortal>
             )}
 
-            {/* Smart Filter Warning Modal - Show on first activation */}
+            {/* Smart Filter Warning Modal */}
             {showSmartFilterWarning && (
                 <ModalPortal>
                 <div 
@@ -1601,7 +1550,7 @@ function RespondersReports({ token }) {
                 </ModalPortal>
             )}
 
-            {/* Notification - wrapped in ModalPortal for proper z-index */}
+            {/* Notification */}
             {notification && (
                 <ModalPortal>
                     <div 

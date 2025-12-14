@@ -410,7 +410,7 @@ function ArchivedReports({ session }) {
     setShowExportModal(false);
   };
 
-  // Export to PDF with Community Helper AI Analytics - aligned with BarangayReports design
+  // Export to PDF
   const exportToPDF = async (timeFilter = "all", colorMode = 'color', pageSize = 'A4') => {
     const reportsToExport = filterReportsByTime(filteredReports, timeFilter);
     const trendingIds = new Set(trendingReports.map(r => r.id));
@@ -420,7 +420,6 @@ function ArchivedReports({ session }) {
       return;
     }
     
-    // Create a printable HTML document
     const reportDate = new Date().toLocaleDateString("en-US", {
       weekday: "long",
       year: "numeric",
@@ -428,7 +427,7 @@ function ArchivedReports({ session }) {
       day: "numeric",
     });
     
-    // Calculate analytics from filtered reports
+    // Calculate analytics
     const totalReports = reportsToExport.length;
     const categoryStats = {};
     const barangayStats = {};
@@ -444,7 +443,7 @@ function ArchivedReports({ session }) {
       const brgy = report.address_barangay || "Unknown";
       barangayStats[brgy] = (barangayStats[brgy] || 0) + 1;
       
-      // Priority stats - use ML-based getReportPriority for accurate categorization
+      // Priority stats
       const priority = getReportPriority(report);
       priorityStats[priority] = (priorityStats[priority] || 0) + 1;
       
@@ -456,7 +455,6 @@ function ArchivedReports({ session }) {
     const sortedCategories = Object.entries(categoryStats).sort((a, b) => b[1] - a[1]);
     const sortedBarangays = Object.entries(barangayStats).sort((a, b) => b[1] - a[1]);
     
-    // Generate role-based report subtitle
     let reportSubtitle = "Archived Reports Analytics Report";
     if (canExportAll) {
       reportSubtitle = "All Barangays - Complete Analytics Report";
@@ -464,9 +462,7 @@ function ArchivedReports({ session }) {
       reportSubtitle = `${userBarangay} - Barangay Analytics Report`;
     }
     
-    // Logo (static import)
     const logoPath = logoImg;
-    // Build color and page CSS based on user selection
     const colorCss = colorMode === 'bw' ? 'html { filter: grayscale(100%); }' : '';
     let pageCss = '';
     switch ((pageSize || 'A4').toLowerCase()) {
@@ -775,7 +771,7 @@ function ArchivedReports({ session }) {
             </button>
           </div>
           
-          {/* Export Buttons - Opens time filter modal */}
+          {/* Export Buttons */}
           <div className="export-buttons">
             <button
               className="export-btn csv"
@@ -899,7 +895,7 @@ function ArchivedReports({ session }) {
         </div>
       )}
 
-      {/* Top Controls - Matching BarangayReports */}
+      {/* Top Controls */}
       <div className="archived-top-controls" ref={filterContainerRef}>
         <div className="archived-search-container">
           <input
@@ -941,7 +937,6 @@ function ArchivedReports({ session }) {
       <div className="reports-list">
         {filteredReports.length > 0 ? (
           viewMode === 'card' ? (
-            // Card View - Exact match to BarangayReports
             filteredReports.map((report, index) => {
               const isExpanded = expandedPosts.includes(report.id);
 
@@ -1044,7 +1039,7 @@ function ArchivedReports({ session }) {
                     </div>
                   )}
 
-                  {/* Like Count Display (disabled - resolved status) */}
+                  {/* Like Count Display */}
                   <div className="report-reactions" style={{ padding: '8px 0' }}>
                     <div
                       className="reaction-display"
@@ -1159,7 +1154,7 @@ function ArchivedReports({ session }) {
         )}
       </div>
 
-      {/* Fullscreen Image Preview - wrapped in ModalPortal */}
+      {/* Fullscreen Image Preview */}
       {previewImage && (
         <ModalPortal>
           <div

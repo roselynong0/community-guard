@@ -2,11 +2,6 @@ import React, { useState, useEffect, useCallback } from 'react';
 import '../styles/IncidentCategorySelector.css';
 import { FaSpinner, FaLightbulb, FaCheckCircle } from 'react-icons/fa';
 
-/**
- * IncidentCategorySelector Component
- * Provides AI-powered incident categorization suggestions with manual override
- * Integrates with backend ML service for intelligent classification
- */
 function IncidentCategorySelector({ reportDescription, reportImages, onCategorySelect, allFieldsFilled = false, aiAttemptsLeft = 3, onUseAI = () => {} }) {
   const [suggestedCategory, setSuggestedCategory] = useState(null);
   const [confidence, setConfidence] = useState(0);
@@ -16,7 +11,6 @@ function IncidentCategorySelector({ reportDescription, reportImages, onCategoryS
   const [showSuggestion, setShowSuggestion] = useState(false);
   const [hasAnalyzed, setHasAnalyzed] = useState(false);
 
-  // Available incident categories
   const categories = [
     { id: 'theft', label: 'Theft/Robbery', icon: '🏪', color: '#e74c3c' },
     { id: 'fire', label: 'Fire/Explosion', icon: '🔥', color: '#e67e22' },
@@ -30,14 +24,11 @@ function IncidentCategorySelector({ reportDescription, reportImages, onCategoryS
     { id: 'other', label: 'Other', icon: '❓', color: '#95a5a6' },
     { id: 'lostfound', label: 'Lost & Found', icon: '🔎', color: '#2ecc71' },
   ];
-  // Removed duplicate AI 'lostfound' category from available choices
 
   const fetchCategoryPrediction = useCallback(async (userTriggered = false) => {
     if (!reportDescription) return;
 
     if (!allFieldsFilled) {
-      // setInlineValidation(true);
-      // setTimeout(() => setInlineValidation(false), 3000);
       return;
     }
 
@@ -66,7 +57,6 @@ function IncidentCategorySelector({ reportDescription, reportImages, onCategoryS
       setConfidence(data.confidence);
       setShowSuggestion(true);
 
-      // Auto-select if confidence is high
       if (data.confidence >= 0.85) {
         setSelectedCategory(data.category);
         if (onCategorySelect) {
@@ -82,11 +72,7 @@ function IncidentCategorySelector({ reportDescription, reportImages, onCategoryS
     }
   }, [reportDescription, reportImages, allFieldsFilled, onCategorySelect, onUseAI]);
 
-  /**
-   * Request AI categorization from backend
-   */
   useEffect(() => {
-    // do not auto-run prediction; user must press Analyze to reveal AI suggestions
     if (hasAnalyzed && reportDescription && reportDescription.trim().length > 10) {
       fetchCategoryPrediction(true);
     }
@@ -100,9 +86,9 @@ function IncidentCategorySelector({ reportDescription, reportImages, onCategoryS
   };
 
   const getConfidenceColor = (conf) => {
-    if (conf >= 0.85) return '#27ae60'; // Green - High confidence
-    if (conf >= 0.65) return '#f39c12'; // Orange - Medium confidence
-    return '#e74c3c'; // Red - Low confidence
+    if (conf >= 0.85) return '#27ae60';
+    if (conf >= 0.65) return '#f39c12';
+    return '#e74c3c';
   };
 
   const getConfidenceLabel = (conf) => {

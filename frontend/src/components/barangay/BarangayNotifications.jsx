@@ -13,10 +13,8 @@ import {
 } from 'react-icons/fa';
 
 import { API_CONFIG, getApiUrl } from "../../utils/apiConfig";
-// ... existing code ...
 const API_URL = getApiUrl(API_CONFIG.endpoints.notifications); 
 
-// Determine the type of notification
 const getFinalNotificationType = (n) => {
     const textContext = String(n.title || '') + ' ' + String(n.message || '') + ' ' + String(n.type || '');
     const normalizedText = textContext.trim().toLowerCase();
@@ -32,7 +30,6 @@ const getFinalNotificationType = (n) => {
         return 'ongoing';
     }
     
-    // Only keep report/alert notifications
     if (normalizedText.includes('report') || normalizedText.includes('alert') || normalizedText.includes('emergency')) {
         return 'report';
     }
@@ -40,7 +37,6 @@ const getFinalNotificationType = (n) => {
     return 'info'; 
 };
 
-// Map type to icon
 const getNotificationIcon = (type) => {
   switch (type.toLowerCase()) {
     case 'resolved':
@@ -71,7 +67,6 @@ export default function BarangayNotifications({ session, token }) {
     [authToken]
   );
 
-  // Dummy notifications for demo
   useEffect(() => {
     const dummyNotifs = [
       {
@@ -139,7 +134,6 @@ export default function BarangayNotifications({ session, token }) {
     setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
   };
 
-  // Refresh handler uses setLoading so the variable is used and the UI shows the loading state
   const refreshNotifications = async () => {
     setLoading(true);
     _setError("");
@@ -149,7 +143,6 @@ export default function BarangayNotifications({ session, token }) {
         throw new Error(`Server returned ${res.status}`);
       }
       const data = await res.json();
-      // Accept either an array or an object with a `notifications` array
       if (Array.isArray(data)) {
         setNotifications(data);
       } else if (data && Array.isArray(data.notifications)) {

@@ -24,10 +24,10 @@ import {
 } from "react-icons/fa";
 import { getApiUrl, API_CONFIG } from "../../utils/apiConfig";
 
-// ✅ POST TYPES
+// POST TYPES
 const POST_TYPES = ["incident", "safety", "suggestion", "recommendation", "general"];
 
-// ✅ ROLE COLORS
+// ROLE COLORS
 const ROLE_COLORS = {
   "Admin": { bg: "rgba(139, 92, 246, 0.1)", text: "#8b5cf6" },
   "Barangay Official": { bg: "rgba(37, 99, 235, 0.1)", text: "#2563eb" },
@@ -35,7 +35,7 @@ const ROLE_COLORS = {
   "Resident": { bg: "rgba(59, 130, 246, 0.1)", text: "#3b82f6" },
 };
 
-// Sort options - null means no sort active (show pending first)
+// Sort options
 const DEFAULT_SORT = null;
 
 const CommunityFeedBarangay = ({ session, token }) => {
@@ -48,16 +48,16 @@ const CommunityFeedBarangay = ({ session, token }) => {
   const [notification, setNotification] = useState(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [postTypeFilter, setPostTypeFilter] = useState("all");
-  const [statusFilter, setStatusFilter] = useState("all"); // all, pending, approved
-  const [sortOrder, setSortOrder] = useState("latest"); // latest or oldest
-  const [sortBy, setSortBy] = useState(DEFAULT_SORT); // null = pending first, 'trending' or 'top'
+  const [statusFilter, setStatusFilter] = useState("all");
+  const [sortOrder, setSortOrder] = useState("latest"); 
+  const [sortBy, setSortBy] = useState(DEFAULT_SORT);
   const [userInfo, setUserInfo] = useState(null);
   const [isOfficialUser, setIsOfficialUser] = useState(false);
   
   // Trending section states
   const [trendingPosts, setTrendingPosts] = useState([]);
   const [trendingExpanded, setTrendingExpanded] = useState(false);
-  const [trendingTimeFilter, setTrendingTimeFilter] = useState("all"); // all, today, yesterday, this-month
+  const [trendingTimeFilter, setTrendingTimeFilter] = useState("all");
   const [pendingExpanded, setPendingExpanded] = useState(false);
 
   const authToken = token || session?.token || localStorage.getItem("token") || "";
@@ -158,7 +158,7 @@ const CommunityFeedBarangay = ({ session, token }) => {
     setTimeout(() => setNotification(null), 3000);
   };
 
-  // ✅ ACCEPT POST (sets is_accepted = true, shows normally)
+  // ACCEPT POST
   const handleAcceptPost = async (postId) => {
     try {
       const response = await fetch(getApiUrl(`/api/community/posts/${postId}/accept`), {
@@ -182,7 +182,7 @@ const CommunityFeedBarangay = ({ session, token }) => {
     setTimeout(() => setNotification(null), 3000);
   };
 
-  // ✅ APPROVE POST (sets status = approved)
+  // APPROVE POST
   const handleApprovePost = async (postId) => {
     try {
       const response = await fetch(getApiUrl(`/api/community/posts/${postId}/approve`), {
@@ -206,7 +206,7 @@ const CommunityFeedBarangay = ({ session, token }) => {
     setTimeout(() => setNotification(null), 3000);
   };
 
-  // ✅ REJECT POST
+  // REJECT POST
   const handleRejectPost = async (postId) => {
     if (!window.confirm("Are you sure you want to reject this post? The user will be notified and the post will be removed.")) return;
 
@@ -217,7 +217,6 @@ const CommunityFeedBarangay = ({ session, token }) => {
       });
 
       if (response.ok) {
-        // Remove post from list (backend auto soft-deletes rejected posts)
         setPosts((prev) => prev.filter((p) => p.id !== postId));
         setNotification({ type: "success", message: "✅ Post rejected, user notified, and post removed!" });
       } else {
@@ -231,7 +230,7 @@ const CommunityFeedBarangay = ({ session, token }) => {
     setTimeout(() => setNotification(null), 3000);
   };
 
-  // ✅ DELETE POST
+  // DELETE POST
   const handleDeletePost = async (postId) => {
     if (!window.confirm("Are you sure you want to delete this post?")) return;
 
@@ -252,7 +251,7 @@ const CommunityFeedBarangay = ({ session, token }) => {
     setTimeout(() => setNotification(null), 3000);
   };
 
-  // ✅ TOGGLE COMMENTS
+  // TOGGLE COMMENTS
   const handleToggleComments = async (postId, currentAllow) => {
     try {
       const response = await fetch(getApiUrl(`/api/community/posts/${postId}/toggle-comments`), {
@@ -277,7 +276,7 @@ const CommunityFeedBarangay = ({ session, token }) => {
     setTimeout(() => setNotification(null), 3000);
   };
 
-  // ✅ ADD COMMENT
+  // ADD COMMENT
   const handleAddComment = async (postId, commentText) => {
     if (!commentText.trim()) return;
 
@@ -299,7 +298,7 @@ const CommunityFeedBarangay = ({ session, token }) => {
     setTimeout(() => setNotification(null), 2000);
   };
 
-  // ✅ DELETE COMMENT
+  // DELETE COMMENT
   const handleDeleteComment = async (postId, commentId) => {
     if (!window.confirm("Delete this comment?")) return;
 
@@ -317,7 +316,7 @@ const CommunityFeedBarangay = ({ session, token }) => {
     }
   };
 
-  // ✅ LIKE POST
+  // LIKE POST
   const handleLikePost = async (postId) => {
     try {
       const response = await fetch(getApiUrl(`/api/community/posts/${postId}/react`), {
@@ -340,7 +339,6 @@ const CommunityFeedBarangay = ({ session, token }) => {
     }
   };
 
-  // ⭐ Compute trending posts - Same algorithm as resident Reports/CommunityFeed
   useEffect(() => {
     if (!posts.length) {
       setTrendingPosts([]);
@@ -349,10 +347,9 @@ const CommunityFeedBarangay = ({ session, token }) => {
     }
 
     const now = new Date();
-    
-    // Time filter logic - matches resident CommunityFeed
+
     const filterByTime = (createdAt) => {
-      if (trendingTimeFilter === "all") return true; // Show all posts
+      if (trendingTimeFilter === "all") return true;
       
       const postDate = new Date(createdAt);
       const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
@@ -372,8 +369,6 @@ const CommunityFeedBarangay = ({ session, token }) => {
       }
     };
     
-    // Filter approved posts with likes for trending
-    // reaction_count is synced from react_counts DB column on backend
     const approvedPosts = posts.filter(p => 
       p.status === 'approved' && 
       (p.reaction_count || 0) > 0 &&
@@ -384,9 +379,6 @@ const CommunityFeedBarangay = ({ session, token }) => {
     console.log(`📊 Barangay: Post statuses: ${[...new Set(posts.map(p => p.status))].join(', ')}`);
     console.log(`❤️ Barangay: Posts with reactions: ${posts.filter(p => (p.reaction_count || 0) > 0).length}`);
     
-    // Apply trending algorithm - Community Awareness & Involvement
-    // Score = (reactions * 15 + comments * 8 + type_weight + base_score) / (days_old + 1)^0.8
-    // Gentler decay keeps posts visible longer for stable trending display
     const scored = approvedPosts.map((p) => {
       const createdAt = new Date(p.created_at || 0);
       const daysOld = Math.max(0, (now - createdAt) / (1000 * 60 * 60 * 24));
@@ -397,7 +389,6 @@ const CommunityFeedBarangay = ({ session, token }) => {
       const baseScore = 5;
       const engagement = reactionBoost + commentBoost + (typeWeight[p.post_type] || 2) + baseScore;
       
-      // Very gentle time decay (0.8 exponent) - keeps trending stable
       const timeFactor = Math.pow(daysOld + 1, 0.8);
       const trendingScore = engagement / timeFactor;
       
@@ -417,20 +408,17 @@ const CommunityFeedBarangay = ({ session, token }) => {
     })));
   }, [posts, trendingTimeFilter]);
 
-  // Get pending posts count for the pill
   const pendingPostsCount = useMemo(() => {
     return posts.filter(p => p.status === 'pending').length;
   }, [posts]);
 
-  // Get actual pending posts list for the container (status = pending)
   const pendingPostsList = useMemo(() => {
     return posts.filter(p => p.status === 'pending');
   }, [posts]);
 
-  // ✅ FILTER POSTS - Sort pending posts to top
+  // FILTER POSTS
   const filteredPosts = useMemo(() => {
     let filtered = posts.filter((p) => {
-      // Filter out rejected posts (they shouldn't show to anyone except the author)
       if (p.status === 'rejected' || p.is_rejected) {
         return false;
       }
@@ -457,7 +445,6 @@ const CommunityFeedBarangay = ({ session, token }) => {
     
     // Apply sorting based on sortBy
     if (sortBy === 'trending') {
-      // Use trending scores
       const now = new Date();
       filtered = filtered.map(p => {
         const createdAt = new Date(p.created_at || 0);
@@ -468,14 +455,12 @@ const CommunityFeedBarangay = ({ session, token }) => {
         return { ...p, trendingScore };
       }).sort((a, b) => b.trendingScore - a.trendingScore);
     } else if (sortBy === 'top') {
-      // Sort by engagement only
       filtered.sort((a, b) => {
         const aScore = ((a.reaction_count || 0) * 2) + ((a.comment_count || 0) * 3);
         const bScore = ((b.reaction_count || 0) * 2) + ((b.comment_count || 0) * 3);
         return bScore - aScore;
       });
     } else {
-      // Default: Pending posts first, then by date
       filtered.sort((a, b) => {
         const aIsPending = a.status === 'pending';
         const bIsPending = b.status === 'pending';
@@ -500,7 +485,7 @@ const CommunityFeedBarangay = ({ session, token }) => {
 
   return (
     <div className="feed-container">
-      {/* Notification - wrapped in ModalPortal for proper z-index display */}
+      {/* Notification */}
       {notification && (
         <ModalPortal>
           <div 
@@ -519,7 +504,7 @@ const CommunityFeedBarangay = ({ session, token }) => {
           {feedTitle}
         </h2>
 
-        {/* ✅ TOP CONTROLS - Matching CommunityFeed Design */}
+        {/* TOP CONTROLS */}
         <div className="feed-top-controls">
           <div className="feed-search-container">
             <input 
@@ -570,7 +555,7 @@ const CommunityFeedBarangay = ({ session, token }) => {
         </div>
       </div>
 
-      {/* ⭐ Pill Button Row: Trending, Pending, Top */}
+      {/* Pill Button Row */}
       <div className="feed-pill-row">
         <button
           className={`feed-trending-pill-btn ${sortBy === 'trending' ? 'active' : ''} ${trendingPosts.length === 0 ? 'empty' : ''}`}
@@ -615,7 +600,7 @@ const CommunityFeedBarangay = ({ session, token }) => {
         </button>
       </div>
 
-      {/* ⭐ Trending Posts Section - Collapsible */}
+      {/* Trending Posts Section */}
       {trendingExpanded && trendingPosts.length > 0 && (
         <div className="feed-trending-container expanded">
           <div className="feed-trending-header">
@@ -677,7 +662,7 @@ const CommunityFeedBarangay = ({ session, token }) => {
         </div>
       )}
 
-      {/* ⭐ Pending Posts Section - Shows posts awaiting approval (is_accepted = false) */}
+      {/* Pending Posts Section */}
       {isOfficialUser && pendingExpanded && pendingPostsList.length > 0 && (
         <div className="feed-pending-container expanded">
           <div className="feed-pending-header">
@@ -770,7 +755,7 @@ const CommunityFeedBarangay = ({ session, token }) => {
   );
 };
 
-// ✅ BARANGAY POST CARD WITH MODERATION (Same design as Admin)
+// BARANGAY POST CARD
 const BarangayPostCard = ({ 
   post, 
   isOfficial,
@@ -790,13 +775,9 @@ const BarangayPostCard = ({
   const authorName = `${post.author?.firstname} ${post.author?.lastname}`;
   const postedDate = new Date(post.created_at).toLocaleDateString();
   
-  // Pending = status is pending AND is_accepted is false AND not rejected
   const isPending = post.status === 'pending' && !post.is_accepted && !post.is_rejected;
-  // Accepted = is_accepted is true (regardless of status)
   const isAccepted = post.is_accepted === true;
-  // Rejected = is_rejected is true
   const isRejected = post.is_rejected || post.status === 'rejected';
-  // Can like = post is accepted or approved
   const canLike = isAccepted || post.status === 'approved';
 
   const handleCommentKey = (e) => {
@@ -869,7 +850,7 @@ const BarangayPostCard = ({
         By {authorName} · {postedDate} · {post.barangay} · Status: <strong>{post.status || 'unknown'}</strong>
       </p>
 
-      {/* Like Button - Only for accepted/approved posts */}
+      {/* Like Button */}
       {canLike && (
         <div className="post-engagement" style={{
           display: 'flex',
@@ -902,7 +883,7 @@ const BarangayPostCard = ({
         </div>
       )}
 
-      {/* MODERATION CONTROLS - Only for officials */}
+      {/* MODERATION CONTROLS */}
       {isOfficial && (
         <div className="admin-post-controls" style={{
           display: 'flex',
@@ -912,7 +893,6 @@ const BarangayPostCard = ({
           borderTop: '1px solid #ddd',
           flexWrap: 'wrap',
         }}>
-          {/* Accept/Approve/Reject - Only for pending posts that aren't accepted */}
           {isPending && (
             <>
               <button
@@ -980,7 +960,7 @@ const BarangayPostCard = ({
             </>
           )}
 
-          {/* Toggle Comments - Always available for officials or post owner */}
+          {/* Toggle Comment */}
           {(post.can_toggle_comments || isOfficial) && (
             <button
               className="admin-toggle-comments-btn"
@@ -1005,7 +985,6 @@ const BarangayPostCard = ({
             </button>
           )}
 
-          {/* Delete - Only for post owner (Barangay Officials cannot delete posts) */}
           {post.can_delete && (
             <button
               className="admin-delete-btn"
@@ -1099,7 +1078,7 @@ const BarangayPostCard = ({
   );
 };
 
-// ✅ POST MODAL
+// POST MODAL
 const PostModal = ({ onClose, onSubmit, userBarangay, isOfficialUser }) => {
   const [title, setTitle] = useState("");
   const [content, setContent] = useState("");
@@ -1227,7 +1206,7 @@ const PostModal = ({ onClose, onSubmit, userBarangay, isOfficialUser }) => {
             </button>
           </div>
         </form>
-        </div>{/* portal-modal-body */}
+        </div>
       </div>
     </div>
   );

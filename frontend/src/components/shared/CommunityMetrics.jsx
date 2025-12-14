@@ -6,7 +6,6 @@ function CommunityMetrics({ session, setNotification }) {
   const [communityPosts, setCommunityPosts] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  // Announcements (mock-only, local state)
   const [isAnnouncementOpen, setIsAnnouncementOpen] = useState(false);
   const [announceTitle, setAnnounceTitle] = useState("");
   const [announceBody, setAnnounceBody] = useState("");
@@ -125,7 +124,7 @@ function CommunityMetrics({ session, setNotification }) {
         </div>
       )}
 
-      {/* Announcement Modal (mock) */}
+      {/* Announcement Modal */}
       {isAnnouncementOpen && (
         <div className="modal-overlay" onClick={() => setIsAnnouncementOpen(false)}>
           <div className="modal" onClick={(e) => e.stopPropagation()} style={{ maxWidth: 720 }}>
@@ -152,7 +151,6 @@ function CommunityMetrics({ session, setNotification }) {
               <div>
                 <button className="cancel-btn" onClick={() => setIsAnnouncementOpen(false)}>Cancel</button>
                 <button className="confirm-btn" onClick={() => {
-                  // choose an icon from Home-style icons based on keywords
                   const lower = (announceTitle + ' ' + announceBody).toLowerCase();
                   let icon = <FaBullhorn />;
                   if (lower.includes('alert') || lower.includes('water') || lower.includes('cut') || lower.includes('report')) icon = <FaExclamationTriangle />;

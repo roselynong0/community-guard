@@ -13,7 +13,6 @@ const SafetyTips = () => {
   const successTitle = "Safety Tips Complete!";
 
   useEffect(() => {
-    // Simulate loading safety tips content
     const timer = setTimeout(() => {
       setLoading(false);
     }, 1500);

@@ -38,7 +38,7 @@ const AdminCommunityFeed = () => {
     ]);
   };
 
-  // ✅ Approve
+  // Handle Approve
   const handleApprove = (postId) => {
     setPosts((prev) =>
       prev.map((p) =>
@@ -49,17 +49,18 @@ const AdminCommunityFeed = () => {
     showNotif("success", "Post approved successfully!");
   };
 
-  // ✅ Reject
+  // Handle Reject
   const handleReject = (postId) => {
     setPosts((prev) => prev.filter((p) => p.id !== postId));
     showNotif("caution", "Post rejected and removed.");
   };
 
+  // Notification handler
   const showNotif = (type, message) => {
     setNotification({ type, message });
     setTimeout(() => setNotification(null), 3000);
   };
-
+  // Get current user name
   const getCurrentUserName = () => {
     try {
       const user = JSON.parse(localStorage.getItem("user"));
@@ -69,6 +70,7 @@ const AdminCommunityFeed = () => {
     }
   };
 
+  // Handle Add Comment
   const handleAddComment = (postId, commentText) => {
     if (!commentText.trim()) return;
     const commenter = getCurrentUserName();
@@ -93,7 +95,7 @@ const AdminCommunityFeed = () => {
     );
   };
 
-  // ✅ SEARCH filter
+  // Search filter
   const filteredPosts = posts.filter((p) => {
     const text = searchTerm.toLowerCase();
     return (
@@ -105,7 +107,6 @@ const AdminCommunityFeed = () => {
 
   return (
     <div className="feed-container">
-      {/* Notification - wrapped in ModalPortal for proper z-index display */}
       {notification && (
         <ModalPortal>
           <div 
@@ -152,9 +153,7 @@ const AdminCommunityFeed = () => {
   );
 };
 
-
-
-// ✅ POST CARD
+// Post Card Holders
 const PostCard = ({ post, onApprove, onReject, onAddComment }) => {
   const [comment, setComment] = useState("");
   const [showComments, setShowComments] = useState(false);
@@ -191,7 +190,7 @@ const PostCard = ({ post, onApprove, onReject, onAddComment }) => {
         {post.author} · {post.timestamp}
       </p>
 
-      {/* ✅ ACTION BUTTONS FOR ADMIN */}
+      {/* Action Buttons for Admin */}
       {post.status === "pending" && (
         <div className="admin-approval-buttons">
           <button className="btn-approve" onClick={() => onApprove(post.id)}>
@@ -203,7 +202,7 @@ const PostCard = ({ post, onApprove, onReject, onAddComment }) => {
         </div>
       )}
 
-      {/* ✅ COMMENTS TOGGLE */}
+      {/* Comments Toggle */}
       <div className="toggle-comment-container">
         <button
           className="toggle-comment-btn"

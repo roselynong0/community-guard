@@ -9,22 +9,19 @@ function ChatBot({ isOpen, onClose, token, isPremium = false, onPremiumRequired 
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   
-  // Usage limit state
   const [usageCount, setUsageCount] = useState(0);
   const [usageLimitReached, setUsageLimitReached] = useState(false);
   const [showLimitModal, setShowLimitModal] = useState(false);
-  const DAILY_LIMIT = 10; // 10 messages per day for non-premium users
+  const DAILY_LIMIT = 10;
   
   const messagesEndRef = useRef(null);
 
-  // Scroll to bottom when messages update
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
-  // Fetch current usage count from backend
   const fetchUsageCount = useCallback(async () => {
-    if (!token || isPremium) return; // Premium users have no limit
+    if (!token || isPremium) return;
     
     try {
       const response = await fetch(getApiUrl('/api/chatbot/usage'), {
@@ -46,21 +43,18 @@ function ChatBot({ isOpen, onClose, token, isPremium = false, onPremiumRequired 
     }
   }, [token, isPremium, DAILY_LIMIT]);
 
-  // Fetch usage on mount and when opening
   useEffect(() => {
     if (isOpen && !isPremium) {
       fetchUsageCount();
     }
   }, [isOpen, isPremium, fetchUsageCount]);
 
-  // Clear messages and reset state when closing
   const handleClose = () => {
     setMessages([]);
     setInput("");
     onClose();
   };
 
-  // Add welcome message on first open
   useEffect(() => {
     if (isOpen && messages.length === 0) {
       const welcomeText = "👋 Hello! I'm your Community Helper. I'm here to provide support and answer questions about the Community Guard system.\n\nHow can I help you today?";
@@ -74,7 +68,6 @@ function ChatBot({ isOpen, onClose, token, isPremium = false, onPremiumRequired 
         },
       ]);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen]);
 
   const formatText = (text) => {
@@ -93,7 +86,6 @@ function ChatBot({ isOpen, onClose, token, isPremium = false, onPremiumRequired 
   const sendMessage = async () => {
     if (!input.trim()) return;
 
-    // Check usage limit for non-premium users
     if (!isPremium && usageLimitReached) {
       setShowLimitModal(true);
       return;
@@ -101,7 +93,6 @@ function ChatBot({ isOpen, onClose, token, isPremium = false, onPremiumRequired 
 
     const messageText = input;
 
-    // Add user message
     const userMessage = {
       id: Date.now(),
       type: "user",
@@ -113,7 +104,6 @@ function ChatBot({ isOpen, onClose, token, isPremium = false, onPremiumRequired 
     setLoading(true);
 
     try {
-      // Increment usage count for non-premium users
       if (!isPremium) {
         const usageResponse = await fetch(getApiUrl('/api/chatbot/usage/increment'), {
           method: 'POST',
@@ -127,7 +117,6 @@ function ChatBot({ isOpen, onClose, token, isPremium = false, onPremiumRequired 
           const usageData = await usageResponse.json();
           setUsageCount(usageData.usage_count);
           
-          // Check if limit reached after increment
           if (usageData.status === 'limit_reached' || usageData.limit_reached) {
             setUsageLimitReached(true);
             setShowLimitModal(true);
@@ -136,8 +125,7 @@ function ChatBot({ isOpen, onClose, token, isPremium = false, onPremiumRequired 
           }
         }
       }
-
-      // Use Flask chatbot endpoint only
+      
       const body = JSON.stringify({ message: messageText });
       
       const response = await fetch(getApiUrl('/api/chat'), {
@@ -150,7 +138,6 @@ function ChatBot({ isOpen, onClose, token, isPremium = false, onPremiumRequired 
       });
 
       if (!response.ok) {
-        // Check if limit was reached (429 status)
         if (response.status === 429) {
           setUsageLimitReached(true);
           setShowLimitModal(true);
@@ -163,7 +150,6 @@ function ChatBot({ isOpen, onClose, token, isPremium = false, onPremiumRequired 
       const data = await response.json();
       const responseText = data.response || data.answer || "I'm not sure how to respond to that.";
 
-      // Add bot response
       const botMessage = {
         id: Date.now() + 1,
         type: "bot",
@@ -309,7 +295,6 @@ function ChatBot({ isOpen, onClose, token, isPremium = false, onPremiumRequired 
                   onClick={() => {
                     setShowLimitModal(false);
                     handleClose();
-                    // Trigger premium upgrade flow
                     if (onPremiumRequired) {
                       onPremiumRequired();
                     }

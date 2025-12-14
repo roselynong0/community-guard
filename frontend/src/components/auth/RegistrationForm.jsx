@@ -11,8 +11,7 @@ import { getApiUrl, API_CONFIG } from "../../utils/apiConfig";
 function RegistrationForm() {
   const navigate = useNavigate();
 
-  // Hardcode role to 'Resident' as Admin register is removed
-  const registerRole = "Resident"; // Changed from state to a constant
+  const registerRole = "Resident";
 
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
@@ -124,7 +123,6 @@ function RegistrationForm() {
 		  lastname: formData.lastname,
 		  email: formData.email,
 		  password: formData.password,
-		  // Role is now hardcoded as "Resident"
 		  role: registerRole,
 		}),
 	  });
@@ -132,7 +130,6 @@ function RegistrationForm() {
 	  const result = await res.json();
 
 	  if (res.ok && result.status === "success") {
-		// Notify based on email_sent flag
 		notify(
 		  result.email_sent
 			? "Account registered! Verification code sent to your email. 🎉"
@@ -157,7 +154,7 @@ function RegistrationForm() {
 		  uppercase: false,
 		});
 
-		// Redirect to VerificationForm with proper state
+		// Redirect
 				setTimeout(() => {
 					navigate(`/verify?role=resident`, {
 						state: { 
@@ -196,12 +193,10 @@ function RegistrationForm() {
 	  <div className="wrapper">
 	  <div className="top-section">
 		<h1>Community Guard</h1>
-		{/* Simplified welcome text for resident-only */}
 		<p>Sign up and help your community stay safe.</p> 
 	  </div>
 
 	  <div className="form-card">
-		{/* REMOVED: tab-strip for switching between Resident and Admin */}
 		<h2>Create an Account</h2> 
 
 		<form onSubmit={handleSubmit}>
@@ -273,7 +268,7 @@ function RegistrationForm() {
 			<p className="error">{errors.confirmPassword}</p>
 		  )}
 
-		  {/* Live password rules (after confirm password) */}
+		  {/* Live password rules */}
 		  {passwordTouched && (
 			<div className="password-rules">
 			  <p className={passwordStatus.length ? "valid" : ""}>
@@ -313,7 +308,7 @@ function RegistrationForm() {
 
 <button type="submit" className="form-submit-btn">Sign Up</button>
 <Link 
-	to="/login?role=resident" // Simplified login link ensures resident mode
+	to="/login?role=resident"
 	className="back-link"
 >
   Go to Login

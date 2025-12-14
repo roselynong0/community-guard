@@ -11,7 +11,6 @@ const MVPS = [
 ]
 
 export default function LoadingOverlay() {
-  // show 4 cards in the strip but cycle through the available MVPs
   const cards = [MVPS[0], MVPS[1], MVPS[2], MVPS[3]]
 
   return (

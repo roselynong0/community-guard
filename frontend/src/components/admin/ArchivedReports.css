@@ -55,7 +55,7 @@
     margin-top: 4px;
 }
 
-/* Header Right - View Toggle & Export Buttons */
+/* Header Right */
 .header-right {
     display: flex;
     gap: 12px;
@@ -140,7 +140,7 @@
     font-size: 14px;
 }
 
-/* Top Controls - Single row with search and filters */
+/* Top Controls */
 .archived-top-controls {
     display: flex;
     flex-wrap: wrap;
@@ -301,7 +301,6 @@ input.archived-search-input {
     overflow: hidden;
 }
 
-/* Ensure table-based list layout is styled nicely */
 .archived-list-table table {
     width: 100%;
     border-collapse: collapse;
@@ -329,9 +328,8 @@ input.archived-search-input {
 }
 
 .archived-list-table .list-header {
-    /* kept for backwards compatibility when using grid-like structure; table header will apply for semantic table */
     display: grid;
-    grid-template-columns: 70px 2fr 100px 110px 90px 130px 100px 100px 70px; /* added Reporter column width */
+    grid-template-columns: 70px 2fr 100px 110px 90px 130px 100px 100px 70px;
     gap: 10px;
     padding: 14px 16px;
     background: #f1f5f9;
@@ -342,9 +340,8 @@ input.archived-search-input {
 }
 
 .archived-list-table .list-row {
-    /* fallback for grid-style layout */
     display: grid;
-    grid-template-columns: 70px 2fr 100px 110px 90px 130px 100px 100px 70px; /* added Reporter column width */
+    grid-template-columns: 70px 2fr 100px 110px 90px 130px 100px 100px 70px;
     gap: 10px;
     padding: 14px 16px;
     border-bottom: 1px solid #e5e7eb;
@@ -603,7 +600,7 @@ input.archived-search-input {
         min-width: unset;
     }
 
-    /* Mobile List View - Show Image, Title, Category, Status */
+    /* Mobile List View */
     .list-header {
         grid-template-columns: 50px 1fr 80px 80px;
         gap: 8px;
@@ -720,10 +717,7 @@ input.archived-search-input {
     }
 }
 
-/* ========================================
-   INLINE STATUS TAG (for card view)
-   Gradient style matching BarangayReports
-   ======================================== */
+/* Inline Status Tag */
 .status-tag {
     display: inline-flex;
     align-items: center;

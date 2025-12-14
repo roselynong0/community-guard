@@ -15,7 +15,6 @@ import "./Maps.css";
 import "leaflet/dist/leaflet.css";
 import LoadingScreen from "../shared/LoadingScreen";
 
-// Build endpoints with getApiUrl so VITE_API_URL is used in prod and localhost in dev
 const OLONGAPO_CENTER = [14.8291, 120.2829];
 const INITIAL_ZOOM = 13;
 
@@ -40,7 +39,6 @@ const barangayColors = {
 };
 
 const createColoredIcon = (color) => {
-  // Map hex colors to leaflet-color-markers color names
   const colorMap = {
     "#3b82f6": "blue",
     "#ef4444": "red",
@@ -66,7 +64,6 @@ const createColoredIcon = (color) => {
 
 const getColor = (barangay) => barangayColors[barangay?.trim()] || "gray";
 
-// Priority colors matching reports - Critical (Crime), High (Hazard), Medium (Concern/Lost&Found), Low (Others)
 const CATEGORY_COLORS = {
   Crime: { bg: '#fdedec', text: '#c0392b', label: '🔴 Critical' },
   Hazard: { bg: '#fef5e7', text: '#d35400', label: '🟠 High' },
@@ -147,7 +144,7 @@ const normalizeSafezone = (safezone) => {
 };
 
 const getDistanceInMeters = (lat1, lon1, lat2, lon2) => {
-  const R = 6371000; // Earth's radius in meters
+  const R = 6371000;
   const dLat = (lat2 - lat1) * Math.PI / 180;
   const dLon = (lon2 - lon1) * Math.PI / 180;
   const a = 
@@ -158,7 +155,6 @@ const getDistanceInMeters = (lat1, lon1, lat2, lon2) => {
   return R * c;
 };
 
-// Group overlapping reports within a distance threshold (default 150 meters)
 const groupOverlappingReports = (reports, thresholdMeters = 150) => {
   const validReports = reports.filter(r => r.latitude && r.longitude);
   const groups = [];
@@ -169,7 +165,6 @@ const groupOverlappingReports = (reports, thresholdMeters = 150) => {
   validReports.forEach((report, idx) => {
     if (assigned.has(idx)) return;
     
-    // Start a new group with this report
     const group = {
       latitude: parseFloat(report.latitude),
       longitude: parseFloat(report.longitude),
@@ -177,7 +172,6 @@ const groupOverlappingReports = (reports, thresholdMeters = 150) => {
     };
     assigned.add(idx);
     
-    // Find all other reports within threshold distance
     validReports.forEach((otherReport, otherIdx) => {
       if (assigned.has(otherIdx)) return;
       
@@ -193,7 +187,6 @@ const groupOverlappingReports = (reports, thresholdMeters = 150) => {
       }
     });
     
-    // Calculate centroid for the group marker position
     if (group.reports.length > 1) {
       const avgLat = group.reports.reduce((sum, r) => sum + parseFloat(r.latitude), 0) / group.reports.length;
       const avgLng = group.reports.reduce((sum, r) => sum + parseFloat(r.longitude), 0) / group.reports.length;
@@ -216,7 +209,7 @@ function Maps({ session, userRole }) {
   const [userBarangay, setUserBarangay] = useState(null);
   const [loading, setLoading] = useState(true);
   const [selectedBarangay, setSelectedBarangay] = useState('all');
-  const [showFilters, setShowFilters] = useState(false); // Collapsible filter panel for mobile
+  const [showFilters, setShowFilters] = useState(false);
   const [showHotspots, setShowHotspots] = useState(true);
   const [showSafezones, setShowSafezones] = useState(true);
   const [userLocation, setUserLocation] = useState(null);
@@ -229,13 +222,11 @@ function Maps({ session, userRole }) {
         setLoading(true);
         const token = session?.token || localStorage.getItem("token");
 
-        // Check if user is a barangay official
         const isBarangayOfficial = userRole === "Barangay Official";
 
         let endpoint = getApiUrl("/api/map_reports");
         const headers = token ? { Authorization: `Bearer ${token}` } : {};
 
-        // If barangay official, use the filtered endpoint
         if (isBarangayOfficial && token) {
           endpoint = getApiUrl("/api/map_reports/barangay");
         }
@@ -244,7 +235,6 @@ function Maps({ session, userRole }) {
         let data = null;
 
         if (!response.ok) {
-          // Server returned a non-2xx response - capture body for debugging
           const text = await response.text().catch(() => null);
           console.error(`Map reports fetch failed: ${response.status} ${response.statusText}`, text);
         } else {
@@ -263,7 +253,6 @@ function Maps({ session, userRole }) {
           }));
           setReports(formatted);
           
-          // Set user's barangay if they're a barangay official
           if (isBarangayOfficial && data.barangay) {
             setUserBarangay(data.barangay);
             setSelectedBarangay(data.barangay);
@@ -300,7 +289,6 @@ function Maps({ session, userRole }) {
           .filter(Boolean);
         setSafezones(normalizedSafezones);
         console.log(`✅ Loaded ${normalizedSafezones.length} safezones (cached)`);
-        // Try to get user current location (for residents)
         try {
           if (userRole === 'Resident' && navigator && navigator.geolocation) {
             navigator.geolocation.getCurrentPosition(
@@ -322,18 +310,15 @@ function Maps({ session, userRole }) {
     fetchMapReports();
   }, [session, userRole]);
 
-  // Exclude unapproved or rejected reports from counts and maps
   const acceptedReports = reports.filter(r => {
     const isRejected = r.is_rejected === true || r.is_rejected === 'true';
     const isApprovedFalse = r.is_approved === false || r.is_approved === 'false' || r.is_accepted === false || r.is_accepted === 'false';
     return !isRejected && !isApprovedFalse;
   });
 
-  // Separate resolved vs non-resolved accepted reports (case-insensitive)
   const resolvedAcceptedReports = acceptedReports.filter(r => (r.status || '').toString().toLowerCase() === 'resolved');
   const nonResolvedAcceptedReports = acceptedReports.filter(r => (r.status || '').toString().toLowerCase() !== 'resolved');
 
-  // Group non-resolved accepted reports by barangay (for map markers and counts)
   const reportsByBarangay = nonResolvedAcceptedReports.reduce((acc, r) => {
     if (!acc[r.address_barangay]) acc[r.address_barangay] = [];
     acc[r.address_barangay].push(r);
@@ -343,12 +328,11 @@ function Maps({ session, userRole }) {
   // Get all unique barangays for filter dropdown
   const allBarangays = Object.keys(reportsByBarangay).sort();
 
-  // Filter reports by selected barangay (only non-resolved accepted reports)
+  // Filter reports by selected barangay
   const filteredReports = selectedBarangay === 'all'
     ? nonResolvedAcceptedReports
     : nonResolvedAcceptedReports.filter(r => r.address_barangay === selectedBarangay);
 
-  // Group overlapping markers for display
   const groupedMarkers = groupOverlappingReports(filteredReports);
 
   const content = (
@@ -385,7 +369,6 @@ function Maps({ session, userRole }) {
               return null;
             }
 
-            // small northward offset (~30m) so the marker appears above the circle
             const pointerOffset = 0.00027;
 
             return (
@@ -402,7 +385,6 @@ function Maps({ session, userRole }) {
                   className={`safezone safezone-${sz.id ?? 'unknown'}`}
                 />
 
-                {/* Blue location marker pointer slightly above the safezone */}
                 <Marker
                   key={`safezone-pointer-${sz.id ?? idx}`}
                   position={[Number(latitude) + pointerOffset, Number(longitude)]}
@@ -453,7 +435,6 @@ function Maps({ session, userRole }) {
             </Circle>
           ))}
 
-          {/* Grouped report markers - overlapping reports share one marker with stacked popup */}
           {groupedMarkers.map((group, groupIdx) => {
             const primaryReport = group.reports[0];
             const reportCount = group.reports.length;
@@ -480,7 +461,6 @@ function Maps({ session, userRole }) {
                       📍 {primaryReport.address_barangay}
                     </div>
                     
-                    {/* Render each report in the group */}
                     {group.reports.map((r, rIdx) => {
                       const catStyle = getCategoryStyle(r.category);
                       const statStyle = getStatusStyle(r.status);
@@ -494,7 +474,6 @@ function Maps({ session, userRole }) {
                             borderBottom: isStacked && rIdx < reportCount - 1 ? '1px solid #e5e7eb' : 'none'
                           }}
                         >
-                          {/* Report Count, Category and Status Tags - show on first report only */}
                           {rIdx === 0 && (
                             <div style={{ display: 'flex', gap: '6px', marginBottom: '6px', flexWrap: 'wrap', alignItems: 'center' }}>
                               <span style={{
@@ -533,7 +512,6 @@ function Maps({ session, userRole }) {
                             </div>
                           )}
                           
-                          {/* Show category/status for additional stacked reports */}
                           {rIdx > 0 && (
                             <div style={{ display: 'flex', gap: '6px', marginBottom: '6px', flexWrap: 'wrap', alignItems: 'center' }}>
                               <span style={{ 
@@ -582,7 +560,7 @@ function Maps({ session, userRole }) {
             );
           })}
 
-          {/* User location pointer - residents only */}
+          {/* User location pointer */}
           {userLocation && userRole === 'Resident' && (
             <>
               <Marker
@@ -615,7 +593,7 @@ function Maps({ session, userRole }) {
           )}
         </MapContainer>
 
-        {/* Control Panel Overlay - Top Right (Desktop only) */}
+        {/* Control Panel Overlay */}
         {!loading && allBarangays.length > 0 && (
           <div className="maps-control-panel desktop-only">
             {/* Barangay Filter */}
@@ -725,7 +703,7 @@ function Maps({ session, userRole }) {
           </div>
         )}
 
-        {/* Statistics Overlay - Bottom Left (Desktop) / Bottom Bar (Mobile) */}
+        {/* Statistics Overlay */}
         {!loading && (
           <div className="maps-stats-panel">
             <div className="maps-stats-grid">

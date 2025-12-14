@@ -40,8 +40,8 @@ function Layout({ session, setSession, setNotification }) {
   const logoutConfirmBtnRef = useRef(null);
   const [showVerifyModal, setShowVerifyModal] = useState(false);
   const [verifyUserData, setVerifyUserData] = useState(null);
-  const [showMobileMenu, setShowMobileMenu] = useState(false); // Mobile 3-dot menu
-  const [showMobileNav, setShowMobileNav] = useState(false); // Mobile hamburger navigation menu
+  const [showMobileMenu, setShowMobileMenu] = useState(false);
+  const [showMobileNav, setShowMobileNav] = useState(false);
 
   const navigate = useNavigate();
 
@@ -57,7 +57,6 @@ function Layout({ session, setSession, setNotification }) {
           headers: { Authorization: `Bearer ${session.token}` },
         });
         
-        // Check for session expiration (401/403)
         if (isSessionExpired(res)) {
           handleSessionExpired(setSession, setNotification, navigate, '');
           setUser(null);
@@ -87,23 +86,18 @@ function Layout({ session, setSession, setNotification }) {
     loadProfile();
   }, [session, setSession, setNotification, navigate]);
 
-  // 🔹 Fetch missed reports summary once after profile and session load (toast only, no modal)
   useEffect(() => {
     const tryFetchSummary = async () => {
       if (!session?.token || !user) return;
 
-      // Check URL params - only show toast when coming from login
       const params = new URLSearchParams(window.location.search || "");
       const showMissedParam = params.get('showMissed') || params.get('show_missed');
       
-      // Only proceed if user came from login
       if (!showMissedParam) return;
 
-      // Use a unique key to prevent duplicate toasts (shared between Home.jsx and Layout.jsx)
       const toastKey = `missed_toast_layout_${user.id || user?.email || 'anon'}`;
       const alreadyShownToast = sessionStorage.getItem(toastKey);
 
-      // If we've already shown toast this session, skip
       if (alreadyShownToast) return;
 
       try {
@@ -128,14 +122,10 @@ function Layout({ session, setSession, setNotification }) {
           if (data && data.status === 'success' && data.summary) {
             const totalMissed = data.summary.total || 0;
             
-            // Show toast for missed reports (once per session) - delayed to avoid duplicate with Home.jsx
             if (totalMissed > 0 && toastRef.current) {
-              // Mark as shown immediately to prevent race condition
               try { sessionStorage.setItem(toastKey, '1'); } catch { /* ignore */ }
               
-              // Delay toast by 3 seconds (after Home.jsx toast at 2s)
               setTimeout(() => {
-                // Double-check Home.jsx didn't already show a toast
                 const homeToastKey = `missed_toast_home_${user.id || user?.email || 'anon'}`;
                 if (sessionStorage.getItem(homeToastKey)) {
                   console.log('📢 Skipping Layout toast - Home.jsx already showed one');
@@ -162,7 +152,6 @@ function Layout({ session, setSession, setNotification }) {
               }, 3000);
             }
 
-            // If user is partially verified (isverified true but verified false) show verify modal
             try {
               const flags = data.summary.user_flags || {};
               if (flags.isverified === true && flags.verified === false) {
@@ -184,10 +173,8 @@ function Layout({ session, setSession, setNotification }) {
     tryFetchSummary();
   }, [session?.token, user]);
 
-  // 🔹 Setup real-time notifications via SSE
   useEffect(() => {
     if (!session?.token) {
-      // Stop polling if token is cleared (logout)
       if (pollingIntervalRef.current) {
         stopNotificationPolling(pollingIntervalRef.current);
         pollingIntervalRef.current = null;
@@ -195,22 +182,17 @@ function Layout({ session, setSession, setNotification }) {
       return;
     }
 
-    // Register toast callback
     registerToastCallback((message, type) => {
       if (toastRef.current) {
         toastRef.current.show(message, type);
       }
     });
 
-    // Register notification count callback
     registerNotificationCountCallback((count) => {
       setNotificationCount(count);
     });
 
-    // Start polling only for regular residents (Resident layout calls /api/notifications)
     try {
-      // Try SSE first, but layout context only needs /api/notifications
-      // Use the actual session/user role when available; fallback to 'Resident'
       const resolvedRole = session?.user?.role || user?.role || 'Resident';
       pollingIntervalRef.current = startNotificationPolling(session.token, resolvedRole, 10000);
     } catch (e) {
@@ -299,7 +281,7 @@ function Layout({ session, setSession, setNotification }) {
             }}>Community Guard</h2>
           </div>
 
-          {/* Nav links - Order: Dashboard, Map, Reports, Archived, Community Feed, Safety Tips, Notifications, Profile */}
+          {/* Nav links */}
           <nav
             style={{
               borderBottom: "1px solid rgba(255,255,255,0.1)",
@@ -408,7 +390,7 @@ function Layout({ session, setSession, setNotification }) {
         <Outlet />
       </main>
 
-      {/* Mobile Navigation Menu - Shows in top bar */}
+      {/* Mobile Navigation Menu */}
       {showMobileNav && (
         <div className="mobile-nav-dropdown-top">
           <NavLink to="/home" onClick={() => setShowMobileNav(false)}>
@@ -448,7 +430,7 @@ function Layout({ session, setSession, setNotification }) {
         </div>
       )}
 
-      {/* Desktop: Floating Chat Button - Always visible when chat is closed */}
+      {/* Desktop: Floating Chat Button */}
       {session?.token && !showChatBot && (
         <button
           className="floating-chat-btn desktop-only"
@@ -460,7 +442,6 @@ function Layout({ session, setSession, setNotification }) {
         </button>
       )}
 
-      {/* Mobile: 3-dot action menu (replaces separate logout and chat buttons) */}
       <div className="mobile-action-menu">
         <button
           className="mobile-action-trigger"
@@ -531,10 +512,9 @@ function Layout({ session, setSession, setNotification }) {
         </ModalPortal>
       )}
 
-      {/* Verification prompt modal (shows if user needs to complete profile) */}
       <VerificationModal open={showVerifyModal} onClose={() => setShowVerifyModal(false)} user={verifyUserData} />
 
-      {/* ChatBot Component - Basic for residents */}
+      {/* ChatBot Component */}
       {session?.token && (
         <ChatBot 
           isOpen={showChatBot} 

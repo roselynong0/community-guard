@@ -123,7 +123,7 @@
     margin: 0;
 }
 
-/* Top Controls - Matching Reports Design */
+/* Top Controls */
 .responder-top-controls {
     display: flex;
     flex-wrap: wrap;
@@ -246,7 +246,6 @@
     font-weight: 600;
 }
 
-/* Enhanced focus states for better accessibility */
 .responder-search-input:focus-visible,
 .responder-filter-select:focus-visible {
     box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.2);
@@ -325,7 +324,7 @@
     color: #64748b;
 }
 
-/* Status Badges - Pill style with icons */
+/* Status Badges */
 .responder-status-badge {
     display: inline-flex;
     align-items: center;
@@ -357,7 +356,6 @@
     color: white;
 }
 
-/* Mobile: Action buttons and status badges */
 @media (max-width: 768px) {
     .responder-report-header {
         flex-direction: column;
@@ -380,14 +378,12 @@
         padding: 10px 12px;
     }
     
-    /* Status badges - compact pill style */
     .responder-status-badge {
         font-size: 11px;
         padding: 4px 10px;
         white-space: nowrap;
     }
     
-    /* Icon buttons stay compact */
     .responder-report-actions .responder-icon-btn {
         width: auto;
         grid-column: auto;
@@ -420,7 +416,7 @@
     color: #1e40af;
 }
 
-/* Action Button Base - styled buttons with text */
+/* Action Button Base */
 .responder-action-btn {
     display: inline-flex;
     align-items: center;
@@ -439,7 +435,7 @@
     cursor: not-allowed;
 }
 
-/* Update Button - Green Theme (matches Accept) */
+/* Update Button */
 .responder-update-btn {
     background: #d1fae5;
     color: #065f46;
@@ -456,7 +452,7 @@
     transform: translateY(0);
 }
 
-/* Delete Button - Red Theme (matches Reject) */
+/* Delete Button */
 .responder-delete-btn {
     background: #fee2e2;
     color: #991b1b;
@@ -473,7 +469,7 @@
     transform: translateY(0);
 }
 
-/* Button Spinner for Loading State */
+/* Button Spinner */
 .responder-btn-spinner {
     width: 14px;
     height: 14px;
@@ -622,7 +618,7 @@
     background: #94a3b8;
 }
 
-/* Modal Form Fields - Matching Profile Design */
+/* Modal Form Fields */
 .responder-modal-scrollable label {
     display: block;
     font-weight: 600;
@@ -654,14 +650,12 @@
     font-family: inherit;
 }
 
-/* Placeholder styling - use text area color when empty */
 .responder-modal-scrollable input::placeholder,
 .responder-modal-scrollable textarea::placeholder {
     color: #374151;
     opacity: 1;
 }
 
-/* When value is present, show black text */
 .responder-modal-scrollable input:not(:placeholder-shown),
 .responder-modal-scrollable textarea:not(:placeholder-shown) {
     color: #000 !important;
@@ -1216,7 +1210,7 @@
         padding: 10px 12px;
         gap: 0;
         position: relative;
-        overflow: visible; /* Allow badge to show outside pill */
+        overflow: visible;
     }
     
     .trending-pill-btn .pill-text,
@@ -1248,7 +1242,6 @@
         color: #6b7280;
     }
     
-    /* Hide badge for Top pill (no count) */
     .top-pill-btn::after {
         display: none;
     }

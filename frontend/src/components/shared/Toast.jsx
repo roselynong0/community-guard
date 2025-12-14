@@ -2,11 +2,6 @@ import React, { useState, useCallback } from 'react';
 import './Toast.css';
 import { FaInfoCircle, FaCheckCircle, FaExclamationTriangle, FaTimesCircle, FaTimes, FaBell } from 'react-icons/fa';
 
-/**
- * Generalized Toast Notification Component
- * Usage: <Toast ref={toastRef} />
- * Then call: toastRef.current?.show(message, type)
- */
 const Toast = React.forwardRef(({ autoCloseDuration = 4000 }, ref) => {
   const [toasts, setToasts] = useState([]);
 
@@ -34,10 +29,8 @@ const Toast = React.forwardRef(({ autoCloseDuration = 4000 }, ref) => {
     
     setToasts(prev => [...prev, newToast]);
 
-    // Emergency alerts stay longer (8 seconds)
     const duration = type === 'emergency' ? 8000 : autoCloseDuration;
 
-    // Auto-remove toast after duration
     setTimeout(() => {
       setToasts(prev => prev.filter(t => t.id !== id));
     }, duration);

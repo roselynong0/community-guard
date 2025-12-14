@@ -1,6 +1,4 @@
-/* ========================================
-   ASSIGN RESPONDERS PAGE STYLES
-   ======================================== */
+/* ASSIGN RESPONDERS PAGE STYLES */
 
 :root {
     --assign-primary: #2d2d73;
@@ -73,7 +71,7 @@
     transform: translateY(-1px);
 }
 
-/* Filter Controls - Matching BarangayReports Design */
+/* Filter Controls */
 .assign-top-controls {
     display: flex;
     flex-wrap: wrap;
@@ -207,7 +205,6 @@
     font-weight: 600;
 }
 
-/* Enhanced focus states for better accessibility */
 .assign-search-input:focus-visible,
 .assign-filter-select:focus-visible {
     box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.2);
@@ -324,7 +321,7 @@
     font-weight: 500;
 }
 
-/* Status Badge - Gradient style matching BarangayReports */
+/* Status Badge */
 .status-badge {
     display: inline-flex;
     align-items: center;
@@ -489,9 +486,7 @@
     font-size: 14px;
 }
 
-/* ========================================
-   MODAL STYLES
-   ======================================== */
+/* MODAL STYLES */
 .modal-backdrop {
     position: fixed;
     inset: 0;
@@ -667,9 +662,7 @@
     cursor: not-allowed;
 }
 
-/* ========================================
-   NOTIFICATION
-   ======================================== */
+/* NOTIFICATION */
 .notification {
     position: fixed;
     bottom: 20px;
@@ -703,9 +696,7 @@
     color: #fff;
 }
 
-/* ========================================
-   RESPONSIVE STYLES
-   ======================================== */
+/* RESPONSIVE STYLES */
 @media (max-width: 1200px) {
     .assign-list-table .list-header,
     .assign-list-table .list-row {

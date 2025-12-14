@@ -39,15 +39,15 @@ function BarangayLayout({ session, setSession, setNotification }) {
   const [notificationCount, setNotificationCount] = useState(0);
   const [showChatBot, setShowChatBot] = useState(false);
   const [showMobileMenu, setShowMobileMenu] = useState(false);
-  const [showMobileNav, setShowMobileNav] = useState(false); // Mobile hamburger navigation menu
-  const [isPremiumUser, setIsPremiumUser] = useState(false); // Track premium status from user profile
+  const [showMobileNav, setShowMobileNav] = useState(false);
+  const [isPremiumUser, setIsPremiumUser] = useState(false);
   const toastRef = useRef(null);
   const pollingIntervalRef = useRef(null);
   const logoutConfirmBtnRef = useRef(null);
 
   const navigate = useNavigate();
 
-  // Fetch barangay official profile if session exists
+  // Fetch barangay official
   useEffect(() => {
     const loadProfile = async () => {
       if (!session?.token) {
@@ -60,7 +60,6 @@ function BarangayLayout({ session, setSession, setNotification }) {
           headers: { Authorization: `Bearer ${session.token}` },
         });
         
-        // Check for session expiration (401/403)
         if (isSessionExpired(res)) {
           handleSessionExpired(setSession, setNotification, navigate, 'barangay');
           setUser(null);
@@ -89,8 +88,6 @@ function BarangayLayout({ session, setSession, setNotification }) {
             ...data.profile,
             avatar_url: data.profile?.avatar_url || "/default-avatar.png",
           });
-          // Set premium status - Only users with onpremium=TRUE are premium
-          // Barangay Officials do NOT auto-get premium - they must have onpremium=true in database
           const hasPremium = data.profile?.onpremium === true;
           setIsPremiumUser(hasPremium);
           console.log('[BarangayLayout] Premium status:', hasPremium, 'Role:', data.profile?.role, 'onpremium:', data.profile?.onpremium);
@@ -107,12 +104,10 @@ function BarangayLayout({ session, setSession, setNotification }) {
     loadProfile();
   }, [session, setSession, setNotification, navigate]);
 
-  // 🔹 Fetch missed reports summary for barangay official (toast only)
   useEffect(() => {
     const fetchMissedReports = async () => {
       if (!session?.token || !user) return;
 
-      // Only show toast once per session
       const toastKey = `missed_toast_shown_barangay_${user.id || 'anon'}`;
       if (sessionStorage.getItem(toastKey)) return;
 
@@ -131,7 +126,6 @@ function BarangayLayout({ session, setSession, setNotification }) {
           const missedInBarangay = userBarangay ? (barangayCounts[userBarangay] || 0) : totalMissed;
           
           if (missedInBarangay > 0) {
-            // Show toast after 2.5 seconds delay
             setTimeout(() => {
               if (toastRef.current) {
                 toastRef.current.show(
@@ -152,10 +146,8 @@ function BarangayLayout({ session, setSession, setNotification }) {
     fetchMissedReports();
   }, [session?.token, user]);
 
-  // 🔹 Setup real-time notifications via SSE for barangay official
   useEffect(() => {
     if (!session?.token) {
-      // Stop polling if token is cleared (logout)
       if (pollingIntervalRef.current) {
         stopNotificationPolling(pollingIntervalRef.current);
         pollingIntervalRef.current = null;
@@ -170,12 +162,11 @@ function BarangayLayout({ session, setSession, setNotification }) {
       }
     });
 
-    // Register notification count callback
+    // Register notification
     registerNotificationCountCallback((count) => {
       setNotificationCount(count);
     });
 
-    // Start polling only for Barangay Official role (Barangay layout only calls /api/barangay/notifications)
     try {
       pollingIntervalRef.current = startNotificationPolling(session.token, 'Barangay Official', 10000);
     } catch (e) {
@@ -190,13 +181,11 @@ function BarangayLayout({ session, setSession, setNotification }) {
     };
   }, [session?.token]);
 
-  // 🕒 Update date/time every second
   useEffect(() => {
     const interval = setInterval(() => setDateTime(new Date()), 1000);
     return () => clearInterval(interval);
   }, []);
 
-  // Focus confirm button when logout modal opens (match Layout.jsx behavior)
   useEffect(() => {
     if (showLogoutConfirm) {
       const t = setTimeout(() => {
@@ -221,10 +210,8 @@ function BarangayLayout({ session, setSession, setNotification }) {
     // Close the modal first
     setShowLogoutConfirm(false);
 
-    // Capture user name before clearing
     const userName = user?.firstname || "user";
 
-    // Use the shared logout utility
     await logout(setSession);
     setUser(null);
 
@@ -264,7 +251,7 @@ function BarangayLayout({ session, setSession, setNotification }) {
             }}>Community Guard</h2>
           </div>
 
-          {/* Sidebar Nav - Order: Dashboard, Map, Reports, Assign Responders, Archived, Community Feed, Notifications, Profile */}
+          {/* Sidebar Nav */}
           <nav
             style={{
               borderBottom: "1px solid rgba(255,255,255,0.1)",
@@ -328,7 +315,7 @@ function BarangayLayout({ session, setSession, setNotification }) {
             padding: "0.8rem 1.2rem",
           }}
         >
-          {/* Left side: Menu + DateTime */}
+          {/* Left side */}
           <div
             style={{
               display: "flex",
@@ -364,7 +351,7 @@ function BarangayLayout({ session, setSession, setNotification }) {
             </div>
           </div>
 
-          {/* Right side: Barangay Profile */}
+          {/* Right side */}
           {!loading && user && (
             <div
               className="admin-profile-top"
@@ -415,7 +402,7 @@ function BarangayLayout({ session, setSession, setNotification }) {
         <Outlet />
       </main>
 
-      {/* Mobile Navigation Menu - Shows in top bar */}
+      {/* Mobile Navigation Menu */}
       {showMobileNav && (
         <div className="mobile-nav-dropdown-top">
           <NavLink to="/barangay/dashboard" onClick={() => setShowMobileNav(false)}>
@@ -451,7 +438,7 @@ function BarangayLayout({ session, setSession, setNotification }) {
         </div>
       )}
 
-      {/* Bottom nav (mobile) */}
+      {/* Bottom nav */}
       <nav className="bottom-nav">
         <NavLink to="/barangay/dashboard">
           <FaHome />
@@ -473,7 +460,7 @@ function BarangayLayout({ session, setSession, setNotification }) {
         </NavLink>
       </nav>
 
-      {/* Desktop: Floating Chat Button - Always visible when chat is closed */}
+      {/* Desktop */}
       {session?.token && !showChatBot && (
         <button
           className="floating-chat-btn desktop-only"
@@ -485,7 +472,7 @@ function BarangayLayout({ session, setSession, setNotification }) {
         </button>
       )}
 
-      {/* Mobile: 3-dot action menu */}
+      {/* Mobile menu */}
       <div className="mobile-action-menu">
         <button
           className="mobile-action-trigger"
@@ -522,7 +509,7 @@ function BarangayLayout({ session, setSession, setNotification }) {
         )}
       </div>
 
-      {/* Logout confirmation modal (shared design with Layout.jsx) */}
+      {/* Logout confirmation modal */}
       {showLogoutConfirm && (
         <ModalPortal>
         <div className="portal-modal-overlay">
@@ -556,7 +543,7 @@ function BarangayLayout({ session, setSession, setNotification }) {
         </ModalPortal>
       )}
 
-      {/* ChatBot Component - Premium for Officials */}
+      {/* ChatBot Component */}
       {session?.token && (
         <ChatBot 
           isOpen={showChatBot} 

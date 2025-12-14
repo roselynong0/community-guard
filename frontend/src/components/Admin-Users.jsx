@@ -32,63 +32,55 @@ function AdminUsers({ token }) {
   const [statusFilter, setStatusFilter] = useState("All");
   const [notification, setNotification] = useState(null);
   
-  // Prevent multiple simultaneous fetches
   const [isFetching, setIsFetching] = useState(false);
   
-  // Cache and real-time update states
   const [lastFetchTime, setLastFetchTime] = useState(null);
   const [initialLoadComplete, setInitialLoadComplete] = useState(false);
-  const [showInitialLoader, setShowInitialLoader] = useState(true); // New state for initial loading screen
-  const [overlayExited, setOverlayExited] = useState(false); // For inline loading animation
-  const CACHE_DURATION = 30000; // 30 seconds cache
+  const [showInitialLoader, setShowInitialLoader] = useState(true);
+  const [overlayExited, setOverlayExited] = useState(false);
+  const CACHE_DURATION = 30000;
   
-  // Loading features for inline loading screen
   const loadingFeatures = [
     { title: "User Management", description: "Loading all registered users and their data." },
     { title: "Verification Status", description: "Checking email and identity verification statuses." },
     { title: "Role Management", description: "Organizing users by roles and permissions." },
   ];
   
-  // Modal states for verification
   const [selectedUser, setSelectedUser] = useState(null);
   const [isVerificationModalOpen, setIsVerificationModalOpen] = useState(false);
   const [userInfo, setUserInfo] = useState(null);
   const [infoLoading, setInfoLoading] = useState(false);
   const [checkingFields, setCheckingFields] = useState(false);
-  // Create User modal states
+
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [createFirstname, setCreateFirstname] = useState("");
   const [createLastname, setCreateLastname] = useState("");
   const [createEmail, setCreateEmail] = useState("");
   const [createPassword, setCreatePassword] = useState("");
-  const [createRole, setCreateRole] = useState("Account"); // Account | Barangay Official | Responder
+  const [createRole, setCreateRole] = useState("Account");
   const [createBarangay, setCreateBarangay] = useState("");
   const [createAvatarFile, setCreateAvatarFile] = useState(null);
   const [createAvatarPreview, setCreateAvatarPreview] = useState(null);
   const [isCreating, setIsCreating] = useState(false);
-  // Bulk delete / selection state
+
   const [selectionMode, setSelectionMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState(new Set());
   const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
-  // User deletion reason modal states
+  
   const [isDeleteReasonOpen, setIsDeleteReasonOpen] = useState(false);
   const [deleteReason, setDeleteReason] = useState("");
   const [deleteReasonOther, setDeleteReasonOther] = useState("");
 
-  // NEW TAB section
 const tabs = ["Residents", "Barangay Officials", "Responders", "Admin"];
 const [activeTab, setActiveTab] = useState("Residents");
 
-  // Notification handler
   const showNotification = useCallback((message, type = "success") => {
     setNotification({ message, type });
     setTimeout(() => setNotification(null), 4000);
   }, []);
 
-  // Optimized fetch with caching and incremental loading
   const fetchUsers = useCallback(async (force = false) => {
-    // Check cache validity
     const now = Date.now();
     if (!force && lastFetchTime && (now - lastFetchTime) < CACHE_DURATION && initialLoadComplete) {
       console.log('📋 Using cached user data');
@@ -100,7 +92,6 @@ const [activeTab, setActiveTab] = useState("Residents");
       return;
     }
 
-    // Only show loading spinner on initial load or forced refresh
     if (!initialLoadComplete) {
       setLoading(true);
     }
@@ -119,7 +110,6 @@ const [activeTab, setActiveTab] = useState("Residents");
       });
 
       if (!response.ok) {
-        // try to read response body to surface server error
         let bodyText = '';
         try {
           bodyText = await response.text();
@@ -146,7 +136,6 @@ const [activeTab, setActiveTab] = useState("Residents");
       }
     } catch (error) {
       console.error('Error fetching users:', error);
-      // Show error notification with more detail when available
       const msg = (error && error.message) ? `Failed to load users: ${error.message}` : 'Failed to load users. Please try again.';
       setNotification({ message: msg, type: 'error' });
       setTimeout(() => setNotification(null), 4000);
@@ -158,16 +147,14 @@ const [activeTab, setActiveTab] = useState("Residents");
     }
   }, [token, isFetching, lastFetchTime, initialLoadComplete, CACHE_DURATION]);
 
-  // Debounce search input to prevent excessive filtering
   useEffect(() => {
     const timer = setTimeout(() => {
       setDebouncedSearch(search);
-    }, 300); // 300ms delay
+    }, 300);
 
     return () => clearTimeout(timer);
   }, [search]);
 
-  // Real-time update function for individual user changes
   const updateUserInState = useCallback((updatedUser) => {
     setUsers(prevUsers => 
       prevUsers.map(user => 
@@ -176,16 +163,13 @@ const [activeTab, setActiveTab] = useState("Residents");
     );
   }, []);
 
-
-
-  // Auto-refresh timer for real-time updates
   useEffect(() => {
     if (!initialLoadComplete) return;
 
     const interval = setInterval(() => {
       console.log('⏰ Auto-refreshing user data...');
-      fetchUsers(false); // Soft refresh (respects cache)
-    }, 60000); // Refresh every minute
+      fetchUsers(false);
+    }, 60000);
 
     return () => clearInterval(interval);
   }, [fetchUsers, initialLoadComplete]);
@@ -194,9 +178,6 @@ const [activeTab, setActiveTab] = useState("Residents");
     fetchUsers();
   }, [fetchUsers]);
 
-  // Note: Removed toggleUserVerification function as we now only use the modal for verification
-
-  // Fetch user detailed info for verification modal
   const fetchUserInfo = async (userId) => {
     if (!token) return;
 
@@ -235,7 +216,7 @@ const [activeTab, setActiveTab] = useState("Residents");
     fetchUserInfo(user.id);
   };
 
-  // --- Create User Modal Helpers ---
+  // Create User Modal Helpers
   const barangaysList = [
     "Barretto", "East Bajac-Bajac", "East Tapinac", "Gordon Heights",
     "Kalaklan", "Mabayuan", "New Asinan", "New Banicain", "New Cabalan",
@@ -268,10 +249,8 @@ const [activeTab, setActiveTab] = useState("Residents");
     });
   };
 
-  // Open confirmation modal (instead of immediate browser confirm)
   const confirmDeleteSelected = () => {
     if (!selectedIds || selectedIds.size === 0) return;
-    // First open the reason modal instead of going directly to confirmation
     setIsDeleteReasonOpen(true);
   };
 
@@ -282,7 +261,6 @@ const [activeTab, setActiveTab] = useState("Residents");
   };
 
   const proceedToConfirmDelete = () => {
-    // Close reason modal and open confirmation modal
     setIsDeleteReasonOpen(false);
     setIsDeleteConfirmOpen(true);
   };
@@ -316,7 +294,6 @@ const [activeTab, setActiveTab] = useState("Residents");
         }
       }
 
-      // Refresh user list after deletions
       setSelectionMode(false);
       setSelectedIds(new Set());
       setDeleteReason("");
@@ -341,7 +318,6 @@ const [activeTab, setActiveTab] = useState("Residents");
 
   const handleCreateUser = async () => {
     if (isCreating) return;
-    // basic validation
     if (!createFirstname.trim() || !createLastname.trim() || !createEmail.trim() || !createRole) {
       showNotification('Please fill required fields (first name, last name, email, role)', 'error');
       return;
@@ -362,7 +338,6 @@ const [activeTab, setActiveTab] = useState("Residents");
         method: 'POST',
         headers: {
           Authorization: `Bearer ${token}`
-          // NOTE: do not set Content-Type for FormData
         },
         body: formData
       });
@@ -372,11 +347,9 @@ const [activeTab, setActiveTab] = useState("Residents");
         throw new Error(data.message || 'Failed to create user');
       }
 
-      // Add created user to local state if provided
       if (data.user) {
         setUsers(prev => [data.user, ...prev]);
       } else {
-        // fallback: refresh list
         fetchUsers(true);
       }
 
@@ -397,11 +370,9 @@ const [activeTab, setActiveTab] = useState("Residents");
     setUserInfo(null);
   };
 
-  // Verify user fully - only available when all required fields are completed
   const verifyUserFully = async () => {
     if (!selectedUser || !token) return;
 
-    // Double-check that all required fields are completed before verification
     if (!userInfo || !isInfoComplete(userInfo)) {
       const missingFields = getMissingFields(userInfo);
       showNotification(`❌ Cannot verify - Missing: ${missingFields.join(', ')}`, 'error');
@@ -418,8 +389,8 @@ const [activeTab, setActiveTab] = useState("Residents");
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({ 
-          verified: true, // Set verified status to true
-          fully_verified: true // Also send the backend field name for compatibility
+          verified: true,
+          fully_verified: true
         })
       });
 
@@ -432,7 +403,6 @@ const [activeTab, setActiveTab] = useState("Residents");
       if (data.status === "success") {
         console.log('✅ Verification successful, updating local state for user:', selectedUser.id);
         
-        // Real-time update: immediately update the user in state
         const updatedUser = { 
           ...selectedUser, 
           verified: true, 
@@ -444,7 +414,6 @@ const [activeTab, setActiveTab] = useState("Residents");
         showNotification(`✅ ${selectedUser.firstname} ${selectedUser.lastname} successfully verified!`, 'success');
         closeVerificationModal();
         
-        // Real-time update complete - no need to fetch from server
       } else {
         throw new Error(data.message || 'Failed to verify user');
       }
@@ -454,7 +423,6 @@ const [activeTab, setActiveTab] = useState("Residents");
     }
   };
 
-  // Check if user info is complete and get missing fields
   const isInfoComplete = (info) => {
     if (!info) return false;
     return !!(
@@ -467,7 +435,6 @@ const [activeTab, setActiveTab] = useState("Residents");
     );
   };
 
-  // Get missing fields for better user feedback
   const getMissingFields = (info) => {
     if (!info) return ['All required information is missing'];
     
@@ -482,7 +449,6 @@ const [activeTab, setActiveTab] = useState("Residents");
     return missing;
   };
 
-  // Manual check for missing fields
   const checkMissingFields = () => {
     setCheckingFields(true);
     
@@ -496,17 +462,15 @@ const [activeTab, setActiveTab] = useState("Residents");
       }
       
       setCheckingFields(false);
-    }, 500); // Small delay for better UX
+    }, 500);
   };
 
-  // Send verification reminder to user
   const sendVerificationReminder = async () => {
     if (!selectedUser || !token) return;
 
     try {
       showNotification('📧 Sending verification reminder...', 'info');
       
-      // This would be a new endpoint to send reminder emails
       const response = await fetch(`${API_URL}/users/${selectedUser.id}/verification-reminder`, {
         method: 'POST',
         headers: {
@@ -526,10 +490,8 @@ const [activeTab, setActiveTab] = useState("Residents");
     }
   };
 
-  // Memoized filtered users to prevent unnecessary re-renders
   const filteredUsers = useMemo(() => {
     return users
-      // tab filter
       .filter(u => {
         if (activeTab === "Residents") return u.role === "Resident";
         if (activeTab === "Barangay Officials") return u.role === "Barangay Official";
@@ -537,7 +499,6 @@ const [activeTab, setActiveTab] = useState("Residents");
         if (activeTab === "Admin") return u.role === "Admin";
         return true;
       })
-      // status filter
       .filter(u =>
         statusFilter === "All"
           ? true
@@ -545,7 +506,6 @@ const [activeTab, setActiveTab] = useState("Residents");
           ? (u.isverified && u.verified)
           : !(u.isverified && u.verified)
       )
-      // search filter
       .filter(u =>
         `${u.firstname} ${u.lastname}`
           .toLowerCase()
@@ -554,7 +514,6 @@ const [activeTab, setActiveTab] = useState("Residents");
       );
   }, [users, activeTab, statusFilter, debouncedSearch]);
 
-  // Memoized stats to calculate counts including barangay officials and responders
   const stats = useMemo(() => ({
     totalUsers: users.length,
     fullyVerifiedUsers: users.filter(u => u.isverified && u.verified).length,
@@ -565,7 +524,6 @@ const [activeTab, setActiveTab] = useState("Residents");
     responders: users.filter(u => u.role === "Responder").length
   }), [users]);
 
-  // Inline loading content
   const content = (
     <div className={`admin-container ${overlayExited ? 'overlay-exited' : ''}`}>
       <div className="admin-header-row">
@@ -679,10 +637,10 @@ const [activeTab, setActiveTab] = useState("Residents");
         </div>
       </div>
 
-      {/* ✅ USER SECTION */}
+      {/* USER SECTION */}
       <div className="admin-users-section">
 
-        {/* ✅ MODERN USER TABS */}
+        {/* MODERN USER TABS */}
         <div className="admin-modern-tabs">
           <div className="admin-modern-tabs-inner">
             {tabs.map((t) => (
@@ -698,7 +656,7 @@ const [activeTab, setActiveTab] = useState("Residents");
           <div className="admin-modern-tab-line" />
         </div>
 
-        {/* ✅ SEARCH + STATUS FILTER */}
+        {/* SEARCH + STATUS FILTER */}
         <div className="admin-top-controls inside-tabs">
           <div className="admin-search-container">
             <input
@@ -722,7 +680,7 @@ const [activeTab, setActiveTab] = useState("Residents");
           </select>
         </div>
 
-        {/* ✅ USERS LIST */}
+        {/* USERS LIST */}
         {filteredUsers.length > 0 ? (
           <div className="admin-users-grid">
             {filteredUsers.map((user) => {
@@ -849,7 +807,6 @@ const [activeTab, setActiveTab] = useState("Residents");
         )}
       </div>
 
-
       {/* Create User Modal */}
       {isCreateModalOpen && (
         <div className="modal-overlay" onClick={closeCreateModal}>
@@ -932,7 +889,7 @@ const [activeTab, setActiveTab] = useState("Residents");
         </div>
       )}
 
-      {/* Delete Reason Modal: ask admin why the users are being deleted */}
+      {/* Delete Reason Modal */}
       {isDeleteReasonOpen && (
         <div
           className="modal-overlay"
@@ -1275,10 +1232,8 @@ const [activeTab, setActiveTab] = useState("Residents");
                   Cancel
                 </button>
 
-                {/* Show appropriate action button based on user status */}
                 {selectedUser.role !== 'Admin' && (
                   <>
-                    {/* If user is fully verified - no action needed */}
                     {(selectedUser.isverified && selectedUser.verified) ? (
                       <div style={{
                         padding: '12px 24px',
@@ -1295,7 +1250,6 @@ const [activeTab, setActiveTab] = useState("Residents");
                         <FaCheckCircle /> Already Verified
                       </div>
                     ) : userInfo && isInfoComplete(userInfo) ? (
-                      /* User has complete info - show verify button */
                       <button 
                         className="verify-btn" 
                         onClick={verifyUserFully}
@@ -1321,7 +1275,6 @@ const [activeTab, setActiveTab] = useState("Residents");
                         <FaCheckCircle /> Verify
                       </button>
                     ) : (
-                      /* User has incomplete info - show reminder button */
                       <button 
                         className="remind-btn" 
                         onClick={sendVerificationReminder}
@@ -1355,7 +1308,7 @@ const [activeTab, setActiveTab] = useState("Residents");
         </div>
       )}
 
-      {/* Notification - wrapped in ModalPortal for proper z-index display */}
+      {/* Notification */}
       {notification && (
         <ModalPortal>
           <div 

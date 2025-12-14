@@ -76,22 +76,19 @@ function LocationPicker({ setLocation, currentLocation }) {
 
   useMapEvents({
     click(e) {
-      // If the user clicks on the map, set manual marker location
       setPosition(e.latlng);
       setLocation(e.latlng);
     },
   });
 
-  // If the "Use My Location" button is pressed, clear manual picker marker
   useEffect(() => {
     if (currentLocation) {
-      setPosition(null); // remove manual marker when using GPS
+      setPosition(null);
     }
   }, [currentLocation]);
 
   return position ? <Marker position={position} /> : null;
 }
-// ✅ Helper Component: Recenters map when lat/lng changes
 function RecenterMap({ lat, lng }) {
   const map = useMap();
   useEffect(() => {
@@ -102,23 +99,18 @@ function RecenterMap({ lat, lng }) {
   return null;
 }
 
-// --- NEW Hook for Arrow Key Navigation in Filter Controls ---
-// MODIFIED: Added isModalOpen to prevent filter navigation when modal is active.
 const useKeyboardNavigation = (containerRef, selector, isModalOpen) => {
     useEffect(() => {
         const container = containerRef.current;
         if (!container) return;
 
         const handleArrowNavigation = (event) => {
-            // FIX: If the modal is open, prevent filter navigation
             if (isModalOpen) return; 
 
-            // Only capture arrows if the current focus is within the filter container
             if (!container.contains(document.activeElement) && event.key !== 'ArrowRight' && event.key !== 'ArrowLeft' && event.key !== 'ArrowDown' && event.key !== 'ArrowUp') {
                 return;
             }
 
-            // The selector finds all focusable filter elements
             const focusableElements = Array.from(container.querySelectorAll(selector))
                 .filter(el => !el.disabled && el.offsetParent !== null);
 
@@ -131,7 +123,7 @@ const useKeyboardNavigation = (containerRef, selector, isModalOpen) => {
                     const nextIndex = (currentIndex + 1) % focusableElements.length;
                     focusableElements[nextIndex]?.focus();
                 }
-                event.preventDefault(); // Prevent default scroll/behavior
+                event.preventDefault();
             } else if (event.key === 'ArrowLeft' || event.key === 'ArrowUp') {
                 if (currentIndex === -1) {
                     focusableElements[focusableElements.length - 1]?.focus();
@@ -145,9 +137,8 @@ const useKeyboardNavigation = (containerRef, selector, isModalOpen) => {
 
         window.addEventListener('keydown', handleArrowNavigation);
         return () => window.removeEventListener('keydown', handleArrowNavigation);
-    }, [containerRef, selector, isModalOpen]); // ADDED: isModalOpen to dependency array
+    }, [containerRef, selector, isModalOpen]);
 };
-// -------------------------------------------------------------
 
 function Reports({ session }) {
   const [reports, setReports] = useState([]);
@@ -155,29 +146,27 @@ function Reports({ session }) {
   const [search, setSearch] = useState("");
   const [category, setCategory] = useState("All");
   const [barangay, setBarangay] = useState("All Barangays");
-  const [sort, setSort] = useState("latest"); // 'latest', 'oldest', 'trending', 'top'
+  const [sort, setSort] = useState("latest"); 
   const [showMyReports, setShowMyReports] = useState(false);
   const [previewImage, setPreviewImage] = useState(null);
   
-  // ⭐ NEW: User's barangay for "From Your Barangay" section
   const [userBarangay, setUserBarangay] = useState(null);
-  const [barangayReports, setBarangayReports] = useState([]); // Reports from user's barangay (excluding own)
-  const [otherBarangayReports, setOtherBarangayReports] = useState([]); // Trending from other barangays
+  const [barangayReports, setBarangayReports] = useState([]);
+  const [otherBarangayReports, setOtherBarangayReports] = useState([]);
+
+  // Trending container state
+  const [trendingExpanded, setTrendingExpanded] = useState(false);
+  const [trendingTimeFilter, setTrendingTimeFilter] = useState("all");
+  const [pendingExpanded, setPendingExpanded] = useState(false);
   
-  // ⭐ NEW: Trending container state
-  const [trendingExpanded, setTrendingExpanded] = useState(false); // Collapsed by default
-  const [trendingTimeFilter, setTrendingTimeFilter] = useState("all"); // today, yesterday, this-month, all
-  const [pendingExpanded, setPendingExpanded] = useState(false); // Show pending reports section
-  
-  // ⭐ User verification status - posting requires full verification (users_info.verified = true)
   const [userVerified, setUserVerified] = useState(false);
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [newReport, setNewReport] = useState({
     title: "",
     description: "",
-    category: "", // Start with empty selection to force user to choose
-    barangay: "", // Start with empty selection to force user to choose
+    category: "",
+    barangay: "",
     addressStreet: "",
     images: [],
     existingImages: [],
@@ -189,23 +178,19 @@ function Reports({ session }) {
   const [expandedPosts, setExpandedPosts] = useState([]);
   const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState(null);
-  // ⭐ NEW STATE FOR NOTIFICATION
-  const [notification, setNotification] = useState(null); // { message: string, type: 'success' | 'error' | 'caution' }
+
+  const [notification, setNotification] = useState(null);
   const [highlightedReportId, setHighlightedReportId] = useState(null);
-  const [isSubmitting, setIsSubmitting] = useState(false); // Prevent double submissions
-  const [isDeleting, setIsDeleting] = useState(false); // Delete loading state
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
   
-  // ⭐ NEW STATE FOR REJECTION MODAL
   const [rejectionModalOpen, setRejectionModalOpen] = useState(false);
   const [rejectionReason, setRejectionReason] = useState(null);
 
-  // Persistent error state (shows a non-transient message like Home.jsx)
   const [error, setError] = useState(null);
 
-  // Overlay exited state for inline loading exit animation (matches Home.jsx behavior)
   const [overlayExited, setOverlayExited] = useState(false);
 
-  // Mount animation: show a short cinematic opening when the page isn't already loading
   const [showMountAnimation, setShowMountAnimation] = useState(false);
   const [mountStage, setMountStage] = useState("exit");
   const loadingRef = useRef(loading);
@@ -215,21 +200,16 @@ function Reports({ session }) {
     loadingRef.current = loading;
   }, [loading]);
 
-  // Start a cinematic mount animation only if a real loading fetch is not already running.
-  // We wait a short delay so that if `fetchReports` triggers quickly (setting `loading` to true)
-  // we won't display the cinematic overlay and instead show the real loading state.
   useEffect(() => {
     let startTimer = null;
     let exitTimer = null;
 
     if (!loadingRef.current) {
       startTimer = setTimeout(() => {
-        // If a fetch started while waiting, skip mount animation
         if (loadingRef.current) return;
         setShowMountAnimation(true);
         setMountStage("loading");
 
-        // After a short display, transition to exit to play the exit animation
         exitTimer = setTimeout(() => {
           setMountStage("exit");
         }, 700);
@@ -240,26 +220,20 @@ function Reports({ session }) {
       if (startTimer) clearTimeout(startTimer);
       if (exitTimer) clearTimeout(exitTimer);
     };
-    // Run on mount only
   }, []);
 
-  // If a real loading starts while the mount animation is visible, cancel the cinematic
   useEffect(() => {
     if (loading) {
       setShowMountAnimation(false);
     }
   }, [loading]);
 
-  // ⭐ REFS for Modals (already existed)
   const modalRef = useRef(null);
   const focusableElementsRef = useRef([]);
 
-  // ⭐ NEW REF FOR FILTER KEYBOARD NAVIGATION
   const filterContainerRef = useRef(null);
   const filterSelector = '.search-input, select, .action-buttons-group button';
-  // MODIFIED: Passing isModalOpen to prevent conflict when modal is open
   useKeyboardNavigation(filterContainerRef, filterSelector, isModalOpen); 
-  // ------------------------------------------
 
   const barangays = [
     "All Barangays",
@@ -282,21 +256,18 @@ function Reports({ session }) {
     "West Tapinac",
   ];
 
-  // The 'applied' states will now track the current filter values directly (real-time).
   const [appliedSearch, setAppliedSearch] = useState("");
   const [appliedCategory, setAppliedCategory] = useState("All");
   const [appliedBarangay, setAppliedBarangay] = useState("All Barangays");
   const token = session?.token;
 
-  // ⭐ NOTIFICATION HANDLER FUNCTION
   const showNotification = (message, type = "success") => {
     setNotification({ message, type });
     setTimeout(() => {
       setNotification(null);
-    }, 3000); // Notification disappears after 3 seconds
+    }, 3000);
   };
 
-  // ⭐ NEW: Fetch user's barangay from profile
   const fetchUserBarangay = useCallback(async () => {
     if (!token) return;
     try {
@@ -310,8 +281,6 @@ function Reports({ session }) {
           setUserBarangay(barangayValue);
           console.log("📍 User barangay:", barangayValue);
         }
-        // Check if user is fully verified (users_info.verified = true)
-        // isverified = email verified, verified = full verification
         const isFullyVerified = res.data.profile.verified === true;
         setUserVerified(isFullyVerified);
       }
@@ -321,15 +290,12 @@ function Reports({ session }) {
     }
   }, [token]);
 
-  // ⭐ NEW: Compute "From Your Barangay" reports with newsfeed algorithm
-  // Shows trending reports from user's barangay (excluding own reports)
   useEffect(() => {
     if (!userBarangay || !reports.length || !session?.user?.id) {
       setBarangayReports([]);
       return;
     }
 
-    // Time filter logic
     const now = new Date();
     const filterByTime = (createdAt) => {
       if (trendingTimeFilter === "all") return true; // Show all reports
@@ -352,8 +318,6 @@ function Reports({ session }) {
       }
     };
 
-    // Filter reports from user's barangay (INCLUDING your own!)
-    // Community Involvement - shows ALL engaged reports to encourage participation
     const fromBarangay = reports.filter((r) => 
       r.address_barangay === userBarangay && 
       r.status !== "Resolved" &&
@@ -364,28 +328,22 @@ function Reports({ session }) {
       filterByTime(r.created_at)
     );
 
-    // Apply trending algorithm: Community Awareness & Involvement
-    // Score = (reactions * 15 + base_score + category_weight) / (days_old + 1)^0.8
-    // Gentler decay keeps reports visible longer for stable trending
     const scored = fromBarangay.map((r) => {
       const createdAt = new Date(r.created_at || 0);
       const daysOld = Math.max(0, (now - createdAt) / (1000 * 60 * 60 * 24));
       
-      // Engagement weights - higher for community interaction
       const severityWeight = { Crime: 4, Hazard: 3.5, Concern: 3, 'Lost&Found': 2, Others: 2 };
-      const reactionBoost = (r.reaction_count || 0) * 15; // High weight for community engagement
-      const baseScore = 5; // Base score ensures reports don't vanish suddenly
+      const reactionBoost = (r.reaction_count || 0) * 15;
+      const baseScore = 5;
       const isOwnReport = String(r.user_id) === String(session.user.id);
       const engagement = reactionBoost + (severityWeight[r.category] || 2) + baseScore;
-      
-      // Very gentle time decay (0.8 exponent) - keeps trending stable
+
       const timeFactor = Math.pow(daysOld + 1, 0.8);
       const trendingScore = engagement / timeFactor;
       
       return { ...r, trendingScore, isUserBarangay: true, isOwnReport };
     });
 
-    // Sort by trending score descending, limit to 5
     const trending = scored
       .sort((a, b) => b.trendingScore - a.trendingScore)
       .slice(0, 5);
@@ -394,7 +352,6 @@ function Reports({ session }) {
     console.log(`🔥 ${trending.length} trending reports from ${userBarangay}`);
   }, [userBarangay, reports, session?.user?.id, trendingTimeFilter]);
 
-  // ⭐ Compute trending reports from OTHER barangays
   useEffect(() => {
     if (!reports.length || !session?.user?.id) {
       setOtherBarangayReports([]);
@@ -404,7 +361,7 @@ function Reports({ session }) {
     // Time filter logic
     const now = new Date();
     const filterByTime = (createdAt) => {
-      if (trendingTimeFilter === "all") return true; // Show all reports
+      if (trendingTimeFilter === "all") return true;
       
       const reportDate = new Date(createdAt);
       const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
@@ -424,8 +381,6 @@ function Reports({ session }) {
       }
     };
 
-    // Filter reports from OTHER barangays (INCLUDING your own reports!)
-    // Community Awareness - shows engaged content from all barangays
     const fromOtherBarangays = reports.filter((r) => 
       r.address_barangay !== userBarangay && 
       r.status !== "Resolved" &&
@@ -437,25 +392,22 @@ function Reports({ session }) {
       filterByTime(r.created_at)
     );
 
-    // Apply trending algorithm: Community Awareness across barangays
-    // Gentler decay keeps cross-barangay reports visible longer
     const scored = fromOtherBarangays.map((r) => {
       const createdAt = new Date(r.created_at || 0);
       const daysOld = Math.max(0, (now - createdAt) / (1000 * 60 * 60 * 24));
       
       const severityWeight = { Crime: 4, Hazard: 3.5, Concern: 3, 'Lost&Found': 2, Others: 2 };
-      const reactionBoost = (r.reaction_count || 0) * 15; // High weight for community engagement
-      const baseScore = 5; // Base score for stability
+      const reactionBoost = (r.reaction_count || 0) * 15;
+      const baseScore = 5;
       const isOwnReport = String(r.user_id) === String(session.user.id);
       const engagement = reactionBoost + (severityWeight[r.category] || 2) + baseScore;
       
-      const timeFactor = Math.pow(daysOld + 1, 0.8); // Very gentle decay
+      const timeFactor = Math.pow(daysOld + 1, 0.8);
       const trendingScore = engagement / timeFactor;
       
       return { ...r, trendingScore, isUserBarangay: false, isOwnReport };
     });
 
-    // Sort by trending score descending, limit to 5
     const trending = scored
       .sort((a, b) => b.trendingScore - a.trendingScore)
       .slice(0, 5);
@@ -464,11 +416,8 @@ function Reports({ session }) {
     console.log(`🌍 ${trending.length} trending reports from other barangays`);
   }, [userBarangay, reports, session?.user?.id, trendingTimeFilter]);
 
-  // ⭐ Combine all trending reports (user's barangay first, then others)
   const allTrendingReports = useMemo(() => {
-    // Combine and sort: user's barangay reports first (with pin), then others by score
     const combined = [...barangayReports, ...otherBarangayReports];
-    // Sort by: isUserBarangay first, then by trendingScore
     return combined.sort((a, b) => {
       if (a.isUserBarangay && !b.isUserBarangay) return -1;
       if (!a.isUserBarangay && b.isUserBarangay) return 1;
@@ -476,10 +425,9 @@ function Reports({ session }) {
     });
   }, [barangayReports, otherBarangayReports]);
 
-  // ✅ Fetch reports
+  // Fetch reports
   const fetchReports = useCallback(async () => {
     if (!token) return;
-    // Reset overlay exit flag when starting a new loading cycle
     setOverlayExited(false);
     setError(null);
     setLoading(true);
@@ -488,7 +436,7 @@ function Reports({ session }) {
   getApiUrl(`/api/reports`),
         { 
           headers: { Authorization: `Bearer ${token}` },
-          timeout: 30000 // 30 second timeout
+          timeout: 30000
         }
       );
       if (res.data.status === "success" && Array.isArray(res.data.reports)) {
@@ -496,15 +444,12 @@ function Reports({ session }) {
         console.log(`📊 Loaded ${res.data.reports.length} reports successfully`);
         
         if (res.data.reports.length > 0) {
-          // Calculate animation duration: 100ms per card + 500ms for slide animation
           const animationDuration = (res.data.reports.length * 100) + 500;
-          
-          // Keep loading screen visible until all cards have animated in
+
           setTimeout(() => {
             setLoading(false);
           }, animationDuration);
         } else {
-          // No reports, exit loading immediately to show "No reports found" message
           setLoading(false);
         }
       } else {
@@ -523,30 +468,23 @@ function Reports({ session }) {
       } else {
         showNotification("Failed to load reports", "error");
       }
-      // On error, preserve existing reports to prevent blank page
-      // Only set empty array if there are no existing reports
       setLoading(false);
     }
   }, [token]);
 
-  // ✅ Run on mount & whenever token/sort changes
   useEffect(() => {
     fetchReports();
-    fetchUserBarangay(); // Fetch user's barangay for "From Your Barangay" section
+    fetchUserBarangay(); 
   }, [fetchReports, fetchUserBarangay]);
 
-  // ⭐ ORIGINAL KEYBOARD NAVIGATION EFFECT (FOR MODAL)
   useEffect(() => {
     if (isModalOpen && modalRef.current) {
-      // Get all focusable elements in the modal
       const focusableElements = modalRef.current.querySelectorAll(
-        // Selector includes input, textarea, select, button, and any element with tabIndex (like the upload label)
         'input:not([type="file"]), textarea, select, button:not([type="button"]), [tabindex]:not([tabindex="-1"])'
       );
       
       focusableElementsRef.current = Array.from(focusableElements);
       
-      // Set focus to first element when modal opens
       if (focusableElementsRef.current.length > 0) {
         focusableElementsRef.current[0].focus();
       }
@@ -556,7 +494,6 @@ function Reports({ session }) {
           setIsModalOpen(false);
         }
         
-        // Tab and Shift+Tab for focus trap (important for accessibility)
         if (e.key === 'Tab') {
           e.preventDefault();
           const currentIndex = focusableElementsRef.current.indexOf(document.activeElement);
@@ -577,9 +514,7 @@ function Reports({ session }) {
     }
   }, [isModalOpen]);
 
-  // Add or update report
   const handleAddOrUpdateReport = async () => {
-    // Prevent double submissions
     if (isSubmitting) {
       console.log("⚠️ Already submitting, ignoring duplicate request");
       return;
@@ -592,7 +527,6 @@ function Reports({ session }) {
     setIsSubmitting(true);
     
     try {
-      // ✅ VALIDATION: Check all required fields
       const requiredFields = {
         title: newReport.title?.trim(),
         description: newReport.description?.trim(),
@@ -601,7 +535,6 @@ function Reports({ session }) {
         category: newReport.category
       };
 
-      // Check for empty required fields
       const emptyFields = Object.entries(requiredFields)
         .filter(([, value]) => !value || value === "")
         .map(([key]) => key);
@@ -622,7 +555,6 @@ function Reports({ session }) {
         return;
       }
 
-      // ✅ VALIDATION: Check if barangay is selected (not "All")
       if (newReport.barangay === "All") {
         showNotification(
           "Please select a specific barangay.",
@@ -631,7 +563,6 @@ function Reports({ session }) {
         return;
       }
 
-      // ✅ VALIDATION: Check if images are provided (required for new reports, optional for updates)
       if (!editReportId && (!newReport.images || newReport.images.length === 0)) {
         showNotification(
           "At least one image is required to submit a report.",
@@ -665,11 +596,9 @@ function Reports({ session }) {
           },
         });
         
-        // Real-time update: Update the specific report in the list with complete data
         if (response.data.status === "success" && response.data.report) {
           const updatedReport = response.data.report;
           
-          // Log verification status for debugging
           console.log("Updated report verification status:", {
             email: updatedReport.reporter?.isverified,
             full: updatedReport.reporter?.verified
@@ -679,8 +608,7 @@ function Reports({ session }) {
             prevReports.map(report => 
               report.id === editReportId 
                 ? { 
-                    ...updatedReport, // Use the complete updated report from backend
-                    // Ensure reporter info is properly updated with current verification status
+                    ...updatedReport,
                     reporter: updatedReport.reporter || report.reporter,
                     images: updatedReport.images || [],
                     updated_at: updatedReport.updated_at || new Date().toISOString()
@@ -704,7 +632,6 @@ function Reports({ session }) {
           },
         });
         
-        // Real-time update: Add new report to the top of the list
         if (response.data.status === "success") {
           const newReport = response.data.report;
           console.log("=== New report received from backend ===");
@@ -712,9 +639,7 @@ function Reports({ session }) {
           console.log("New report ID:", newReport.id);
           console.log("New report ID type:", typeof newReport.id);
           
-          // Ensure the new report has the correct verification status
           if (newReport.reporter) {
-            // The backend should have already set the correct verification status
             console.log("New report verification status:", {
               email: newReport.reporter.isverified,
               full: newReport.reporter.verified
@@ -733,7 +658,6 @@ function Reports({ session }) {
       resetNewReport();
       setIsModalOpen(false);
       setEditReportId(null);
-      // Remove fetchReports() call - no longer needed for real-time updates
     } catch (err) {
       console.error("Add/Update Error:", err);
       showNotification(
@@ -761,13 +685,13 @@ function Reports({ session }) {
     
     setEditReportId(report.id);
     setNewReport({
-      title: report.title || "", // ⭐ Added: Fetch title on edit
+      title: report.title || "",
       description: report.description || "",
       category: report.category || "Concern",
-      barangay: report.address_barangay || "", // Use address_barangay from the report object, but don't default to "All"
+      barangay: report.address_barangay || "",
       addressStreet: report.address_street || "",
       images: [],
-      existingImages: report.images || [], // Store existing images separately
+      existingImages: report.images || [],
       lat: report.latitude || null,
       lng: report.longitude || null,
       date: report.created_at ? new Date(report.created_at) : new Date(),
@@ -801,7 +725,6 @@ function Reports({ session }) {
       console.log("🔗 Delete URL:", deleteUrl);
       console.log("🔑 Token exists:", !!token);
       
-      // Use DELETE method for hard delete - send empty object as body with proper headers
       const response = await axios.delete(deleteUrl, { 
         data: {},
         headers: { 
@@ -812,7 +735,6 @@ function Reports({ session }) {
       
       console.log("✅ Delete response:", response.status, response.data);
       
-      // Real-time update: Remove the deleted report from the list
       setReports(prevReports => 
         prevReports.filter(report => report.id !== deleteTarget.id)
       );
@@ -820,7 +742,6 @@ function Reports({ session }) {
       showNotification("🗑️ Report deleted successfully!", "success");
       setIsDeleteConfirmOpen(false);
       setDeleteTarget(null);
-      // Remove fetchReports() call - no longer needed for real-time updates
     } catch (err) {
       console.error("Delete Error:", err);
       showNotification("Failed to delete report. Please try again.", "error");
@@ -829,21 +750,18 @@ function Reports({ session }) {
     }
   };
 
-  // Handle heart/like toggle for reports with OPTIMISTIC UI UPDATE
   const handleToggleLike = async (reportId) => {
     if (!session?.token) {
       showNotification("Please log in to like reports", "caution");
       return;
     }
 
-    // Find the current report state
     const currentReport = reports.find(r => r.id === reportId);
     if (!currentReport) return;
 
     const wasLiked = currentReport.user_liked;
     const previousCount = currentReport.reaction_count || 0;
 
-    // OPTIMISTIC UPDATE: Immediately update UI before API call
     setReports(prevReports => 
       prevReports.map(report => 
         report.id === reportId 
@@ -869,7 +787,6 @@ function Reports({ session }) {
       const data = await response.json();
       
       if (data.status === 'success') {
-        // Sync with server response (in case of race conditions)
         setReports(prevReports => 
           prevReports.map(report => 
             report.id === reportId 
@@ -882,7 +799,6 @@ function Reports({ session }) {
           )
         );
       } else {
-        // ROLLBACK: Revert optimistic update on failure
         setReports(prevReports => 
           prevReports.map(report => 
             report.id === reportId 
@@ -898,7 +814,6 @@ function Reports({ session }) {
       }
     } catch (error) {
       console.error("Error toggling like:", error);
-      // ROLLBACK: Revert optimistic update on error
       setReports(prevReports => 
         prevReports.map(report => 
           report.id === reportId 
@@ -924,8 +839,8 @@ function Reports({ session }) {
     setNewReport({
       title: "",
       description: "",
-      category: "", // Start with empty selection to force user to choose
-      barangay: "", // Start with empty selection to force user to choose
+      category: "",
+      barangay: "",
       addressStreet: "",
       images: [],
       existingImages: [],
@@ -935,7 +850,6 @@ function Reports({ session }) {
     });
   };
 
-  // Get user's pending reports count
   const userPendingReports = useMemo(() => {
     return reports.filter(r => 
       r.is_approved === false && 
@@ -944,28 +858,22 @@ function Reports({ session }) {
     );
   }, [reports, session?.user?.id]);
 
-  // Correct toggle logic
   const filteredReports = reports
     .filter((r) => r.deleted !== true) 
-    .filter((r) => r.status !== "Resolved") // Exclude resolved reports - they go to Archived
+    .filter((r) => r.status !== "Resolved")
     .filter((r) => {
-      // Always show user's own reports if they are pending (is_approved=false) or rejected
       const isOwnReport = String(r.user_id) === String(session?.user?.id);
       const isPendingApproval = r.is_approved === false;
       const isRejected = r.is_rejected === true;
-      
-      // If it's user's own pending/rejected report, always show it
+
       if (isOwnReport && (isPendingApproval || isRejected)) {
         return true;
       }
       
-      // For other reports, only show approved ones (is_approved !== false)
-      // This hides other users' pending reports from the feed
       if (!isOwnReport && isPendingApproval) {
         return false;
       }
       
-      // Apply My Reports filter
       if (showMyReports) {
         return isOwnReport;
       }
@@ -984,22 +892,18 @@ function Reports({ session }) {
       );
     })
     .sort((a, b) => {
-      // Sort by 'trending' = engagement + recency algorithm
       if (sort === 'trending') {
         const now = new Date();
         const scoreA = ((a.reaction_count || 0) * 2) / Math.pow((now - new Date(a.created_at)) / 3600000 + 2, 1.3);
         const scoreB = ((b.reaction_count || 0) * 2) / Math.pow((now - new Date(b.created_at)) / 3600000 + 2, 1.3);
         return scoreB - scoreA;
       }
-      // Sort by 'top' = most reactions/engagement first
       if (sort === "top") {
         const reactionsA = (a.reaction_count || 0);
         const reactionsB = (b.reaction_count || 0);
-        // If same reactions, sort by recency
         if (reactionsB !== reactionsA) return reactionsB - reactionsA;
         return new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime();
       }
-      // Sort by 'latest' = newest first (default)
       if (sort === 'latest' || sort === null) {
         const isOwnA = String(a.user_id) === String(session?.user?.id);
         const isOwnB = String(b.user_id) === String(session?.user?.id);
@@ -1009,7 +913,6 @@ function Reports({ session }) {
         if (!aIsPending && bIsPending) return 1;
         return new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime();
       }
-      // Sort by 'oldest' = oldest first
       if (sort === 'oldest') {
         const isOwnA = String(a.user_id) === String(session?.user?.id);
         const isOwnB = String(b.user_id) === String(session?.user?.id);
@@ -1019,11 +922,9 @@ function Reports({ session }) {
         if (!aIsPending && bIsPending) return 1;
         return new Date(a.created_at || 0).getTime() - new Date(b.created_at || 0).getTime();
       }
-      // Default fallback
       return new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime();
     });
 
-  // 👇 NEW HANDLER TO RESET ALL FILTERS
   const handleResetFilters = () => {
     setSearch("");
     setCategory("All");
@@ -1048,16 +949,11 @@ function Reports({ session }) {
     setAppliedBarangay(barangay);
   }, [barangay]);
 
-
-
-  // Handle highlight parameter from URL
   useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search);
     const highlightId = urlParams.get('highlight');
     if (highlightId && reports.length > 0) {
-      // Use string comparison since IDs might be UUIDs
       setHighlightedReportId(highlightId);
-      // Scroll to the highlighted report after a short delay
       setTimeout(() => {
         const reportElement = document.getElementById(`report-${highlightId}`);
         if (reportElement) {
@@ -1065,12 +961,11 @@ function Reports({ session }) {
             behavior: 'smooth', 
             block: 'center' 
           });
-          // Remove highlight after scrolling
           setTimeout(() => setHighlightedReportId(null), 3000);
         }
       }, 500);
     }
-  }, [reports]); // Depend on reports so it runs after reports are loaded
+  }, [reports]);
 
   const mainContent = (
     <div className={`reports-container ${overlayExited ? 'overlay-exited' : ''}`}>
@@ -1094,13 +989,13 @@ function Reports({ session }) {
         <button
           className="history-btn"
           onClick={() => setShowMyReports(!showMyReports)}
-          aria-pressed={showMyReports} // ARIA for toggles
+          aria-pressed={showMyReports}
         >
           {showMyReports ? "My Reports" : "All Reports"}
         </button>
       </div>
 
-      {/* Filters - Added ref for keyboard navigation */}
+      {/* Filters */}
       <div className="top-controls" ref={filterContainerRef}>
         <div className="search-bar-container">
           <label htmlFor="report-search" className="sr-only">Search reports by title</label>
@@ -1109,14 +1004,14 @@ function Reports({ session }) {
             type="text"
             placeholder="Search reports..."
             value={search}
-            onChange={(e) => setSearch(e.target.value)} // State update triggers useEffect to update appliedSearch
-            className="search-input real-time-search-input" // Add a class for styling the input part
-            tabIndex="0" // Ensure this is focusable
+            onChange={(e) => setSearch(e.target.value)}
+            className="search-input real-time-search-input"
+            tabIndex="0"
           />
           <FaSearch className="search-icon" aria-hidden="true" />
         </div>
 
-        {/* Category filter - Now uses useEffect for real-time application */}
+        {/* Category filter*/}
         <label htmlFor="category-filter" className="sr-only">Filter by Category</label>
         <select
           id="category-filter"
@@ -1134,7 +1029,7 @@ function Reports({ session }) {
           <option value="Others">Others</option>
         </select>
         
-        {/* Barangay filter - Now uses useEffect for real-time application */}
+        {/* Barangay filter */}
         <label htmlFor="barangay-filter" className="sr-only">Filter by Barangay</label>
         <select
           id="barangay-filter"
@@ -1169,7 +1064,7 @@ function Reports({ session }) {
               className="filter-icon-btn"
               title="Reset Filters"
              onClick={handleResetFilters}
-             tabIndex="0" // Ensure this is focusable
+             tabIndex="0"
             >
             <FaRedo aria-hidden="true" />
             </button>
@@ -1201,10 +1096,10 @@ function Reports({ session }) {
         </div>
       </div>
 
-      {/* ⭐ Pill Button Row: Trending, Pending, Top */}
+      {/* Pill Button Row */}
       {!showMyReports && (
         <div className="trending-pill-row">
-          {/* Trending Pill - Toggle sort */}
+          {/* Trending Pill */}
           <button
             className={`trending-pill-btn ${sort === 'trending' ? 'active' : ''} ${allTrendingReports.length === 0 ? 'empty' : ''}`}
             data-count={allTrendingReports.length}
@@ -1224,7 +1119,7 @@ function Reports({ session }) {
             {sort === 'trending' ? <FaMinus className="trending-pill-toggle" /> : <FaPlus className="trending-pill-toggle" />}
           </button>
           
-          {/* Pending Pill - Show user's pending reports */}
+          {/* Pending Pill */}
           <button
             className={`pending-pill-btn ${pendingExpanded ? 'active' : ''} ${userPendingReports.length === 0 ? 'empty' : ''}`}
             data-count={userPendingReports.length}
@@ -1236,7 +1131,7 @@ function Reports({ session }) {
             {pendingExpanded ? <FaMinus className="pending-pill-toggle" /> : <FaPlus className="pending-pill-toggle" />}
           </button>
 
-          {/* Top Pill - Toggle sort */}
+          {/* Top Pill */}
           <button
             className={`top-pill-btn ${sort === 'top' ? 'active' : ''}`}
             onClick={() => setSort(sort === 'top' ? null : 'top')}
@@ -1248,7 +1143,7 @@ function Reports({ session }) {
         </div>
       )}
 
-      {/* ⭐ Trending Reports Section - Collapsible */}
+      {/* Trending Reports Section */}
       {!showMyReports && trendingExpanded && (
         <div className={`feed-trending-container expanded ${allTrendingReports.length === 0 ? 'empty' : ''}`}>
           <div className="feed-trending-header">
@@ -1281,7 +1176,6 @@ function Reports({ session }) {
                     }
                   }}
                 >
-                  {/* Badge for user's barangay or own report */}
                   {report.isOwnReport ? (
                     <div className="your-report-badge">
                       <FaUser /> Your Report
@@ -1326,7 +1220,6 @@ function Reports({ session }) {
         </div>
       )}
 
-      {/* ⭐ Pending Reports Section - Shows user's pending reports */}
       {!showMyReports && pendingExpanded && userPendingReports.length > 0 && (
         <div className="feed-pending-container expanded">
           <div className="feed-pending-header">
@@ -1378,7 +1271,6 @@ function Reports({ session }) {
 
       {/* Loading Indicator */}
       <div className="reports-list">
-        {/* Show reports during loading if they exist (they'll animate in) */}
         {filteredReports.length > 0 ? (
           filteredReports.map((report, index) => {
             const isExpanded = expandedPosts.includes(report.id);
@@ -1468,7 +1360,6 @@ function Reports({ session }) {
                   </div>
 
                   <div className="report-header-actions">
-                    {/* Show rejection badge and icons if report is rejected */}
                     {isRejected && session?.user && String(report.user_id) === String(session.user.id) && (
                       <>
                         <span className="status-badge status-rejected">REJECTED</span>
@@ -1514,16 +1405,13 @@ function Reports({ session }) {
                       </>
                     )}
 
-                    {/* Hide PENDING badge if is_approved is TRUE, only show when is_approved is FALSE */}
                     {!isRejected && (
                       isPending ? (
-                        // Show PENDING badge only when is_approved is FALSE
                         <span className="status-badge status-pending">
                           {getStatusIcon("Pending")}
                           Pending
                         </span>
                       ) : (
-                        // Show normal status badge for approved reports (not Pending status)
                         report.status !== "Pending" && (
                           <span
                             className={`status-badge status-${(report.status || "pending").toLowerCase()}`}
@@ -1535,7 +1423,6 @@ function Reports({ session }) {
                       )
                     )}
 
-                    {/* Show edit/delete for non-rejected reports only if user is owner */}
                     {!isRejected && session?.user &&
                       String(report.user_id) === String(session.user.id) && (
                         <>
@@ -1618,7 +1505,6 @@ function Reports({ session }) {
                   </div>
                 )}
 
-                {/* Heart/Like Button - Disabled for pending reports */}
                 <div className="report-reactions">
                   <button
                     className={`reaction-btn heart-btn ${report.user_liked ? 'liked' : ''} ${isPending ? 'disabled' : ''}`}
@@ -1640,7 +1526,6 @@ function Reports({ session }) {
             );
           })
         ) : (
-          // Only show "No reports found" when loading is complete AND there are no reports
           !loading && (
             <div className="no-reports" role="status">
               <FaChartLine style={{ fontSize: '3rem', color: '#ccc', marginBottom: '1rem' }} />
@@ -1655,7 +1540,7 @@ function Reports({ session }) {
       {isModalOpen && (
         <ModalPortal>
         <div className="portal-modal-overlay" onClick={() => {
-          if (!isSubmitting) { // Only allow closing if not submitting
+          if (!isSubmitting) {
             console.log("=== Modal overlay clicked ===");
             console.log("Previous editReportId:", editReportId);
             setIsModalOpen(false);
@@ -1746,7 +1631,6 @@ function Reports({ session }) {
                   required
                 >
                   <option value="">Select a barangay</option>
-                  {/* Filter "All Barangays" out of the form dropdown */}
                   {barangays.filter((b) => b !== "All Barangays").map((b) => (
                     <option key={b} value={b}>
                       {b}
@@ -1781,7 +1665,6 @@ function Reports({ session }) {
                   <span style={{ fontSize: "12px", color: "#999" }}>(Optional)</span>
                 </label>
 
-                {/* === Button to Get User Location === */}
                 <button
                   type="button"
                   onClick={() => {
@@ -1789,7 +1672,6 @@ function Reports({ session }) {
                       navigator.geolocation.getCurrentPosition(
                         (position) => {
                           const { latitude, longitude } = position.coords;
-                          // ✅ Replace manual picker with user's location
                           setNewReport({
                             ...newReport,
                             lat: latitude,
@@ -1810,7 +1692,7 @@ function Reports({ session }) {
                   📍 Use My Current Location
                 </button>
 
-                {/* === Map Container === */}
+                {/* Map Container */}
                 <MapContainer
                   center={[newReport.lat || 14.8477, newReport.lng || 120.2879]}
                   zoom={newReport.lat ? 16 : 13}
@@ -1821,14 +1703,12 @@ function Reports({ session }) {
                     attribution="&copy; OpenStreetMap contributors"
                   />
 
-                  {/* ✅ Show a single marker (either GPS or manual pick) */}
                   {newReport.lat && newReport.lng && (
                     <Marker position={[newReport.lat, newReport.lng]} />
                   )}
 
                   <RecenterMap lat={newReport.lat} lng={newReport.lng} />
 
-                  {/* ✅ Manual picker resets when GPS is used */}
                   <LocationPicker
                     setLocation={(latlng) =>
                       setNewReport({
@@ -1846,7 +1726,6 @@ function Reports({ session }) {
                 </MapContainer>
               </div>
 
-              {/* MODIFIED: Added tabIndex="0" to the label to make the upload button focusable */}
               <label 
                 className="upload-btn"
                 tabIndex="0" 
@@ -1857,7 +1736,6 @@ function Reports({ session }) {
                   accept="image/*"
                   multiple
                   onChange={(e) => {
-                    // Limit to 5 images total
                     const files = Array.from(e.target.files).slice(0, 5);
                     setNewReport((prev) => ({ ...prev, images: files }));
                   }}
@@ -1871,7 +1749,6 @@ function Reports({ session }) {
                 </p>
               )}
 
-              {/* Show existing images when editing */}
               {editReportId && newReport.images.length === 0 && (
                 <div>
                   {newReport.existingImages && newReport.existingImages.length > 0 ? (
@@ -1898,7 +1775,6 @@ function Reports({ session }) {
                 </div>
               )}
 
-              {/* Show new images when files are selected */}
               {newReport.images && newReport.images.length > 0 && (
                 <div>
                   <p style={{ fontSize: '12px', color: '#666', margin: '5px 0' }}>
@@ -1932,8 +1808,8 @@ function Reports({ session }) {
                   console.log("Previous editReportId:", editReportId);
                   setIsModalOpen(false);
                   setEditReportId(null);
-                  setIsSubmitting(false); // Reset submission state
-                  resetNewReport(); // Reset fields on cancel
+                  setIsSubmitting(false);
+                  resetNewReport();
                 }}
                 tabIndex="0"
                 disabled={isSubmitting}
@@ -2137,7 +2013,6 @@ function Reports({ session }) {
   const effectiveStage = showMountAnimation ? mountStage : (loading ? "loading" : "exit");
 
   const handleLoadingExited = () => {
-    // When the overlay has exited, mark overlayExited so the UI can animate content in.
     setShowMountAnimation(false);
     setOverlayExited(true);
   };

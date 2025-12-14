@@ -26,7 +26,6 @@ import ModalPortal from "../shared/ModalPortal";
 import { getApiUrl } from "../../utils/apiConfig";
 import "./RespondersDashboard.css";
 
-// Utility function to calculate average response time in days and hours
 const calculateAvgResponseTime = (reports) => {
   const resolvedReports = reports.filter(r => r.status === "Resolved" && r.created_at && r.updated_at);
   
@@ -49,7 +48,6 @@ const calculateAvgResponseTime = (reports) => {
   return `${Math.round(avgHours)}h`;
 };
 
-// Utility function to extract barangay from report
 const extractBarangay = (report) => {
   const barangay = report.address_barangay || report.barangay || "Unknown";
   return barangay.includes("Brgy") ? barangay : `Brgy. ${barangay}`;
@@ -75,25 +73,21 @@ export default function RespondersDashboard() {
   const [activeReports, setActiveReports] = useState([]);
   const [notification, setNotification] = useState(null);
   const [trendData, setTrendData] = useState([]);
-  // eslint-disable-next-line no-unused-vars
   const [allReports, setAllReports] = useState([]);
   const [highIncidentAreas, setHighIncidentAreas] = useState([]);
   const [userBarangay, setUserBarangay] = useState(null);
 
-  // Fetch reports on component mount - filtered by responder's barangay, excluding rejected
   useEffect(() => {
     const fetchReports = async () => {
       try {
         const token = localStorage.getItem("token");
         if (!token) return;
 
-        // Use the new responder-specific endpoint that filters by barangay and excludes rejected reports
         const response = await fetch(getApiUrl("/api/responder/reports?limit=100"), {
           headers: { Authorization: `Bearer ${token}` },
         });
 
         if (!response.ok) {
-          // Fall back to regular reports endpoint if responder endpoint fails
           console.warn("Responder endpoint failed, falling back to regular reports");
           const fallbackResponse = await fetch(getApiUrl("/api/reports?limit=100&sort=desc"), {
             headers: { Authorization: `Bearer ${token}` },
@@ -112,7 +106,6 @@ export default function RespondersDashboard() {
           setAllReports(reports);
           setUserBarangay(data.barangay);
           
-          // Use pre-calculated stats from backend
           if (data.stats) {
             setStats([
               { title: "Assigned Reports", value: data.total || reports.length || 0, icon: <FaExclamationTriangle />, colorClass: "danger" },
@@ -122,14 +115,11 @@ export default function RespondersDashboard() {
             ]);
           }
           
-          // Set assigned reports (show all assigned reports, any status)
           const active = reports.slice(0, 10);
           setActiveReports(active);
           
-          // Use pre-calculated trends from backend
           setTrendData(data.trends || [{ month: "No Data", count: 0 }]);
           
-          // Use pre-calculated high incident areas from backend
           setHighIncidentAreas(data.highIncidentAreas || [{ area: "No Data", total: 0 }]);
           
           console.log(`✅ Responder loaded ${reports.length} reports for barangay: ${data.barangay || 'All'}`);
@@ -145,11 +135,9 @@ export default function RespondersDashboard() {
       }
     };
     
-    // Helper function to process reports when falling back to regular endpoint
     const processReports = (reports) => {
       setAllReports(reports);
 
-      // Calculate stats
       const pending = reports.filter(r => r.status === "Pending").length;
       const resolved = reports.filter(r => r.status === "Resolved").length;
       const avgResponseTime = calculateAvgResponseTime(reports);
@@ -161,11 +149,9 @@ export default function RespondersDashboard() {
         { title: "Avg Response Time", value: avgResponseTime, icon: <FaClock />, colorClass: "primary" },
       ]);
 
-      // Set assigned reports (show all assigned reports, any status)
       const active = reports.slice(0, 10);
       setActiveReports(active);
 
-      // Generate trend data by month
       const monthlyData = {};
       const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
       
@@ -183,7 +169,6 @@ export default function RespondersDashboard() {
       
       setTrendData(trendArray.length > 0 ? trendArray : [{ month: "No Data", count: 0 }]);
 
-      // Generate high incident areas by barangay
       const barangayData = {};
       reports.forEach(report => {
         const barangay = extractBarangay(report);
@@ -339,7 +324,7 @@ export default function RespondersDashboard() {
         </table>
       </div>
 
-      {/* Monthly Trend + High Incident Areas */}
+      {/* Monthly Trend */}
       <div className="two-column">
         <div className="section-card">
           <h3>High Incident Areas</h3>

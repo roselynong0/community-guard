@@ -17,15 +17,12 @@ function VerificationForm() {
   const [errors, setErrors] = useState({});
   const [notification, setNotification] = useState({ message: "", type: "" });
 
-  // Validate access on mount
   useEffect(() => {
     const validateAccess = async () => {
-      // First try with route state
       if (userEmail && userId) {
         return;
       }
       
-      // Then try with verification token
       const verificationToken = localStorage.getItem("verification_token");
       if (verificationToken) {
         try {
@@ -37,7 +34,6 @@ function VerificationForm() {
           
           const result = await response.json();
           if (response.ok && result.status === "success") {
-            // Update state with validated user data
             setUserEmail(result.email);
             setUserId(result.user_id);
             return;
@@ -47,7 +43,6 @@ function VerificationForm() {
         }
       }
       
-      // If all validation fails, redirect to login (try to preserve role if present)
       const fallbackRole = location.state?.userRole || 'resident';
       const loginPath = `/login?role=${encodeURIComponent(fallbackRole)}`;
       navigate(loginPath, {
@@ -59,7 +54,7 @@ function VerificationForm() {
     validateAccess();
   }, [userEmail, userId, navigate]);
   
-  // ----------------- CLEAR NOTIFICATIONS -----------------
+  // CLEAR NOTIFICATIONS
   useEffect(() => {
     if (notification.message) {
       const timer = setTimeout(() => setNotification({ message: "", type: "" }), 4000);
@@ -67,7 +62,7 @@ function VerificationForm() {
     }
   }, [notification]);
 
-  // ----------------- INPUT HANDLER -----------------
+  // INPUT HANDLER 
   const handleChange = (e) => {
     setCode(e.target.value);
     if (errors.code) setErrors({ ...errors, code: false });
@@ -75,7 +70,7 @@ function VerificationForm() {
     if (el.classList.contains("error-field")) el.classList.remove("error-field");
   };
 
-  // ----------------- VALIDATION -----------------
+  // VALIDATION 
   const validate = () => {
     const newErrors = {};
     if (!code) newErrors.code = true;
@@ -83,7 +78,7 @@ function VerificationForm() {
     return newErrors;
   };
 
-  // ----------------- SUBMIT VERIFICATION -----------------
+  // SUBMIT VERIFICATION 
   const handleSubmit = async (e) => {
     e.preventDefault();
     const validationErrors = validate();
@@ -95,7 +90,6 @@ function VerificationForm() {
       return;
     }
     try {
-      // Add this console log to see what's being sent
       console.log("Submitting verify:", { email: userEmail, code, user_id: userId });
       
       const res = await fetch("http://localhost:5000/api/email/verify-code", {
@@ -105,11 +99,10 @@ function VerificationForm() {
       });
 
       const result = await res.json();
-      console.log("Verify response:", result); // Also log the response
+      console.log("Verify response:", result);
 
       if (res.ok && result.status === "success") {
         setNotification({ message: "Email verified successfully! 🎉", type: "success" });
-        // Check if user registered as admin and redirect to admin login
           const userRole = location.state?.userRole || 'resident';
           const loginPath = `/login?role=${encodeURIComponent(userRole)}`;
           setTimeout(() => navigate(loginPath), 1000);

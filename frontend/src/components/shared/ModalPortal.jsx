@@ -1,24 +1,11 @@
 import { createPortal } from 'react-dom';
 import { useEffect, useState } from 'react';
 
-/**
- * ModalPortal - Renders children into a portal at document body level
- * This ensures modals escape any CSS containment, overflow, or stacking context
- * issues from parent containers like .main-area
- * 
- * Usage:
- * <ModalPortal>
- *   <div className="modal-overlay">
- *     <div className="modal">...</div>
- *   </div>
- * </ModalPortal>
- */
 function ModalPortal({ children }) {
   const [mounted, setMounted] = useState(false);
   const [portalRoot, setPortalRoot] = useState(null);
 
   useEffect(() => {
-    // Create or find the portal container
     let container = document.getElementById('modal-portal-root');
     
     if (!container) {
@@ -40,8 +27,6 @@ function ModalPortal({ children }) {
     setMounted(true);
 
     return () => {
-      // Don't remove the container on unmount - other modals might use it
-      // Just let it stay empty
     };
   }, []);
 

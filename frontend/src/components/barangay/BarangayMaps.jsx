@@ -15,7 +15,6 @@ import "../resident/Maps.css";
 import "leaflet/dist/leaflet.css";
 import LoadingScreen from "../shared/LoadingScreen";
 
-// Olongapo Center for map initialization
 const OLONGAPO_CENTER = [14.8291, 120.2829];
 const INITIAL_ZOOM = 13;
 
@@ -40,7 +39,6 @@ const barangayColors = {
 };
 
 const createColoredIcon = (color) => {
-  // Map hex colors to leaflet-color-markers color names
   const colorMap = {
     "#3b82f6": "blue",
     "#ef4444": "red",
@@ -102,7 +100,6 @@ function BarangayMaps({ session, userBarangay }) {
           return;
         }
 
-        // Always fetch all reports, filter by user's barangay only
         const endpoint = getApiUrl('/api/map_reports');
 
         const response = await fetch(endpoint, {
@@ -117,7 +114,6 @@ function BarangayMaps({ session, userBarangay }) {
             latitude: parseFloat(r.latitude),
             longitude: parseFloat(r.longitude),
           }));
-          // Filter to only show accepted, non-resolved reports from the user's barangay
           const filteredReports = allReports.filter(r => {
             if (r.address_barangay !== userBarangay) return false;
             const isRejected = r.is_rejected === true || r.is_rejected === 'true';
@@ -157,7 +153,6 @@ function BarangayMaps({ session, userBarangay }) {
     fetchBarangayReports();
   }, [session, userBarangay]);
 
-  // Group reports by barangay (should only be one in this case)
   const reportsByBarangay = reports.reduce((acc, r) => {
     if (!acc[r.address_barangay]) acc[r.address_barangay] = [];
     acc[r.address_barangay].push(r);
@@ -190,7 +185,7 @@ function BarangayMaps({ session, userBarangay }) {
             const longitude = sz?.center?.longitude || sz?.longitude;
             if (!latitude || !longitude) return null;
 
-            const pointerOffset = 0.00027; // ~30 meters
+            const pointerOffset = 0.00027;
 
             return (
               <FeatureGroup key={`safezone-frag-${sz.id || idx}`}>
@@ -205,7 +200,6 @@ function BarangayMaps({ session, userBarangay }) {
                   dashArray="5, 5"
                 />
 
-                {/* Blue location marker pointer slightly above the safezone */}
                 <Marker
                   key={`safezone-pointer-${sz.id || idx}`}
                   position={[Number(latitude) + pointerOffset, Number(longitude)]}
@@ -370,7 +364,7 @@ function BarangayMaps({ session, userBarangay }) {
           </div>
         )}
 
-        {/* Statistics Overlay - Bottom Left (Desktop) / Bottom Bar (Mobile) */}
+        {/* Statistics Overlay */}
         {!loading && (
           <div className="maps-stats-panel">
             <div className="maps-stats-grid">

@@ -83,7 +83,7 @@
     --barangay-spinner-border: rgba(45, 45, 115, 0.12);
 }
 
-/* Premium Shine Animation - Slow Left to Right */
+/* Premium Shine Animation */
 @keyframes barangay-shine-sweep {
     0% {
         left: -50%;
@@ -150,13 +150,11 @@
 }
 
 .barangay-reports-header h2 {
-    /* Use the brand color and preserve global h2 sizing so header size
-       matches other report pages. */
     color: var(--barangay-primary);
     margin: 0;
 }
 
-/* Top Controls - Matching Reports Design */
+/* Top Controls */
 .barangay-top-controls {
     display: flex;
     flex-wrap: wrap;
@@ -295,7 +293,6 @@ input.barangay-search-input {
     font-weight: 600;
 }
 
-/* Enhanced focus states for better accessibility */
 .barangay-search-input:focus-visible,
 .barangay-filter-select:focus-visible {
     box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.2);
@@ -390,7 +387,7 @@ input.barangay-search-input {
     color: #64748b;
 }
 
-/* Status Badges - Pill style with icons */
+/* Status Badges */
 .barangay-status-badge {
     display: inline-flex;
     align-items: center;
@@ -422,7 +419,7 @@ input.barangay-search-input {
     color: white;
 }
 
-/* Mobile: Action buttons and status badges */
+/* Mobile */
 @media (max-width: 768px) {
     .barangay-report-header {
         flex-direction: column;
@@ -445,14 +442,12 @@ input.barangay-search-input {
         padding: 10px 12px;
     }
     
-    /* Status badges - compact pill style */
     .barangay-status-badge {
         font-size: 11px;
         padding: 4px 10px;
         white-space: nowrap;
     }
     
-    /* Icon buttons stay compact */
     .barangay-report-actions .barangay-icon-btn {
         width: auto;
         grid-column: auto;
@@ -490,7 +485,7 @@ input.barangay-search-input {
     justify-content: center;
 }
 
-/* Action Button Base - styled buttons with text */
+/* Action Button Base */
 .barangay-action-btn {
     display: inline-flex;
     align-items: center;
@@ -511,7 +506,7 @@ input.barangay-search-input {
     cursor: not-allowed;
 }
 
-/* Update Button - Green Theme (matches Accept) */
+/* Update Button */
 .barangay-update-btn {
     background: linear-gradient(135deg, #10b981 0%, #059669 100%);
     color: #ffffff;
@@ -547,7 +542,7 @@ input.barangay-search-input {
     box-shadow: 0 2px 4px rgba(59, 130, 246, 0.3);
 }
 
-/* Reassign Button - Orange Theme */
+/* Reassign Button */
 .barangay-reassign-btn {
     background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
     color: #ffffff;
@@ -565,7 +560,7 @@ input.barangay-search-input {
     box-shadow: 0 2px 4px rgba(245, 158, 11, 0.3);
 }
 
-/* Delete Button - Red Theme (matches Reject) */
+/* Delete Button */
 .barangay-delete-btn {
     background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
     color: #ffffff;
@@ -583,7 +578,7 @@ input.barangay-search-input {
     box-shadow: 0 2px 4px rgba(239, 68, 68, 0.3);
 }
 
-/* Approve Button - Green Theme */
+/* Approve Button */
 .barangay-approve-btn {
     background: linear-gradient(135deg, #10b981 0%, #059669 100%);
     color: #ffffff;
@@ -596,7 +591,7 @@ input.barangay-search-input {
     transform: translateY(-1px);
 }
 
-/* Reject Button - Red Theme */
+/* Reject Button */
 .barangay-reject-btn {
     background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
     color: #ffffff;
@@ -623,7 +618,6 @@ input.barangay-search-input {
     to { transform: rotate(360deg); }
 }
 
-/* Legacy icon button hover states (fallback) */
 .barangay-edit-btn:hover {
     background: #dbeafe;
     color: #1e40af;
@@ -764,7 +758,7 @@ input.barangay-search-input {
     background: #94a3b8;
 }
 
-/* Modal Form Fields - Matching Profile Design */
+/* Modal Form Fields */
 .barangay-modal-scrollable label {
     display: block;
     font-weight: 600;
@@ -796,14 +790,12 @@ input.barangay-search-input {
     font-family: inherit;
 }
 
-/* Placeholder styling - use text area color when empty */
 .barangay-modal-scrollable input::placeholder,
 .barangay-modal-scrollable textarea::placeholder {
     color: #374151;
     opacity: 1;
 }
 
-/* When value is present, show black text */
 .barangay-modal-scrollable input:not(:placeholder-shown),
 .barangay-modal-scrollable textarea:not(:placeholder-shown) {
     color: #000 !important;
@@ -1050,7 +1042,7 @@ input.barangay-search-input {
     transition: width 0.3s ease;
 }
 
-/* Smart Filter Active Progress Bar - Shining Effect */
+/* Smart Filter Active Progress Bar */
 .barangay-progress-bar {
     position: relative;
     overflow: hidden;
@@ -1061,7 +1053,6 @@ input.barangay-search-input {
     overflow: hidden;
 }
 
-/* Shining sweep effect for active smart filter */
 .barangay-progress-fill:not(.premium)::after {
     content: '';
     position: absolute;
@@ -1080,7 +1071,6 @@ input.barangay-search-input {
     animation: barangay-shine-sweep 3s ease-in-out infinite;
 }
 
-/* Top highlight for non-premium bar */
 .barangay-progress-fill:not(.premium)::before {
     content: '';
     position: absolute;
@@ -1095,8 +1085,6 @@ input.barangay-search-input {
     );
     border-radius: 4px 4px 0 0;
 }
-
-/* ==================== PREMIUM STYLES ==================== */
 
 /* Premium Smart Filter Button */
 .barangay-smart-filter-btn.premium {
@@ -1113,7 +1101,7 @@ input.barangay-search-input {
     box-shadow: inset 0 1px 3px rgba(243, 156, 18, 0.15);
 }
 
-/* Premium Progress Bar Fill - Slow Left-to-Right Shine */
+/* Premium Progress Bar Fill */
 .barangay-progress-fill.premium {
     width: 100%;
     background: linear-gradient(
@@ -1129,7 +1117,6 @@ input.barangay-search-input {
                 0 0 16px rgba(243, 156, 18, 0.3);
 }
 
-/* Slow shine sweep effect - Left to Right Only */
 .barangay-progress-fill.premium::after {
     content: '';
     position: absolute;
@@ -1180,8 +1167,6 @@ input.barangay-search-input {
     font-weight: 600;
 }
 
-/* ==================== END PREMIUM STYLES ==================== */
-
 /* Responsive */
 @media (max-width: 768px) {
     .barangay-top-controls {
@@ -1217,14 +1202,12 @@ input.barangay-search-input {
         grid-template-columns: 1fr;
     }
     
-    /* Modal sizing - match Profile modal */
     .barangay-modal-content {
         width: 92%;
         max-width: 92%;
         margin: 10px auto;
     }
     
-    /* Modal buttons full width on mobile */
     .barangay-modal-buttons {
         flex-direction: column;
         gap: 10px;
@@ -1234,7 +1217,6 @@ input.barangay-search-input {
         width: 100%;
     }
     
-    /* Action buttons full width */
     .barangay-report-header-actions {
         width: 100%;
         flex-direction: column;
@@ -1245,7 +1227,6 @@ input.barangay-search-input {
         width: 100%;
     }
     
-    /* Pill buttons mobile */
     .trending-pill-row {
         gap: 8px;
     }
@@ -1255,7 +1236,7 @@ input.barangay-search-input {
         padding: 10px 12px;
         gap: 0;
         position: relative;
-        overflow: visible; /* Allow badge to show outside pill */
+        overflow: visible;
     }
     
     .trending-pill-btn .pill-text,
@@ -1287,13 +1268,12 @@ input.barangay-search-input {
         color: #6b7280;
     }
     
-    /* Hide badge for Top pill (no count) */
     .top-pill-btn::after {
         display: none;
     }
 }
 
-/* ==================== HEADER ROW WITH VIEW TOGGLE & EXPORT ==================== */
+/* HEADER ROW WITH VIEW TOGGLE & EXPORT */
 
 .barangay-reports-header {
     display: flex;
@@ -1311,7 +1291,7 @@ input.barangay-search-input {
     font-weight: 700;
 }
 
-/* Header Right - View Toggle & Export Buttons */
+/* Header Right */
 .header-right {
     display: flex;
     gap: 12px;
@@ -1392,7 +1372,7 @@ input.barangay-search-input {
     box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
 }
 
-/* ==================== LIST VIEW TABLE ==================== */
+/* LIST VIEW TABLE */
 
 .barangay-list-table {
     background: #ffffff;
@@ -1740,7 +1720,7 @@ input.barangay-search-input {
     background: #fecaca;
 }
 
-/* List Heart Button for Likes Column */
+/* List Heart Button */
 .barangay-list-table .list-heart-btn {
     display: flex;
     align-items: center;
@@ -1823,9 +1803,7 @@ input.barangay-search-input {
     }
 }
 
-/* ============================================= */
 /* Heart/Like Button Styles */
-/* ============================================= */
 
 .report-reactions {
     display: flex;
@@ -1892,9 +1870,7 @@ input.barangay-search-input {
     }
 }
 
-/* ========================================
-   TRENDING PILL BUTTON ROW
-   ======================================== */
+/* TRENDING PILL BUTTON ROW */
 .trending-pill-row {
     display: flex;
     align-items: center;
@@ -1930,7 +1906,6 @@ input.barangay-search-input {
     box-shadow: 0 2px 6px rgba(244, 67, 54, 0.3);
 }
 
-/* Empty state styling for trending pill when count is 0 */
 .trending-pill-btn.empty {
     background: linear-gradient(135deg, #9ca3af 0%, #6b7280 100%);
     box-shadow: 0 3px 10px rgba(107, 114, 128, 0.35);
@@ -1966,9 +1941,7 @@ input.barangay-search-input {
     }
 }
 
-/* ========================================
-   UNIFIED TRENDING REPORTS CONTAINER
-   ======================================== */
+/* UNIFIED TRENDING REPORTS CONTAINER */
 .trending-reports-container {
     margin-bottom: 24px;
     padding: 16px;

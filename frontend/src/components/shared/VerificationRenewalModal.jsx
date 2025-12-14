@@ -19,7 +19,6 @@ function VerificationRenewalModal({ isOpen, onClose, userEmail, onRenewVerificat
         setMessage('Verification email sent! Redirecting to verification page...');
         setTimeout(() => {
           onClose();
-          // Navigate to verification form with user data
           navigate('/verify', {
             state: {
               email: userEmail,

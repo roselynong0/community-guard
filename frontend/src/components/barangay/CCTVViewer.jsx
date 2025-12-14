@@ -35,7 +35,6 @@ export default function CCTVViewer() {
   }, []);
 
   useEffect(() => {
-    // Show loading when switching tabs
     setIsLoading(true);
     const timer = setTimeout(() => setIsLoading(false), 1000);
     return () => clearTimeout(timer);

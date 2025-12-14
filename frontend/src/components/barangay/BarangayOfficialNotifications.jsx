@@ -39,7 +39,6 @@ const getFinalNotificationType = (n) => {
     return 'ongoing';
   }
 
-  // New post from user in their barangay
   if (normalizedText.includes('new post') || normalizedText.includes('new report')) {
     return 'report';
   }

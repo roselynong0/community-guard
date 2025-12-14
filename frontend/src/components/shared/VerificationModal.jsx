@@ -13,7 +13,6 @@ export default function VerificationModal({ open, onClose, user }) {
 
   const handleVerifyNow = () => {
     onClose();
-    // If you have a verification route, navigate there; otherwise go to profile
     try {
       navigate('/verify');
     } catch {

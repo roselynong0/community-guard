@@ -9,7 +9,6 @@ import markerShadow from "leaflet/dist/images/marker-shadow.png";
 import "leaflet/dist/leaflet.css";
 import "../resident/Reports.css";
 
-// Fix Leaflet marker icon
 delete L.Icon.Default.prototype._getIconUrl;
 L.Icon.Default.mergeOptions({
   iconRetinaUrl: markerIcon2x,
@@ -17,7 +16,6 @@ L.Icon.Default.mergeOptions({
   shadowUrl: markerShadow,
 });
 
-// Location Picker Component
 function LocationPicker({ setLocation, currentLocation }) {
   const [position, setPosition] = useState(null);
 
@@ -37,7 +35,6 @@ function LocationPicker({ setLocation, currentLocation }) {
   return position ? <Marker position={position} /> : null;
 }
 
-// Recenter Map Component
 function RecenterMap({ lat, lng }) {
   const map = useMap();
   useEffect(() => {
@@ -58,7 +55,6 @@ const HotspotModal = ({ isOpen, onClose, onSave }) => {
   const [longitude, setLongitude] = useState("");
   const modalRef = useRef(null);
 
-  // Reset form when modal opens
   useEffect(() => {
     if (isOpen) {
       setRadiusMeters("500");
@@ -106,10 +102,9 @@ const HotspotModal = ({ isOpen, onClose, onSave }) => {
       const body = {
         radius_meters: parseInt(radiusMeters),
         min_points: parseInt(minPoints),
-        since_interval: "7 days", // Default to last 7 days of reports
+        since_interval: "7 days",
       };
 
-      // Add location if specified
       if (latitude && longitude) {
         body.center_latitude = parseFloat(latitude);
         body.center_longitude = parseFloat(longitude);
@@ -134,7 +129,6 @@ const HotspotModal = ({ isOpen, onClose, onSave }) => {
       setSuccess(`Hotspots generated successfully! Found ${data.hotspots_count} hotspots.`);
       onSave(data.hotspots);
 
-      // Close modal after 2 seconds
       setTimeout(() => {
         onClose();
       }, 2000);

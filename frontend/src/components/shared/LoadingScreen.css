@@ -147,26 +147,22 @@ html, body, #root {
 /* Inline Component Styles */
 .loading-inline-container {
   position: relative;
-  /* lowered to match fullscreen loading stack (below modals/notifications) */
   z-index: 2;
   min-height: 85vh;
 }
 
-/* Prevent scrolling while loading is active */
 .loading-inline-container:has(.loading-hidden) {
   overflow: hidden;
   max-height: 85vh;
 }
 
-/* Children visibility states - completely hide during loading */
 .loading-inline-children {
-  /* Base state - prepare for transitions */
   transition: opacity 380ms cubic-bezier(.2,.9,.2,1), 
               transform 380ms cubic-bezier(.2,.9,.2,1);
   min-height: 85vh;
 }
 
-/* Hidden state - children invisible during loading */
+/* Hidden state */
 .loading-inline-children.loading-hidden {
   opacity: 0;
   visibility: hidden;
@@ -176,7 +172,7 @@ html, body, #root {
   max-height: 85vh;
 }
 
-/* Revealed state - smooth fade-in after loading completes */
+/* Revealed state */
 .loading-inline-children.loading-revealed {
   opacity: 1;
   visibility: visible;
@@ -238,7 +234,6 @@ html, body, #root {
   }
 }
 
-/* Legacy animation support - keep for non-center-viewport overlays */
 .loading-inline-overlay.exit:not(.center-viewport) .loading-inline-card {
   animation: cinematicExit 420ms cubic-bezier(.2,.9,.2,1) forwards;
 }
@@ -251,7 +246,6 @@ html, body, #root {
   opacity: 1 !important;
 }
 
-/* Pause animations for Reports page when overlay has exited */
 .reports-container.overlay-exited .animate-up,
 .reports-container.overlay-exited .animate-up * {
   animation: none !important;
@@ -260,7 +254,6 @@ html, body, #root {
   opacity: 1 !important;
 }
 
-/* Pause animations for Profile page when overlay has exited */
 .profile-page.overlay-exited .animate-up,
 .profile-page.overlay-exited .animate-up *,
 .profile-page.overlay-exited .fade-in-up,

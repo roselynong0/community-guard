@@ -43,19 +43,16 @@ function LoadingScreen({
       setShowOverlay(true);
       setShowSuccess(false);
       setAnimatingExit(false);
-      setChildrenReady(false); // Hide children during loading
+      setChildrenReady(false);
     } else if (stage === "exit") {
       setShowSuccess(true);
 
       tSuccess = setTimeout(() => {
-        // Start the exit animation phase
         setAnimatingExit(true);
 
         tExit = setTimeout(() => {
-          // Reveal children FIRST, then remove overlay
           setChildrenReady(true);
           
-          // Small delay to let children start appearing before removing overlay completely
           requestAnimationFrame(() => {
             setAnimatingExit(false);
             setShowSuccess(false);
@@ -131,7 +128,6 @@ function LoadingScreen({
         {children}
       </div>
 
-      {/* Overlay covering only the component area. */}
       {showOverlay && (
         <div
           className={`loading-inline-overlay ${inlineCenterScreen ? 'center-viewport' : ''} ${animatingExit ? "exit" : ""}`}
@@ -171,7 +167,6 @@ function LoadingScreen({
               title && <div className="loading-inline-title">{title}</div>
             )}
 
-            {/* If features were provided, render a single compact card that switches (inline mode) */}
             {features && features.length > 0 && (
               <div className="loading-cards inline">
                 {(() => {

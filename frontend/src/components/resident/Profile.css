@@ -31,7 +31,6 @@
     animation: slideUp 0.6s ease-out forwards;
 }
 
-/* Disable animations after loading completes */
 .profile-page.overlay-exited .animate-up,
 .profile-page.overlay-exited .fade-in-up {
     animation: none !important;
@@ -45,9 +44,7 @@
     transition: none !important;
 }
 
-/* Keep trash button elevated after inline loading overlay exits */
 .profile-page.overlay-exited .profile-header-actions > .trash-btn {
-    /* Move higher so it doesn't jump downward after overlay exit */
     transform: translateY(-8px) !important;
 }
 
@@ -56,14 +53,12 @@
     transform: translateY(-10px) !important;
 }
 
-/* Ensure the Change Photo button still shows its hover transition after overlay exit */
 .profile-page.overlay-exited .profile-header-actions > .upload-btn:hover,
 .profile-page.overlay-exited .profile-header-actions > .upload-btn:focus {
     transform: translateY(-1px) !important;
     transition: transform 0.15s ease !important;
 }
 
-/* --- Loading State Styles (For a better loading message) --- */
 .loading-compact,
 .loading-container {
 min-height: 60vh;
@@ -90,8 +85,6 @@ color: #475569;
 font-weight: 500;
 letter-spacing: 0.3px;
 }
-
-/* --- END Fade-Up Transition Styles --- */
 
 .profile-page {
     display: flex;
@@ -294,7 +287,6 @@ letter-spacing: 0.3px;
 }
 
 .upload-btn.flex-grow {
-    /* If used elsewhere, allow flex-grow, but header action will override */
     flex: 1 1 auto;
     min-width: 0;
 }
@@ -306,7 +298,6 @@ letter-spacing: 0.3px;
     outline: none;
 }
 
-/* Keep Change Photo compact inside header actions */
 .profile-header-actions > .upload-btn {
     flex: 0 0 auto;
     min-width: 140px;
@@ -314,7 +305,6 @@ letter-spacing: 0.3px;
     width: auto;
 }
 
-/* Trash button aligned next to the upload control */
 .profile-header-actions > .trash-btn {
     margin-left: 8px;
     flex: 0 0 auto;
@@ -324,28 +314,25 @@ letter-spacing: 0.3px;
     width: 36px;
     height: 36px;
     padding: 0;
-    /* Nudge slightly upward so it visually lines up with the label button */
     transform: translateY(-6.5px) !important;
     transition: transform 0.15s ease, background 0.15s ease;
 }
 
 .profile-content {
     display: grid;
-    grid-template-columns: 1fr; /* default single column for small screens */
+    grid-template-columns: 1fr;
     gap: 20px;
 }
 
-/* Sidebar with all three cards side by side on wider screens */
 .profile-sidebar {
     display: grid;
-    grid-template-columns: 1fr; /* default stack */
+    grid-template-columns: 1fr;
     gap: 14px;
 }
 
-/* Make cards appear side by side on medium and larger screens */
 @media screen and (min-width: 1000px) {
     .profile-sidebar {
-        grid-template-columns: repeat(4, 1fr); /* three equal columns */
+        grid-template-columns: repeat(4, 1fr);
     }
 }
 
@@ -529,7 +516,6 @@ letter-spacing: 0.3px;
     width: 100%;
 }
 
-/* Custom React DatePicker Styling */
 .react-datepicker-wrapper {
     width: 100%;
     margin-bottom: 15px;
@@ -632,9 +618,8 @@ letter-spacing: 0.3px;
     animation: fadeIn 0.2s ease-in-out;
 }
 
-/* Specific sizing for Get Verified modal to fit button labels comfortably */
 .modal.get-verified-modal {
-    width: 520px; /* slightly wider than default profile modal */
+    width: 520px;
     max-width: 96%;
 }
 
@@ -654,24 +639,20 @@ letter-spacing: 0.3px;
     .modal.get-verified-modal .modal-buttons button { min-width: 0; padding: 8px 12px; }
 }
 
-/* Make the verified modal vertically scrollable without horizontal scrollbars,
-   keep buttons pinned to bottom-right and content scrolls vertically. */
 .modal.get-verified-modal {
     display: flex;
     flex-direction: column;
     max-height: 80vh;
-    overflow-x: hidden; /* prevent horizontal scroll */
+    overflow-x: hidden;
 }
 
 .modal.get-verified-modal .address-fields {
-    /* allow the form area to grow and scroll vertically if content exceeds modal height */
     overflow-y: auto;
-    padding-right: 4px; /* prevent contact with scrollbar */
-    max-height: calc(80vh - 220px); /* leave space for header and buttons */
+    padding-right: 4px;
+    max-height: calc(80vh - 220px); 
 }
 
 .modal.get-verified-modal .modal-buttons {
-    /* ensure buttons sit at bottom-right and don't scroll with content */
     flex: 0 0 auto;
     align-self: stretch;
     display: flex;
@@ -680,7 +661,6 @@ letter-spacing: 0.3px;
     margin-top: 12px;
 }
 
-/* ensure inputs don't cause horizontal overflow */
 .modal.get-verified-modal input,
 .modal.get-verified-modal select,
 .modal.get-verified-modal textarea {
@@ -799,7 +779,6 @@ label {
 .trash-btn:focus {
     background: rgba(231, 76, 60, 0.16);
     color: #c0392b;
-    /* Account for base translateY(-6.5px) so hover nudges further up */
     transform: translateY(-8.5px);
     outline: none;
 }
@@ -969,7 +948,6 @@ label {
     color: white;
 }
 
-/* Admin-style verification status badges */
 .admin-verification-status {
     display: inline-flex;
     align-items: center;
@@ -1027,15 +1005,12 @@ label {
     color: #3b82f6;
 }
 
-/* ========================================
-   MOBILE PROFILE IMPROVEMENTS
-   ======================================== */
+/* MOBILE PROFILE IMPROVEMENTS */
 @media (max-width: 768px) {
     .profile-page {
-        padding-bottom: 30px; /* Reserve space for mobile bottom nav */
+        padding-bottom: 30px;
     }
     
-    /* Align delete button beside change photo */
     .profile-header-actions {
         display: flex;
         flex-direction: row !important;

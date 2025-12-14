@@ -17,7 +17,7 @@ export default function ResidentLogin({ setSession, setNotification }) {
   const [showPrivacy, setShowPrivacy] = useState(false);
   const [verificationData, setVerificationData] = useState({ email: "", user_id: "" });
   const [isLoggingIn, setIsLoggingIn] = useState(false);
-  const loginMode = "Resident"; // fixed role for this page
+  const loginMode = "Resident";
   const navigate = useNavigate();
 
   const handleChange = (e) => {
@@ -64,16 +64,14 @@ export default function ResidentLogin({ setSession, setNotification }) {
       const result = await res.json();
 
       if (res.ok && result.status === "success") {
-        // Save session
         localStorage.setItem("token", result.session.token);
         localStorage.setItem("session", JSON.stringify(result.session));
         const userRole = result.session.user?.role;
         const userFirstname = result.session.user?.firstname || "User";
 
-        // Resident page: only allow Resident
+        // Resident page
         const allowed = ["Resident"];
         if (!allowed.includes(userRole)) {
-          // Clear session - don't keep wrong role logged in
           localStorage.removeItem("token");
           localStorage.removeItem("session");
           
@@ -96,7 +94,7 @@ export default function ResidentLogin({ setSession, setNotification }) {
           return;
         }
 
-        // Allowed: set session and continue to resident area
+        // Allowed
         setSession?.(result.session);
         const redirectPath = "/home";
         setNotification?.({ message: "Login successful! 🎉", type: "success" });

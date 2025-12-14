@@ -13,7 +13,7 @@ export default function Premium({ token }) {
   const [selectedPlan, setSelectedPlan] = useState(null);
   const [showConfirmModal, setShowConfirmModal] = useState(false);
   const [notification, setNotification] = useState(null);
-  const [currentPlan, setCurrentPlan] = useState("free"); // free, basic, pro, enterprise
+  const [currentPlan, setCurrentPlan] = useState("free");
   const [processing, setProcessing] = useState(false);
 
   const loadingFeatures = [
@@ -27,7 +27,6 @@ export default function Premium({ token }) {
     setTimeout(() => setNotification(null), 4000);
   };
 
-  // Fetch current premium status
   useEffect(() => {
     const fetchPremiumStatus = async () => {
       if (!token) {
@@ -43,7 +42,6 @@ export default function Premium({ token }) {
         if (res.ok) {
           const data = await res.json();
           if (data.status === "success" && data.profile?.onpremium) {
-            // Mock: determine plan based on some logic or just set to basic
             setCurrentPlan("basic");
           }
         }
@@ -57,7 +55,6 @@ export default function Premium({ token }) {
     fetchPremiumStatus();
   }, [token]);
 
-  // Premium plans data (in Philippine Pesos)
   const plans = [
     {
       id: "basic",
@@ -105,7 +102,6 @@ export default function Premium({ token }) {
     setShowConfirmModal(true);
   };
 
-  // Handle subscription (mock)
   const handleSubscribe = async () => {
     setProcessing(true);
     
@@ -117,7 +113,6 @@ export default function Premium({ token }) {
     setCurrentPlan(selectedPlan.id);
     showNotification(`🎉 Successfully subscribed to ${selectedPlan.name} plan!`, "premium");
     
-    // Navigate back to dashboard after a short delay
     setTimeout(() => {
       navigate("/barangay/dashboard");
     }, 2000);

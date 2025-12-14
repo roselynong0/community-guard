@@ -32,7 +32,7 @@ import "../shared/Notification.css";
 import LoadingScreen from "../shared/LoadingScreen";
 import ModalPortal from "../shared/ModalPortal";
 
-// ✅ Fetch helper (same as barangay dashboard)
+// Fetch Helper
 async function fetchWithToken(url, token, retries = 3) {
   if (!token) throw new Error("Token is required");
 
@@ -65,7 +65,6 @@ async function fetchWithToken(url, token, retries = 3) {
   }
 }
 
-// ✅ AnimatedNumber component
 function AnimatedNumber({ value, duration = 800 }) {
   const [display, setDisplay] = useState(value);
   const startRef = useRef(null);
@@ -135,7 +134,7 @@ export default function AdminDashboard({ token }) {
   const [totalBarangays, setTotalBarangays] = useState(0);
   const [totalUsers, setTotalUsers] = useState(0);
   const [loading, setLoading] = useState(true);
-  const [reportView, setReportView] = useState("barangay"); // Toggle between "barangay" and "monthly"
+  const [reportView, setReportView] = useState("barangay");
   const [notification, setNotification] = useState(null);
   const [overlayExited, setOverlayExited] = useState(false);
 
@@ -150,7 +149,7 @@ export default function AdminDashboard({ token }) {
     setTimeout(() => setNotification(null), 4000);
   };
 
-  // ✅ Single useEffect to fetch admin dashboard data (all barangays)
+  // Fetch All Barangay
   useEffect(() => {
     if (!token) {
       setLoading(false);
@@ -161,19 +160,14 @@ export default function AdminDashboard({ token }) {
       setLoading(true);
       setOverlayExited(false);
       try {
-        // Admin dashboard fetches ALL reports across ALL barangays
         console.log("🔄 Fetching admin dashboard data for ALL barangays");
-        
-        // Use admin-specific endpoint that returns system-wide stats
         const dashboardEndpoint = getApiUrl(`/api/dashboard/admin/stats?filter=all`);
         console.log("📊 Fetching all data from:", dashboardEndpoint);
         
         const response = await fetchWithToken(dashboardEndpoint, token);
-        
         if (response.status === "success") {
           console.log("✅ Admin dashboard data loaded:", response);
-          
-          // Update stats (system-wide)
+          // Update stats
           if (response.stats) {
             console.log("📊 System-wide stats:", response.stats);
             setStats([
@@ -248,7 +242,7 @@ export default function AdminDashboard({ token }) {
 
   const content = (
     <div className={`dashboard admin-dashboard ${overlayExited ? 'overlay-exited' : ''}`}>
-      {/* --- STAT CARDS (System-wide) --- */}
+      {/* STATS CARD */}
       <div className="stats-grid">
         {stats.map((stat, i) => (
           <div
@@ -268,7 +262,6 @@ export default function AdminDashboard({ token }) {
         ))}
       </div>
 
-      {/* --- ADDITIONAL ADMIN STATS --- */}
       <div className="stats-grid stats-grid-secondary">
         <div className="stat-card info">
           <div className="stat-content">
@@ -294,7 +287,7 @@ export default function AdminDashboard({ token }) {
         </div>
       </div>
 
-      {/* --- COMBINED TRENDS SECTION (All Barangays & Monthly Reports) --- */}
+      {/* ALL TRENDS SECTION */}
       <div className="section-card">
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1.5rem" }}>
           <h3 style={{ margin: 0 }}>
@@ -302,7 +295,6 @@ export default function AdminDashboard({ token }) {
           </h3>
           <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
             <FaFilter style={{ fontSize: "0.875rem", color: "#666" }} />
-            {/* Report View Toggle - Admin has full access to monthly reports */}
             <select
               value={reportView}
               onChange={(e) => setReportView(e.target.value)}
@@ -324,7 +316,7 @@ export default function AdminDashboard({ token }) {
           </div>
         </div>
 
-        {/* Chart Tabs Component */}
+        {/* CHART TABS COMPONENTS */}
         <ChartTabs
           reportView={reportView}
           trendData={trendData}
@@ -332,15 +324,15 @@ export default function AdminDashboard({ token }) {
         />
       </div>
 
-      {/* --- MAP (All Barangays) --- */}
+      {/* ALL BARANGAY MAPs */}
       <div className="map-section">
         <h3>City-Wide Incident Map</h3>
         <div className="map-placeholder">
-          <MapView ref={mapRef} barangay={null} /> {/* null = show all barangays */}
+          <MapView ref={mapRef} barangay={null} />
         </div>
       </div>
 
-      {/* Toast Notification */}
+      {/* TOAST NOTIFICATIONS */}
       {notification && (
         <ModalPortal>
           <div 
@@ -383,19 +375,17 @@ export default function AdminDashboard({ token }) {
   );
 }
 
-// Chart Tabs component - shows both Barangay comparison and Monthly trends
+// Shows both Barangay and Monthly trends
 function ChartTabs({ reportView, trendData, topBarangays }) {
   const [tab, setTab] = useState('chart');
 
   // Color palette for pies/legends
   const palette = ["#4a76b9","#d9534f","#f0ad4e","#5cb85c","#777777","#8e44ad","#16a085","#e74c3c","#3498db","#9b59b6","#1abc9c","#f39c12","#2ecc71","#e67e22","#95a5a6","#34495e","#27ae60","#c0392b"];
 
-  // Build the pie data depending on the active report view
   const pieData = React.useMemo(() => {
     if (reportView === 'barangay') {
       return (topBarangays || []).map(b => ({ name: b.barangay, value: parseInt(b.total) || 0 }));
     }
-    // monthly view -> use trendData (month / count)
     return (trendData || []).map(t => ({ name: t.month || t.label || 'Unknown', value: parseInt(t.count) || 0 }));
   }, [reportView, topBarangays, trendData]);
 

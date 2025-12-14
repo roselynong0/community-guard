@@ -17,7 +17,6 @@ const getFinalNotificationType = (n) => {
   const textContext = String(n.title || '') + ' ' + String(n.message || '') + ' ' + String(n.type || '');
   const normalizedText = textContext.trim().toLowerCase();
 
-  // Status updates from barangay officials
   if (normalizedText.includes('status updated') || normalizedText.includes('updated to')) {
     const msg = normalizedText;
     if (msg.includes('resolved')) return 'resolved';
